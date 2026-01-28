@@ -1,0 +1,413 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+////////////////////////////////////////////////////
+// ENUMS
+////////////////////////////////////////////////////
+enum UserRole {
+  OWNER
+  ADMIN
+  STAFF
+  DRIVER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BREAK
+}
+
+enum StockUnitStatus {
+  IN_STOCK
+  ASSIGNED
+  SCRAPPED
+  LOST
+}
+
+enum StockMoveType {
+  IN        // purchase / receiving
+  OUT       // used / issued
+  ADJUST    // stock opname adjustment
+  TRANSFER  // moved between locations
+}
+
+enum TruckStatus {
+  INACTIVE
+  READY
+  MAINTENANCE
+  DISPATCH
+}
+
+enum MaintenanceStatus {
+  OPEN
+  DONE
+  CANCELLED
+}
+
+enum OrderStatus {
+  DRAFT
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum OrderType {
+  OUTBOUND
+  RETURN
+}
+
+enum TripStatus {
+  PLANNED
+  DISPATCHED   // UI label: ON_ROUTE
+  ARRIVED
+  COMPLETED
+  CANCELLED
+}
+
+////////////////////////////////////////////////////
+// MODELS
+////////////////////////////////////////////////////
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  name      String?
+  password  String
+  phone     String?
+  role      UserRole   @default(ADMIN)
+  isActive  Boolean    @default(true)
+  status    UserStatus @default(ACTIVE)
+  createdAt DateTime   @default(now())
+
+  driver         Driver?
+  stockMovements StockMovement[] @relation("StockMovementByUser")
+  drivingTrucks  Truck[]         @relation("TruckDriverUser")
+  trips          Trip[]
+
+  sparePartAssignmentsCreated TruckSparePartAssignment[] @relation("SparePartAssignmentCreatedBy")
+}
+
+model Driver {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  phone     String?
+  licenseNo String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  address   String?
+  createdAt DateTime @default(now())
+
+  orders Order[]
+}
+
+////////////////////////////////////////////////////
+// ORDER + TRIP
+////////////////////////////////////////////////////
+model Order {
+  id      String @id @default(cuid())
+  orderNo String @unique
+
+  orderType OrderType @default(OUTBOUND)
+
+  // optional customer relation
+  customerId   String?
+  customer     Customer? @relation(fields: [customerId], references: [id])
+
+  // fallback if no Customer module used
+  customerName String?
+
+  // core order info
+  description String?
+  cargoName   String?
+  qty         Float?
+  unit        String? // "TON", "BAG", etc.
+
+  fromText  String? // pickup / warehouse
+  toText    String? // destination
+  plannedAt DateTime?
+
+  notes  String?
+  status OrderStatus @default(DRAFT)
+
+  // backhaul linkage
+  backhaulOfOrderId String?
+  backhaulOfOrder   Order?  @relation("BackhaulLink", fields: [backhaulOfOrderId], references: [id])
+  backhaulOrders    Order[] @relation("BackhaulLink")
+
+  // relations
+  trips  Trip[]
+  proofs OrderProof[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([status])
+  @@index([plannedAt])
+  @@index([customerName])
+  @@index([toText])
+  @@index([backhaulOfOrderId])
+}
+
+model Trip {
+  id String @id @default(cuid())
+
+  orderId String
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  truckId String
+  truck   Truck @relation(fields: [truckId], references: [id])
+
+  // driver is a User with role DRIVER (enforce in backend)
+  driverUserId String?
+  driverUser   User? @relation(fields: [driverUserId], references: [id])
+
+  status TripStatus @default(PLANNED)
+
+  // ✅ quantity per trip (for contract decrement)
+  qtyPlanned Float?  // planned load for this trip
+  qtyActual  Float?  // optional, fill when ARRIVED/COMPLETED
+  unitSnap   String?   // ✅ ADD THIS
+
+  // dates
+  plannedDepartAt DateTime?
+  dispatchedAt    DateTime?
+  arrivedAt       DateTime?
+  completedAt     DateTime?
+
+  // snapshot fields (for historical correctness)
+  plateNumberSnap String?
+  driverNameSnap  String?
+  fromText        String?
+  toText          String?
+
+  dispatchLetter DispatchLetter?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([truckId])
+  @@index([driverUserId])
+  @@index([status])
+}
+
+model OrderProof {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  url      String
+  fileName String?
+  mimeType String?
+  size     Int?
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+}
+
+model DispatchLetter {
+  id String @id @default(cuid())
+
+  tripId String @unique
+  trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  number   String @unique // e.g. "SP-2026-00045"
+  city     String?
+  issuedAt DateTime @default(now())
+
+  pdfUrl String? // generated pdf url
+
+  // snapshot fields (letter stays same even if order changes)
+  recipientName String?
+  cargoName     String?
+  driverName    String?
+  plateNumber   String?
+  loadDateText  String?
+  destination   String?
+
+  createdAt DateTime @default(now())
+}
+
+////////////////////////////////////////////////////
+// TRUCK
+////////////////////////////////////////////////////
+model Truck {
+  id          String   @id @default(cuid())
+  plateNumber String   @unique
+  brand       String?
+  model       String?
+  year        Int?
+  vin         String?  @unique
+
+  stnkExpiry DateTime?
+
+  status    TruckStatus @default(READY)
+  createdAt DateTime    @default(now())
+
+  trips Trip[] // ✅ Trips for dispatching
+
+  driverUserId String?
+  driverUser   User? @relation("TruckDriverUser", fields: [driverUserId], references: [id])
+
+  maintenances        TruckMaintenance[]
+  sparePartAssignments TruckSparePartAssignment[]
+
+  @@index([driverUserId])
+  @@index([stnkExpiry])
+}
+
+model TruckMaintenance {
+  id         String            @id @default(cuid())
+  truckId    String
+  title      String
+  note       String?
+  odometerKm Int?
+  status     MaintenanceStatus @default(OPEN)
+  createdAt  DateTime          @default(now())
+  doneAt     DateTime?
+
+  truck     Truck          @relation(fields: [truckId], references: [id])
+  movements StockMovement[]
+
+  sparePartAssignments TruckSparePartAssignment[]
+}
+
+////////////////////////////////////////////////////
+// INVENTORY
+////////////////////////////////////////////////////
+model StockUnit {
+  id           String   @id @default(cuid())
+  itemId       String
+  locationId   String?
+  serialNumber String?  @unique
+  barcode      String?  @unique
+
+  purchasePrice Int?
+  purchasedAt   DateTime?
+
+  status     StockUnitStatus @default(IN_STOCK)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  scrappedAt DateTime?
+
+  item     Item               @relation(fields: [itemId], references: [id])
+  location InventoryLocation? @relation(fields: [locationId], references: [id])
+
+  assignments TruckSparePartAssignment[]
+  movements   StockMovement[]
+
+  @@index([itemId])
+  @@index([locationId])
+  @@index([status])
+}
+
+model TruckSparePartAssignment {
+  id String @id @default(cuid())
+
+  truckId     String
+  stockUnitId String
+
+  installedAt DateTime
+  removedAt   DateTime?
+
+  note        String?
+  createdById String?
+  createdBy   User? @relation("SparePartAssignmentCreatedBy", fields: [createdById], references: [id])
+
+  maintenanceId String?
+  maintenance   TruckMaintenance? @relation(fields: [maintenanceId], references: [id])
+
+  truck     Truck     @relation(fields: [truckId], references: [id])
+  stockUnit StockUnit @relation(fields: [stockUnitId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([truckId])
+  @@index([stockUnitId])
+  @@index([installedAt])
+  @@index([removedAt])
+}
+
+model Item {
+  id           String   @id @default(cuid())
+  sku          String   @unique
+  name         String
+  unit         String   @default("PCS")
+  isSerialized Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  stocks     InventoryStock[]
+  movements  StockMovement[]
+  stockUnits StockUnit[]
+}
+
+model InventoryLocation {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  stocks    InventoryStock[]
+  fromMoves StockMovement[] @relation("FromLocation")
+  toMoves   StockMovement[] @relation("ToLocation")
+
+  stockUnits StockUnit[]
+}
+
+model InventoryStock {
+  id         String   @id @default(cuid())
+  itemId     String
+  locationId String
+  qty        Float    @default(0)
+  updatedAt  DateTime @updatedAt
+
+  item     Item              @relation(fields: [itemId], references: [id])
+  location InventoryLocation @relation(fields: [locationId], references: [id])
+
+  @@unique([itemId, locationId])
+}
+
+model StockMovement {
+  id        String       @id @default(cuid())
+  type      StockMoveType
+  itemId    String
+  qty       Float
+  note      String?
+  createdAt DateTime     @default(now())
+
+  createdById String?
+  createdBy   User? @relation("StockMovementByUser", fields: [createdById], references: [id])
+
+  fromLocationId String?
+  toLocationId   String?
+
+  fromLocation InventoryLocation? @relation("FromLocation", fields: [fromLocationId], references: [id])
+  toLocation   InventoryLocation? @relation("ToLocation", fields: [toLocationId], references: [id])
+
+  maintenanceId String?
+  maintenance   TruckMaintenance? @relation(fields: [maintenanceId], references: [id])
+
+  stockUnitId String?
+  stockUnit   StockUnit? @relation(fields: [stockUnitId], references: [id])
+
+  item Item @relation(fields: [itemId], references: [id])
+
+  @@index([stockUnitId])
+  @@index([itemId])
+  @@index([createdById])
+  @@index([fromLocationId])
+  @@index([toLocationId])
+}

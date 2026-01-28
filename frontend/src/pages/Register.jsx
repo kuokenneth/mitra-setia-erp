@@ -1,0 +1,264 @@
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { api } from "../api";
+
+export default function Register() {
+  const nav = useNavigate();
+
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState(""); // ✅ NEW
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [hover, setHover] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
+
+
+  const emailNorm = useMemo(() => email.trim().toLowerCase(), [email]);
+
+  const pwdMismatch =
+    password.length > 0 &&
+    confirmPassword.length > 0 &&
+    password !== confirmPassword;
+
+  const canSubmit =
+    !busy &&
+    emailNorm.length > 3 &&
+    password.length >= 6 &&
+    confirmPassword.length >= 6 &&
+    !pwdMismatch;
+
+  async function onSubmit(e) {
+    e.preventDefault();
+    setErr("");
+    setBusy(true);
+
+    const emailNorm = email.trim().toLowerCase();
+
+    try {
+      if (!emailNorm) throw new Error("Email is required.");
+      if (!password) throw new Error("Password is required.");
+      if (password.length < 6) throw new Error("Password must be at least 6 characters.");
+      if (password !== confirmPassword) throw new Error("Confirm password does not match.");
+      if (!inviteCode.trim()) throw new Error("Invitation code is required.");
+
+      await api("/auth/register", {
+        method: "POST",
+        body: JSON.stringify({
+          name: name.trim() || null,
+          email: emailNorm,
+          password,
+          confirmPassword,
+          inviteCode: inviteCode.trim(),
+          role: "STAFF", // backend should still force STAFF (don’t trust frontend)
+        }),
+      });
+
+      nav("/login");
+    } catch (e) {
+      setErr(e?.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+
+  return (
+    <div style={styles.page}>
+      <div style={styles.card}>
+        {/* Header */}
+        <div style={styles.header}>
+          <div style={styles.logo}>ERP</div>
+          <div>
+            <h2 style={styles.title}>MitraSetia</h2>
+            <p style={styles.subtitle}>Register a new user</p>
+          </div>
+        </div>
+
+        <form onSubmit={onSubmit}>
+          <div style={styles.field}>
+            <label style={styles.label}>Name</label>
+            <input
+              style={{ ...styles.input, ...styles.formControl }}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="name"
+              autoComplete="name"
+            />
+          </div>
+
+          <div style={styles.field}>
+            <label style={styles.label}>Email</label>
+            <input
+              style={{ ...styles.input, ...styles.formControl }}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="email@mitrasetia.com"
+              autoComplete="email"
+              inputMode="email"
+            />
+          </div>
+
+          <div style={styles.field}>
+            <label style={styles.label}>Password</label>
+            <input
+              style={{ ...styles.input, ...styles.formControl }}
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              autoComplete="new-password"
+            />
+          </div>
+
+          {/* ✅ NEW confirm password */}
+          <div style={styles.field}>
+            <label style={styles.label}>Confirm Password</label>
+            <input
+              style={{
+                ...styles.input,
+                ...styles.formControl,
+                border: pwdMismatch ? "1px solid #fca5a5" : styles.input.border,
+                background: pwdMismatch ? "#fff7f7" : styles.input.background,
+              }}
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="••••••••"
+              autoComplete="new-password"
+            />
+            {pwdMismatch && <div style={styles.inlineError}>Passwords do not match.</div>}
+          </div>
+
+          <div style={styles.field}>
+            <label style={styles.label}>Invitation Code</label>
+            <input
+              style={{ ...styles.input, ...styles.formControl }}
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+              placeholder="Provided by admin"
+            />
+            <div style={styles.hint}>Ask admin for the invite code.</div>
+          </div>
+
+          {err && (
+            <div style={styles.errorBox}>
+              <strong>Register failed</strong>
+              <div>{err}</div>
+            </div>
+          )}
+
+          <button
+            disabled={!canSubmit}
+            onMouseEnter={() => setHover(true)}
+            onMouseLeave={() => setHover(false)}
+            style={{
+              ...styles.button,
+              ...styles.formControl,
+              opacity: canSubmit ? 1 : 0.55,
+              cursor: canSubmit ? "pointer" : "not-allowed",
+              background: hover
+                ? "linear-gradient(135deg, #4ade80, #22c55e)"
+                : "linear-gradient(135deg, #22c55e, #16a34a)",
+              transform: hover && canSubmit ? "translateY(-1px)" : "translateY(0)",
+              transition: "all 0.2s ease",
+            }}
+          >
+            {busy ? "Creating..." : "Register"}
+          </button>
+
+          <div style={styles.footer}>
+            <div style={styles.registerRow}>
+              <span style={styles.registerText}>Already have an account?</span>
+              <span style={styles.registerLink} onClick={() => nav("/login")}>
+                Login
+              </span>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+const styles = {
+  page: {
+    minHeight: "100vh",
+    display: "grid",
+    placeItems: "center",
+    fontFamily:
+      '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif',
+    padding: 20,
+  },
+  card: {
+    width: "min(420px, 95vw)",
+    padding: 28,
+    borderRadius: 18,
+    background: "#ffffff",
+    border: "1px solid #d1fae5",
+    boxShadow: "0 20px 40px rgba(0,0,0,0.08)",
+  },
+  header: { display: "flex", alignItems: "center", gap: 14, marginBottom: 22 },
+  logo: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    display: "grid",
+    placeItems: "center",
+    fontWeight: 800,
+    color: "white",
+    background: "linear-gradient(135deg, #22c55e, #16a34a)",
+  },
+  title: { margin: 0, fontSize: 20, fontWeight: 700, color: "#065f46" },
+  subtitle: { margin: 0, fontSize: 13, color: "#047857" },
+  field: { marginBottom: 14 },
+  label: {
+    display: "block",
+    fontSize: 13,
+    fontWeight: 600,
+    marginBottom: 6,
+    color: "#065f46",
+  },
+  hint: { marginTop: 6, fontSize: 12, color: "#047857" },
+  inlineError: { marginTop: 6, fontSize: 12, color: "#b91c1c", fontWeight: 600 },
+  input: {
+    padding: "12px 12px",
+    borderRadius: 10,
+    border: "1px solid #a7f3d0",
+    background: "#f8fffb",
+    fontSize: 14,
+    outline: "none",
+  },
+  button: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 12,
+    border: "none",
+    fontWeight: 700,
+    fontSize: 14,
+    color: "white",
+    boxShadow: "0 8px 20px rgba(34,197,94,0.35)",
+  },
+  errorBox: {
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 10,
+    background: "#fee2e2",
+    border: "1px solid #fecaca",
+    color: "#991b1b",
+    fontSize: 12,
+  },
+  registerRow: { marginTop: 10, display: "flex", justifyContent: "center", gap: 6, fontSize: 13 },
+  registerText: { color: "#065f46" },
+  registerLink: { color: "#16a34a", fontWeight: 700, cursor: "pointer" },
+  footer: {
+    marginTop: 16,
+    paddingTop: 1,
+    borderTop: "1px solid #d1fae5",
+    fontSize: 12,
+    color: "#047857",
+    textAlign: "center",
+  },
+  formControl: { width: "100%", boxSizing: "border-box" },
+};
