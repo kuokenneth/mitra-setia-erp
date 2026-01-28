@@ -71,6 +71,7 @@ router.post("/login", async (req, res) => {
     const { email, password } = req.body || {};
     const emailNorm = String(email || "").trim().toLowerCase();
     const pwd = String(password || "");
+    const isProd = process.env.NODE_ENV === "production";
 
     if (!emailNorm || !pwd) {
       return res.status(400).json({ ok: false, error: "email and password required" });
@@ -102,8 +103,8 @@ router.post("/login", async (req, res) => {
 
     res.cookie("token", token, {
       httpOnly: true,
-      sameSite: "lax",
-      secure: false, // if HTTPS later, set true
+      secure: isProd,                 // ✅ true on Render (HTTPS)
+      sameSite: isProd ? "none" : "lax", // ✅ allow Netlify -> Render cookies
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -122,7 +123,11 @@ router.post("/login", async (req, res) => {
 });
 
 router.post("/logout", (req, res) => {
-  res.clearCookie("token");
+  const isProd = process.env.NODE_ENV === "production";
+  res.clearCookie("token", {
+    secure: isProd,
+    sameSite: isProd ? "none" : "lax",
+  });
   res.json({ ok: true });
 });
 
@@ -140,7 +145,11 @@ router.get("/me", requireAuth, async (req, res) => {
   });
 
   if (!user || !user.isActive) {
-    res.clearCookie("token");
+    const isProd = process.env.NODE_ENV === "production";
+    res.clearCookie("token", {
+      secure: isProd,
+      sameSite: isProd ? "none" : "lax",
+    });
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
 
