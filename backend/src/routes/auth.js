@@ -106,6 +106,7 @@ router.post("/login", async (req, res) => {
       secure: isProd,                 // ✅ true on Render (HTTPS)
       sameSite: isProd ? "none" : "lax", // ✅ allow Netlify -> Render cookies
       maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/", 
     });
 
     return res.json({
