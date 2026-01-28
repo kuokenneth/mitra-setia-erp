@@ -1,7 +1,11 @@
-const API = import.meta.env.VITE_API_URL;
+const API_BASE =
+  (import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/$/, "");
 
 export async function api(path, options = {}) {
-  const res = await fetch(API + path, {
+  const url = `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
+
+  const res = await fetch(url, {
+    method: options.method || "GET",
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -10,8 +14,15 @@ export async function api(path, options = {}) {
     credentials: "include",
   });
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || data?.message || "Request failed");
+  const text = await res.text();
+  let data = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
+
+  if (!res.ok) throw new Error(data?.error || data?.message || `Request failed (${res.status})`);
   return data;
 }
 
@@ -26,4 +37,3 @@ export function updateMe(payload) {
     body: JSON.stringify(payload),
   });
 }
-
