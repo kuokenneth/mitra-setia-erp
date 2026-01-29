@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 
@@ -11,6 +11,12 @@ export default function Login() {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [hover, setHover] = useState(false);
+
+  // ✅ iPhone friendly
+  const isMobile = useMemo(
+    () => typeof window !== "undefined" && window.innerWidth <= 640,
+    []
+  );
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -27,13 +33,15 @@ export default function Login() {
   }
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
+    <div style={{ ...styles.page, padding: isMobile ? 12 : 20 }}>
+      <div style={{ ...styles.card, padding: isMobile ? 18 : 28 }}>
         {/* Header */}
-        <div style={styles.header}>
-          <div style={styles.logo}>ERP</div>
+        <div style={{ ...styles.header, marginBottom: isMobile ? 16 : 22 }}>
+          <div style={{ ...styles.logo, width: isMobile ? 44 : 48, height: isMobile ? 44 : 48 }}>
+            ERP
+          </div>
           <div>
-            <h2 style={styles.title}>MitraSetia</h2>
+            <h2 style={{ ...styles.title, fontSize: isMobile ? 18 : 20 }}>MitraSetia</h2>
             <p style={styles.subtitle}>Sign in to your account</p>
           </div>
         </div>
@@ -47,6 +55,10 @@ export default function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="email@mitrasetia.com"
+              inputMode="email"
+              autoComplete="email"
+              autoCapitalize="none"
+              autoCorrect="off"
             />
           </div>
 
@@ -58,6 +70,7 @@ export default function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
+              autoComplete="current-password"
             />
           </div>
 
@@ -68,36 +81,34 @@ export default function Login() {
             </div>
           )}
 
-					<button
-							disabled={busy}
-							onMouseEnter={() => setHover(true)}
-							onMouseLeave={() => setHover(false)}
-							style={{
-									...styles.button,
-									...styles.formControl,
-									opacity: busy ? 0.7 : 1,
-									background: hover
-									? "linear-gradient(135deg, #4ade80, #22c55e)"
-									: "linear-gradient(135deg, #22c55e, #16a34a)",
-									transform: hover ? "translateY(-1px)" : "translateY(0)",
-									transition: "all 0.2s ease",
-									cursor: busy ? "not-allowed" : "pointer",
-							}}
-					>
-							{busy ? "Signing in..." : "Login"}
-					</button>
+          <button
+            disabled={busy}
+            onMouseEnter={() => setHover(true)}
+            onMouseLeave={() => setHover(false)}
+            style={{
+              ...styles.button,
+              ...styles.formControl,
+              opacity: busy ? 0.7 : 1,
+              background: hover
+                ? "linear-gradient(135deg, #4ade80, #22c55e)"
+                : "linear-gradient(135deg, #22c55e, #16a34a)",
+              transform: hover ? "translateY(-1px)" : "translateY(0)",
+              transition: "all 0.2s ease",
+              cursor: busy ? "not-allowed" : "pointer",
+              minHeight: 44, // ✅ tap target
+            }}
+          >
+            {busy ? "Signing in..." : "Login"}
+          </button>
 
-					<div style={styles.footer}>
-						<div style={styles.registerRow}>
-							<span style={styles.registerText}>Don’t have an account?</span>
-							<span
-								style={styles.registerLink}
-								onClick={() => nav("/register")}
-							>
-								Register
-							</span>
-						</div>
-					</div>
+          <div style={styles.footer}>
+            <div style={styles.registerRow}>
+              <span style={styles.registerText}>Don’t have an account?</span>
+              <span style={styles.registerLink} onClick={() => nav("/register")}>
+                Register
+              </span>
+            </div>
+          </div>
         </form>
       </div>
     </div>
@@ -112,10 +123,11 @@ const styles = {
     fontFamily:
       '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif',
     padding: 20,
+    background: "linear-gradient(180deg, #ECFDF5 0%, #F7FFFB 70%)",
   },
 
   card: {
-    width: "min(420px, 95vw)",
+    width: "min(420px, 94vw)",
     padding: 28,
     borderRadius: 18,
     background: "#ffffff",
@@ -136,16 +148,18 @@ const styles = {
     borderRadius: 12,
     display: "grid",
     placeItems: "center",
-    fontWeight: 800,
+    fontWeight: 900,
     color: "white",
     background: "linear-gradient(135deg, #22c55e, #16a34a)",
+    userSelect: "none",
   },
 
   title: {
     margin: 0,
     fontSize: 20,
-    fontWeight: 700,
+    fontWeight: 900,
     color: "#065f46",
+    letterSpacing: -0.2,
   },
 
   subtitle: {
@@ -161,18 +175,20 @@ const styles = {
   label: {
     display: "block",
     fontSize: 13,
-    fontWeight: 600,
+    fontWeight: 800,
     marginBottom: 6,
     color: "#065f46",
   },
 
+  // ✅ iOS: fontSize 16 prevents Safari zoom on focus
   input: {
     padding: "12px 12px",
-    borderRadius: 10,
+    borderRadius: 12,
     border: "1px solid #a7f3d0",
     background: "#f8fffb",
-    fontSize: 14,
+    fontSize: 16,
     outline: "none",
+    minHeight: 44,
   },
 
   button: {
@@ -180,22 +196,22 @@ const styles = {
     padding: 12,
     borderRadius: 12,
     border: "none",
-    fontWeight: 700,
-    fontSize: 14,
+    fontWeight: 900,
+    fontSize: 15,
     color: "white",
     background: "linear-gradient(135deg, #22c55e, #16a34a)",
     boxShadow: "0 8px 20px rgba(34,197,94,0.35)",
-    cursor: "pointer",
   },
 
   errorBox: {
     marginBottom: 12,
     padding: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     background: "#fee2e2",
     border: "1px solid #fecaca",
     color: "#991b1b",
     fontSize: 12,
+    lineHeight: 1.5,
   },
 
   footer: {
@@ -207,28 +223,27 @@ const styles = {
     textAlign: "center",
   },
 
-  // 🔑 IMPORTANT: ensures perfect alignment
   formControl: {
     width: "100%",
     boxSizing: "border-box",
   },
 
-	registerRow: {
-		marginTop: 0,
-		display: "flex",
-		justifyContent: "center",
-		gap: 3,
-		fontSize: 13,
-	},
+  registerRow: {
+    marginTop: 0,
+    display: "flex",
+    justifyContent: "center",
+    gap: 6,
+    fontSize: 13,
+    flexWrap: "wrap",
+  },
 
-	registerText: {
-		color: "#065f46",
-	},
+  registerText: {
+    color: "#065f46",
+  },
 
-	registerLink: {
-		color: "#16a34a",
-		fontWeight: 700,
-		cursor: "pointer",
-	},
-
+  registerLink: {
+    color: "#16a34a",
+    fontWeight: 900,
+    cursor: "pointer",
+  },
 };
