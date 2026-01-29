@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+// src/layouts/AppLayout.jsx
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 
@@ -12,7 +13,7 @@ export default function AppLayout() {
   // ✅ Mobile drawer
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // ✅ FIX 1: reactive mobile detection (updates on iPhone rotation / resize)
+  // ✅ Detect mobile (reactive)
   const [isMobile, setIsMobile] = useState(() =>
     window.matchMedia("(max-width: 900px)").matches
   );
@@ -30,23 +31,48 @@ export default function AppLayout() {
     };
   }, []);
 
+  // ✅ Desktop sidebar collapse/expand (persist)
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    try {
+      const saved = localStorage.getItem("cms_sidebar_open");
+      return saved == null ? true : saved === "1";
+    } catch {
+      return true;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("cms_sidebar_open", sidebarOpen ? "1" : "0");
+    } catch {}
+  }, [sidebarOpen]);
+
+  // ✅ When switching layout modes, close drawer
+  useEffect(() => {
+    if (!isMobile) setMobileOpen(false);
+  }, [isMobile]);
+
   const role = user?.role || "UNKNOWN";
   const isOwnerAdmin = role === "OWNER" || role === "ADMIN";
   const isStaff = role === "STAFF";
   const canManageDrivers = isOwnerAdmin || isStaff;
   const isDriver = role === "DRIVER";
 
-  const menu = isDriver
-    ? [{ to: "/driver/jobs", label: "My Jobs" }]
-    : [
-        { to: "/dashboard", label: "Dashboard" },
-        ...(isOwnerAdmin ? [{ to: "/users", label: "Users" }] : []),
-        ...(canManageDrivers ? [{ to: "/drivers/new", label: "Create Driver" }] : []),
-        { to: "/trucks", label: "Trucks" },
-        { to: "/inventory", label: "Inventory" },
-        { to: "/maintenance", label: "Maintenance" },
-        { to: "/orders", label: "Orders" },
-      ];
+  const menu = useMemo(() => {
+    if (isDriver) return [{ to: "/driver/jobs", label: "My Jobs", icon: "🧾" }];
+
+    return [
+      { to: "/dashboard", label: "Dashboard", icon: "📊" },
+      ...(isOwnerAdmin ? [{ to: "/users", label: "Users", icon: "👥" }] : []),
+      ...(canManageDrivers
+        ? [{ to: "/drivers/new", label: "Create Driver", icon: "🧑‍✈️" }]
+        : []),
+      { to: "/trucks", label: "Trucks", icon: "🚚" },
+      { to: "/inventory", label: "Inventory", icon: "📦" },
+      { to: "/maintenance", label: "Maintenance", icon: "🛠️" },
+      { to: "/orders", label: "Orders", icon: "🧾" },
+    ];
+  }, [isDriver, isOwnerAdmin, canManageDrivers]);
 
   async function doLogout() {
     await logout();
@@ -54,58 +80,78 @@ export default function AppLayout() {
   }
 
   function SidebarContent({ inDrawer = false }) {
+    const collapsed = !isMobile && !inDrawer && !sidebarOpen;
+
     return (
-      <div style={{ ...s.sidebar, ...(inDrawer ? s.sidebarDrawer : {}) }}>
+      <div
+        style={{
+          ...s.sidebar,
+          ...(inDrawer ? s.sidebarDrawer : {}),
+          padding: collapsed ? 14 : s.sidebar.padding, // ✅ nicer collapsed spacing
+        }}
+      >
         <div style={s.brand}>
           <div style={s.logo}>CMS</div>
-          <div style={{ minWidth: 0 }}>
-            <div style={s.brandTitle}>Mitra Setia</div>
-            <div style={s.brandSub}>Transport & Operations</div>
-          </div>
-        </div>
 
-        {/* ✅ User card */}
-        <div
-          style={{
-            ...s.userCard,
-            cursor: "pointer",
-            transform: hoverUserCard ? "translateY(-1px)" : "translateY(0)",
-            boxShadow: hoverUserCard
-              ? "0 16px 36px rgba(0,0,0,0.10)"
-              : s.userCard.boxShadow,
-            border: hoverUserCard
-              ? "1px solid rgba(34,197,94,0.25)"
-              : s.userCard.border,
-            transition: "all 0.18s ease",
-          }}
-          onMouseEnter={() => setHoverUserCard(true)}
-          onMouseLeave={() => setHoverUserCard(false)}
-          onClick={() => {
-            nav("/profile");
-            if (inDrawer) setMobileOpen(false);
-          }}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              nav("/profile");
-              if (inDrawer) setMobileOpen(false);
-            }
-          }}
-          title="Edit profile"
-        >
-          <div style={s.userRow}>
-            <div style={s.avatar}>
-              {(user?.name || user?.email || "U").slice(0, 1).toUpperCase()}
-            </div>
+          {!collapsed && (
             <div style={{ minWidth: 0 }}>
-              <div style={s.userName}>{user?.name || "User"}</div>
-              <div style={s.userEmail}>{user?.email || "-"}</div>
+              <div style={s.brandTitle}>Mitra Setia</div>
+              <div style={s.brandSub}>Transport & Operations</div>
             </div>
-          </div>
+          )}
         </div>
 
-        <div style={s.menuLabel}>MENU</div>
+        {/* ✅ User card (collapsed = clean square button, no pill background) */}
+        {collapsed ? (
+          <button
+            style={s.userMiniBtn}
+            onClick={() => nav("/profile")}
+            title="Edit profile"
+            aria-label="Edit profile"
+          >
+            <span style={s.avatarMini}>
+              {(user?.name || user?.email || "U").slice(0, 1).toUpperCase()}
+            </span>
+          </button>
+        ) : (
+          <div
+            style={{
+              ...s.userCard,
+              cursor: "pointer",
+              transform: hoverUserCard ? "translateY(-1px)" : "translateY(0)",
+              boxShadow: hoverUserCard
+                ? "0 16px 36px rgba(0,0,0,0.10)"
+                : s.userCard.boxShadow,
+              border: hoverUserCard
+                ? "1px solid rgba(34,197,94,0.25)"
+                : s.userCard.border,
+              transition: "all 0.18s ease",
+            }}
+            onMouseEnter={() => setHoverUserCard(true)}
+            onMouseLeave={() => setHoverUserCard(false)}
+            onClick={() => nav("/profile")}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") nav("/profile");
+            }}
+            title="Edit profile"
+          >
+            <div style={s.userRow}>
+              <div style={s.avatar}>
+                {(user?.name || user?.email || "U").slice(0, 1).toUpperCase()}
+              </div>
+
+              <div style={{ minWidth: 0 }}>
+                <div style={s.userName}>{user?.name || "User"}</div>
+                <div style={s.userEmail}>{user?.email || "-"}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!collapsed && <div style={s.menuLabel}>MENU</div>}
+
         <nav style={s.nav}>
           {menu.map((m) => (
             <NavLink
@@ -115,9 +161,15 @@ export default function AppLayout() {
               style={({ isActive }) => ({
                 ...s.navItem,
                 ...(isActive ? s.navActive : {}),
+                justifyContent: collapsed ? "center" : "flex-start",
+                padding: collapsed ? "10px 10px" : "10px 12px",
               })}
+              title={collapsed ? m.label : undefined}
             >
-              {m.label}
+              <span style={{ display: "inline-flex", gap: 10, alignItems: "center" }}>
+                <span style={s.navIcon}>{m.icon || "•"}</span>
+                {(!collapsed || inDrawer || isMobile) && m.label}
+              </span>
             </NavLink>
           ))}
         </nav>
@@ -136,9 +188,11 @@ export default function AppLayout() {
                 ? "linear-gradient(135deg, #34d399, #22c55e)"
                 : "linear-gradient(135deg, #22c55e, #16a34a)",
               transform: hoverLogout ? "translateY(-1px)" : "translateY(0)",
+              padding: collapsed ? "12px 10px" : s.logoutBtn.padding,
             }}
+            title={collapsed ? "Logout" : undefined}
           >
-            Logout
+            {collapsed ? "⎋" : "Logout"}
           </button>
           <div style={s.sidebarFootNote}>v0.1 • Local</div>
         </div>
@@ -146,14 +200,10 @@ export default function AppLayout() {
     );
   }
 
+  const gridCols = isMobile ? "1fr" : sidebarOpen ? "280px 1fr" : "76px 1fr";
+
   return (
-    // ✅ FIX 2: mobile must be 1 column, desktop is 280px + main
-    <div
-      style={{
-        ...s.page,
-        gridTemplateColumns: isMobile ? "1fr" : "280px 1fr",
-      }}
-    >
+    <div style={{ ...s.page, gridTemplateColumns: gridCols }}>
       {/* Desktop sidebar */}
       {!isMobile && (
         <aside style={s.sidebarWrap}>
@@ -164,7 +214,6 @@ export default function AppLayout() {
       {/* Mobile: top bar + drawer */}
       {isMobile && (
         <>
-          {/* Mobile header */}
           <header style={s.mobileTop}>
             <button
               onClick={() => setMobileOpen(true)}
@@ -182,7 +231,6 @@ export default function AppLayout() {
             <span style={s.topRole}>{role}</span>
           </header>
 
-          {/* Drawer overlay */}
           {mobileOpen && (
             <div
               style={s.drawerOverlay}
@@ -217,9 +265,22 @@ export default function AppLayout() {
         {/* Desktop topbar */}
         {!isMobile && (
           <header style={s.topbar}>
-            <div style={{ minWidth: 0 }}>
-              <div style={s.topTitle}>Operation</div>
-              <div style={s.topSub}>Mitra Setia ERP • Company operation management</div>
+            <div style={s.topLeft}>
+              <button
+                onClick={() => setSidebarOpen((v) => !v)}
+                style={s.desktopHamburger}
+                aria-label={sidebarOpen ? "Collapse menu" : "Expand menu"}
+                title={sidebarOpen ? "Collapse menu" : "Expand menu"}
+              >
+                ☰
+              </button>
+
+              <div style={{ minWidth: 0 }}>
+                <div style={s.topTitle}>Operation</div>
+                <div style={s.topSub}>
+                  Mitra Setia ERP • Company operation management
+                </div>
+              </div>
             </div>
 
             <div style={s.topRight}>
@@ -242,7 +303,7 @@ const s = {
   page: {
     minHeight: "100vh",
     display: "grid",
-    gridTemplateColumns: "280px 1fr", // (kept; overridden inline above)
+    gridTemplateColumns: "280px 1fr",
     background: "#f3fbf6",
     fontFamily:
       '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif',
@@ -265,7 +326,6 @@ const s = {
     height: "100%",
   },
 
-  // Drawer tweaks
   sidebarDrawer: {
     borderRight: "none",
     padding: 16,
@@ -317,6 +377,33 @@ const s = {
     maxWidth: 220,
   },
 
+  // ✅ Collapsed user button (clean square)
+  userMiniBtn: {
+    marginTop: 6,
+    width: "100%",
+    display: "flex",
+    justifyContent: "center",
+    border: "none",
+    background: "transparent",
+    padding: 0,
+    cursor: "pointer",
+  },
+  avatarMini: {
+    width: 44,
+    height: 44,
+    aspectRatio: "1 / 1",
+    borderRadius: 14,
+    display: "grid",
+    placeItems: "center",
+    fontWeight: 950,
+    fontSize: 18,
+    lineHeight: "1",
+    color: "#065f46",
+    background: "rgba(34,197,94,0.14)",
+    border: "1px solid rgba(6,95,70,0.10)",
+    boxShadow: "0 10px 20px rgba(0,0,0,0.06)",
+  },
+
   menuLabel: {
     fontSize: 11,
     fontWeight: 900,
@@ -334,10 +421,17 @@ const s = {
     padding: "10px 12px",
     borderRadius: 14,
     transition: "all 0.15s ease",
+    display: "flex",
+    alignItems: "center",
   },
   navActive: {
     background: "rgba(34,197,94,0.14)",
     color: "#065f46",
+  },
+  navIcon: {
+    width: 22,
+    display: "inline-flex",
+    justifyContent: "center",
   },
 
   logoutBtn: {
@@ -374,6 +468,23 @@ const s = {
     justifyContent: "space-between",
     alignItems: "center",
     boxSizing: "border-box",
+  },
+  topLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    minWidth: 0,
+  },
+  desktopHamburger: {
+    border: "1px solid rgba(6,95,70,0.12)",
+    background: "#fff",
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    fontSize: 20,
+    fontWeight: 900,
+    cursor: "pointer",
+    color: "#065f46",
   },
   topTitle: { fontWeight: 1000, fontSize: 18, color: "#053a2f" },
   topSub: { marginTop: 4, fontSize: 12, color: "rgba(4,120,87,0.85)" },
