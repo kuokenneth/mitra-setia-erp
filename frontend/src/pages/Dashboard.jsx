@@ -16,7 +16,6 @@ import { useAuth } from "../AuthContext";
 const pageBg = {
   minHeight: "100vh",
   padding: 22,
-  background: "linear-gradient(180deg, #EAF7F1 0%, #F6FFFB 70%)",
   color: "#0B2A1F",
 };
 

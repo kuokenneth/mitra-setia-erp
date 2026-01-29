@@ -20,8 +20,10 @@ export default function Users() {
 
   const [hoverSelect, setHoverSelect] = useState(false);
   const [focusSelect, setFocusSelect] = useState(false);
+  
 
   const skip = useMemo(() => page * take, [page]);
+  const isMobile = window.matchMedia("(max-width: 900px)").matches;
 
   async function updateStatus(userId, status) {
     try {
@@ -325,15 +327,18 @@ function statusVariant(status) {
 
 
 const s = {
-  page: { padding: 6 },
+  page: {
+    padding: isMobile ? 0 : 6,     // ✅ remove extra padding on phone
+    paddingTop: isMobile ? 0 : 6,  // ✅ make it tight like dashboard
+  },
   headerRow: {
     display: "flex",
     alignItems: "end",
     justifyContent: "space-between",
     gap: 12,
-    marginBottom: 14,
+    marginBottom: isMobile ? 10 : 14, // ✅ smaller gap on phone
   },
-  hTitle: { fontWeight: 1000, fontSize: 18, color: "#053a2f" },
+  hTitle: { fontWeight: 1000, fontSize: 18, color: "#053a2f"},
   hSub: { marginTop: 4, fontSize: 12, color: "rgba(4,120,87,0.85)", fontWeight: 700 },
   pill: {
     fontSize: 12,
@@ -350,7 +355,7 @@ const s = {
     background: "linear-gradient(180deg, #fff 0%, #fbfffd 100%)",
     boxShadow: "0 12px 30px rgba(0,0,0,0.06)",
     border: "1px solid rgba(6,95,70,0.08)",
-    padding: 18,
+    padding: isMobile ? 14 : 18,      // ✅ slightly smaller on phone
     minWidth: 0,
   },
 

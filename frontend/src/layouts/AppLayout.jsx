@@ -290,7 +290,14 @@ export default function AppLayout() {
         )}
 
         {/* ✅ KEY FIX: on mobile, AppLayout adds NO outer padding (prevents huge white top on some pages) */}
-        <div style={{ ...s.contentOuter, padding: isMobile ? 0 : 22 }}>
+        <div
+          style={{
+            ...s.contentOuter,
+            padding: isMobile ? 0 : 22,
+            paddingTop: isMobile ? 0 : 16, // ✅ add breathing space under desktop topbar
+          }}
+        >
+
           <div
             style={{
               ...s.contentInner,
@@ -509,7 +516,9 @@ const s = {
     width: "100%",
     boxSizing: "border-box",
     padding: 22,
+    paddingTop: 16, // ✅ default
   },
+
   contentInner: {
     maxWidth: 1100,
     margin: "0 auto",
