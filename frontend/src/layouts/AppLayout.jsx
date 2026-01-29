@@ -516,9 +516,7 @@ const s = {
     width: "100%",
     boxSizing: "border-box",
     padding: 22,
-    paddingTop: 16, // ✅ default
   },
-
   contentInner: {
     maxWidth: 1100,
     margin: "0 auto",
