@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 
@@ -11,6 +11,24 @@ export default function AppLayout() {
 
   // ✅ Mobile drawer
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // ✅ FIX 1: reactive mobile detection (updates on iPhone rotation / resize)
+  const [isMobile, setIsMobile] = useState(() =>
+    window.matchMedia("(max-width: 900px)").matches
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 900px)");
+    const onChange = () => setIsMobile(mq.matches);
+
+    if (mq.addEventListener) mq.addEventListener("change", onChange);
+    else mq.addListener(onChange);
+
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", onChange);
+      else mq.removeListener(onChange);
+    };
+  }, []);
 
   const role = user?.role || "UNKNOWN";
   const isOwnerAdmin = role === "OWNER" || role === "ADMIN";
@@ -29,9 +47,6 @@ export default function AppLayout() {
         { to: "/maintenance", label: "Maintenance" },
         { to: "/orders", label: "Orders" },
       ];
-
-  // ✅ detect mobile (no re-render listener; good enough for most use)
-  const isMobile = useMemo(() => window.matchMedia("(max-width: 900px)").matches, []);
 
   async function doLogout() {
     await logout();
@@ -132,7 +147,13 @@ export default function AppLayout() {
   }
 
   return (
-    <div style={s.page}>
+    // ✅ FIX 2: mobile must be 1 column, desktop is 280px + main
+    <div
+      style={{
+        ...s.page,
+        gridTemplateColumns: isMobile ? "1fr" : "280px 1fr",
+      }}
+    >
       {/* Desktop sidebar */}
       {!isMobile && (
         <aside style={s.sidebarWrap}>
@@ -221,7 +242,7 @@ const s = {
   page: {
     minHeight: "100vh",
     display: "grid",
-    gridTemplateColumns: "280px 1fr",
+    gridTemplateColumns: "280px 1fr", // (kept; overridden inline above)
     background: "#f3fbf6",
     fontFamily:
       '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif',
