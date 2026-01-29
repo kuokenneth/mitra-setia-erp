@@ -289,9 +289,14 @@ export default function AppLayout() {
           </header>
         )}
 
-        {/* ✅ FIX: remove extra top padding (prevents huge white top on iPhone pages) */}
-        <div style={{ ...s.contentOuter, padding: isMobile ? 8 : 22 }}>
-          <div style={s.contentInner}>
+        {/* ✅ KEY FIX: on mobile, AppLayout adds NO outer padding (prevents huge white top on some pages) */}
+        <div style={{ ...s.contentOuter, padding: isMobile ? 0 : 22 }}>
+          <div
+            style={{
+              ...s.contentInner,
+              padding: isMobile ? 12 : 0, // ✅ mobile padding here instead
+            }}
+          >
             <Outlet />
           </div>
         </div>
@@ -378,7 +383,6 @@ const s = {
     maxWidth: 220,
   },
 
-  // ✅ Collapsed user button (same size as CMS)
   userMiniBtn: {
     marginTop: 6,
     width: "100%",
@@ -505,7 +509,6 @@ const s = {
     width: "100%",
     boxSizing: "border-box",
     padding: 22,
-    paddingTop: 0, // ✅ key fix to avoid big white area under sticky mobile header
   },
   contentInner: {
     maxWidth: 1100,
@@ -513,9 +516,6 @@ const s = {
     minWidth: 0,
   },
 
-  //////////////////////
-  // Mobile top + drawer
-  //////////////////////
   mobileTop: {
     position: "sticky",
     top: 0,
@@ -524,7 +524,7 @@ const s = {
     alignItems: "center",
     justifyContent: "space-between",
     gap: 10,
-    padding: "10px 12px", // ✅ slimmer
+    padding: "10px 12px",
     background: "rgba(255,255,255,0.92)",
     borderBottom: "1px solid rgba(6,95,70,0.10)",
     backdropFilter: "blur(8px)",
@@ -532,10 +532,10 @@ const s = {
   hamburgerBtn: {
     border: "1px solid rgba(6,95,70,0.12)",
     background: "#fff",
-    width: 40, // ✅ slimmer
-    height: 40, // ✅ slimmer
-    borderRadius: 12, // ✅ slimmer
-    fontSize: 18, // ✅ slimmer
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    fontSize: 18,
     fontWeight: 900,
     cursor: "pointer",
     color: "#065f46",
