@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 
@@ -9,6 +9,9 @@ export default function AppLayout() {
   const [hoverLogout, setHoverLogout] = useState(false);
   const [hoverUserCard, setHoverUserCard] = useState(false);
 
+  // ✅ Mobile drawer
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   const role = user?.role || "UNKNOWN";
   const isOwnerAdmin = role === "OWNER" || role === "ADMIN";
   const isStaff = role === "STAFF";
@@ -16,25 +19,28 @@ export default function AppLayout() {
   const isDriver = role === "DRIVER";
 
   const menu = isDriver
-    ? [
-        { to: "/driver/jobs", label: "My Jobs" },
-      ]
+    ? [{ to: "/driver/jobs", label: "My Jobs" }]
     : [
         { to: "/dashboard", label: "Dashboard" },
         ...(isOwnerAdmin ? [{ to: "/users", label: "Users" }] : []),
-
-        // ✅ STAFF / ADMIN / OWNER can create drivers
         ...(canManageDrivers ? [{ to: "/drivers/new", label: "Create Driver" }] : []),
-
         { to: "/trucks", label: "Trucks" },
         { to: "/inventory", label: "Inventory" },
         { to: "/maintenance", label: "Maintenance" },
         { to: "/orders", label: "Orders" },
       ];
 
-  return (
-    <div style={s.page}>
-      <aside style={s.sidebar}>
+  // ✅ detect mobile (no re-render listener; good enough for most use)
+  const isMobile = useMemo(() => window.matchMedia("(max-width: 900px)").matches, []);
+
+  async function doLogout() {
+    await logout();
+    nav("/", { replace: true });
+  }
+
+  function SidebarContent({ inDrawer = false }) {
+    return (
+      <div style={{ ...s.sidebar, ...(inDrawer ? s.sidebarDrawer : {}) }}>
         <div style={s.brand}>
           <div style={s.logo}>CMS</div>
           <div style={{ minWidth: 0 }}>
@@ -43,7 +49,7 @@ export default function AppLayout() {
           </div>
         </div>
 
-        {/* ✅ CLICKABLE USER CARD -> /profile */}
+        {/* ✅ User card */}
         <div
           style={{
             ...s.userCard,
@@ -59,11 +65,17 @@ export default function AppLayout() {
           }}
           onMouseEnter={() => setHoverUserCard(true)}
           onMouseLeave={() => setHoverUserCard(false)}
-          onClick={() => nav("/profile")}
+          onClick={() => {
+            nav("/profile");
+            if (inDrawer) setMobileOpen(false);
+          }}
           role="button"
           tabIndex={0}
           onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") nav("/profile");
+            if (e.key === "Enter" || e.key === " ") {
+              nav("/profile");
+              if (inDrawer) setMobileOpen(false);
+            }
           }}
           title="Edit profile"
         >
@@ -84,6 +96,7 @@ export default function AppLayout() {
             <NavLink
               key={m.to}
               to={m.to}
+              onClick={() => inDrawer && setMobileOpen(false)}
               style={({ isActive }) => ({
                 ...s.navItem,
                 ...(isActive ? s.navActive : {}),
@@ -97,8 +110,8 @@ export default function AppLayout() {
         <div style={{ marginTop: "auto" }}>
           <button
             onClick={async () => {
-              await logout();
-              nav("/", { replace: true });
+              await doLogout();
+              if (inDrawer) setMobileOpen(false);
             }}
             onMouseEnter={() => setHoverLogout(true)}
             onMouseLeave={() => setHoverLogout(false)}
@@ -114,21 +127,87 @@ export default function AppLayout() {
           </button>
           <div style={s.sidebarFootNote}>v0.1 • Local</div>
         </div>
-      </aside>
+      </div>
+    );
+  }
+
+  return (
+    <div style={s.page}>
+      {/* Desktop sidebar */}
+      {!isMobile && (
+        <aside style={s.sidebarWrap}>
+          <SidebarContent />
+        </aside>
+      )}
+
+      {/* Mobile: top bar + drawer */}
+      {isMobile && (
+        <>
+          {/* Mobile header */}
+          <header style={s.mobileTop}>
+            <button
+              onClick={() => setMobileOpen(true)}
+              style={s.hamburgerBtn}
+              aria-label="Open menu"
+            >
+              ☰
+            </button>
+
+            <div style={{ minWidth: 0 }}>
+              <div style={s.mobileTitle}>Mitra Setia</div>
+              <div style={s.mobileSub}>ERP • Operation</div>
+            </div>
+
+            <span style={s.topRole}>{role}</span>
+          </header>
+
+          {/* Drawer overlay */}
+          {mobileOpen && (
+            <div
+              style={s.drawerOverlay}
+              onClick={() => setMobileOpen(false)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === "Escape" && setMobileOpen(false)}
+            >
+              <div
+                style={s.drawer}
+                onClick={(e) => e.stopPropagation()}
+                role="presentation"
+              >
+                <div style={s.drawerHeader}>
+                  <div style={{ fontWeight: 950, color: "#053a2f" }}>Menu</div>
+                  <button
+                    onClick={() => setMobileOpen(false)}
+                    style={s.closeBtn}
+                    aria-label="Close menu"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <SidebarContent inDrawer />
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
       <main style={s.main}>
-        <header style={s.topbar}>
-          <div style={{ minWidth: 0 }}>
-            <div style={s.topTitle}>Operation</div>
-            <div style={s.topSub}>Mitra Setia ERP • Company operation management</div>
-          </div>
+        {/* Desktop topbar */}
+        {!isMobile && (
+          <header style={s.topbar}>
+            <div style={{ minWidth: 0 }}>
+              <div style={s.topTitle}>Operation</div>
+              <div style={s.topSub}>Mitra Setia ERP • Company operation management</div>
+            </div>
 
-          <div style={s.topRight}>
-            <span style={s.topRole}>{role}</span>
-          </div>
-        </header>
+            <div style={s.topRight}>
+              <span style={s.topRole}>{role}</span>
+            </div>
+          </header>
+        )}
 
-        <div style={s.contentOuter}>
+        <div style={{ ...s.contentOuter, padding: isMobile ? 12 : 22 }}>
           <div style={s.contentInner}>
             <Outlet />
           </div>
@@ -150,14 +229,25 @@ const s = {
     overflowX: "hidden",
   },
 
+  sidebarWrap: {
+    background: "#fff",
+    borderRight: "1px solid rgba(6,95,70,0.08)",
+  },
+
   sidebar: {
     background: "#ffffff",
-    borderRight: "1px solid rgba(6,95,70,0.08)",
     padding: 18,
     display: "flex",
     flexDirection: "column",
     gap: 14,
     boxSizing: "border-box",
+    height: "100%",
+  },
+
+  // Drawer tweaks
+  sidebarDrawer: {
+    borderRight: "none",
+    padding: 16,
   },
 
   brand: { display: "flex", alignItems: "center", gap: 12 },
@@ -203,13 +293,7 @@ const s = {
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
-    maxWidth: 190,
-  },
-  profileHint: {
-    marginTop: 6,
-    fontSize: 11,
-    color: "rgba(4,120,87,0.65)",
-    fontWeight: 800,
+    maxWidth: 220,
   },
 
   menuLabel: {
@@ -281,6 +365,7 @@ const s = {
     background: "#ffffff",
     border: "1px solid rgba(6,95,70,0.10)",
     color: "#065f46",
+    whiteSpace: "nowrap",
   },
 
   contentOuter: {
@@ -292,5 +377,70 @@ const s = {
     maxWidth: 1100,
     margin: "0 auto",
     minWidth: 0,
+  },
+
+  //////////////////////
+  // Mobile top + drawer
+  //////////////////////
+  mobileTop: {
+    position: "sticky",
+    top: 0,
+    zIndex: 50,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    padding: "12px 12px",
+    background: "rgba(255,255,255,0.92)",
+    borderBottom: "1px solid rgba(6,95,70,0.10)",
+    backdropFilter: "blur(8px)",
+  },
+  hamburgerBtn: {
+    border: "1px solid rgba(6,95,70,0.12)",
+    background: "#fff",
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    fontSize: 20,
+    fontWeight: 900,
+    cursor: "pointer",
+    color: "#065f46",
+  },
+  mobileTitle: { fontWeight: 950, fontSize: 14, color: "#053a2f", lineHeight: 1.1 },
+  mobileSub: { fontSize: 12, color: "rgba(4,120,87,0.85)", marginTop: 2 },
+
+  drawerOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.35)",
+    zIndex: 100,
+    display: "flex",
+    justifyContent: "flex-start",
+  },
+  drawer: {
+    width: "86%",
+    maxWidth: 360,
+    height: "100%",
+    background: "#fff",
+    boxShadow: "18px 0 50px rgba(0,0,0,0.18)",
+    overflowY: "auto",
+  },
+  drawerHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 12,
+    borderBottom: "1px solid rgba(6,95,70,0.08)",
+  },
+  closeBtn: {
+    border: "1px solid rgba(6,95,70,0.12)",
+    background: "#fff",
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    cursor: "pointer",
+    fontSize: 16,
+    fontWeight: 900,
+    color: "#065f46",
   },
 };

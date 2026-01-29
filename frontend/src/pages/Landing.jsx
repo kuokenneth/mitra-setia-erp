@@ -11,7 +11,6 @@ export default function Landing() {
     "Halo CV. Mitra Setia, saya ingin tanya layanan pengangkutan."
   )}`;
 
-  // ✅ same green vibe as Login button
   const BRAND = {
     green1: "#22C55E",
     green2: "#16A34A",
@@ -50,13 +49,15 @@ export default function Landing() {
 
   const [idx, setIdx] = useState(0);
 
-  // auto slide like corporate sites
   useEffect(() => {
     const t = setInterval(() => setIdx((v) => (v + 1) % slides.length), 6500);
     return () => clearInterval(t);
   }, [slides.length]);
 
   const s = slides[idx];
+
+  const isMobile = typeof window !== "undefined" && window.innerWidth <= 640;
+  const isNarrow = typeof window !== "undefined" && window.innerWidth < 980;
 
   const page = {
     minHeight: "100vh",
@@ -67,7 +68,11 @@ export default function Landing() {
   };
 
   // content container for sections (not for hero)
-  const container = { maxWidth: 1180, margin: "0 auto", padding: "0 22px" };
+  const container = {
+    maxWidth: 1180,
+    margin: "0 auto",
+    padding: isMobile ? "0 12px" : "0 22px",
+  };
 
   const btn = {
     display: "inline-flex",
@@ -93,10 +98,28 @@ export default function Landing() {
     boxShadow: "0 22px 55px rgba(34,197,94,0.22)",
   };
 
-  const section = { padding: "84px 0" };
-  const eyebrow = { fontSize: 12, fontWeight: 900, letterSpacing: 1.2, textTransform: "uppercase", opacity: 0.6 };
-  const h2 = { fontSize: 38, lineHeight: 1.12, letterSpacing: -1.0, fontWeight: 1000, margin: "10px 0 12px" };
-  const p = { margin: 0, fontSize: 16, lineHeight: 1.9, opacity: 0.85, maxWidth: 760 };
+  const section = { padding: isMobile ? "64px 0" : "84px 0" };
+  const eyebrow = {
+    fontSize: 12,
+    fontWeight: 900,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    opacity: 0.6,
+  };
+  const h2 = {
+    fontSize: isMobile ? 28 : 38,
+    lineHeight: 1.12,
+    letterSpacing: -1.0,
+    fontWeight: 1000,
+    margin: "10px 0 12px",
+  };
+  const p = {
+    margin: 0,
+    fontSize: 16,
+    lineHeight: 1.9,
+    opacity: 0.85,
+    maxWidth: 760,
+  };
   const card = {
     borderRadius: 18,
     border: "1px solid rgba(20,80,60,0.10)",
@@ -105,7 +128,17 @@ export default function Landing() {
     boxShadow: "0 12px 30px rgba(10,40,30,0.05)",
   };
 
-  const isNarrow = typeof window !== "undefined" && window.innerWidth < 980;
+  const arrowBtn = {
+    width: isMobile ? 40 : 44,
+    height: isMobile ? 40 : 44,
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.22)",
+    background: "rgba(255,255,255,0.12)",
+    color: "#fff",
+    fontWeight: 1000,
+    cursor: "pointer",
+    backdropFilter: "blur(8px)",
+  };
 
   return (
     <div style={page}>
@@ -115,13 +148,13 @@ export default function Landing() {
       <section
         style={{
           position: "relative",
-					width: "100%", // ✅ not 100vw
-					marginLeft: 0,
-					borderBottom: "1px solid rgba(20,80,60,0.10)",
-					overflow: "hidden",
+          width: "100%", // ✅ not 100vw
+          marginLeft: 0,
+          borderBottom: "1px solid rgba(20,80,60,0.10)",
+          overflow: "hidden",
         }}
       >
-        <div style={{ position: "relative", minHeight: isNarrow ? 560 : 680 }}>
+        <div style={{ position: "relative", minHeight: isMobile ? 560 : isNarrow ? 620 : 680 }}>
           {/* background image */}
           <div
             style={{
@@ -129,7 +162,7 @@ export default function Landing() {
               inset: 0,
               backgroundImage: `url(${s.img})`,
               backgroundSize: "cover",
-              backgroundPosition: "center 15%", // ✅ show more top
+              backgroundPosition: "center 15%",
               filter: "saturate(1.05) contrast(1.05) brightness(0.92)",
               transform: "scale(1.03)",
             }}
@@ -155,7 +188,14 @@ export default function Landing() {
           />
 
           {/* hero content (centered container) */}
-          <div style={{ ...container, position: "relative", paddingTop: isNarrow ? 110 : 140, paddingBottom: 70 }}>
+          <div
+            style={{
+              ...container,
+              position: "relative",
+              paddingTop: isMobile ? 92 : isNarrow ? 110 : 140,
+              paddingBottom: isMobile ? 56 : 70,
+            }}
+          >
             <div style={{ maxWidth: 820, color: "#fff" }}>
               <div
                 style={{
@@ -177,9 +217,9 @@ export default function Landing() {
               <h1
                 style={{
                   margin: "16px 0 12px",
-                  fontSize: isNarrow ? 46 : 70,
+                  fontSize: isMobile ? 38 : isNarrow ? 46 : 70,
                   lineHeight: 1.0,
-                  letterSpacing: -1.8,
+                  letterSpacing: isMobile ? -1.2 : -1.8,
                   fontWeight: 1000,
                   whiteSpace: "pre-line",
                 }}
@@ -227,39 +267,34 @@ export default function Landing() {
           </div>
 
           {/* arrows */}
-          <div style={{ position: "absolute", left: 22, top: "50%", transform: "translateY(-50%)" }}>
+          <div
+            style={{
+              position: "absolute",
+              left: isMobile ? 10 : 22,
+              top: "50%",
+              transform: "translateY(-50%)",
+            }}
+          >
             <button
               onClick={() => setIdx((v) => (v - 1 + slides.length) % slides.length)}
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 999,
-                border: "1px solid rgba(255,255,255,0.22)",
-                background: "rgba(255,255,255,0.12)",
-                color: "#fff",
-                fontWeight: 1000,
-                cursor: "pointer",
-                backdropFilter: "blur(8px)",
-              }}
+              style={arrowBtn}
               aria-label="Prev slide"
             >
               ←
             </button>
           </div>
-          <div style={{ position: "absolute", right: 22, top: "50%", transform: "translateY(-50%)" }}>
+
+          <div
+            style={{
+              position: "absolute",
+              right: isMobile ? 10 : 22,
+              top: "50%",
+              transform: "translateY(-50%)",
+            }}
+          >
             <button
               onClick={() => setIdx((v) => (v + 1) % slides.length)}
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 999,
-                border: "1px solid rgba(255,255,255,0.22)",
-                background: "rgba(255,255,255,0.12)",
-                color: "#fff",
-                fontWeight: 1000,
-                cursor: "pointer",
-                backdropFilter: "blur(8px)",
-              }}
+              style={arrowBtn}
               aria-label="Next slide"
             >
               →
@@ -271,7 +306,7 @@ export default function Landing() {
             style={{
               position: "absolute",
               left: "50%",
-              bottom: 18,
+              bottom: isMobile ? 22 : 18,
               transform: "translateX(-50%)",
               display: "flex",
               gap: 8,
@@ -350,7 +385,7 @@ export default function Landing() {
       <section
         id="contact"
         style={{
-          padding: "74px 0",
+          padding: isMobile ? "64px 0" : "74px 0",
           background: "linear-gradient(180deg, rgba(236,253,245,0.85), #FFFFFF)",
           borderTop: "1px solid rgba(20,80,60,0.10)",
         }}

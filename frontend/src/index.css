@@ -80,3 +80,32 @@ html, body {
   color: #0b2a1f;
 }
 
+/* Mobile base fixes */
+html, body {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+/* Tap-friendly inputs (avoid iOS zoom) */
+input, select, textarea, button {
+  font-size: 16px;
+}
+
+/* Make tables scroll instead of shrinking text */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.table-scroll table {
+  min-width: 900px; /* adjust per page if needed */
+}
+
+/* Global mobile spacing */
+@media (max-width: 640px) {
+  body {
+    font-size: 14px;
+  }
+}
+
+
