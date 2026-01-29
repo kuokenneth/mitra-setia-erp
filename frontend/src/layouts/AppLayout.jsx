@@ -87,7 +87,7 @@ export default function AppLayout() {
         style={{
           ...s.sidebar,
           ...(inDrawer ? s.sidebarDrawer : {}),
-          padding: collapsed ? 14 : s.sidebar.padding, // ✅ nicer collapsed spacing
+          padding: collapsed ? 14 : s.sidebar.padding,
         }}
       >
         <div style={s.brand}>
@@ -101,7 +101,7 @@ export default function AppLayout() {
           )}
         </div>
 
-        {/* ✅ User card (collapsed = clean square button, no pill background) */}
+        {/* ✅ User card (collapsed = same size as CMS) */}
         {collapsed ? (
           <button
             style={s.userMiniBtn}
@@ -223,7 +223,7 @@ export default function AppLayout() {
               ☰
             </button>
 
-            <div style={{ minWidth: 0 }}>
+            <div style={{ minWidth: 0, textAlign: "center", flex: 1 }}>
               <div style={s.mobileTitle}>Mitra Setia</div>
               <div style={s.mobileSub}>ERP • Operation</div>
             </div>
@@ -289,7 +289,8 @@ export default function AppLayout() {
           </header>
         )}
 
-        <div style={{ ...s.contentOuter, padding: isMobile ? 12 : 22 }}>
+        {/* ✅ FIX: remove extra top padding (prevents huge white top on iPhone pages) */}
+        <div style={{ ...s.contentOuter, padding: isMobile ? 8 : 22 }}>
           <div style={s.contentInner}>
             <Outlet />
           </div>
@@ -377,7 +378,7 @@ const s = {
     maxWidth: 220,
   },
 
-  // ✅ Collapsed user button (clean square)
+  // ✅ Collapsed user button (same size as CMS)
   userMiniBtn: {
     marginTop: 6,
     width: "100%",
@@ -395,13 +396,13 @@ const s = {
     borderRadius: 14,
     display: "grid",
     placeItems: "center",
-    fontWeight: 950,
-    fontSize: 18,
+    fontWeight: 900,
+    fontSize: 16,
     lineHeight: "1",
     color: "#065f46",
     background: "rgba(34,197,94,0.14)",
     border: "1px solid rgba(6,95,70,0.10)",
-    boxShadow: "0 10px 20px rgba(0,0,0,0.06)",
+    boxShadow: "0 10px 18px rgba(34,197,94,0.20)",
   },
 
   menuLabel: {
@@ -504,6 +505,7 @@ const s = {
     width: "100%",
     boxSizing: "border-box",
     padding: 22,
+    paddingTop: 0, // ✅ key fix to avoid big white area under sticky mobile header
   },
   contentInner: {
     maxWidth: 1100,
@@ -522,7 +524,7 @@ const s = {
     alignItems: "center",
     justifyContent: "space-between",
     gap: 10,
-    padding: "12px 12px",
+    padding: "10px 12px", // ✅ slimmer
     background: "rgba(255,255,255,0.92)",
     borderBottom: "1px solid rgba(6,95,70,0.10)",
     backdropFilter: "blur(8px)",
@@ -530,10 +532,10 @@ const s = {
   hamburgerBtn: {
     border: "1px solid rgba(6,95,70,0.12)",
     background: "#fff",
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    fontSize: 20,
+    width: 40, // ✅ slimmer
+    height: 40, // ✅ slimmer
+    borderRadius: 12, // ✅ slimmer
+    fontSize: 18, // ✅ slimmer
     fontWeight: 900,
     cursor: "pointer",
     color: "#065f46",
