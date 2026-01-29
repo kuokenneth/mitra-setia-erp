@@ -201,14 +201,17 @@ export default function Register() {
 
 const styles = {
   page: {
-    minHeight: "100dvh",
-    display: "grid",
-    placeItems: "center",
+    minHeight: "100dvh",                 // ✅ iPhone dynamic viewport
+    display: "flex",                     // ✅ more stable than grid for iOS
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom))",
+    boxSizing: "border-box",
+    background: "linear-gradient(180deg, #ECFDF5 0%, #F7FFFB 70%)",
     fontFamily:
       '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif',
-    padding: 20,
-    background: "linear-gradient(180deg, #ECFDF5 0%, #F7FFFB 70%)",
   },
+
   card: {
     width: "min(420px, 94vw)",
     padding: 28,
