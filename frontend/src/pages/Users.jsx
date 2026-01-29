@@ -1,3 +1,4 @@
+// src/pages/Users.jsx
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
@@ -20,10 +21,29 @@ export default function Users() {
 
   const [hoverSelect, setHoverSelect] = useState(false);
   const [focusSelect, setFocusSelect] = useState(false);
-  
 
   const skip = useMemo(() => page * take, [page]);
-  const isMobile = window.matchMedia("(max-width: 900px)").matches;
+
+  // ✅ responsive flag
+  const [isMobile, setIsMobile] = useState(() =>
+    window.matchMedia("(max-width: 900px)").matches
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 900px)");
+    const onChange = () => setIsMobile(mq.matches);
+
+    if (mq.addEventListener) mq.addEventListener("change", onChange);
+    else mq.addListener(onChange);
+
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", onChange);
+      else mq.removeListener(onChange);
+    };
+  }, []);
+
+  // ✅ styles that depend on isMobile must be inside component
+  const s = useMemo(() => makeStyles(isMobile), [isMobile]);
 
   async function updateStatus(userId, status) {
     try {
@@ -32,16 +52,11 @@ export default function Users() {
         body: JSON.stringify({ status }),
       });
 
-      setItems((prev) =>
-        prev.map((u) =>
-          u.id === userId ? { ...u, status } : u
-        )
-      );
+      setItems((prev) => prev.map((u) => (u.id === userId ? { ...u, status } : u)));
     } catch (e) {
       alert("Failed to update status");
     }
   }
-
 
   async function load() {
     setLoading(true);
@@ -139,10 +154,7 @@ export default function Users() {
               <div style={s.selectArrow}>▾</div>
             </div>
 
-            <button
-              disabled={loading}
-              style={{ ...s.primaryBtn, opacity: loading ? 0.7 : 1 }}
-            >
+            <button disabled={loading} style={{ ...s.primaryBtn, opacity: loading ? 0.7 : 1 }}>
               {loading ? "Loading…" : "Search"}
             </button>
           </form>
@@ -202,8 +214,6 @@ export default function Users() {
                       <div style={s.statusArrow}>▾</div>
                     </div>
                   </td>
-
-
                   <td style={s.td}>
                     {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "-"}
                   </td>
@@ -282,27 +292,6 @@ function rolePill(role) {
   };
 }
 
-const statusSelect = (status) => ({
-  borderRadius: 999,
-  padding: "6px 12px",
-  fontSize: 12,
-  fontWeight: 1000,
-  border: "1px solid rgba(6,95,70,0.18)",
-  cursor: "pointer",
-  background:
-    status === "ACTIVE"
-      ? "rgba(34,197,94,0.15)"
-      : status === "BREAK"
-      ? "rgba(245,158,11,0.15)"
-      : "rgba(239,68,68,0.15)",
-  color:
-    status === "ACTIVE"
-      ? "#065f46"
-      : status === "BREAK"
-      ? "#92400e"
-      : "#991b1b",
-});
-
 function statusVariant(status) {
   if (status === "ACTIVE") {
     return {
@@ -325,240 +314,240 @@ function statusVariant(status) {
   };
 }
 
+function makeStyles(isMobile) {
+  return {
+    page: {
+      padding: isMobile ? 0 : 6,
+      paddingTop: isMobile ? 0 : 6,
+    },
 
-const s = {
-  page: {
-    padding: isMobile ? 0 : 6,     // ✅ remove extra padding on phone
-    paddingTop: isMobile ? 0 : 6,  // ✅ make it tight like dashboard
-  },
-  headerRow: {
-    display: "flex",
-    alignItems: "end",
-    justifyContent: "space-between",
-    gap: 12,
-    marginBottom: isMobile ? 10 : 14, // ✅ smaller gap on phone
-  },
-  hTitle: { fontWeight: 1000, fontSize: 18, color: "#053a2f"},
-  hSub: { marginTop: 4, fontSize: 12, color: "rgba(4,120,87,0.85)", fontWeight: 700 },
-  pill: {
-    fontSize: 12,
-    fontWeight: 900,
-    padding: "7px 10px",
-    borderRadius: 999,
-    background: "#fff",
-    border: "1px solid rgba(6,95,70,0.10)",
-    color: "#065f46",
-  },
+    headerRow: {
+      display: "flex",
+      alignItems: "end",
+      justifyContent: "space-between",
+      gap: 12,
+      marginBottom: isMobile ? 10 : 14,
+    },
 
-  card: {
-    borderRadius: 18,
-    background: "linear-gradient(180deg, #fff 0%, #fbfffd 100%)",
-    boxShadow: "0 12px 30px rgba(0,0,0,0.06)",
-    border: "1px solid rgba(6,95,70,0.08)",
-    padding: isMobile ? 14 : 18,      // ✅ slightly smaller on phone
-    minWidth: 0,
-  },
+    hTitle: { fontWeight: 1000, fontSize: 18, color: "#053a2f" },
+    hSub: { marginTop: 4, fontSize: 12, color: "rgba(4,120,87,0.85)", fontWeight: 700 },
 
-  toolbar: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    flexWrap: "wrap",
-  },
-  searchRow: { display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" },
-  rightNote: { fontSize: 12, fontWeight: 800, color: "rgba(4,120,87,0.75)" },
+    pill: {
+      fontSize: 12,
+      fontWeight: 900,
+      padding: "7px 10px",
+      borderRadius: 999,
+      background: "#fff",
+      border: "1px solid rgba(6,95,70,0.10)",
+      color: "#065f46",
+    },
 
-  input: {
-    width: 280,
-    borderRadius: 14,
-    border: "1px solid rgba(6,95,70,0.12)",
-    background: "white",
-    padding: "11px 12px",
-    outline: "none",
-    fontWeight: 800,
-    color: "#053a2f",
-    boxSizing: "border-box",
-  },
+    card: {
+      borderRadius: 18,
+      background: "linear-gradient(180deg, #fff 0%, #fbfffd 100%)",
+      boxShadow: "0 12px 30px rgba(0,0,0,0.06)",
+      border: "1px solid rgba(6,95,70,0.08)",
+      padding: isMobile ? 14 : 18,
+      minWidth: 0,
+    },
 
-  // ✅ NEW dropdown styles
-  selectWrap: {
-    position: "relative",
-    display: "inline-flex",
-    alignItems: "center",
-  },
-  select: {
-    appearance: "none",
-    WebkitAppearance: "none",
-    MozAppearance: "none",
+    toolbar: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      flexWrap: "wrap",
+    },
+    searchRow: { display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" },
+    rightNote: { fontSize: 12, fontWeight: 800, color: "rgba(4,120,87,0.75)" },
 
-    borderRadius: 999,
-    border: "1px solid rgba(6,95,70,0.18)",
-    background: "linear-gradient(180deg, #ffffff 0%, #f6fffb 100%)",
-    padding: "10px 44px 10px 16px",
+    input: {
+      width: 280,
+      borderRadius: 14,
+      border: "1px solid rgba(6,95,70,0.12)",
+      background: "white",
+      padding: "11px 12px",
+      outline: "none",
+      fontWeight: 800,
+      color: "#053a2f",
+      boxSizing: "border-box",
+    },
 
-    fontSize: 13,
-    fontWeight: 1000,
-    color: "#053a2f",
+    selectWrap: { position: "relative", display: "inline-flex", alignItems: "center" },
+    select: {
+      appearance: "none",
+      WebkitAppearance: "none",
+      MozAppearance: "none",
+      borderRadius: 999,
+      border: "1px solid rgba(6,95,70,0.18)",
+      background: "linear-gradient(180deg, #ffffff 0%, #f6fffb 100%)",
+      padding: "10px 44px 10px 16px",
+      fontSize: 13,
+      fontWeight: 1000,
+      color: "#053a2f",
+      cursor: "pointer",
+      outline: "none",
+      boxShadow: "0 8px 18px rgba(0,0,0,0.06)",
+      transition: "all 0.15s ease",
+    },
+    selectHover: {
+      boxShadow: "0 14px 28px rgba(34,197,94,0.18)",
+      border: "1px solid rgba(34,197,94,0.26)",
+      transform: "translateY(-1px)",
+    },
+    selectFocus: {
+      boxShadow: "0 0 0 3px rgba(34,197,94,0.16), 0 14px 28px rgba(0,0,0,0.08)",
+      border: "1px solid rgba(34,197,94,0.32)",
+    },
+    selectArrow: {
+      position: "absolute",
+      right: 16,
+      pointerEvents: "none",
+      fontSize: 12,
+      fontWeight: 1000,
+      color: "rgba(4,120,87,0.9)",
+    },
 
-    cursor: "pointer",
-    outline: "none",
-    boxShadow: "0 8px 18px rgba(0,0,0,0.06)",
-    transition: "all 0.15s ease",
-  },
-  selectHover: {
-    boxShadow: "0 14px 28px rgba(34,197,94,0.18)",
-    border: "1px solid rgba(34,197,94,0.26)",
-    transform: "translateY(-1px)",
-  },
-  selectFocus: {
-    boxShadow: "0 0 0 3px rgba(34,197,94,0.16), 0 14px 28px rgba(0,0,0,0.08)",
-    border: "1px solid rgba(34,197,94,0.32)",
-  },
-  selectArrow: {
-    position: "absolute",
-    right: 16,
-    pointerEvents: "none",
-    fontSize: 12,
-    fontWeight: 1000,
-    color: "rgba(4,120,87,0.9)",
-  },
+    primaryBtn: {
+      border: "none",
+      borderRadius: 14,
+      padding: "11px 14px",
+      fontWeight: 1000,
+      cursor: "pointer",
+      color: "white",
+      background: "linear-gradient(135deg, #22c55e, #16a34a)",
+      boxShadow: "0 14px 30px rgba(34,197,94,0.22)",
+    },
 
-  primaryBtn: {
-    border: "none",
-    borderRadius: 14,
-    padding: "11px 14px",
-    fontWeight: 1000,
-    cursor: "pointer",
-    color: "white",
-    background: "linear-gradient(135deg, #22c55e, #16a34a)",
-    boxShadow: "0 14px 30px rgba(34,197,94,0.22)",
-  },
-  secondaryBtn: {
-    borderRadius: 14,
-    padding: "10px 14px",
-    fontWeight: 1000,
-    cursor: "pointer",
-    color: "#065f46",
-    background: "rgba(34,197,94,0.10)",
-    border: "1px solid rgba(34,197,94,0.18)",
-  },
+    secondaryBtn: {
+      borderRadius: 14,
+      padding: "10px 14px",
+      fontWeight: 1000,
+      cursor: "pointer",
+      color: "#065f46",
+      background: "rgba(34,197,94,0.10)",
+      border: "1px solid rgba(34,197,94,0.18)",
+    },
 
-  alertErr: {
-    marginTop: 12,
-    borderRadius: 14,
-    border: "1px solid rgba(239,68,68,0.28)",
-    background: "rgba(239,68,68,0.10)",
-    color: "rgba(153,27,27,0.95)",
-    padding: "10px 12px",
-    fontWeight: 800,
-    fontSize: 12,
-  },
+    alertErr: {
+      marginTop: 12,
+      borderRadius: 14,
+      border: "1px solid rgba(239,68,68,0.28)",
+      background: "rgba(239,68,68,0.10)",
+      color: "rgba(153,27,27,0.95)",
+      padding: "10px 12px",
+      fontWeight: 800,
+      fontSize: 12,
+    },
 
-  tableWrap: {
-    marginTop: 14,
-    overflowX: "auto",
-    borderRadius: 14,
-    border: "1px solid rgba(6,95,70,0.08)",
-  },
-  table: { width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 900 },
-  th: {
-    textAlign: "left",
-    fontSize: 12,
-    letterSpacing: 0.3,
-    fontWeight: 1000,
-    color: "rgba(4,120,87,0.75)",
-    padding: "12px 12px",
-    background: "rgba(6,95,70,0.03)",
-    borderBottom: "1px solid rgba(6,95,70,0.08)",
-  },
-  tr: { background: "white" },
-  td: {
-    padding: "12px 12px",
-    fontSize: 13,
-    fontWeight: 800,
-    color: "#053a2f",
-    borderBottom: "1px solid rgba(6,95,70,0.06)",
-    verticalAlign: "middle",
-  },
-  tdStrong: {
-    padding: "12px 12px",
-    borderBottom: "1px solid rgba(6,95,70,0.06)",
-    verticalAlign: "middle",
-  },
+    tableWrap: {
+      marginTop: 14,
+      overflowX: "auto",
+      borderRadius: 14,
+      border: "1px solid rgba(6,95,70,0.08)",
+    },
 
-  nameRow: { display: "flex", alignItems: "center", gap: 10 },
-  avatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    display: "grid",
-    placeItems: "center",
-    fontWeight: 1000,
-    color: "#065f46",
-    background: "rgba(34,197,94,0.12)",
-    border: "1px solid rgba(34,197,94,0.16)",
-  },
-  nameText: { fontWeight: 1000, color: "#053a2f", fontSize: 13 },
-  idText: {
-    marginTop: 2,
-    fontSize: 11,
-    fontWeight: 800,
-    color: "rgba(4,120,87,0.65)",
-    maxWidth: 240,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  },
+    table: { width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 900 },
 
-  activeYes: { fontSize: 12, fontWeight: 1000, color: "#065f46" },
-  activeNo: { fontSize: 12, fontWeight: 1000, color: "rgba(153,27,27,0.95)" },
+    th: {
+      textAlign: "left",
+      fontSize: 12,
+      letterSpacing: 0.3,
+      fontWeight: 1000,
+      color: "rgba(4,120,87,0.75)",
+      padding: "12px 12px",
+      background: "rgba(6,95,70,0.03)",
+      borderBottom: "1px solid rgba(6,95,70,0.08)",
+    },
 
-  empty: { padding: 18, textAlign: "center", color: "rgba(4,120,87,0.75)", fontWeight: 900 },
+    tr: { background: "white" },
 
-  footer: {
-    marginTop: 14,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    flexWrap: "wrap",
-  },
-  pageInfo: { fontSize: 12, fontWeight: 900, color: "rgba(4,120,87,0.75)" },
+    td: {
+      padding: "12px 12px",
+      fontSize: 13,
+      fontWeight: 800,
+      color: "#053a2f",
+      borderBottom: "1px solid rgba(6,95,70,0.06)",
+      verticalAlign: "middle",
+    },
 
-  statusWrap: {
-    position: "relative",
-    display: "inline-flex",
-    alignItems: "center",
-  },
+    tdStrong: {
+      padding: "12px 12px",
+      borderBottom: "1px solid rgba(6,95,70,0.06)",
+      verticalAlign: "middle",
+    },
 
-  statusSelect: {
-    appearance: "none",
-    WebkitAppearance: "none",
-    MozAppearance: "none",
+    nameRow: { display: "flex", alignItems: "center", gap: 10 },
 
-    borderRadius: 999,
-    border: "1px solid rgba(6,95,70,0.16)",
-    padding: "7px 34px 7px 12px", // right padding for arrow
-    fontSize: 12,
-    fontWeight: 1000,
-    letterSpacing: 0.4,
+    avatar: {
+      width: 34,
+      height: 34,
+      borderRadius: 12,
+      display: "grid",
+      placeItems: "center",
+      fontWeight: 1000,
+      color: "#065f46",
+      background: "rgba(34,197,94,0.12)",
+      border: "1px solid rgba(34,197,94,0.16)",
+    },
 
-    outline: "none",
-    cursor: "pointer",
-    backgroundImage: "none", // ✅ important for Safari
-    boxShadow: "0 8px 18px rgba(0,0,0,0.06)",
-    transition: "transform 0.12s ease, box-shadow 0.12s ease, border 0.12s ease",
-  },
+    nameText: { fontWeight: 1000, color: "#053a2f", fontSize: 13 },
 
-  statusArrow: {
-    position: "absolute",
-    right: 12,
-    pointerEvents: "none",
-    fontSize: 11,
-    fontWeight: 1000,
-    color: "rgba(4,120,87,0.85)",
-  },
+    idText: {
+      marginTop: 2,
+      fontSize: 11,
+      fontWeight: 800,
+      color: "rgba(4,120,87,0.65)",
+      maxWidth: 240,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap",
+    },
 
-  
-};
+    empty: {
+      padding: 18,
+      textAlign: "center",
+      color: "rgba(4,120,87,0.75)",
+      fontWeight: 900,
+    },
+
+    footer: {
+      marginTop: 14,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      flexWrap: "wrap",
+    },
+
+    pageInfo: { fontSize: 12, fontWeight: 900, color: "rgba(4,120,87,0.75)" },
+
+    statusWrap: { position: "relative", display: "inline-flex", alignItems: "center" },
+
+    statusSelect: {
+      appearance: "none",
+      WebkitAppearance: "none",
+      MozAppearance: "none",
+      borderRadius: 999,
+      border: "1px solid rgba(6,95,70,0.16)",
+      padding: "7px 34px 7px 12px",
+      fontSize: 12,
+      fontWeight: 1000,
+      letterSpacing: 0.4,
+      outline: "none",
+      cursor: "pointer",
+      backgroundImage: "none",
+      boxShadow: "0 8px 18px rgba(0,0,0,0.06)",
+      transition: "transform 0.12s ease, box-shadow 0.12s ease, border 0.12s ease",
+    },
+
+    statusArrow: {
+      position: "absolute",
+      right: 12,
+      pointerEvents: "none",
+      fontSize: 11,
+      fontWeight: 1000,
+      color: "rgba(4,120,87,0.85)",
+    },
+  };
+}
