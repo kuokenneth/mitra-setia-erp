@@ -30,7 +30,6 @@ export default function Register() {
 
   const canSubmit =
     !busy &&
-    (name.trim().length > 0 || true) && // name optional
     emailNorm.length > 3 &&
     inviteCode.trim().length > 0 &&
     password.length >= 6 &&
@@ -57,7 +56,7 @@ export default function Register() {
           password,
           confirmPassword,
           inviteCode: inviteCode.trim(),
-          role: "STAFF", // backend should still force STAFF (don’t trust frontend)
+          role: "STAFF",
         }),
       });
 
@@ -74,9 +73,16 @@ export default function Register() {
       <div style={{ ...styles.card, padding: isMobile ? 18 : 28 }}>
         {/* Header */}
         <div style={{ ...styles.header, marginBottom: isMobile ? 16 : 22 }}>
-          <div style={{ ...styles.logo, width: isMobile ? 44 : 48, height: isMobile ? 44 : 48 }}>
+          {/* ✅ Clickable logo -> Home */}
+          <div
+            style={{ ...styles.logo, width: isMobile ? 44 : 48, height: isMobile ? 44 : 48 }}
+            onClick={() => nav("/")}
+            role="button"
+            title="Back to Home"
+          >
             ERP
           </div>
+
           <div>
             <h2 style={{ ...styles.title, fontSize: isMobile ? 18 : 20 }}>MitraSetia</h2>
             <p style={styles.subtitle}>Register a new user</p>
@@ -173,7 +179,7 @@ export default function Register() {
                 : "linear-gradient(135deg, #22c55e, #16a34a)",
               transform: hover && canSubmit ? "translateY(-1px)" : "translateY(0)",
               transition: "all 0.2s ease",
-              minHeight: 44, // ✅ tap target
+              minHeight: 44,
             }}
           >
             {busy ? "Creating..." : "Register"}
@@ -195,7 +201,7 @@ export default function Register() {
 
 const styles = {
   page: {
-    minHeight: "100vh",
+    minHeight: "100dvh",
     display: "grid",
     placeItems: "center",
     fontFamily:
@@ -222,6 +228,7 @@ const styles = {
     color: "white",
     background: "linear-gradient(135deg, #22c55e, #16a34a)",
     userSelect: "none",
+    cursor: "pointer",
   },
   title: { margin: 0, fontSize: 20, fontWeight: 900, color: "#065f46", letterSpacing: -0.2 },
   subtitle: { margin: 0, fontSize: 13, color: "#047857" },
@@ -235,8 +242,6 @@ const styles = {
   },
   hint: { marginTop: 6, fontSize: 12, color: "#047857" },
   inlineError: { marginTop: 6, fontSize: 12, color: "#b91c1c", fontWeight: 800 },
-
-  // ✅ iOS: fontSize 16 prevents Safari zoom on focus
   input: {
     padding: "12px 12px",
     borderRadius: 12,
@@ -246,7 +251,6 @@ const styles = {
     outline: "none",
     minHeight: 44,
   },
-
   button: {
     marginTop: 10,
     padding: 12,

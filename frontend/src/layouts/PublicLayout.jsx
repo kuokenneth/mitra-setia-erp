@@ -1,6 +1,11 @@
-import { Outlet, Link, NavLink } from "react-router-dom";
+import { Outlet, Link, NavLink, useLocation } from "react-router-dom";
 
 export default function PublicLayout() {
+  const { pathname } = useLocation();
+
+  // ✅ Hide topbar/footer on auth pages (fixes the iPhone “floating card” look)
+  const hideChrome = pathname === "/login" || pathname === "/register";
+
   const BRAND = {
     green1: "#22C55E",
     green2: "#16A34A",
@@ -13,7 +18,7 @@ export default function PublicLayout() {
   const isMobile = typeof window !== "undefined" && window.innerWidth <= 640;
 
   const page = {
-    minHeight: "100vh",
+    minHeight: "100dvh", // ✅ better on iPhone than 100vh
     background: `linear-gradient(180deg, ${BRAND.mintBgTop} 0%, ${BRAND.mintBgBottom} 70%)`,
     color: BRAND.ink,
     fontFamily:
@@ -93,7 +98,15 @@ export default function PublicLayout() {
     boxShadow: "0 16px 35px rgba(34,197,94,0.22)",
   };
 
-  const outletWrap = { width: "100%" };
+  const outletWrap = {
+    width: "100%",
+    // ✅ When topbar/footer hidden, center the outlet vertically
+    minHeight: hideChrome ? "100dvh" : "auto",
+    display: hideChrome ? "grid" : "block",
+    placeItems: hideChrome ? "center" : "unset",
+    padding: hideChrome ? (isMobile ? 12 : 18) : 0,
+    boxSizing: "border-box",
+  };
 
   const footer = {
     marginTop: 0,
@@ -105,33 +118,34 @@ export default function PublicLayout() {
 
   return (
     <div style={page}>
-      <div style={topbar}>
-        <div style={wrap}>
-          <Link to="/" style={brand}>
-            <img src="/logo.jpg" alt="CV. Mitra Setia" style={logoImg} />
-          </Link>
-
-          <div style={nav}>
-            <NavLink to="/" end style={({ isActive }) => (isActive ? activePill : pill)}>
-              Home
-            </NavLink>
-
-            <Link to="/login" style={loginBtn}>
-              Login
+      {!hideChrome && (
+        <div style={topbar}>
+          <div style={wrap}>
+            <Link to="/" style={brand}>
+              <img src="/logo.jpg" alt="CV. Mitra Setia" style={logoImg} />
             </Link>
+
+            <div style={nav}>
+
+              <Link to="/login" style={loginBtn}>
+                Login
+              </Link>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div style={outletWrap}>
         <Outlet />
       </div>
 
-      <div style={footer}>
-        <div style={{ maxWidth: 1180, margin: "0 auto", fontSize: 12 }}>
-          © {new Date().getFullYear()} CV. Mitra Setia · Medan, Indonesia · Built with MitraSetia ERP
+      {!hideChrome && (
+        <div style={footer}>
+          <div style={{ maxWidth: 1180, margin: "0 auto", fontSize: 12 }}>
+            © {new Date().getFullYear()} CV. Mitra Setia · Medan, Indonesia · Built with MitraSetia ERP
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

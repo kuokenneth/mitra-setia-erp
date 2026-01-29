@@ -12,7 +12,6 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [hover, setHover] = useState(false);
 
-  // ✅ iPhone friendly
   const isMobile = useMemo(
     () => typeof window !== "undefined" && window.innerWidth <= 640,
     []
@@ -37,11 +36,20 @@ export default function Login() {
       <div style={{ ...styles.card, padding: isMobile ? 18 : 28 }}>
         {/* Header */}
         <div style={{ ...styles.header, marginBottom: isMobile ? 16 : 22 }}>
-          <div style={{ ...styles.logo, width: isMobile ? 44 : 48, height: isMobile ? 44 : 48 }}>
+          {/* ✅ Clickable logo */}
+          <div
+            style={{ ...styles.logo, width: isMobile ? 44 : 48, height: isMobile ? 44 : 48 }}
+            onClick={() => nav("/")}
+            role="button"
+            title="Back to Home"
+          >
             ERP
           </div>
+
           <div>
-            <h2 style={{ ...styles.title, fontSize: isMobile ? 18 : 20 }}>MitraSetia</h2>
+            <h2 style={{ ...styles.title, fontSize: isMobile ? 18 : 20 }}>
+              MitraSetia
+            </h2>
             <p style={styles.subtitle}>Sign in to your account</p>
           </div>
         </div>
@@ -95,7 +103,7 @@ export default function Login() {
               transform: hover ? "translateY(-1px)" : "translateY(0)",
               transition: "all 0.2s ease",
               cursor: busy ? "not-allowed" : "pointer",
-              minHeight: 44, // ✅ tap target
+              minHeight: 44,
             }}
           >
             {busy ? "Signing in..." : "Login"}
@@ -104,7 +112,10 @@ export default function Login() {
           <div style={styles.footer}>
             <div style={styles.registerRow}>
               <span style={styles.registerText}>Don’t have an account?</span>
-              <span style={styles.registerLink} onClick={() => nav("/register")}>
+              <span
+                style={styles.registerLink}
+                onClick={() => nav("/register")}
+              >
                 Register
               </span>
             </div>
@@ -117,7 +128,7 @@ export default function Login() {
 
 const styles = {
   page: {
-    minHeight: "100vh",
+    minHeight: "100dvh",
     display: "grid",
     placeItems: "center",
     fontFamily:
@@ -152,6 +163,7 @@ const styles = {
     color: "white",
     background: "linear-gradient(135deg, #22c55e, #16a34a)",
     userSelect: "none",
+    cursor: "pointer",
   },
 
   title: {
@@ -168,9 +180,7 @@ const styles = {
     color: "#047857",
   },
 
-  field: {
-    marginBottom: 14,
-  },
+  field: { marginBottom: 14 },
 
   label: {
     display: "block",
@@ -180,9 +190,8 @@ const styles = {
     color: "#065f46",
   },
 
-  // ✅ iOS: fontSize 16 prevents Safari zoom on focus
   input: {
-    padding: "12px 12px",
+    padding: "12px",
     borderRadius: 12,
     border: "1px solid #a7f3d0",
     background: "#f8fffb",
@@ -223,13 +232,9 @@ const styles = {
     textAlign: "center",
   },
 
-  formControl: {
-    width: "100%",
-    boxSizing: "border-box",
-  },
+  formControl: { width: "100%", boxSizing: "border-box" },
 
   registerRow: {
-    marginTop: 0,
     display: "flex",
     justifyContent: "center",
     gap: 6,
@@ -237,9 +242,7 @@ const styles = {
     flexWrap: "wrap",
   },
 
-  registerText: {
-    color: "#065f46",
-  },
+  registerText: { color: "#065f46" },
 
   registerLink: {
     color: "#16a34a",
