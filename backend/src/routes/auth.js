@@ -111,6 +111,7 @@ router.post("/login", async (req, res) => {
 
     return res.json({
       ok: true,
+      token, 
       user: {
         id: user.id,
         name: user.name,
@@ -128,6 +129,7 @@ router.post("/logout", (req, res) => {
   res.clearCookie("token", {
     secure: isProd,
     sameSite: isProd ? "none" : "lax",
+    path: "/",
   });
   res.json({ ok: true });
 });
@@ -150,6 +152,7 @@ router.get("/me", requireAuth, async (req, res) => {
     res.clearCookie("token", {
       secure: isProd,
       sameSite: isProd ? "none" : "lax",
+      path: "/",
     });
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }

@@ -4,14 +4,17 @@ const API_BASE =
 export async function api(path, options = {}) {
   const url = `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
 
+  const token = localStorage.getItem("token"); // ✅
+
   const res = await fetch(url, {
     method: options.method || "GET",
     ...options,
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}), // ✅
       ...(options.headers || {}),
     },
-    credentials: "include",
+    credentials: "include", // keep this (works for Chrome cookie too)
   });
 
   const text = await res.text();
@@ -25,6 +28,7 @@ export async function api(path, options = {}) {
   if (!res.ok) throw new Error(data?.error || data?.message || `Request failed (${res.status})`);
   return data;
 }
+
 
 // ✅ Profile APIs
 export function getMe() {

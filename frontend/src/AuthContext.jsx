@@ -27,11 +27,17 @@ export function AuthProvider({ children }) {
       method: "POST",
       body: JSON.stringify({ email, password }),
     });
+
+    // 🔑 SAVE TOKEN (THIS FIXES 401)
+    if (data.token) {
+      localStorage.setItem("token", data.token);
+    }
     setUser(data.user);
     return data.user;
   }
 
   async function logout() {
+    localStorage.removeItem("token"); // 🔑
     await api("/auth/logout", { method: "POST" });
     setUser(null);
   }
