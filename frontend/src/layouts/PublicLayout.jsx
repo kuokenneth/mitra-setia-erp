@@ -164,7 +164,7 @@ export default function PublicLayout() {
           <div style={wrap}>
             <Link to="/" style={brand}>
               <div style={logoWrap}>
-                <img src="/logo.jpg" alt="CV. Mitra Setia" style={logoImg} />
+                <img src="/logo3.png" alt="CV. Mitra Setia" style={logoImg} />
                 {!isMobile && (
                   <div style={brandText}>
                     <p style={brandTitle}>CV. Mitra Setia</p>
