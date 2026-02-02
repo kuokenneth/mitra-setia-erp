@@ -16,7 +16,7 @@ export default function Users() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
-  const take = 50;
+  const take = 20;
   const [page, setPage] = useState(0); // 0-based
 
   const [hoverSelect, setHoverSelect] = useState(false);

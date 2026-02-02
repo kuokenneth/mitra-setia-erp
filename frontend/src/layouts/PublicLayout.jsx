@@ -1,25 +1,46 @@
-import { Outlet, Link, NavLink, useLocation } from "react-router-dom";
+// src/layouts/PublicLayout.jsx
+import { Outlet, Link, useLocation } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
 
 export default function PublicLayout() {
   const { pathname } = useLocation();
-
-  // ✅ Hide topbar/footer on auth pages (fixes the iPhone “floating card” look)
   const hideChrome = pathname === "/login" || pathname === "/register";
 
-  const BRAND = {
-    green1: "#22C55E",
-    green2: "#16A34A",
-    mintBgTop: "#ECFDF5",
-    mintBgBottom: "#F7FFFB",
-    ink: "#0B2A1F",
-    mintBorder: "rgba(134, 239, 172, 0.65)",
-  };
+  const BRAND = useMemo(
+    () => ({
+      green1: "#22C55E",
+      green2: "#16A34A",
+      mintBgTop: "#ECFDF5",
+      mintBgBottom: "#F7FFFB",
+      ink: "#0B2A1F",
+      mintBorder: "rgba(134, 239, 172, 0.65)",
+    }),
+    []
+  );
 
-  const isMobile = typeof window !== "undefined" && window.innerWidth <= 640;
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth <= 640 : false
+  );
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 640);
+    const onScroll = () => setScrolled(window.scrollY > 10);
+
+    window.addEventListener("resize", onResize);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, []);
 
   const page = {
-    minHeight: "100dvh", // ✅ better on iPhone than 100vh
-    background: `linear-gradient(180deg, ${BRAND.mintBgTop} 0%, ${BRAND.mintBgBottom} 70%)`,
+    minHeight: "100dvh",
+    background: `radial-gradient(900px 560px at 18% 12%, rgba(34,197,94,0.18), transparent 60%),
+                 linear-gradient(180deg, ${BRAND.mintBgTop} 0%, ${BRAND.mintBgBottom} 70%)`,
     color: BRAND.ink,
     fontFamily:
       '"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
@@ -29,21 +50,23 @@ export default function PublicLayout() {
     position: "sticky",
     top: 0,
     zIndex: 50,
-    background: "rgba(255,255,255,0.98)",
-    backdropFilter: "blur(10px)",
-    borderBottom: "1px solid rgba(20, 80, 60, 0.10)",
-    boxShadow: "0 18px 36px rgba(0,0,0,0.08)",
+    transition: "all 220ms ease",
+    backdropFilter: "blur(14px)",
+    background: scrolled ? "rgba(255,255,255,0.78)" : "rgba(255,255,255,0.55)",
+    borderBottom: scrolled
+      ? "1px solid rgba(20, 80, 60, 0.14)"
+      : "1px solid rgba(20, 80, 60, 0.10)",
+    boxShadow: scrolled ? "0 16px 42px rgba(10,40,30,0.12)" : "none",
   };
 
   const wrap = {
     maxWidth: 1180,
     margin: "0 auto",
-    padding: isMobile ? "10px 12px" : "14px 18px",
+    padding: isMobile ? "10px 12px" : scrolled ? "10px 18px" : "16px 18px",
     display: "flex",
-    alignItems: isMobile ? "flex-start" : "center",
+    alignItems: "center",
     justifyContent: "space-between",
-    gap: 10,
-    flexWrap: "wrap",
+    gap: 12,
   };
 
   const brand = {
@@ -53,54 +76,71 @@ export default function PublicLayout() {
     textDecoration: "none",
     color: BRAND.ink,
     minWidth: 0,
-    flex: isMobile ? "1 1 100%" : "0 0 auto",
+  };
+
+  const logoWrap = {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: scrolled ? "6px 10px" : "8px 12px",
+    borderRadius: 16,
+    background: "rgba(255,255,255,0.70)",
+    border: "1px solid rgba(20,80,60,0.10)",
+    boxShadow: "0 12px 26px rgba(10,40,30,0.06)",
+    transition: "all 220ms ease",
   };
 
   const logoImg = {
-    height: isMobile ? 46 : 80,
+    height: isMobile ? 42 : scrolled ? 52 : 66,
     width: "auto",
     display: "block",
     borderRadius: 10,
+  };
+
+  const brandText = {
+    lineHeight: 1.1,
+    minWidth: 0,
+  };
+
+  const brandTitle = {
+    fontWeight: 1000,
+    letterSpacing: -0.4,
+    fontSize: isMobile ? 14 : 15,
+    margin: 0,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    maxWidth: isMobile ? 220 : 360,
+  };
+
+  const brandSub = {
+    margin: 0,
+    fontSize: 12,
+    opacity: 0.72,
+    fontWeight: 800,
+    letterSpacing: 0.2,
   };
 
   const nav = {
     display: "flex",
     alignItems: "center",
     gap: 10,
-    flexWrap: "wrap",
-    width: isMobile ? "100%" : "auto",
-    justifyContent: isMobile ? "flex-start" : "flex-end",
-  };
-
-  const pill = {
-    padding: isMobile ? "9px 12px" : "10px 14px",
-    borderRadius: 999,
-    border: "1px solid rgba(20,80,60,0.14)",
-    background: "#fff",
-    color: BRAND.ink,
-    fontWeight: 900,
-    fontSize: isMobile ? 13 : 14,
-    textDecoration: "none",
-    boxShadow: "0 10px 25px rgba(10,40,30,0.06)",
-  };
-
-  const activePill = {
-    ...pill,
-    border: `1px solid ${BRAND.mintBorder}`,
-    background: "rgba(134,239,172,0.18)",
   };
 
   const loginBtn = {
-    ...pill,
+    padding: isMobile ? "10px 14px" : "10px 16px",
+    borderRadius: 999,
+    fontWeight: 1000,
+    textDecoration: "none",
     background: `linear-gradient(90deg, ${BRAND.green1}, ${BRAND.green2})`,
     color: "#fff",
     border: "1px solid rgba(34,197,94,0.35)",
-    boxShadow: "0 16px 35px rgba(34,197,94,0.22)",
+    boxShadow: "0 18px 40px rgba(34,197,94,0.20)",
+    transition: "transform 160ms ease",
   };
 
   const outletWrap = {
     width: "100%",
-    // ✅ When topbar/footer hidden, center the outlet vertically
     minHeight: hideChrome ? "100dvh" : "auto",
     display: hideChrome ? "grid" : "block",
     placeItems: hideChrome ? "center" : "unset",
@@ -113,7 +153,8 @@ export default function PublicLayout() {
     padding: isMobile ? "18px 12px" : "26px 18px",
     borderTop: "1px solid rgba(20,80,60,0.10)",
     opacity: 0.85,
-    background: "rgba(255,255,255,0.35)",
+    background: "rgba(255,255,255,0.40)",
+    backdropFilter: "blur(10px)",
   };
 
   return (
@@ -122,12 +163,24 @@ export default function PublicLayout() {
         <div style={topbar}>
           <div style={wrap}>
             <Link to="/" style={brand}>
-              <img src="/logo.jpg" alt="CV. Mitra Setia" style={logoImg} />
+              <div style={logoWrap}>
+                <img src="/logo.jpg" alt="CV. Mitra Setia" style={logoImg} />
+                {!isMobile && (
+                  <div style={brandText}>
+                    <p style={brandTitle}>CV. Mitra Setia</p>
+                    <p style={brandSub}>Transport & Logistics</p>
+                  </div>
+                )}
+              </div>
             </Link>
 
             <div style={nav}>
-
-              <Link to="/login" style={loginBtn}>
+              <Link
+                to="/login"
+                style={loginBtn}
+                onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-1px)")}
+                onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(0px)")}
+              >
                 Login
               </Link>
             </div>
@@ -139,13 +192,6 @@ export default function PublicLayout() {
         <Outlet />
       </div>
 
-      {!hideChrome && (
-        <div style={footer}>
-          <div style={{ maxWidth: 1180, margin: "0 auto", fontSize: 12 }}>
-            © {new Date().getFullYear()} CV. Mitra Setia · Medan, Indonesia · Built with MitraSetia ERP
-          </div>
-        </div>
-      )}
     </div>
   );
 }
