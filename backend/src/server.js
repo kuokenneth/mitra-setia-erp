@@ -23,12 +23,36 @@ const app = express();
 
 app.use(helmet());
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  // ✅ Netlify default (kalau masih dipakai)
+  "https://mitra-setia-erp.netlify.app",
+
+  // ✅ Custom domains
+  "https://mitrasetia.co.id",
+  "https://www.mitrasetia.co.id",
+  process.env.FRONTEND_URL, // if you set it
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:5173",
+    origin: function (origin, cb) {
+      // allow Postman/curl with no origin
+      if (!origin) return cb(null, true);
+
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+
+      return cb(new Error("Not allowed by CORS: " + origin));
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+
+// ✅ Handle preflight for all routes
+app.options(/.*/, cors());
 
 app.use(express.json());
 app.use(cookieParser());
