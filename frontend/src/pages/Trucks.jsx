@@ -31,6 +31,10 @@ export default function Trucks() {
   const [movFrom, setMovFrom] = useState("");
   const [movTo, setMovTo] = useState("");
 
+  // ✅ Pagination
+  const PAGE_SIZE = 5;
+  const [page, setPage] = useState(1);
+
   // create form
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({
@@ -64,12 +68,8 @@ export default function Trucks() {
   }, [items]);
 
   function optionsForTruck(truck) {
-    // show "Unassigned" always
     const base = [{ id: "", name: "Unassigned" }];
 
-    // allow:
-    // - drivers not assigned to any truck
-    // - OR the driver currently assigned to THIS truck
     const allowedDrivers = (drivers || []).filter((d) => {
       const id = d.id;
       const isAssignedSomewhere = assignedDriverIds.has(id);
@@ -86,14 +86,17 @@ export default function Trucks() {
     );
   }
 
-  async function load() {
+  async function load({ resetPage = false } = {}) {
     setLoading(true);
     setErr("");
     try {
       const params = new URLSearchParams();
       if (q.trim()) params.set("q", q.trim());
 
-      const [t, d] = await Promise.all([api(`/trucks?${params.toString()}`), api("/drivers")]);
+      const [t, d] = await Promise.all([
+        api(`/trucks?${params.toString()}`),
+        api("/drivers"),
+      ]);
 
       const truckList = t.items || [];
       setItems(truckList);
@@ -107,6 +110,9 @@ export default function Trucks() {
           setAssignments([]);
         }
       }
+
+      // ✅ reset to page 1 when searching or when requested
+      if (resetPage) setPage(1);
     } catch (e) {
       setErr(e.message || "Failed to load trucks");
     } finally {
@@ -152,7 +158,7 @@ export default function Trucks() {
 
   function onSearch(e) {
     e.preventDefault();
-    load();
+    load({ resetPage: true });
   }
 
   async function onCreate(e) {
@@ -186,7 +192,7 @@ export default function Trucks() {
       });
 
       setShowAdd(false);
-      await load();
+      await load({ resetPage: false });
     } catch (e) {
       setErr(e.message || "Failed to create truck");
     } finally {
@@ -200,7 +206,7 @@ export default function Trucks() {
         method: "PUT",
         body: JSON.stringify({ driverUserId: driverUserId || null }),
       });
-      await load();
+      await load({ resetPage: false });
     } catch (e) {
       alert(e.message || "Failed to assign driver");
     }
@@ -212,7 +218,7 @@ export default function Trucks() {
         method: "PUT",
         body: JSON.stringify({ stnkExpiry: date || null }),
       });
-      await load();
+      await load({ resetPage: false });
     } catch (e) {
       alert(e.message || "Failed to update STNK expiry");
     }
@@ -225,6 +231,23 @@ export default function Trucks() {
     setMovErr("");
     loadAssignments(truck.id);
   }
+
+  // ✅ Pagination computed values
+  const totalPages = useMemo(() => {
+    const n = Math.ceil((items.length || 0) / PAGE_SIZE);
+    return Math.max(1, n);
+  }, [items.length]);
+
+  // If items change (search/filter/delete), ensure current page still valid
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+    if (page < 1) setPage(1);
+  }, [page, totalPages]);
+
+  const pagedItems = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return (items || []).slice(start, start + PAGE_SIZE);
+  }, [items, page]);
 
   if (!allowed) {
     return (
@@ -256,7 +279,7 @@ export default function Trucks() {
             + Add Truck
           </button>
 
-          <button onClick={load} disabled={loading} style={s.secondaryBtn}>
+          <button onClick={() => load({ resetPage: false })} disabled={loading} style={s.secondaryBtn}>
             {loading ? "Refreshing…" : "Refresh"}
           </button>
         </div>
@@ -285,6 +308,39 @@ export default function Trucks() {
           </form>
         </div>
 
+        {/* ✅ Pagination Bar */}
+        <div style={s.paginationBar}>
+          <div style={s.paginationText}>
+            Showing <b>{pagedItems.length}</b> of <b>{items.length}</b> trucks
+          </div>
+
+          <div style={s.paginationBtns}>
+            <button
+              style={{ ...s.secondaryBtn, padding: "8px 12px", opacity: page <= 1 ? 0.5 : 1 }}
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              ← Prev
+            </button>
+
+            <div style={s.pagePill}>
+              Page <b>{page}</b> / <b>{totalPages}</b>
+            </div>
+
+            <button
+              style={{
+                ...s.secondaryBtn,
+                padding: "8px 12px",
+                opacity: page >= totalPages ? 0.5 : 1,
+              }}
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+
         <div style={s.tableWrap}>
           <table style={s.table}>
             <thead>
@@ -299,7 +355,7 @@ export default function Trucks() {
             </thead>
 
             <tbody>
-              {items.map((t) => {
+              {pagedItems.map((t) => {
                 const active = selectedTruck?.id === t.id;
 
                 return (
@@ -389,7 +445,7 @@ export default function Trucks() {
                 );
               })}
 
-              {!loading && items.length === 0 ? (
+              {!loading && pagedItems.length === 0 ? (
                 <tr>
                   <td style={s.empty} colSpan={6}>
                     No trucks found.
@@ -724,7 +780,7 @@ function stnkLabel(date) {
 function shouldShowStnkWarning(date) {
   const diff = stnkDiffDays(date);
   if (diff === null) return false;
-  return diff <= 14; // expired OR expiring soon
+  return diff <= 14;
 }
 
 function stnkInputStyle(date) {
@@ -876,7 +932,6 @@ const s = {
     boxSizing: "border-box",
   },
 
-  // pill select
   selectWrap: { position: "relative", display: "inline-flex", alignItems: "center", width: "100%" },
   selectPill: {
     width: "100%",
@@ -980,6 +1035,32 @@ const s = {
   },
   searchRow: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
 
+  // ✅ Pagination styles
+  paginationBar: {
+    marginTop: 10,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    flexWrap: "wrap",
+    padding: "10px 12px",
+    borderRadius: 14,
+    border: "1px solid rgba(6,95,70,0.08)",
+    background: "rgba(6,95,70,0.02)",
+  },
+  paginationText: { fontSize: 12, fontWeight: 900, color: "rgba(4,120,87,0.80)" },
+  paginationBtns: { display: "flex", gap: 10, alignItems: "center" },
+  pagePill: {
+    borderRadius: 999,
+    padding: "8px 12px",
+    fontSize: 12,
+    fontWeight: 900,
+    color: "#065f46",
+    background: "rgba(34,197,94,0.10)",
+    border: "1px solid rgba(34,197,94,0.16)",
+    whiteSpace: "nowrap",
+  },
+
   tableWrap: {
     marginTop: 14,
     overflowX: "auto",
@@ -1021,7 +1102,6 @@ const s = {
     color: "rgba(4,120,87,0.65)",
   },
 
-  // STNK
   stnkWrap: { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 },
   stnkInput: {
     width: "180px",
@@ -1040,7 +1120,6 @@ const s = {
   footerNote: { marginTop: 12, fontSize: 11, fontWeight: 800, color: "rgba(4,120,87,0.70)" },
   tip: { marginTop: 8, fontSize: 11, fontWeight: 800, color: "rgba(4,120,87,0.70)" },
 
-  // ✅ movement panel styles
   movHeader: {
     display: "flex",
     alignItems: "end",
@@ -1059,7 +1138,6 @@ const s = {
   },
   movDates: { display: "flex", gap: 10, alignItems: "center" },
 
-  // Modal
   modalOverlay: {
     position: "fixed",
     inset: 0,
