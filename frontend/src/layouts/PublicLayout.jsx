@@ -8,12 +8,12 @@ export default function PublicLayout() {
 
   const BRAND = useMemo(
     () => ({
-      green1: "#22C55E",
-      green2: "#16A34A",
-      mintBgTop: "#ECFDF5",
-      mintBgBottom: "#F7FFFB",
-      ink: "#0B2A1F",
-      mintBorder: "rgba(134, 239, 172, 0.65)",
+      emerald: "#16A34A",
+      emerald2: "#22C55E",
+      forest: "#111827",
+      mintTop: "#E9FFF4",
+      mintBottom: "#F5F6F7",
+      glass: "rgba(255,255,255,0.72)",
     }),
     []
   );
@@ -39,11 +39,11 @@ export default function PublicLayout() {
 
   const page = {
     minHeight: "100dvh",
-    background: `radial-gradient(900px 560px at 18% 12%, rgba(34,197,94,0.18), transparent 60%),
-                 linear-gradient(180deg, ${BRAND.mintBgTop} 0%, ${BRAND.mintBgBottom} 70%)`,
-    color: BRAND.ink,
+    background: `radial-gradient(820px 520px at 12% 10%, rgba(34,197,94,0.18), transparent 60%),
+                 linear-gradient(180deg, ${BRAND.mintTop} 0%, ${BRAND.mintBottom} 70%)`,
+    color: BRAND.forest,
     fontFamily:
-      '"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
+      '"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
   };
 
   const topbar = {
@@ -51,12 +51,10 @@ export default function PublicLayout() {
     top: 0,
     zIndex: 50,
     transition: "all 220ms ease",
-    backdropFilter: "blur(14px)",
-    background: scrolled ? "rgba(255,255,255,0.78)" : "rgba(255,255,255,0.55)",
-    borderBottom: scrolled
-      ? "1px solid rgba(20, 80, 60, 0.14)"
-      : "1px solid rgba(20, 80, 60, 0.10)",
-    boxShadow: scrolled ? "0 16px 42px rgba(10,40,30,0.12)" : "none",
+    backdropFilter: "blur(10px)",
+    background: scrolled ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.78)",
+    borderBottom: "1px solid rgba(17, 24, 39, 0.08)",
+    boxShadow: "none",
   };
 
   const wrap = {
@@ -74,7 +72,7 @@ export default function PublicLayout() {
     alignItems: "center",
     gap: 12,
     textDecoration: "none",
-    color: BRAND.ink,
+    color: BRAND.forest,
     minWidth: 0,
   };
 
@@ -84,9 +82,9 @@ export default function PublicLayout() {
     gap: 12,
     padding: scrolled ? "6px 10px" : "8px 12px",
     borderRadius: 16,
-    background: "rgba(255,255,255,0.70)",
-    border: "1px solid rgba(20,80,60,0.10)",
-    boxShadow: "0 12px 26px rgba(10,40,30,0.06)",
+    background: "rgba(255,255,255,0.88)",
+    border: "1px solid rgba(17,24,39,0.08)",
+    boxShadow: "none",
     transition: "all 220ms ease",
   };
 
@@ -94,7 +92,7 @@ export default function PublicLayout() {
     height: isMobile ? 42 : scrolled ? 52 : 66,
     width: "auto",
     display: "block",
-    borderRadius: 10,
+    borderRadius: 12,
   };
 
   const brandText = {
@@ -103,9 +101,9 @@ export default function PublicLayout() {
   };
 
   const brandTitle = {
-    fontWeight: 1000,
-    letterSpacing: -0.4,
-    fontSize: isMobile ? 14 : 15,
+    fontWeight: 800,
+    letterSpacing: -0.2,
+    fontSize: isMobile ? 15 : 16,
     margin: 0,
     whiteSpace: "nowrap",
     overflow: "hidden",
@@ -116,8 +114,8 @@ export default function PublicLayout() {
   const brandSub = {
     margin: 0,
     fontSize: 12,
-    opacity: 0.72,
-    fontWeight: 800,
+    opacity: 0.7,
+    fontWeight: 600,
     letterSpacing: 0.2,
   };
 
@@ -130,12 +128,12 @@ export default function PublicLayout() {
   const loginBtn = {
     padding: isMobile ? "10px 14px" : "10px 16px",
     borderRadius: 999,
-    fontWeight: 1000,
+    fontWeight: 700,
     textDecoration: "none",
-    background: `linear-gradient(90deg, ${BRAND.green1}, ${BRAND.green2})`,
+    background: `linear-gradient(95deg, ${BRAND.emerald2}, ${BRAND.emerald})`,
     color: "#fff",
-    border: "1px solid rgba(34,197,94,0.35)",
-    boxShadow: "0 18px 40px rgba(34,197,94,0.20)",
+    border: "1px solid rgba(34,197,94,0.40)",
+    boxShadow: "0 10px 24px rgba(34,197,94,0.20)",
     transition: "transform 160ms ease",
   };
 
@@ -153,7 +151,7 @@ export default function PublicLayout() {
     padding: isMobile ? "18px 12px" : "26px 18px",
     borderTop: "1px solid rgba(20,80,60,0.10)",
     opacity: 0.85,
-    background: "rgba(255,255,255,0.40)",
+    background: "rgba(255,255,255,0.50)",
     backdropFilter: "blur(10px)",
   };
 

@@ -6,8 +6,7 @@ import { useAuth } from "../AuthContext";
 /**
  * Dashboard v2 (LIVE)
  * - Aggregates real numbers from your existing endpoints (frontend aggregation)
- * - Safe if endpoints return { items: [] } or [] or { data: [] }
- * - Adjust endpoint paths if your backend uses different routes
+ * - Adds: Top 5 most spending trucks this month (based on /trucks/:id/spareparts monthTotalCost)
  */
 
 //////////////////////
@@ -69,12 +68,23 @@ function endOfTodayISO() {
 }
 
 // Low-stock heuristic (adjust if your schema differs)
-// - item.qtyTotal OR item.totalQty OR item.qty
-// - item.reorderPoint OR item.minQty
 function isLowStockItem(item) {
   const qty = Number(item?.qtyTotal ?? item?.totalQty ?? item?.qty ?? 0);
   const rp = Number(item?.reorderPoint ?? item?.minQty ?? 0);
   return Number.isFinite(qty) && Number.isFinite(rp) && rp > 0 && qty <= rp;
+}
+
+function fmtMoney(n, currency = "IDR") {
+  const v = Number(n || 0);
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    }).format(v);
+  } catch {
+    return `${currency} ${v.toLocaleString()}`;
+  }
 }
 
 //////////////////////
@@ -176,6 +186,10 @@ export default function Dashboard() {
   const [alerts, setAlerts] = useState([]);
   const [trucks, setTrucks] = useState([]);
 
+  // ✅ NEW: Top 5 spending
+  const [topSpend, setTopSpend] = useState([]);
+  const [topSpendLoading, setTopSpendLoading] = useState(false);
+
   const truckDriverName = (trip) => {
     const plate = trip?.truck?.plateNumber || trip?.truckPlate;
     const truckId = trip?.truckId || trip?.truck?.id;
@@ -187,23 +201,20 @@ export default function Dashboard() {
     return match?.driver?.name || match?.driverName || match?.driverUser?.name || "—";
   };
 
-
   // ✅ Change these paths if your backend uses different routes
   const endpoints = useMemo(
     () => ({
       trucks: "/trucks",
       maintenance: "/maintenance",
-      // if your inventory list is a different route, change it here:
       inventoryItems: "/inventory/items",
-      // if you don’t have trips yet, keep it but it will safely fallback:
-      tripsToday: `/trips?from=${encodeURIComponent(startOfTodayISO())}&to=${encodeURIComponent(
-        endOfTodayISO()
-      )}`,
+      tripsToday: `/trips?from=${encodeURIComponent(startOfTodayISO())}&to=${encodeURIComponent(endOfTodayISO())}`,
     }),
     []
   );
 
   useEffect(() => {
+    let cancelled = false;
+
     async function load() {
       try {
         setLoading(true);
@@ -215,36 +226,38 @@ export default function Dashboard() {
           api(endpoints.tripsToday).catch(() => null),
         ]);
 
-        const trucks = safeArr(trucksRes);
+        const fetchedTrucks = safeArr(trucksRes);
         const maint = safeArr(maintRes);
         const items = safeArr(invRes);
         const trips = safeArr(tripsRes);
 
+        if (cancelled) return;
+
+        setTrucks(fetchedTrucks);
+
         // KPI calculations
-        const activeTrucks = trucks.filter((t) => ["READY", "DISPATCH"].includes(up(t?.status))).length;
-
+        const activeTrucks = fetchedTrucks.filter((t) => ["READY", "DISPATCH"].includes(up(t?.status))).length;
         const pendingMaintenance = maint.filter((m) => up(m?.status) === "OPEN").length;
-
         const lowStock = items.filter(isLowStockItem).length;
-
         const tripsToday = trips.length;
 
         setStats({ tripsToday, activeTrucks, pendingMaintenance, lowStock });
         setTodayTrips(trips);
 
-        // Alerts (simple examples — you can expand later)
+        // Alerts
         const a = [];
 
-        // STNK expiry soon (if you have stnkExpiry on truck)
+        // STNK expiry soon (within 14 days)
         const now = new Date();
-        const in30 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-        const stnkSoon = trucks
+        const in14 = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+        const stnkSoon = fetchedTrucks
           .filter((t) => t?.stnkExpiry)
           .filter((t) => {
             const d = new Date(t.stnkExpiry);
-            return d >= now && d <= in30;
+            return d >= now && d <= in14;
           })
           .slice(0, 5);
+
         if (stnkSoon.length) {
           a.push({
             title: "STNK expiring soon",
@@ -252,7 +265,7 @@ export default function Dashboard() {
           });
         }
 
-        // Maintenance open too long (if you store createdAt)
+        // Maintenance open too long
         const openLong = maint
           .filter((m) => up(m?.status) === "OPEN" && m?.createdAt)
           .filter((m) => {
@@ -260,6 +273,7 @@ export default function Dashboard() {
             return days >= 7;
           })
           .slice(0, 5);
+
         if (openLong.length) {
           a.push({
             title: "Maintenance backlog",
@@ -276,16 +290,61 @@ export default function Dashboard() {
 
         setAlerts(a);
         setSysOk(true);
+
+        // ✅ TOP 5 SPENDING TRUCKS THIS MONTH
+        setTopSpendLoading(true);
+        try {
+          // small concurrency limit
+          const limit = 6;
+          const queue = [...fetchedTrucks];
+          const results = [];
+
+          async function worker() {
+            while (queue.length && !cancelled) {
+              const t = queue.shift();
+              if (!t?.id) continue;
+
+              try {
+                // relies on backend: /trucks/:id/spareparts => { monthTotalCost, monthCurrency }
+                const r = await api(`/trucks/${t.id}/spareparts`);
+                results.push({
+                  truckId: t.id,
+                  plateNumber: t.plateNumber || "—",
+                  total: Number(r?.monthTotalCost || 0),
+                  currency: r?.monthCurrency || "IDR",
+                });
+              } catch {
+                results.push({
+                  truckId: t.id,
+                  plateNumber: t.plateNumber || "—",
+                  total: 0,
+                  currency: "IDR",
+                });
+              }
+            }
+          }
+
+          await Promise.all(Array.from({ length: Math.min(limit, fetchedTrucks.length) }, () => worker()));
+
+          if (cancelled) return;
+
+          results.sort((a, b) => b.total - a.total);
+          setTopSpend(results.slice(0, 5));
+        } finally {
+          if (!cancelled) setTopSpendLoading(false);
+        }
       } catch (e) {
         console.error(e);
-        setSysOk(false);
+        if (!cancelled) setSysOk(false);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
     load();
-    setTrucks(trucks);
+    return () => {
+      cancelled = true;
+    };
   }, [endpoints]);
 
   return (
@@ -377,10 +436,7 @@ export default function Dashboard() {
                             {t.truck?.plateNumber || t.truckPlate || "—"}
                           </td>
                           <td style={{ padding: "12px 10px", fontWeight: 800 }}>
-                            {t.driver?.name ||
-                              t.driverName ||
-                              truckDriverName(t) ||
-                              "—"}
+                            {t.driver?.name || t.driverName || truckDriverName(t) || "—"}
                           </td>
 
                           <td style={{ padding: "12px 10px", fontWeight: 800, color: "#2F6B55" }}>
@@ -434,6 +490,66 @@ export default function Dashboard() {
                       <div style={{ fontWeight: 900 }}>{a.title}</div>
                       <div style={{ marginTop: 4, color: "#2F6B55", fontWeight: 800, fontSize: 12 }}>
                         {a.detail}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* ✅ TOP SPENDING TRUCKS */}
+            <div style={panel}>
+              <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 12 }}>
+                Top Spending Trucks (This Month)
+              </div>
+
+              {topSpendLoading ? (
+                <div style={{ color: "#6C9A88", fontWeight: 800 }}>Calculating…</div>
+              ) : topSpend.length === 0 ? (
+                <div style={{ color: "#6C9A88", fontWeight: 800 }}>No spending recorded yet.</div>
+              ) : (
+                <div style={{ display: "grid", gap: 10 }}>
+                  {topSpend.map((x, idx) => (
+                    <div
+                      key={x.truckId}
+                      style={{
+                        padding: 12,
+                        borderRadius: 16,
+                        background: "#F8FFFC",
+                        border: "1px solid rgba(20,80,60,.10)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 10,
+                      }}
+                    >
+                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                        <span
+                          style={{
+                            width: 26,
+                            height: 26,
+                            borderRadius: 999,
+                            display: "grid",
+                            placeItems: "center",
+                            fontWeight: 1000,
+                            background: "rgba(34,197,94,0.14)",
+                            border: "1px solid rgba(34,197,94,0.26)",
+                            color: "#065f46",
+                          }}
+                        >
+                          {idx + 1}
+                        </span>
+
+                        <div>
+                          <div style={{ fontWeight: 1000 }}>{x.plateNumber}</div>
+                          <div style={{ marginTop: 2, fontSize: 12, fontWeight: 800, color: "#2F6B55" }}>
+                            Spareparts installed
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ fontWeight: 1000, color: "#053a2f" }}>
+                        {fmtMoney(x.total, x.currency)}
                       </div>
                     </div>
                   ))}

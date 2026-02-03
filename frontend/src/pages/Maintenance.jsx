@@ -207,6 +207,20 @@ function fmtDuration(ms) {
   return `${ss}s`;
 }
 
+function fmtMoney(n, currency = "IDR") {
+  const v = Number(n || 0);
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    }).format(v);
+  } catch {
+    return `${currency} ${v.toLocaleString()}`;
+  }
+}
+
+
 function fmtDateTime(d) {
   try {
     return new Date(d).toLocaleString();
@@ -861,6 +875,24 @@ export default function Maintenance() {
                     )}
                   </div>
                 </div>
+
+                <div
+                  style={{
+                    marginTop: 12,
+                    padding: 12,
+                    borderRadius: 18,
+                    border: "1px solid rgba(20,80,60,0.10)",
+                    background: "linear-gradient(180deg,#F7FFFB 0%,#FFFFFF 100%)",
+                  }}
+                >
+                  <div style={{ fontWeight: 900, fontSize: 12, color: "#2F6B55" }}>
+                    Total parts cost (serialized)
+                  </div>
+                  <div style={{ fontWeight: 1200, fontSize: 20, marginTop: 6 }}>
+                    {fmtMoney(activeJob.totalCost || 0, activeJob.currency || "IDR")}
+                  </div>
+                </div>
+
 
                 {allowed ? (
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>

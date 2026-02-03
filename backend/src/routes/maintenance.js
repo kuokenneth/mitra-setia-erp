@@ -171,7 +171,16 @@ router.get("/:id", authRequired, async (req, res) => {
     });
 
     if (!job) return res.status(404).json({ error: "Maintenance job not found" });
-    res.json({ job });
+    // ✅ totalCost (serialized assignments only for now)
+    const totalCost = (job.sparePartAssignments || []).reduce((sum, a) => {
+     const v = Number(a.installCost || 0);
+     return sum + (Number.isFinite(v) ? v : 0);
+    }, 0);
+
+    const currency =
+      job.sparePartAssignments?.find((a) => a.currency)?.currency || "IDR";
+      
+    res.json({ job: { ...job, totalCost, currency } });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Failed to load maintenance job" });
@@ -202,7 +211,7 @@ router.patch("/:id/status", authRequired, async (req, res) => {
         where: { id },
         data: {
           status,
-          doneAt: status === "DONE" ? new Date() : null,
+          doneAt: status === "DONE" || status === "CANCELLED" ? new Date() : null,
         },
         include: { truck: true },
       });
@@ -328,6 +337,7 @@ router.get("/:id/assigned-units", authRequired, async (req, res) => {
 // ASSIGN SERIALIZED STOCK UNIT to maintenance
 // POST /maintenance/:id/assign-unit
 // body: { stockUnitId, note?, replaceStockUnitId? }
+// POST /maintenance/:id/assign-unit
 router.post("/:id/assign-unit", authRequired, async (req, res) => {
   try {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
@@ -336,11 +346,13 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
     const { stockUnitId, note, replaceStockUnitId } = req.body || {};
     if (!stockUnitId) return res.status(400).json({ error: "stockUnitId is required" });
 
+    // ✅ Read-only fetches OUTSIDE transaction (faster + safer)
     const job = await prisma.truckMaintenance.findUnique({
       where: { id: maintenanceId },
       include: { truck: true },
     });
     if (!job) return res.status(404).json({ error: "Maintenance job not found" });
+    if (job.status !== "OPEN") return res.status(400).json({ error: "Job is not OPEN" });
 
     const unit = await prisma.stockUnit.findUnique({
       where: { id: stockUnitId },
@@ -349,140 +361,154 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
     if (!unit) return res.status(404).json({ error: "Stock unit not found" });
     if (unit.status !== "IN_STOCK") return res.status(400).json({ error: "Stock unit not available" });
 
+    // ✅ SAFETY: serialized units MUST have purchasePrice
+    if (unit.item?.isSerialized && (unit.purchasePrice == null || Number(unit.purchasePrice) <= 0)) {
+      return res.status(400).json({ error: "This unit has no purchase price and cannot be assigned" });
+    }
+
     const now = new Date();
     const fromLocationId = unit.locationId || null;
 
-    const assignment = await prisma.$transaction(async (tx) => {
-      // ----------------------------
-      // (0) OPTIONAL: REPLACE / REMOVE OLD UNIT
-      // ----------------------------
-      if (replaceStockUnitId) {
-        const oldUnitId = String(replaceStockUnitId);
+    // ✅ Make transaction shorter + allow more time on hosted DB
+    const created = await prisma.$transaction(
+      async (tx) => {
+        // ----------------------------
+        // (0) OPTIONAL: REPLACE / REMOVE OLD UNIT
+        // ----------------------------
+        if (replaceStockUnitId) {
+          const oldUnitId = String(replaceStockUnitId);
 
-        // must exist
-        const oldUnit = await tx.stockUnit.findUnique({
-          where: { id: oldUnitId },
-          include: { item: true },
-        });
-        if (!oldUnit) throw new Error("Replace unit not found");
+          // use select (lighter than include)
+          const oldUnit = await tx.stockUnit.findUnique({
+            where: { id: oldUnitId },
+            select: { id: true, itemId: true, serialNumber: true, barcode: true },
+          });
+          if (!oldUnit) throw new Error("Replace unit not found");
 
-        // must be same item (wheel -> wheel)
-        if (oldUnit.itemId !== unit.itemId) {
-          throw new Error("Replace unit must be the same item type");
+          if (oldUnit.itemId !== unit.itemId) {
+            throw new Error("Replace unit must be the same item type");
+          }
+
+          const activeAssign = await tx.truckSparePartAssignment.findFirst({
+            where: { truckId: job.truckId, stockUnitId: oldUnitId, removedAt: null },
+            orderBy: { installedAt: "desc" },
+            select: { id: true },
+          });
+          if (!activeAssign) throw new Error("Replace unit is not currently installed on this truck");
+
+          await tx.truckSparePartAssignment.update({
+            where: { id: activeAssign.id },
+            data: { removedAt: now },
+          });
+
+          await tx.stockUnit.update({
+            where: { id: oldUnitId },
+            data: { status: "SCRAPPED", scrappedAt: now, locationId: null },
+          });
+
+          await tx.stockMovement.create({
+            data: {
+              type: "ADJUST",
+              itemId: oldUnit.itemId,
+              qty: 1,
+              note: `SCRAP (replacement) - Removed ${oldUnit.serialNumber || oldUnit.barcode || oldUnit.id.slice(0, 8)} in maintenance: ${job.title}`,
+              createdById: req.user?.id || null,
+              fromLocationId: null,
+              toLocationId: null,
+              maintenanceId,
+              stockUnitId: oldUnitId,
+            },
+          });
         }
 
-        // must be currently installed on this truck
-        const activeAssign = await tx.truckSparePartAssignment.findFirst({
-          where: { truckId: job.truckId, stockUnitId: oldUnitId, removedAt: null },
-          orderBy: { installedAt: "desc" },
-        });
-        if (!activeAssign) {
-          throw new Error("Replace unit is not currently installed on this truck");
+        // ----------------------------
+        // (1) decrement InventoryStock at unit's location (fast + safe)
+        // ----------------------------
+        if (fromLocationId) {
+          // ensure row exists
+          await tx.inventoryStock.upsert({
+            where: { itemId_locationId: { itemId: unit.itemId, locationId: fromLocationId } },
+            create: { itemId: unit.itemId, locationId: fromLocationId, qty: 0 },
+            update: {},
+          });
+
+          // decrement only if qty >= 1 (prevents going negative)
+          const dec = await tx.inventoryStock.updateMany({
+            where: {
+              itemId: unit.itemId,
+              locationId: fromLocationId,
+              qty: { gte: 1 },
+            },
+            data: { qty: { decrement: 1 } },
+          });
+
+          if (dec.count === 0) {
+            throw new Error("Not enough stock at this location (qty is 0)");
+          }
         }
 
-        // mark as removed
-        await tx.truckSparePartAssignment.update({
-          where: { id: activeAssign.id },
-          data: { removedAt: now },
-        });
-
-        // scrap it like inventory scrap
-        await tx.stockUnit.update({
-          where: { id: oldUnitId },
-          data: { status: "SCRAPPED", scrappedAt: now, locationId: null },
-        });
-
-        // log movement (schema has no SCRAP type -> use ADJUST with note)
-        await tx.stockMovement.create({
+        // ----------------------------
+        // (2) create assignment (NO include here)
+        // ----------------------------
+        const assignment = await tx.truckSparePartAssignment.create({
           data: {
-            type: "ADJUST",
-            itemId: oldUnit.itemId,
-            qty: 1,
-            note: `SCRAP (replacement) - Removed ${oldUnit.serialNumber || oldUnit.barcode || oldUnit.id.slice(0, 8)} in maintenance: ${job.title}`,
+            truckId: job.truckId,
+            stockUnitId: unit.id,
+            installedAt: now,
+            note: note ? String(note) : null,
             createdById: req.user?.id || null,
-            fromLocationId: null,
-            toLocationId: null,
             maintenanceId,
-            stockUnitId: oldUnitId,
+            installCost: unit.purchasePrice,
+            currency: unit.currency || "IDR",
           },
         });
-      }
 
-      // ----------------------------
-      // (1) decrement InventoryStock at unit's location
-      // ----------------------------
-      if (fromLocationId) {
-        await tx.inventoryStock.upsert({
-          where: { itemId_locationId: { itemId: unit.itemId, locationId: fromLocationId } },
-          create: { itemId: unit.itemId, locationId: fromLocationId, qty: 0 },
-          update: {},
+        // ----------------------------
+        // (3) mark new unit as ASSIGNED and remove from location
+        // ----------------------------
+        await tx.stockUnit.update({
+          where: { id: unit.id },
+          data: { status: "ASSIGNED", locationId: null },
         });
 
-        const row = await tx.inventoryStock.findUnique({
-          where: { itemId_locationId: { itemId: unit.itemId, locationId: fromLocationId } },
+        // ----------------------------
+        // (4) create OUT movement
+        // ----------------------------
+        await tx.stockMovement.create({
+          data: {
+            type: "OUT",
+            itemId: unit.itemId,
+            qty: 1,
+            note: `Assigned to maintenance: ${job.title}`,
+            createdById: req.user?.id || null,
+            fromLocationId,
+            toLocationId: null,
+            maintenanceId,
+            stockUnitId: unit.id,
+          },
         });
 
-        const current = row?.qty || 0;
-        const next = Math.max(0, current - 1);
+        return assignment;
+      },
+      { maxWait: 10000, timeout: 20000 } // ✅ important on hosted DB
+    );
 
-        await tx.inventoryStock.update({
-          where: { itemId_locationId: { itemId: unit.itemId, locationId: fromLocationId } },
-          data: { qty: next },
-        });
-      }
-
-      // ----------------------------
-      // (2) create new assignment (Wheel2 installed)
-      // ----------------------------
-      const created = await tx.truckSparePartAssignment.create({
-        data: {
-          truckId: job.truckId,
-          stockUnitId: unit.id,
-          installedAt: now,
-          note: note ? String(note) : null,
-          createdById: req.user?.id || null,
-          maintenanceId,
-        },
-        include: {
-          stockUnit: { include: { item: true, location: true } },
-          createdBy: true,
-        },
-      });
-
-      // ----------------------------
-      // (3) mark new unit as ASSIGNED and remove from location
-      // ----------------------------
-      await tx.stockUnit.update({
-        where: { id: unit.id },
-        data: { status: "ASSIGNED", locationId: null },
-      });
-
-      // ----------------------------
-      // (4) create OUT movement (Wheel2 going out of inventory)
-      // ----------------------------
-      await tx.stockMovement.create({
-        data: {
-          type: "OUT",
-          itemId: unit.itemId,
-          qty: 1,
-          note: `Assigned to maintenance: ${job.title}`,
-          createdById: req.user?.id || null,
-          fromLocationId,
-          toLocationId: null,
-          maintenanceId,
-          stockUnitId: unit.id,
-        },
-      });
-
-      return created;
+    // ✅ Fetch full include OUTSIDE transaction (fast + avoids tx timeout)
+    const assignmentFull = await prisma.truckSparePartAssignment.findUnique({
+      where: { id: created.id },
+      include: {
+        stockUnit: { include: { item: true, location: true } },
+        createdBy: true,
+      },
     });
 
-    res.json({ assignment });
+    res.json({ assignment: assignmentFull });
   } catch (e) {
     console.error(e);
     res.status(400).json({ error: e.message || "Failed to assign stock unit" });
   }
 });
+
 
 ////////////////////////////////////////////////////
 // ASSIGN / CONSUME UN-SERIALIZED ITEM to maintenance

@@ -257,6 +257,7 @@ router.get(
   }
 );
 
+
 /**
  * POST /inventory/receive
  * Non-serialized OR serialized (bulk).
@@ -264,12 +265,13 @@ router.get(
  * {
  *   itemId,
  *   locationId,
- *   qty,                 // required for non-serialized; optional for serialized if units provided
+ *   qty,                 // required for non-serialized
  *   note,
  *   // for serialized:
- *   units: [{ serialNumber?, barcode?, purchasePrice?, purchasedAt? }]
+ *   units: [{ serialNumber, barcode?, purchasePrice, purchasedAt? }]
  * }
  */
+// POST /inventory/receive
 router.post(
   "/receive",
   authRequired,
@@ -283,61 +285,108 @@ router.post(
     }
 
     try {
-      const result = await prisma.$transaction(async (tx) => {
-        const item = await tx.item.findUnique({ where: { id: itemId } });
-        if (!item) throw new Error("Item not found");
+      const item = await prisma.item.findUnique({ where: { id: itemId } });
+      if (!item) throw new Error("Item not found");
 
-        const location = await tx.inventoryLocation.findUnique({ where: { id: locationId } });
-        if (!location) throw new Error("Location not found");
+      const location = await prisma.inventoryLocation.findUnique({ where: { id: locationId } });
+      if (!location) throw new Error("Location not found");
 
-        // ensure stock row exists
-        await ensureStockRow(tx, itemId, locationId);
+      // ensure stock row exists (UPSERT is better than "find then create")
+      const ensureStockUpsert = prisma.inventoryStock.upsert({
+        where: { itemId_locationId: { itemId, locationId } },
+        update: {},
+        create: { itemId, locationId, qty: 0 },
+      });
 
-        let receivedQty = 0;
-        let createdUnits = [];
+      // ============================
+      // SERIALIZED
+      // ============================
+      if (item.isSerialized) {
+        const list = Array.isArray(units) ? units : [];
+        const totalRaw = req.body?.totalPurchasePrice;
 
-        if (item.isSerialized) {
-          const list = Array.isArray(units) ? units : [];
-          if (list.length === 0 && !Number.isFinite(Number(qty))) {
-            throw new Error("Serialized item requires units[] OR qty");
-          }
+        if (list.length === 0) throw new Error("Serialized item requires units[]");
 
-          // If qty is given but units not, we still allow (creates anonymous units without serial)
-          const count = list.length > 0 ? list.length : Math.floor(num(qty, 0));
-          if (count <= 0) throw new Error("Nothing to receive");
+        const hasUnitPrices = list.some((u) => u?.purchasePrice != null);
+        const hasTotalPrice =
+          totalRaw != null && Number.isFinite(parseInt(totalRaw, 10)) && parseInt(totalRaw, 10) > 0;
 
-          // Create units
-          const toCreate = list.length > 0 ? list : new Array(count).fill({});
-
-          for (const u of toCreate) {
-            const unitRow = await tx.stockUnit.create({
-              data: {
-                itemId,
-                locationId,
-                serialNumber: u?.serialNumber ? String(u.serialNumber).trim() : null,
-                barcode: u?.barcode ? String(u.barcode).trim() : null,
-                purchasePrice: u?.purchasePrice != null ? parseInt(u.purchasePrice, 10) : null,
-                purchasedAt: u?.purchasedAt ? new Date(u.purchasedAt) : null,
-                status: "IN_STOCK",
-              },
-            });
-            createdUnits.push(unitRow);
-          }
-
-          receivedQty = createdUnits.length;
-        } else {
-          receivedQty = num(qty, 0);
-          if (receivedQty <= 0) throw new Error("qty must be > 0 for non-serialized items");
+        if (!hasUnitPrices && !hasTotalPrice) {
+          throw new Error("Provide purchasePrice per unit OR totalPurchasePrice");
+        }
+        if (hasUnitPrices && hasTotalPrice) {
+          throw new Error("Use either per-unit price OR totalPurchasePrice, not both");
         }
 
-        // update stock qty
-        await tx.inventoryStock.update({
-          where: { itemId_locationId: { itemId, locationId } },
-          data: { qty: { increment: receivedQty } },
+        const unitCount = list.length;
+        const dividedPrice = hasTotalPrice ? Math.floor(parseInt(totalRaw, 10) / unitCount) : null;
+
+        const data = list.map((u) => {
+          const serial = u?.serialNumber ? String(u.serialNumber).trim() : "";
+          if (!serial) throw new Error("Each serialized unit must have serialNumber");
+
+          const price = hasUnitPrices ? parseInt(u.purchasePrice, 10) : dividedPrice;
+          if (!Number.isFinite(price) || price <= 0) throw new Error("Invalid purchase price calculation");
+
+          return {
+            itemId,
+            locationId,
+            serialNumber: serial,
+            barcode: u?.barcode ? String(u.barcode).trim() : null,
+            purchasePrice: price,
+            purchasedAt: u?.purchasedAt ? new Date(u.purchasedAt) : null,
+            currency: "IDR",
+            status: "IN_STOCK",
+          };
         });
 
-        // log movement
-        const movement = await tx.stockMovement.create({
+        const receivedQty = data.length;
+
+        // batch transaction (no interactive tx)
+        await prisma.$transaction([
+          ensureStockUpsert,
+          prisma.stockUnit.createMany({ data }),
+          prisma.inventoryStock.update({
+            where: { itemId_locationId: { itemId, locationId } },
+            data: { qty: { increment: receivedQty } },
+          }),
+          prisma.stockMovement.create({
+            data: {
+              type: "IN",
+              itemId,
+              qty: receivedQty,
+              note: note ? String(note) : null,
+              createdById,
+              toLocationId: locationId,
+            },
+          }),
+        ]);
+
+        // fetch created units back (optional, but matches your old response)
+        const serials = data.map((d) => d.serialNumber);
+        const createdUnits = await prisma.stockUnit.findMany({
+          where: { itemId, serialNumber: { in: serials } },
+          orderBy: { createdAt: "desc" },
+        });
+
+        return res.json({ ok: true, createdUnits, receivedQty });
+      }
+
+      // ============================
+      // NON-SERIALIZED
+      // ============================
+      const receivedQty = Number(qty || 0);
+      if (!Number.isFinite(receivedQty) || receivedQty <= 0) {
+        throw new Error("qty must be > 0 for non-serialized items");
+      }
+
+      const [movement] = await prisma.$transaction([
+        ensureStockUpsert,
+        prisma.inventoryStock.update({
+          where: { itemId_locationId: { itemId, locationId } },
+          data: { qty: { increment: receivedQty } },
+        }),
+        prisma.stockMovement.create({
           data: {
             type: "IN",
             itemId,
@@ -346,23 +395,21 @@ router.post(
             createdById,
             toLocationId: locationId,
           },
-        });
+        }),
+      ]).then((arr) => [arr[2]]);
 
-        return { movement, createdUnits, receivedQty };
-      });
-
-      res.json({ ok: true, ...result });
+      res.json({ ok: true, movement, receivedQty });
     } catch (e) {
+      // unique violations: serialNumber/barcode
       if (isUniqueError(e)) {
-        return res.status(400).json({
-          ok: false,
-          error: "serialNumber/barcode already exists (must be unique)",
-        });
+        return res.status(400).json({ ok: false, error: "serialNumber/barcode already exists (must be unique)" });
       }
-      res.status(400).json({ ok: false, error: String(e.message || e) });
+      res.status(400).json({ ok: false, error: String(e?.message || e) });
     }
   }
 );
+
+
 
 /**
  * POST /inventory/adjust
@@ -665,6 +712,11 @@ router.post(
         });
 
         // create assignment
+        // ✅ if serialized, require purchasePrice (so we can compute cost)
+        if (unit.item?.isSerialized && (unit.purchasePrice == null || unit.purchasePrice <= 0)) {
+          throw new Error("This unit must have purchasePrice before assigning to truck");
+        }
+
         const assignment = await tx.truckSparePartAssignment.create({
           data: {
             truckId,
@@ -674,12 +726,17 @@ router.post(
             note: note ? String(note) : null,
             createdById,
             maintenanceId: maintenanceId || null,
+
+            // ✅ NEW: snapshot cost at install time
+            installCost: unit.purchasePrice ?? null,
+            currency: unit.currency ?? "IDR",
           },
           include: {
             truck: true,
             stockUnit: { include: { item: true } },
           },
         });
+
 
         // update unit status + remove location
         const updatedUnit = await tx.stockUnit.update({
@@ -1068,50 +1125,6 @@ router.patch(
     }
   }
 );
-
-// GET /inventory/movements?truckId=...&from=...&to=...&q=...
-router.get("/movements", authRequired, requireRole(["OWNER", "ADMIN", "STAFF"]), async (req, res) => {
-  try {
-    const { truckId, from, to, q } = req.query;
-
-    const where = {};
-
-    // ✅ only movements used by a truck
-    if (truckId) where.truckId = truckId;
-
-    // optional: date filter
-    if (from || to) {
-      where.createdAt = {};
-      if (from) where.createdAt.gte = new Date(from);
-      if (to) where.createdAt.lte = new Date(to);
-    }
-
-    // optional: free text (note / item name)
-    // If you already have search logic, keep yours.
-    // This is safe and simple:
-    if (q) {
-      where.OR = [
-        { note: { contains: String(q), mode: "insensitive" } },
-        { item: { name: { contains: String(q), mode: "insensitive" } } },
-      ];
-    }
-
-    const rows = await prisma.inventoryMovement.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      include: {
-        item: { select: { id: true, name: true, sku: true, uom: true } },
-        location: { select: { id: true, name: true } },
-        truck: { select: { id: true, plateNumber: true } }, // if relation exists
-      },
-      take: 500,
-    });
-
-    res.json({ rows });
-  } catch (e) {
-    res.status(500).json({ error: e.message || "Failed to load movements" });
-  }
-});
 
 
 

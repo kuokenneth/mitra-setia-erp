@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
   engineType = "binary"
 }
 
@@ -32,10 +32,10 @@ enum StockUnitStatus {
 }
 
 enum StockMoveType {
-  IN        // purchase / receiving
-  OUT       // used / issued
-  ADJUST    // stock opname adjustment
-  TRANSFER  // moved between locations
+  IN // purchase / receiving
+  OUT // used / issued
+  ADJUST // stock opname adjustment
+  TRANSFER // moved between locations
 }
 
 enum TruckStatus {
@@ -66,7 +66,7 @@ enum OrderType {
 
 enum TripStatus {
   PLANNED
-  DISPATCHED   // UI label: ON_ROUTE
+  DISPATCHED // UI label: ON_ROUTE
   ARRIVED
   COMPLETED
   CANCELLED
@@ -124,8 +124,8 @@ model Order {
   orderType OrderType @default(OUTBOUND)
 
   // optional customer relation
-  customerId   String?
-  customer     Customer? @relation(fields: [customerId], references: [id])
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
 
   // fallback if no Customer module used
   customerName String?
@@ -167,21 +167,21 @@ model Trip {
   id String @id @default(cuid())
 
   orderId String
-  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   truckId String
-  truck   Truck @relation(fields: [truckId], references: [id])
+  truck   Truck  @relation(fields: [truckId], references: [id])
 
   // driver is a User with role DRIVER (enforce in backend)
   driverUserId String?
-  driverUser   User? @relation(fields: [driverUserId], references: [id])
+  driverUser   User?   @relation(fields: [driverUserId], references: [id])
 
   status TripStatus @default(PLANNED)
 
   // ✅ quantity per trip (for contract decrement)
-  qtyPlanned Float?  // planned load for this trip
-  qtyActual  Float?  // optional, fill when ARRIVED/COMPLETED
-  unitSnap   String?   // ✅ ADD THIS
+  qtyPlanned Float? // planned load for this trip
+  qtyActual  Float? // optional, fill when ARRIVED/COMPLETED
+  unitSnap   String? // ✅ ADD THIS
 
   // dates
   plannedDepartAt DateTime?
@@ -209,7 +209,7 @@ model Trip {
 model OrderProof {
   id      String @id @default(cuid())
   orderId String
-  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   url      String
   fileName String?
@@ -227,7 +227,7 @@ model DispatchLetter {
   tripId String @unique
   trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
-  number   String @unique // e.g. "SP-2026-00045"
+  number   String   @unique // e.g. "SP-2026-00045"
   city     String?
   issuedAt DateTime @default(now())
 
@@ -248,12 +248,12 @@ model DispatchLetter {
 // TRUCK
 ////////////////////////////////////////////////////
 model Truck {
-  id          String   @id @default(cuid())
-  plateNumber String   @unique
+  id          String  @id @default(cuid())
+  plateNumber String  @unique
   brand       String?
   model       String?
   year        Int?
-  vin         String?  @unique
+  vin         String? @unique
 
   stnkExpiry DateTime?
 
@@ -263,9 +263,9 @@ model Truck {
   trips Trip[] // ✅ Trips for dispatching
 
   driverUserId String?
-  driverUser   User? @relation("TruckDriverUser", fields: [driverUserId], references: [id])
+  driverUser   User?   @relation("TruckDriverUser", fields: [driverUserId], references: [id])
 
-  maintenances        TruckMaintenance[]
+  maintenances         TruckMaintenance[]
   sparePartAssignments TruckSparePartAssignment[]
 
   @@index([driverUserId])
@@ -282,7 +282,7 @@ model TruckMaintenance {
   createdAt  DateTime          @default(now())
   doneAt     DateTime?
 
-  truck     Truck          @relation(fields: [truckId], references: [id])
+  truck     Truck           @relation(fields: [truckId], references: [id])
   movements StockMovement[]
 
   sparePartAssignments TruckSparePartAssignment[]
@@ -292,13 +292,14 @@ model TruckMaintenance {
 // INVENTORY
 ////////////////////////////////////////////////////
 model StockUnit {
-  id           String   @id @default(cuid())
+  id           String  @id @default(cuid())
   itemId       String
   locationId   String?
-  serialNumber String?  @unique
-  barcode      String?  @unique
+  serialNumber String? @unique
+  barcode      String? @unique
 
   purchasePrice Int?
+  currency      String?   @default("IDR")
   purchasedAt   DateTime?
 
   status     StockUnitStatus @default(IN_STOCK)
@@ -326,9 +327,13 @@ model TruckSparePartAssignment {
   installedAt DateTime
   removedAt   DateTime?
 
+  // ✅ Snapshot values at install time (important for reporting & audit)
+  installCost Int? // copy from StockUnit.purchasePrice when installed
+  currency    String? @default("IDR")
+
   note        String?
   createdById String?
-  createdBy   User? @relation("SparePartAssignmentCreatedBy", fields: [createdById], references: [id])
+  createdBy   User?   @relation("SparePartAssignmentCreatedBy", fields: [createdById], references: [id])
 
   maintenanceId String?
   maintenance   TruckMaintenance? @relation(fields: [maintenanceId], references: [id])
@@ -363,8 +368,8 @@ model InventoryLocation {
   createdAt DateTime @default(now())
 
   stocks    InventoryStock[]
-  fromMoves StockMovement[] @relation("FromLocation")
-  toMoves   StockMovement[] @relation("ToLocation")
+  fromMoves StockMovement[]  @relation("FromLocation")
+  toMoves   StockMovement[]  @relation("ToLocation")
 
   stockUnits StockUnit[]
 }
@@ -383,15 +388,15 @@ model InventoryStock {
 }
 
 model StockMovement {
-  id        String       @id @default(cuid())
+  id        String        @id @default(cuid())
   type      StockMoveType
   itemId    String
   qty       Float
   note      String?
-  createdAt DateTime     @default(now())
+  createdAt DateTime      @default(now())
 
   createdById String?
-  createdBy   User? @relation("StockMovementByUser", fields: [createdById], references: [id])
+  createdBy   User?   @relation("StockMovementByUser", fields: [createdById], references: [id])
 
   fromLocationId String?
   toLocationId   String?

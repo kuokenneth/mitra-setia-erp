@@ -243,7 +243,39 @@ router.get(
       take: 500,
     });
 
-    res.json({ rows });
+    // ✅ THIS MONTH TOTAL COST (based on installCost snapshot)
+    const now = new Date();
+    const monthFrom = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthTo = new Date(now.getFullYear(), now.getMonth() + 1, 1); // exclusive
+
+    const agg = await prisma.truckSparePartAssignment.aggregate({
+      where: {
+        truckId: id,
+        installedAt: { gte: monthFrom, lt: monthTo },
+        installCost: { not: null },
+      },
+      _sum: { installCost: true },
+    });
+
+    const anyCurrency = await prisma.truckSparePartAssignment.findFirst({
+      where: {
+        truckId: id,
+        installedAt: { gte: monthFrom, lt: monthTo },
+        currency: { not: null },
+      },
+      select: { currency: true },
+      orderBy: { installedAt: "desc" },
+    });
+
+
+    res.json({
+      rows,
+      monthTotalCost: agg._sum.installCost || 0,
+      monthCurrency: anyCurrency?.currency || "IDR",
+      monthFrom,
+      monthTo,
+    });
+
   }
 );
 

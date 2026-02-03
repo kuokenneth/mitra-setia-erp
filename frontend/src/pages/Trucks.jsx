@@ -31,6 +31,9 @@ export default function Trucks() {
   const [movFrom, setMovFrom] = useState("");
   const [movTo, setMovTo] = useState("");
 
+  const [monthTotal, setMonthTotal] = useState(0);
+  const [monthCurrency, setMonthCurrency] = useState("IDR");
+
   // ✅ Pagination
   const PAGE_SIZE = 5;
   const [page, setPage] = useState(1);
@@ -133,6 +136,8 @@ export default function Trucks() {
       const r = await api(`/trucks/${truckId}/spareparts?${params.toString()}`);
       const rows = r.rows || r.items || [];
       setAssignments(rows);
+      setMonthTotal(Number(r.monthTotalCost || 0));
+      setMonthCurrency(r.monthCurrency || "IDR");
     } catch (e) {
       setMovErr(e.message || "Failed to load spareparts");
       setAssignments([]);
@@ -535,6 +540,19 @@ export default function Trucks() {
             >
               Reset
             </button>
+            <div style={{
+              padding: "8px 12px",
+              borderRadius: 999,
+              border: "1px solid rgba(6,95,70,0.14)",
+              background: "rgba(34,197,94,0.10)",
+              color: "#065f46",
+              fontWeight: 1000,
+              fontSize: 12,
+              whiteSpace: "nowrap",
+            }}>
+              This month: {fmtMoney(monthTotal, monthCurrency)}
+            </div>
+
           </div>
 
           {movErr ? <div style={s.alertErr}>{movErr}</div> : null}
@@ -756,6 +774,16 @@ function fmtDateTime(s) {
   if (Number.isNaN(d.getTime())) return "-";
   return d.toLocaleString();
 }
+
+function fmtMoney(n, currency = "IDR") {
+  const v = Number(n || 0);
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 0 }).format(v);
+  } catch {
+    return `${currency} ${v.toLocaleString()}`;
+  }
+}
+
 
 function normalizeDay(d) {
   const x = new Date(d);

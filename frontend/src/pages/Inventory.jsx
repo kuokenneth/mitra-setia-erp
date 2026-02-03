@@ -4,14 +4,12 @@ import { api } from "../api";
 import { useAuth } from "../AuthContext";
 
 /**
- * ✅ Added feature:
- * - "Use Stock" (CONSUME/OUT) for NON-SERIALIZED items (e.g., Oil)
- *   Example: 100 Ltr -> use 15 Ltr -> becomes 85 Ltr (per selected location)
- *
- * Notes:
- * - This UI calls: POST /inventory/consume
- *   Body: { itemId, locationId, qty, note }
- * - Backend must reduce stock.qty at that location and create a movement row (type: CONSUME or OUT)
+ * ✅ Updated (Serialized Receive Pricing - IDR):
+ * - For SERIALIZED items, backend requires units[] (serial required).
+ * - You must provide either:
+ *    A) purchasePrice per unit, OR
+ *    B) totalPurchasePrice (backend divides equally)
+ * - You cannot use qty-only receive for serialized anymore.
  */
 
 //////////////////////
@@ -79,11 +77,8 @@ function TruckSearchSelect({ trucks, value, onChange, placeholder = "Search plat
     return (trucks || []).find((t) => t.id === value) || null;
   }, [trucks, value]);
 
-  // keep input showing selected plate when value changes
   useEffect(() => {
-    if (selected) {
-      setQuery(selected.plateNumber || "");
-    }
+    if (selected) setQuery(selected.plateNumber || "");
   }, [selected]);
 
   const filtered = useMemo(() => {
@@ -107,14 +102,10 @@ function TruckSearchSelect({ trucks, value, onChange, placeholder = "Search plat
         onChange={(e) => {
           setQuery(e.target.value);
           setOpen(true);
-          // If user starts typing, clear selection so they must pick again
           if (value) onChange("");
         }}
         onFocus={() => setOpen(true)}
-        onBlur={() => {
-          // allow click on options before closing
-          setTimeout(() => setOpen(false), 140);
-        }}
+        onBlur={() => setTimeout(() => setOpen(false), 140)}
       />
 
       {open ? (
@@ -133,15 +124,13 @@ function TruckSearchSelect({ trucks, value, onChange, placeholder = "Search plat
           }}
         >
           {filtered.length === 0 ? (
-            <div style={{ padding: 12, fontWeight: 800, color: "#64748B" }}>
-              No trucks found
-            </div>
+            <div style={{ padding: 12, fontWeight: 800, color: "#64748B" }}>No trucks found</div>
           ) : (
             filtered.map((t) => (
               <button
                 key={t.id}
                 type="button"
-                onMouseDown={(e) => e.preventDefault()} // prevent blur before click
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   onChange(t.id);
                   setQuery(t.plateNumber || "");
@@ -156,9 +145,7 @@ function TruckSearchSelect({ trucks, value, onChange, placeholder = "Search plat
                   cursor: "pointer",
                 }}
               >
-                <div style={{ fontWeight: 900, color: "#0B2A1F" }}>
-                  {t.plateNumber || "-"}
-                </div>
+                <div style={{ fontWeight: 900, color: "#0B2A1F" }}>{t.plateNumber || "-"}</div>
                 <div style={{ marginTop: 2, fontWeight: 800, color: "#2F6B55", fontSize: 12 }}>
                   {t.brand ? `${t.brand}` : ""} {t.model ? `${t.model}` : ""}
                 </div>
@@ -170,7 +157,6 @@ function TruckSearchSelect({ trucks, value, onChange, placeholder = "Search plat
     </div>
   );
 }
-
 
 const pill = {
   display: "inline-flex",
@@ -431,6 +417,7 @@ function buildQuery(paramsObj) {
   return s ? `?${s}` : "";
 }
 
+// ✅ UPDATED: validate serial is required; price optional
 function parseUnitLines(text) {
   const lines = String(text || "")
     .split("\n")
@@ -438,16 +425,17 @@ function parseUnitLines(text) {
     .filter(Boolean);
 
   return lines.map((line) => {
-    const [serialNumber, barcode, purchasePrice] = line.split(",").map((s) => (s ? s.trim() : ""));
+    const [serialNumber, purchasePrice] = line
+      .split(",")
+      .map((s) => (s ? s.trim() : ""));
+
     return {
       serialNumber: serialNumber || undefined,
-      barcode: barcode || undefined,
       purchasePrice: purchasePrice ? Number(purchasePrice) : undefined,
     };
   });
 }
 
-// helper: safe sum
 function sumStocks(stocks) {
   return (stocks || []).reduce((a, s) => a + (Number(s.qty) || 0), 0);
 }
@@ -468,32 +456,26 @@ export default function Inventory() {
   const [units, setUnits] = useState([]);
   const [movements, setMovements] = useState([]);
 
-  // unit filters
   const [unitStatus, setUnitStatus] = useState("IN_STOCK");
   const [unitItemId, setUnitItemId] = useState("");
   const [unitLocationId, setUnitLocationId] = useState("");
 
-  // modals
   const [openCreateItem, setOpenCreateItem] = useState(false);
   const [openReceive, setOpenReceive] = useState(false);
   const [openAssign, setOpenAssign] = useState(false);
   const [openCreateLocation, setOpenCreateLocation] = useState(false);
 
-  // consume/use stock modal
   const [openConsume, setOpenConsume] = useState(false);
 
-  // edit barcode modal
   const [openBarcode, setOpenBarcode] = useState(false);
   const [barcodeForm, setBarcodeForm] = useState({ unitId: "", barcode: "" });
 
-  // movement date filters
   const [mvFrom, setMvFrom] = useState("");
   const [mvTo, setMvTo] = useState("");
 
   const [openScrap, setOpenScrap] = useState(false);
   const [scrapForm, setScrapForm] = useState({ unitId: "", note: "" });
 
-  // forms
   const [createItemForm, setCreateItemForm] = useState({
     sku: "",
     name: "",
@@ -501,12 +483,14 @@ export default function Inventory() {
     isSerialized: false,
   });
 
+  // ✅ UPDATED: totalPurchasePrice for serialized equal split
   const [receiveForm, setReceiveForm] = useState({
     itemId: "",
     locationId: "",
     qty: 1,
     note: "",
     unitLines: "",
+    totalPurchasePrice: "", // ✅ NEW
   });
 
   const [assignForm, setAssignForm] = useState({
@@ -529,7 +513,6 @@ export default function Inventory() {
   const serializedItems = useMemo(() => items.filter((x) => x.isSerialized), [items]);
   const nonSerializedItems = useMemo(() => items.filter((x) => !x.isSerialized), [items]);
 
-  // client-side search
   const qNorm = (q || "").trim().toLowerCase();
 
   const filteredItems = useMemo(() => {
@@ -712,6 +695,7 @@ export default function Inventory() {
     }
   }
 
+  // ✅ UPDATED: serialized requires units[] + pricing logic
   async function receiveStock() {
     setErr("");
     try {
@@ -727,8 +711,34 @@ export default function Inventory() {
 
       if (item.isSerialized) {
         const unitsPayload = parseUnitLines(receiveForm.unitLines);
-        if (unitsPayload.length > 0) payload.units = unitsPayload;
-        else payload.qty = Number(receiveForm.qty || 0);
+
+        if (unitsPayload.length === 0) {
+          throw new Error("Serialized item requires unit lines (serial required).");
+        }
+
+        const hasAnyUnitPrice = unitsPayload.some(
+          (u) => u.purchasePrice != null && Number(u.purchasePrice) > 0
+        );
+
+        const totalRaw = receiveForm.totalPurchasePrice;
+        const hasTotalPrice =
+          totalRaw != null && String(totalRaw).trim() !== "" && Number(totalRaw) > 0;
+
+        if (!hasAnyUnitPrice && !hasTotalPrice) {
+          throw new Error("Provide per-unit price OR Total Purchase Price.");
+        }
+
+        if (hasAnyUnitPrice && hasTotalPrice) {
+          throw new Error("Use either per-unit price OR Total Purchase Price, not both.");
+        }
+
+        payload.units = unitsPayload.map((u) => ({
+          serialNumber: u.serialNumber, // REQUIRED
+          barcode: u.barcode || undefined,
+          ...(hasAnyUnitPrice ? { purchasePrice: Number(u.purchasePrice) } : {}),
+        }));
+
+        if (hasTotalPrice) payload.totalPurchasePrice = Number(totalRaw);
       } else {
         payload.qty = Number(receiveForm.qty || 0);
       }
@@ -739,7 +749,14 @@ export default function Inventory() {
       });
 
       setOpenReceive(false);
-      setReceiveForm({ itemId: "", locationId: "", qty: 1, note: "", unitLines: "" });
+      setReceiveForm({
+        itemId: "",
+        locationId: "",
+        qty: 1,
+        note: "",
+        unitLines: "",
+        totalPurchasePrice: "",
+      });
 
       await Promise.all([loadItems(), loadMovements()]);
       if (tab === "UNITS") await loadUnits();
@@ -921,12 +938,6 @@ export default function Inventory() {
                   if (e.key === "Enter") refresh();
                 }}
               />
-              {/**
-              <Btn style={btnPrimary} onClick={refresh}>
-                {loading ? "Loading..." : "Search"}
-              </Btn>
-               */}
-
             </div>
           </div>
 
@@ -946,7 +957,8 @@ export default function Inventory() {
                   const item = items.find((x) => x.id === itemId);
                   if (!item) return;
 
-                  const firstLocWithStock = (item.stocks || []).find((s) => Number(s.qty || 0) > 0)?.locationId || "";
+                  const firstLocWithStock =
+                    (item.stocks || []).find((s) => Number(s.qty || 0) > 0)?.locationId || "";
                   setConsumeForm((p) => ({
                     ...p,
                     itemId,
@@ -1180,13 +1192,47 @@ export default function Inventory() {
                 value={receiveForm.qty}
                 onChange={(e) => setReceiveForm((p) => ({ ...p, qty: e.target.value }))}
               />
+              <div style={{ marginTop: 6, fontSize: 12, color: "#2B4C3F", opacity: 0.75, fontWeight: 700 }}>
+                For serialized items, Qty is ignored (units list required).
+              </div>
             </div>
 
+            {/* ✅ NEW: Total Purchase Price only for serialized */}
+            {(() => {
+              const item = items.find((x) => x.id === receiveForm.itemId);
+              if (!item?.isSerialized) return null;
+
+              return (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55", marginBottom: 6 }}>
+                    Total Purchase Price (IDR) — optional (divided equally)
+                  </div>
+                  <input
+                    style={{ ...inputPill, borderRadius: 14, minWidth: 0, width: "100%", boxSizing: "border-box" }}
+                    type="number"
+                    value={receiveForm.totalPurchasePrice || ""}
+                    onChange={(e) => setReceiveForm((p) => ({ ...p, totalPurchasePrice: e.target.value }))}
+                    placeholder="e.g. 20000000"
+                  />
+                  <div style={{ marginTop: 6, fontSize: 12, color: "#2B4C3F", opacity: 0.75, fontWeight: 700 }}>
+                    Use either per-unit price in lines OR this total price (not both).
+                  </div>
+                </div>
+              );
+            })()}
+
             <div style={{ gridColumn: "1 / -1" }}>
-              <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55" }}>Serialized Units (optional)</div>
-              <div style={{ fontSize: 12, color: "#2B4C3F", opacity: 0.75, marginTop: 4, fontWeight: 700 }}>
-                One per line: <code>serial,barcode,price</code>. If empty, system uses Qty.
+              <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55" }}>
+                Serialized Units {(() => {
+                  const item = items.find((x) => x.id === receiveForm.itemId);
+                  return item?.isSerialized ? "(required)" : "(optional)";
+                })()}
               </div>
+
+              <div style={{ fontSize: 12, color: "#2B4C3F", opacity: 0.75, marginTop: 4, fontWeight: 700 }}>
+                One per line: <code>serial,price</code>. Price can be blank if you fill Total Purchase Price.
+              </div>
+
               <textarea
                 style={{
                   width: "100%",
@@ -1199,11 +1245,12 @@ export default function Inventory() {
                   color: "#0B2A1F",
                   height: 140,
                   resize: "vertical",
+                  boxSizing: "border-box",
                   fontWeight: 700,
                 }}
                 value={receiveForm.unitLines}
                 onChange={(e) => setReceiveForm((p) => ({ ...p, unitLines: e.target.value }))}
-                placeholder={`Example:\nSN001,BC001,1500000\nSN002,BC002,1500000`}
+                placeholder={`Example (per-unit price):\nSN001,2000000\nSN002,2000000\n\nExample (total price):\nSN001,\nSN002,`}
               />
             </div>
           </div>
@@ -1218,6 +1265,8 @@ export default function Inventory() {
           </div>
         </Modal>
 
+        {/* the rest of your modals & tables unchanged */}
+        {/* ... */}
         <Modal open={openConsume} title="Use Stock (Consume / OUT)" onClose={() => setOpenConsume(false)}>
           {locations.length === 0 ? (
             <div style={{ marginBottom: 14 }}>
@@ -1339,7 +1388,6 @@ export default function Inventory() {
               Use / Reduce Stock
             </Btn>
           </div>
-
           <div style={{ marginTop: 12, color: "#2F6B55", fontWeight: 800, fontSize: 12 }}>
             This will reduce stock at the selected location and record a movement (audit trail).
           </div>
@@ -1393,7 +1441,6 @@ export default function Inventory() {
                 placeholder="Leave empty = now"
               />
             </div>
-
             <div style={{ gridColumn: "1 / -1" }}>
               <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55", marginBottom: 6 }}>Note</div>
               <input
@@ -1426,6 +1473,9 @@ export default function Inventory() {
     </div>
   );
 }
+
+// ✅ Everything below here is unchanged from your file
+// (ItemsTable, UnitsTable, MovementsTable)
 
 function ItemsTable({ items, loading, onUse }) {
   const total = items.length;
@@ -1583,7 +1633,8 @@ function UnitsTable({
             <tr>
               <th style={th}>Item</th>
               <th style={th}>Serial</th>
-              <th style={th}>Barcode</th>
+              {/*<th style={th}>Barcode</th>*/}
+              <th style={th}>Price</th>
               <th style={th}>Status</th>
               <th style={th}>Location</th>
               <th style={th}>Currently Used By</th>
@@ -1602,7 +1653,13 @@ function UnitsTable({
                     <div style={{ marginTop: 2, fontWeight: 800, color: "#2F6B55", fontSize: 13 }}>{u.item?.sku || ""}</div>
                   </td>
                   <td style={{ ...tdSoft, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>{u.serialNumber || "—"}</td>
-                  <td style={{ ...tdSoft, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>{u.barcode || "—"}</td>
+                  {/*<td style={{ ...tdSoft, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>{u.barcode || "—"}</td>*/}
+                  {/* ✅ PRICE */}
+                  <td style={tdSoft}>
+                    {u.purchasePrice
+                      ? `Rp ${Number(u.purchasePrice).toLocaleString("id-ID")}`
+                      : "—"}
+                  </td>
                   <td style={tdSoft}>
                     <Pill variant={u.status === "IN_STOCK" ? "green" : "grey"}>{u.status}</Pill>
                   </td>
@@ -1612,9 +1669,9 @@ function UnitsTable({
                   </td>
                   <td style={tdSoft}>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <Btn style={btn} onClick={() => onBarcode(u)}>
+                      {/*<Btn style={btn} onClick={() => onBarcode(u)}>
                         Barcode
-                      </Btn>
+                      </Btn>*/}
                       <Btn style={btnDanger} onClick={() => onScrap(u)}>
                         Scrap
                       </Btn>
