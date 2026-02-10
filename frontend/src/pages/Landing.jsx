@@ -1,9 +1,8 @@
-// src/pages/Landing.jsx
-import { useEffect, useState } from "react";
+// src/pages/Landing.jsx - Modern Redesign with Top 5 Enhancements
+import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 
 export default function Landing() {
-  // TODO: change
   const WA_NUMBER = "62XXXXXXXXXX";
   const PHONE = "+62 000-0000-0000";
   const ADDRESS =
@@ -13,46 +12,44 @@ export default function Landing() {
     "Halo CV. Mitra Setia, saya ingin tanya layanan pengangkutan."
   )}`;
 
-  // ✅ GREEN brand only
+  // Modern color palette
   const BRAND = {
     ink: "#111827",
     ink2: "#1F2937",
-    mintTop: "#6fcf8f",
-    mintBottom: "#5cc67f",
-    line: "rgba(20,80,60,0.10)",
-    cardLine: "rgba(17,24,39,0.10)",
     green: "#1f9d53",
-    green2: "#2ccf6a",
-    greenSoft: "rgba(34,197,94,0.14)",
-    footerBg: "#0B1F16",
-    footerText: "rgba(255,255,255,0.9)",
-    footerMuted: "rgba(255,255,255,0.7)",
-  };
-
-  const HERO = {
-    img: "/hero-1.jpg",
-    tag: "Transport & Logistics",
-    title: "Pengangkutan rutin\n& kontrak perusahaan.",
-    desc: "Pengiriman terjadwal dengan koordinasi yang rapi untuk kebutuhan operasional perusahaan.",
-    ctaA: { label: "Minta Penawaran", href: waLink },
-    ctaB: { label: "Lihat Layanan", href: "#services" },
+    green2: "#3BB865",
+    greenLight: "#5FD686",
+    greenDark: "#2D9F56",
+    greenSoft: "rgba(75,202,116,0.15)",
+    glass: "rgba(255,255,255,0.85)",
+    glassBorder: "rgba(255,255,255,0.4)",
+    footerBg: "#1F7A44",
   };
 
   const [vw, setVw] = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
   const [scrollY, setScrollY] = useState(0);
   const [openFaq, setOpenFaq] = useState(0);
   const [openService, setOpenService] = useState(0);
+  const [showNavbar, setShowNavbar] = useState(false);
+  
+  // Refs for 3D tilt and counter animations
+  const statsRef = useRef(null);
+  const [countersStarted, setCountersStarted] = useState(false);
+  const [counts, setCounts] = useState({ deliveries: 0, clients: 0, fleet: 0 });
 
   const isMobile = vw <= 640;
   const isNarrow = vw < 980;
 
   useEffect(() => {
     const onResize = () => setVw(window.innerWidth);
-    const onScroll = () => setScrollY(window.scrollY || 0);
+    const onScroll = () => {
+      const y = window.scrollY || 0;
+      setScrollY(y);
+      setShowNavbar(y > 100);
+    };
 
     window.addEventListener("resize", onResize);
     window.addEventListener("scroll", onScroll, { passive: true });
-
     onResize();
     onScroll();
 
@@ -62,6 +59,49 @@ export default function Landing() {
     };
   }, []);
 
+  // Animated Counter Effect
+  useEffect(() => {
+    if (!statsRef.current || countersStarted) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setCountersStarted(true);
+          
+          // Animate counters
+          const duration = 2000;
+          const targets = { deliveries: 500, clients: 10, fleet: 30 };
+          const steps = 60;
+          const stepDuration = duration / steps;
+          
+          let step = 0;
+          const timer = setInterval(() => {
+            step++;
+            const progress = step / steps;
+            
+            setCounts({
+              deliveries: Math.floor(targets.deliveries * progress),
+              clients: Math.floor(targets.clients * progress),
+              fleet: Math.floor(targets.fleet * progress),
+            });
+            
+            if (step >= steps) {
+              clearInterval(timer);
+              setCounts(targets);
+            }
+          }, stepDuration);
+          
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.3 }
+    );
+
+    observer.observe(statsRef.current);
+    return () => observer.disconnect();
+  }, [countersStarted]);
+
+  // Reveal animations
   useEffect(() => {
     const nodes = document.querySelectorAll("[data-reveal]");
     if (!("IntersectionObserver" in window) || nodes.length === 0) {
@@ -77,268 +117,340 @@ export default function Landing() {
           }
         });
       },
-      { threshold: 0.2 }
+      { threshold: 0.15 }
     );
     nodes.forEach((n) => obs.observe(n));
     return () => obs.disconnect();
   }, []);
 
-  // ✅ scroll reactive
-  const parallax = Math.min(80, scrollY * 0.18);
+  const parallax = Math.min(60, scrollY * 0.15);
 
-  const page = {
-    minHeight: "100vh",
-    background: "#ffffff",
-    color: BRAND.ink,
-    fontFamily:
-      '"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
-  };
-
+  // Styles
   const container = {
-    maxWidth: 1180,
+    maxWidth: 1240,
     margin: "0 auto",
-    padding: isMobile ? "0 16px" : "0 22px",
+    padding: isMobile ? "0 20px" : "0 32px",
   };
 
-  const section = {
-    padding: isMobile ? "56px 0" : "96px 0",
-    scrollSnapAlign: "start",
-    scrollSnapStop: "always",
-  };
-  const sectionCenter = { textAlign: "center" };
-
-  const eyebrow = {
-    fontSize: 12,
-    fontWeight: 700,
-    letterSpacing: 1.4,
-    textTransform: "uppercase",
-    opacity: 0.5,
-  };
-
-  const h2 = {
-    fontSize: isMobile ? 28 : 40,
-    lineHeight: 1.15,
-    letterSpacing: -0.2,
-    fontWeight: 700,
-    margin: "10px 0 12px",
-  };
-
-  const p = {
-    margin: 0,
-    fontSize: 17,
-    lineHeight: 1.8,
-    opacity: 0.78,
-    maxWidth: 820,
-  };
-
-  const card = {
-    borderRadius: 18,
-    border: `1px solid ${BRAND.cardLine}`,
-    background: "#fff",
-    padding: 18,
-    boxShadow: "0 2px 10px rgba(15, 23, 42, 0.04)",
-  };
-  const panel = {
-    ...card,
-    padding: isMobile ? 22 : 28,
+  const glassCard = {
+    background: BRAND.glass,
+    backdropFilter: "blur(20px)",
+    WebkitBackdropFilter: "blur(20px)",
+    border: `1px solid ${BRAND.glassBorder}`,
     borderRadius: 24,
+    boxShadow: "0 8px 32px rgba(31, 157, 83, 0.1)",
   };
 
-  // ✅ Premium button set (matches screenshot vibe)
-  const btn = {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    padding: "12px 16px",
-    borderRadius: 12,
-    border: "1px solid rgba(17,24,39,0.08)",
-    background: "#fff",
-    color: BRAND.ink,
-    fontWeight: 700,
-    textDecoration: "none",
-    cursor: "pointer",
-    boxShadow: "0 10px 22px rgba(15, 23, 42, 0.10)",
-    transition: "transform 160ms ease",
+  const gradientText = {
+    background: `linear-gradient(135deg, ${BRAND.green}, ${BRAND.green2})`,
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+    backgroundClip: "text",
   };
 
-  const btnGreen = {
-    ...btn,
-    borderRadius: 12,
-    padding: "12px 16px",
-    background: `linear-gradient(95deg, ${BRAND.green2}, ${BRAND.green})`,
-    border: "1px solid rgba(31,157,83,0.40)",
-    color: "#fff",
-    boxShadow: "0 14px 28px rgba(31,157,83,0.20)",
+  // 3D Tilt Effect Handler
+  const handleCardTilt = (e, cardRef) => {
+    if (isMobile) return;
+    
+    const card = cardRef;
+    const rect = card.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    
+    const rotateX = (y - centerY) / 10;
+    const rotateY = (centerX - x) / 10;
+    
+    card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.02, 1.02, 1.02)`;
   };
 
-  const heroWrap = {
-    position: "relative",
-    width: "100%",
-    overflow: "hidden",
-    borderBottom: "none", // ✅ remove border so it doesn’t fight the wave
-    background: "#fff",
+  const resetCardTilt = (cardRef) => {
+    if (isMobile) return;
+    cardRef.style.transform = "perspective(1000px) rotateX(0) rotateY(0) scale3d(1, 1, 1)";
   };
-
-
-  const hero = {
-    position: "relative",
-    minHeight: isMobile ? 560 : isNarrow ? 640 : 720,
-  };
-
-  // ✅ Layered wave divider
-  function AbstractWave({ nextBg = "#ECFDF5" }) {
-    return (
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          bottom: -1,
-          height: 120,
-          pointerEvents: "none",
-          overflow: "hidden",
-        }}
-      >
-        <svg viewBox="0 0 1440 120" preserveAspectRatio="none" width="100%" height="120">
-          {/* bottom wave */}
-          <path
-            d="M0,90 C240,112 520,70 760,92 C1020,114 1240,84 1440,98 L1440,120 L0,120 Z"
-            fill={nextBg}
-          />
-          {/* middle wave */}
-          <path
-            d="M0,76 C220,98 520,58 760,78 C1020,98 1240,70 1440,84 L1440,120 L0,120 Z"
-            fill="rgba(31,157,83,0.22)"
-          />
-          {/* top wave */}
-          <path
-            d="M0,62 C220,84 520,46 760,64 C1020,84 1240,60 1440,72"
-            stroke="rgba(255,255,255,0.65)"
-            strokeWidth="3"
-            fill="none"
-          />
-        </svg>
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            backgroundImage:
-              "radial-gradient(rgba(255,255,255,0.35) 1px, transparent 1px)",
-            backgroundSize: "16px 16px",
-            opacity: 0.25,
-            maskImage: "linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.65) 55%, rgba(0,0,0,0.95) 100%)",
-            mixBlendMode: "screen",
-          }}
-        />
-      </div>
-    );
-  }
-
 
   return (
     <div
       style={{
-        ...page,
-        scrollSnapType: isMobile ? "none" : "y mandatory",
-        scrollBehavior: "smooth",
+        minHeight: "100vh",
+        background: "#ffffff",
+        color: BRAND.ink,
+        fontFamily: '"Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        position: "relative",
+        overflow: "hidden",
       }}
     >
       {/* ===========================
-          HERO — improved clarity + better spacing
+          FLOATING NAVBAR - Enhancement #1
          =========================== */}
-      <section style={{ ...heroWrap, scrollSnapAlign: "start" }}>
-        <div style={hero}>
-          {/* background image (sharper) */}
+      <nav
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 100,
+          transform: showNavbar ? "translateY(0)" : "translateY(-100%)",
+          opacity: showNavbar ? 1 : 0,
+          transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+        }}
+      >
+        <div
+          style={{
+            ...glassCard,
+            margin: "16px auto",
+            maxWidth: 1200,
+            padding: "12px 24px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            borderRadius: 16,
+          }}
+        >
+          {/* Logo with Animation */}
           <div
             style={{
-              position: "absolute",
-              inset: 0,
-              backgroundImage: `url(${HERO.img})`,
-              backgroundSize: "cover",
-              backgroundPosition: `center calc(18% + ${parallax}px)`,
-              filter: "saturate(1.02) contrast(1.04) brightness(0.98)",
-              transform: "scale(1.03)",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              cursor: "pointer",
             }}
-          />
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          >
+            <img
+              src="/logo3.png"
+              alt="CV. Mitra Setia"
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 10,
+                objectFit: "contain",
+                border: "none",
+                padding: 4,
+              }}
+            />
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: BRAND.ink }}>
+                CV. Mitra Setia
+              </div>
+              <div style={{ fontSize: 10, color: BRAND.ink2, opacity: 0.7 }}>
+                Transport & Logistics
+              </div>
+            </div>
+          </div>
 
-          {/* overlay */}
-          <div
+          {/* Nav Links */}
+          {!isMobile && (
+            <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+              {["services", "contact"].map((link) => (
+                <a
+                  key={link}
+                  href={`#${link}`}
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: BRAND.ink,
+                    textDecoration: "none",
+                    textTransform: "capitalize",
+                    transition: "color 0.3s",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = BRAND.green)}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = BRAND.ink)}
+                >
+                  {link}
+                </a>
+              ))}
+            </div>
+          )}
+
+          {/* CTA Button */}
+          <Link
+            to="/login"
             style={{
-              position: "absolute",
-              inset: 0,
-              background: "linear-gradient(90deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.75) 55%, rgba(255,255,255,0.20) 100%)",
-            }}
-          />
-
-          {/* dotted texture */}
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              backgroundImage: "radial-gradient(rgba(31,157,83,0.18) 1px, transparent 1px)",
-              backgroundSize: "16px 16px",
-              opacity: 0.18,
-              mixBlendMode: "multiply",
-              pointerEvents: "none",
-            }}
-            className="dots-drift"
-          />
-
-          {/* soft top highlight */}
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background:
-                "linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.00) 42%)",
-              pointerEvents: "none",
-            }}
-          />
-
-          {/* soft green glow */}
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: `radial-gradient(900px 520px at 18% 18%, ${BRAND.greenSoft}, transparent 60%)`,
-              pointerEvents: "none",
-            }}
-          />
-
-
-          {/* content */}
-          <div
-            style={{
-              ...container,
-              position: "relative",
-              paddingTop: isMobile ? 56 : isNarrow ? 64 : 72,
-              paddingBottom: isMobile ? 90 : 110,
+              padding: "10px 20px",
+              background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
+              color: "#fff",
+              fontSize: 14,
+              fontWeight: 700,
+              borderRadius: 10,
+              textDecoration: "none",
+              transition: "all 0.3s",
             }}
           >
-            <div
-              style={{
-                maxWidth: 720,
-                margin: "0",
-                color: BRAND.ink,
-                textAlign: "left",
-              }}
-              className="stagger"
-            >
-              {/* tag pill */}
+            Login
+          </Link>
+        </div>
+      </nav>
+
+      {/* ===========================
+          PARTICLE ANIMATION - Enhancement #4
+         =========================== */}
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          pointerEvents: "none",
+          zIndex: 1,
+          overflow: "hidden",
+        }}
+      >
+        {[...Array(isMobile ? 15 : 30)].map((_, i) => (
+          <div
+            key={i}
+            style={{
+              position: "absolute",
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              width: Math.random() * 4 + 2,
+              height: Math.random() * 4 + 2,
+              background: `${BRAND.green}${Math.random() > 0.5 ? "40" : "20"}`,
+              borderRadius: "50%",
+              animation: `float ${Math.random() * 10 + 10}s ease-in-out infinite`,
+              animationDelay: `${Math.random() * 5}s`,
+            }}
+          />
+        ))}
+      </div>
+
+      {/* ===========================
+          HERO SECTION
+         =========================== */}
+      <section
+        style={{
+          position: "relative",
+          minHeight: isMobile ? "100vh" : "95vh",
+          overflow: "hidden",
+          display: "flex",
+          alignItems: "center",
+        }}
+      >
+        {/* Abstract Background Layers */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: `linear-gradient(135deg, ${BRAND.greenLight} 0%, #ffffff 50%, ${BRAND.greenSoft} 100%)`,
+          }}
+        />
+
+        {/* Animated Gradient Blobs */}
+        <div
+          style={{
+            position: "absolute",
+            top: "-20%",
+            right: "-10%",
+            width: isMobile ? "400px" : "700px",
+            height: isMobile ? "400px" : "700px",
+            background: `radial-gradient(circle, ${BRAND.green2}40 0%, transparent 70%)`,
+            borderRadius: "50%",
+            filter: "blur(60px)",
+            animation: "float 20s ease-in-out infinite",
+            transform: `translateY(${parallax}px)`,
+          }}
+        />
+
+        <div
+          style={{
+            position: "absolute",
+            bottom: "-15%",
+            left: "-5%",
+            width: isMobile ? "350px" : "600px",
+            height: isMobile ? "350px" : "600px",
+            background: `radial-gradient(circle, ${BRAND.green}30 0%, transparent 70%)`,
+            borderRadius: "50%",
+            filter: "blur(50px)",
+            animation: "float 25s ease-in-out infinite reverse",
+          }}
+        />
+
+        {/* Geometric Shapes */}
+        <div
+          style={{
+            position: "absolute",
+            top: "15%",
+            left: "5%",
+            width: "200px",
+            height: "200px",
+            border: `2px solid ${BRAND.green}30`,
+            borderRadius: "30% 70% 70% 30% / 30% 30% 70% 70%",
+            animation: "rotate 30s linear infinite",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            bottom: "20%",
+            right: "8%",
+            width: "150px",
+            height: "150px",
+            border: `2px solid ${BRAND.green2}40`,
+            borderRadius: "50%",
+            animation: "rotate 25s linear infinite reverse",
+          }}
+        />
+
+        {/* Grid Pattern */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage: `
+              linear-gradient(${BRAND.green}08 1px, transparent 1px),
+              linear-gradient(90deg, ${BRAND.green}08 1px, transparent 1px)
+            `,
+            backgroundSize: "60px 60px",
+            opacity: 0.4,
+          }}
+        />
+
+        {/* Floating Doodle */}
+        <div
+          style={{
+            position: "absolute",
+            top: isMobile ? "10%" : "15%",
+            right: isMobile ? "-10%" : "5%",
+            width: isMobile ? "250px" : "400px",
+            opacity: 0.15,
+            animation: "floatY 8s ease-in-out infinite",
+            transform: `translateY(${parallax * 0.5}px)`,
+          }}
+        >
+          <img
+            src="/doodle.png"
+            alt=""
+            style={{ width: "100%", height: "auto", filter: "saturate(0.8)" }}
+          />
+        </div>
+
+        {/* Hero Content */}
+        <div style={{ ...container, position: "relative", zIndex: 10, width: "100%" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: isNarrow ? "1fr" : "1.2fr 0.8fr",
+              gap: 40,
+              alignItems: "center",
+            }}
+          >
+            {/* Left Content */}
+            <div className="stagger">
+              {/* Tag Badge */}
               <div
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 10,
-                  padding: "8px 12px",
+                  gap: 8,
+                  padding: "10px 20px",
+                  background: BRAND.glass,
+                  backdropFilter: "blur(10px)",
+                  border: `1px solid ${BRAND.green}40`,
                   borderRadius: 999,
-                  background: "rgba(255,255,255,0.85)",
-                  border: "1px solid rgba(31,157,83,0.25)",
-                  fontSize: 12,
-                  fontWeight: 800,
-                  color: BRAND.ink,
-                  margin: 0,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: BRAND.green,
+                  marginBottom: 24,
                 }}
                 className="float-soft"
               >
@@ -346,269 +458,439 @@ export default function Landing() {
                   style={{
                     width: 8,
                     height: 8,
-                    borderRadius: 999,
+                    borderRadius: "50%",
                     background: BRAND.green2,
-                    boxShadow: "0 0 10px rgba(31,157,83,0.50)",
+                    boxShadow: `0 0 10px ${BRAND.green2}`,
                   }}
                 />
-                {HERO.tag}
+                Transport & Logistics
               </div>
 
+              {/* Main Heading */}
               <h1
                 style={{
-                  margin: "18px 0 16px",
-                  fontSize: isMobile ? 34 : isNarrow ? 50 : 72,
-                  lineHeight: 1.08,
-                  letterSpacing: isMobile ? -0.4 : -0.8,
-                  fontWeight: 700,
-                  whiteSpace: "pre-line",
+                  margin: 0,
+                  fontSize: isMobile ? 42 : isNarrow ? 56 : 72,
+                  lineHeight: 1.1,
+                  fontWeight: 800,
+                  letterSpacing: "-0.02em",
+                  marginBottom: 20,
                 }}
               >
-                {HERO.title}
+                Pengangkutan rutin{" "}
+                <span style={gradientText}>& kontrak perusahaan.</span>
               </h1>
 
-              <p style={{ margin: 0, fontSize: isMobile ? 15 : 16, lineHeight: 1.85, opacity: 0.78, maxWidth: 560 }}>
-                {HERO.desc}
+              {/* Description */}
+              <p
+                style={{
+                  fontSize: isMobile ? 16 : 18,
+                  lineHeight: 1.7,
+                  color: BRAND.ink2,
+                  marginBottom: 32,
+                  maxWidth: 580,
+                }}
+              >
+                Pengiriman terjadwal dengan koordinasi yang rapi untuk kebutuhan
+                operasional perusahaan.
               </p>
 
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 18, justifyContent: "flex-start" }}>
-                {"href" in HERO.ctaA ? (
-                  <a
-                    href={HERO.ctaA.href}
-                    style={btnGreen}
-                    className="lift"
-                    onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-1px)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(0px)")}
-                  >
-                    {HERO.ctaA.label}
-                  </a>
-                ) : null}
+              {/* CTA Buttons */}
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                <a
+                  href={waLink}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "16px 32px",
+                    background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
+                    color: "#fff",
+                    fontSize: 16,
+                    fontWeight: 700,
+                    borderRadius: 16,
+                    textDecoration: "none",
+                    boxShadow: `0 10px 30px ${BRAND.green}40`,
+                    transition: "all 0.3s ease",
+                    border: "none",
+                  }}
+                  className="lift"
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = `0 15px 40px ${BRAND.green}50`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = `0 10px 30px ${BRAND.green}40`;
+                  }}
+                >
+                  Minta Penawaran
+                </a>
 
-                {"href" in HERO.ctaB ? (
-                  <a
-                    href={HERO.ctaB.href}
-                    style={btn}
-                    className="lift"
-                    onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-1px)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(0px)")}
-                  >
-                    {HERO.ctaB.label}
-                  </a>
-                ) : (
-                  <Link
-                    to={HERO.ctaB.to}
-                    style={btn}
-                    className="lift"
-                    onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-1px)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(0px)")}
-                  >
-                    {HERO.ctaB.label}
-                  </Link>
-                )}
+                <a
+                  href="#services"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "16px 32px",
+                    background: BRAND.glass,
+                    backdropFilter: "blur(10px)",
+                    color: BRAND.ink,
+                    fontSize: 16,
+                    fontWeight: 700,
+                    borderRadius: 16,
+                    textDecoration: "none",
+                    border: `1px solid ${BRAND.glassBorder}`,
+                    transition: "all 0.3s ease",
+                  }}
+                  className="lift"
+                >
+                  Lihat Layanan
+                </a>
               </div>
 
-              <div style={{ marginTop: 14, fontSize: 12, opacity: 0.78, fontWeight: 800 }}>
-                Berbasis di Medan · Pengiriman ke Mandailing Natal
-              </div>
-
-              <div style={{ marginTop: 12, fontSize: 12, opacity: 0.7, fontWeight: 600 }}>
-                Operasional harian · Dokumentasi rapi · Kontak cepat
+              {/* Info Text */}
+              <div
+                style={{
+                  marginTop: 24,
+                  fontSize: 13,
+                  color: BRAND.ink2,
+                  opacity: 0.8,
+                }}
+              >
+                📍 Berbasis di Medan
+                <br />
+                ⚡ Operasional harian · Dokumentasi rapi · Kontak cepat
               </div>
             </div>
+
+            {/* Right - Animated Counter Cards - Enhancement #3 */}
+            {!isMobile && (
+              <div className="reveal slide-right" data-reveal ref={statsRef}>
+                <div
+                  style={{
+                    ...glassCard,
+                    padding: 32,
+                    display: "grid",
+                    gap: 24,
+                  }}
+                >
+                  {[
+                    { label: "Pengiriman Sukses", value: counts.deliveries, icon: "📦", suffix: "+" },
+                    { label: "Klien Aktif", value: counts.clients, icon: "🤝", suffix: "+" },
+                    { label: "Armada Siap", value: counts.fleet, icon: "🚚", suffix: "+" },
+                  ].map((stat, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 16,
+                        padding: 20,
+                        background: "rgba(255,255,255,0.6)",
+                        borderRadius: 16,
+                        border: `1px solid ${BRAND.green}20`,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 32,
+                          width: 60,
+                          height: 60,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background: `linear-gradient(135deg, ${BRAND.greenLight}, ${BRAND.green}30)`,
+                          borderRadius: 16,
+                        }}
+                      >
+                        {stat.icon}
+                      </div>
+                      <div>
+                        <div
+                          style={{
+                            fontSize: 28,
+                            fontWeight: 800,
+                            ...gradientText,
+                          }}
+                        >
+                          {stat.value}{stat.suffix}
+                        </div>
+                        <div style={{ fontSize: 13, color: BRAND.ink2, opacity: 0.8 }}>
+                          {stat.label}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-
-          {/* scroll indicator */}
-          <div
-            style={{
-              position: "absolute",
-              left: "50%",
-              bottom: isMobile ? 42 : 34,
-              transform: "translateX(-50%)",
-              fontSize: 11,
-              letterSpacing: 1.6,
-              textTransform: "uppercase",
-              color: "rgba(17,24,39,0.55)",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            
-            <span className="float-soft" style={{ fontSize: 16, lineHeight: 1 }}>↓</span>
-          </div>
-
-          {/* abstract */}
-          <AbstractWave nextBg={BRAND.mintTop} />
-
         </div>
-      </section>
 
-      {/* ===========================
-          CAPABILITIES (DOODLE)
-         =========================== */}
-      <section style={{ ...section, background: BRAND.mintTop }}>
+        {/* Scroll Indicator */}
         <div
           style={{
-            ...container,
-            display: "grid",
-            gridTemplateColumns: isNarrow ? "1fr" : "1.1fr 0.9fr",
-            gap: 24,
+            position: "absolute",
+            bottom: 40,
+            left: "50%",
+            transform: "translateX(-50%)",
+            display: "flex",
+            flexDirection: "column",
             alignItems: "center",
+            gap: 8,
+            opacity: 0.6,
           }}
         >
-          <div className="reveal slide-left" data-reveal>
-            <div style={eyebrow}>Kapabilitas</div>
-            <div style={{ ...h2, fontSize: isMobile ? 30 : 42 }}>
-              Operasi logistik terintegrasi.
-            </div>
-            <p style={{ ...p, maxWidth: 560 }}>
-              Dari pengangkutan rutin hingga kontrak perusahaan, proses kami terukur dan terdokumentasi.
-            </p>
-          </div>
-          <div className="reveal slide-right" data-reveal>
-            <img
-              src="/doodle.png"
-              alt="Logistics illustration"
-              style={{
-                width: "100%",
-                height: "auto",
-                opacity: 0.75,
-                filter: "drop-shadow(0 16px 32px rgba(15,23,42,0.10))",
-                mixBlendMode: "multiply",
-              }}
-            />
-          </div>
+          <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.1em" }}>SCROLL</span>
+          <div
+            style={{
+              width: 2,
+              height: 40,
+              background: `linear-gradient(180deg, ${BRAND.green}, transparent)`,
+              animation: "scrollDown 2s ease-in-out infinite",
+            }}
+          />
         </div>
       </section>
 
       {/* ===========================
-          SERVICES
+          SERVICES SECTION with 3D Tilt - Enhancement #2
          =========================== */}
       <section
         id="services"
         style={{
-          ...section,
+          padding: isMobile ? "80px 0" : "120px 0",
+          position: "relative",
           background: "#ffffff",
         }}
       >
+        {/* Background Doodle Watermark */}
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: "800px",
+            opacity: 0.03,
+            pointerEvents: "none",
+          }}
+        >
+          <img src="/doodle.png" alt="" style={{ width: "100%" }} />
+        </div>
+
         <div style={container}>
-          <div style={sectionCenter}>
-            <div style={eyebrow} className="reveal slide-left" data-reveal>Layanan</div>
-            <div style={h2} className="reveal slide-left" data-reveal>
-              Fokus pada rute yang konsisten dan layanan yang dapat diandalkan.
+          {/* Section Header */}
+          <div style={{ textAlign: "center", marginBottom: 60 }} className="reveal" data-reveal>
+            <div
+              style={{
+                display: "inline-block",
+                padding: "8px 16px",
+                background: BRAND.greenSoft,
+                color: BRAND.green,
+                fontSize: 12,
+                fontWeight: 700,
+                borderRadius: 999,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                marginBottom: 16,
+              }}
+            >
+              Layanan
             </div>
-            <p style={p} className="reveal slide-left" data-reveal>
-              Pengangkutan rutin, logistik operasional, dan kontrak perusahaan dengan standar yang jelas.
+            <h2
+              style={{
+                margin: "0 0 16px",
+                fontSize: isMobile ? 36 : 48,
+                fontWeight: 800,
+                lineHeight: 1.2,
+                letterSpacing: "-0.02em",
+              }}
+            >
+              Fokus pada rute yang{" "}
+              <span style={gradientText}>konsisten & andal</span>
+            </h2>
+            <p
+              style={{
+                margin: "0 auto",
+                maxWidth: 600,
+                fontSize: 18,
+                lineHeight: 1.7,
+                color: BRAND.ink2,
+                opacity: 0.8,
+              }}
+            >
+              Pengangkutan rutin, logistik operasional, dan kontrak perusahaan dengan
+              standar yang jelas.
             </p>
           </div>
 
+          {/* Service Cards with 3D Tilt Effect */}
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: isNarrow ? "1fr" : "repeat(3, minmax(0, 1fr))",
-              gap: isMobile ? 12 : 14,
-              marginTop: 26,
+              gridTemplateColumns: isNarrow ? "1fr" : "repeat(3, 1fr)",
+              gap: 24,
             }}
           >
             {[
               {
-                t: "Pengangkutan Pupuk",
-                d: "Pengiriman terjadwal untuk kebun & distributor pupuk dengan SOP yang jelas.",
+                icon: "🌾",
+                title: "Pengangkutan Pupuk",
+                desc: "Pengiriman terjadwal untuk kebun & distributor pupuk dengan SOP yang jelas.",
+                color: BRAND.green,
               },
               {
-                t: "Logistik",
-                d: "Pengiriman parts/komponen/barang untuk pabrik & armada dengan dokumentasi rapi.",
+                icon: "📦",
+                title: "Logistik",
+                desc: "Pengiriman parts/komponen/barang untuk pabrik & armada dengan dokumentasi rapi.",
+                color: BRAND.green2,
               },
               {
-                t: "Kontrak Perusahaan",
-                d: "Kerjasama jangka panjang untuk pengiriman rutin & kebutuhan operasional.",
+                icon: "🤝",
+                title: "Kontrak Perusahaan",
+                desc: "Kerjasama jangka panjang untuk pengiriman rutin & kebutuhan operasional.",
+                color: BRAND.greenDark,
               },
-            ].map((x, i) => (
+            ].map((service, i) => (
               <div
-                key={x.t}
+                key={i}
+                className="reveal"
+                data-reveal
                 style={{
-                  ...panel,
+                  ...glassCard,
+                  padding: 32,
                   position: "relative",
                   overflow: "hidden",
-                  minHeight: isMobile ? 120 : 150,
-                  padding: isMobile ? 12 : 18,
-                  background: "#fff",
-                  border: "1px solid rgba(17,24,39,0.08)",
+                  transition: "all 0.1s ease",
+                  cursor: "pointer",
+                  transformStyle: "preserve-3d",
                 }}
-                className={`lift reveal ${i % 2 === 0 ? "slide-left" : "slide-right"}`}
-                data-reveal
+                onMouseMove={(e) => handleCardTilt(e, e.currentTarget)}
+                onMouseLeave={(e) => resetCardTilt(e.currentTarget)}
               >
-                <div style={{ position: "relative" }}>
-                  {[
-                    { w: 22, h: 3, r: 999, bg: "linear-gradient(90deg, rgba(31,157,83,0.95), rgba(31,157,83,0.25))" },
-                    { w: 12, h: 12, r: 6, bg: "linear-gradient(135deg, rgba(31,157,83,0.95), rgba(31,157,83,0.45))" },
-                    { w: 28, h: 2, r: 2, bg: "linear-gradient(90deg, rgba(31,157,83,0.85), rgba(31,157,83,0.15))" },
-                  ].map((a, idx) =>
-                    idx === i ? (
-                      <div
-                        key={idx}
-                        style={{
-                          width: a.w,
-                          height: a.h,
-                          borderRadius: a.r,
-                          background: a.bg,
-                          marginBottom: 10,
-                        }}
-                      />
-                    ) : null
-                  )}
-                  <div style={{ fontWeight: 700, fontSize: 18, letterSpacing: -0.2 }}>{x.t}</div>
-                  <div style={{ marginTop: 6, fontSize: 12, opacity: 0.72, lineHeight: 1.6 }}>
-                    Layanan terfokus dan terukur untuk kebutuhan operasional perusahaan.
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setOpenService(openService === i ? -1 : i)}
-                    style={{
-                      marginTop: 10,
-                      display: "inline-flex",
-                      gap: 10,
-                      alignItems: "center",
-                      border: "none",
-                      background: "transparent",
-                      color: BRAND.green,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      padding: 0,
-                      fontSize: 12,
-                    }}
-                    aria-expanded={openService === i}
-                  >
-                    Lihat detail <span style={{ fontSize: 18, lineHeight: 1 }}>{openService === i ? "–" : "→"}</span>
-                  </button>
-                  {openService === i && (
-                    <div style={{ marginTop: 10, fontSize: 13, opacity: 0.78, lineHeight: 1.75 }}>
-                      {x.d}
-                    </div>
-                  )}
+                {/* Gradient Accent */}
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 4,
+                    background: `linear-gradient(90deg, ${service.color}, ${BRAND.green2})`,
+                  }}
+                />
+
+                {/* Icon */}
+                <div
+                  style={{
+                    width: 80,
+                    height: 80,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 40,
+                    background: `linear-gradient(135deg, ${service.color}20, ${service.color}10)`,
+                    borderRadius: 20,
+                    marginBottom: 20,
+                  }}
+                >
+                  {service.icon}
                 </div>
+
+                <h3
+                  style={{
+                    margin: "0 0 12px",
+                    fontSize: 22,
+                    fontWeight: 800,
+                    color: BRAND.ink,
+                  }}
+                >
+                  {service.title}
+                </h3>
+
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 15,
+                    lineHeight: 1.7,
+                    color: BRAND.ink2,
+                    opacity: 0.8,
+                  }}
+                >
+                  {service.desc}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => setOpenService(openService === i ? -1 : i)}
+                  style={{
+                    marginTop: 20,
+                    padding: "10px 20px",
+                    background: "transparent",
+                    border: `2px solid ${service.color}40`,
+                    borderRadius: 12,
+                    color: service.color,
+                    fontWeight: 700,
+                    fontSize: 14,
+                    cursor: "pointer",
+                    transition: "all 0.3s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = service.color;
+                    e.currentTarget.style.color = "#fff";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "transparent";
+                    e.currentTarget.style.color = service.color;
+                  }}
+                >
+                  {openService === i ? "Tutup Detail" : "Lihat Detail"} →
+                </button>
               </div>
             ))}
           </div>
 
+          {/* CTA */}
           <div
-            style={{ marginTop: 22, display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}
-            className="reveal slide-left"
+            style={{
+              marginTop: 60,
+              textAlign: "center",
+              display: "flex",
+              gap: 16,
+              justifyContent: "center",
+              flexWrap: "wrap",
+            }}
+            className="reveal"
             data-reveal
           >
-            <a href={waLink} target="_blank" rel="noreferrer" style={btnGreen} className="lift">
-              Minta Penawaran
-            </a>
-            <a href="#contact" style={btn} className="lift">
-              Kontak
+            <a
+              href={waLink}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                padding: "16px 32px",
+                background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
+                color: "#fff",
+                fontSize: 16,
+                fontWeight: 700,
+                borderRadius: 16,
+                textDecoration: "none",
+                boxShadow: `0 10px 30px ${BRAND.green}40`,
+                transition: "all 0.3s ease",
+              }}
+              className="lift"
+            >
+              Minta Penawaran Sekarang
             </a>
           </div>
         </div>
       </section>
 
       {/* ===========================
-          PRODUCT PANELS
+          FEATURES - Split Layout
          =========================== */}
       {[
         {
@@ -626,70 +908,131 @@ export default function Landing() {
           desc: "Kontrak jangka panjang dengan standar layanan yang stabil.",
           img: "/hero-3.jpg",
         },
-      ].map((x, i) => (
+      ].map((feature, i) => (
         <section
-          key={x.title}
+          key={i}
           style={{
-            ...section,
-            background: "linear-gradient(180deg, rgba(92,198,127,0.20) 0%, #ffffff 32%)",
-            minHeight: isMobile ? "60vh" : "72vh",
-            display: "grid",
-            placeItems: "center",
+            padding: isMobile ? "80px 0" : "120px 0",
             position: "relative",
+            background: i % 2 === 0 ? `linear-gradient(135deg, ${BRAND.greenLight}30 0%, #ffffff 100%)` : "#ffffff",
           }}
         >
+          {/* Abstract Background */}
           <div
             style={{
-              width: "100%",
-              maxWidth: 1240,
-              padding: isMobile ? "0 12px" : "0 22px",
-              display: "grid",
-              gridTemplateColumns: isNarrow ? "1fr" : "1.1fr 1fr",
-              gap: isMobile ? 16 : 24,
-              alignItems: "center",
+              position: "absolute",
+              top: i % 2 === 0 ? "20%" : "auto",
+              bottom: i % 2 !== 0 ? "20%" : "auto",
+              right: i % 2 === 0 ? "-5%" : "auto",
+              left: i % 2 !== 0 ? "-5%" : "auto",
+              width: "400px",
+              height: "400px",
+              background: `radial-gradient(circle, ${BRAND.green}15 0%, transparent 70%)`,
+              borderRadius: "50%",
+              filter: "blur(80px)",
+              pointerEvents: "none",
             }}
-          >
+          />
+
+          <div style={container}>
             <div
               style={{
-                textAlign: isNarrow ? "center" : "left",
+                display: "grid",
+                gridTemplateColumns: isNarrow ? "1fr" : "1fr 1fr",
+                gap: 60,
+                alignItems: "center",
               }}
-              className={`reveal ${i % 2 === 0 ? "slide-left" : "slide-right"}`}
-              data-reveal
             >
-              <div style={eyebrow}>Highlight</div>
-              <div style={{ ...h2, fontSize: isMobile ? 30 : 42 }}>{x.title}</div>
-              <p style={{ ...p, maxWidth: 520 }}>{x.desc}</p>
-            </div>
-            <div
-              style={{
-                position: "relative",
-                borderRadius: 28,
-                overflow: "hidden",
-                border: "1px solid rgba(17,24,39,0.08)",
-                minHeight: isMobile ? 180 : 360,
-                background: "#fff",
-                boxShadow: isMobile ? "0 16px 36px rgba(15,23,42,0.10)" : "0 24px 60px rgba(15,23,42,0.12)",
-              }}
-              className={`reveal ${i % 2 === 0 ? "slide-right" : "slide-left"}`}
-              data-reveal
-            >
+              {/* Content */}
               <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  backgroundImage: `url(${x.img})`,
-                  backgroundSize: "cover",
-                  backgroundPosition: "center",
-                  filter: "saturate(1.02) contrast(1.05)",
-                }}
-              />
+                className="reveal slide-left"
+                data-reveal
+                style={{ order: i % 2 === 0 ? 1 : 2 }}
+              >
+                <div
+                  style={{
+                    display: "inline-block",
+                    padding: "6px 12px",
+                    background: BRAND.greenSoft,
+                    color: BRAND.green,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    borderRadius: 999,
+                    letterSpacing: "0.1em",
+                    textTransform: "uppercase",
+                    marginBottom: 16,
+                  }}
+                >
+                  Highlight {i + 1}
+                </div>
+                <h3
+                  style={{
+                    margin: "0 0 16px",
+                    fontSize: isMobile ? 32 : 42,
+                    fontWeight: 800,
+                    lineHeight: 1.2,
+                    letterSpacing: "-0.02em",
+                  }}
+                >
+                  {feature.title}
+                </h3>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 18,
+                    lineHeight: 1.7,
+                    color: BRAND.ink2,
+                    opacity: 0.8,
+                    maxWidth: 500,
+                  }}
+                >
+                  {feature.desc}
+                </p>
+              </div>
+
+              {/* Image with Glass Frame */}
               <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  background: "linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.65) 70%)",
-                }}
-              />
+                className="reveal slide-right"
+                data-reveal
+                style={{ order: i % 2 === 0 ? 2 : 1 }}
+              >
+                <div
+                  style={{
+                    position: "relative",
+                    borderRadius: 32,
+                    overflow: "hidden",
+                    ...glassCard,
+                    padding: 12,
+                  }}
+                >
+                  <div
+                    style={{
+                      borderRadius: 24,
+                      overflow: "hidden",
+                      height: isMobile ? 250 : 400,
+                      position: "relative",
+                    }}
+                  >
+                    <img
+                      src={feature.img}
+                      alt={feature.title}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
+                    />
+                    {/* Gradient Overlay */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        background: `linear-gradient(135deg, ${BRAND.green}20 0%, transparent 100%)`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -698,19 +1041,44 @@ export default function Landing() {
       {/* ===========================
           FAQ
          =========================== */}
-      <section style={{ ...section, background: "linear-gradient(180deg, rgba(92,198,127,0.20) 0%, #ffffff 32%)", position: "relative" }}>
+      <section
+        style={{
+          padding: isMobile ? "80px 0" : "120px 0",
+          position: "relative",
+          background: `linear-gradient(180deg, ${BRAND.greenLight}20 0%, #ffffff 100%)`,
+        }}
+      >
         <div style={container}>
-          <div style={{ textAlign: "center" }}>
-            <div style={eyebrow} className="reveal slide-right" data-reveal>FAQ</div>
-            <div style={h2} className="reveal slide-right" data-reveal>Pertanyaan yang sering ditanyakan</div>
+          <div style={{ textAlign: "center", marginBottom: 60 }} className="reveal" data-reveal>
+            <div
+              style={{
+                display: "inline-block",
+                padding: "8px 16px",
+                background: BRAND.greenSoft,
+                color: BRAND.green,
+                fontSize: 12,
+                fontWeight: 700,
+                borderRadius: 999,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                marginBottom: 16,
+              }}
+            >
+              FAQ
+            </div>
+            <h2
+              style={{
+                margin: "0 0 16px",
+                fontSize: isMobile ? 36 : 48,
+                fontWeight: 800,
+                lineHeight: 1.2,
+              }}
+            >
+              Pertanyaan yang <span style={gradientText}>sering ditanyakan</span>
+            </h2>
           </div>
-          <div
-            style={{
-              display: "grid",
-              gap: 12,
-              marginTop: 22,
-            }}
-          >
+
+          <div style={{ maxWidth: 800, margin: "0 auto", display: "grid", gap: 16 }}>
             {[
               {
                 q: "Bagaimana cara minta penawaran cepat?",
@@ -724,124 +1092,79 @@ export default function Landing() {
                 q: "Apakah ada update pengiriman selama perjalanan?",
                 a: "Ada. Kami berikan update status secara berkala sesuai kebutuhan klien.",
               },
-            ].map((x, i) => {
-              const open = openFaq === i;
+            ].map((faq, i) => {
+              const isOpen = openFaq === i;
               return (
                 <div
-                  key={x.q}
-                  style={{ ...card }}
-                  className={`reveal ${i % 2 === 0 ? "slide-right" : "slide-left"}`}
+                  key={i}
+                  className="reveal"
                   data-reveal
+                  style={{
+                    ...glassCard,
+                    padding: 24,
+                    transition: "all 0.3s ease",
+                  }}
                 >
                   <button
                     type="button"
-                    onClick={() => setOpenFaq(open ? -1 : i)}
+                    onClick={() => setOpenFaq(isOpen ? -1 : i)}
                     style={{
                       width: "100%",
                       display: "flex",
-                      alignItems: "center",
                       justifyContent: "space-between",
-                      gap: 12,
+                      alignItems: "center",
                       background: "transparent",
                       border: "none",
                       padding: 0,
                       cursor: "pointer",
                       textAlign: "left",
-                      fontSize: 16,
-                      fontWeight: 900,
-                      color: BRAND.ink,
                     }}
-                    aria-expanded={open}
                   >
-                    <span>{x.q}</span>
-                    <span style={{ fontSize: 18, opacity: 0.7 }}>{open ? "–" : "+"}</span>
+                    <span
+                      style={{
+                        fontSize: 18,
+                        fontWeight: 700,
+                        color: BRAND.ink,
+                      }}
+                    >
+                      {faq.q}
+                    </span>
+                    <div
+                      style={{
+                        width: 32,
+                        height: 32,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: isOpen ? BRAND.green : BRAND.greenSoft,
+                        color: isOpen ? "#fff" : BRAND.green,
+                        borderRadius: "50%",
+                        fontSize: 20,
+                        fontWeight: 700,
+                        transition: "all 0.3s ease",
+                      }}
+                    >
+                      {isOpen ? "−" : "+"}
+                    </div>
                   </button>
-                  {open && (
-                    <div style={{ marginTop: 10, fontSize: 13, lineHeight: 1.75, opacity: 0.78 }}>{x.a}</div>
+                  {isOpen && (
+                    <div
+                      style={{
+                        marginTop: 16,
+                        paddingTop: 16,
+                        borderTop: `1px solid ${BRAND.green}20`,
+                        fontSize: 15,
+                        lineHeight: 1.7,
+                        color: BRAND.ink2,
+                        opacity: 0.8,
+                      }}
+                    >
+                      {faq.a}
+                    </div>
                   )}
                 </div>
               );
             })}
-          </div>
-        </div>
-      </section>
-
-      {/* ===========================
-          TIMELINE
-         =========================== */}
-      <section style={{ ...section, background: BRAND.mintTop, position: "relative" }}>
-        <div style={container}>
-          <div style={sectionCenter}>
-            <div style={eyebrow} className="reveal slide-left" data-reveal>Alur</div>
-            <div style={h2} className="reveal slide-left" data-reveal>Proses kerja singkat</div>
-            <p style={p} className="reveal slide-left" data-reveal>
-              Langkah cepat dari permintaan hingga pengiriman, jelas dan terukur.
-            </p>
-          </div>
-
-          <div
-            style={{
-              marginTop: 26,
-              display: "grid",
-              gridTemplateColumns: isNarrow ? "1fr" : "0.9fr 1.1fr",
-              gap: 18,
-            }}
-          >
-            <div
-              style={{
-                position: isNarrow ? "static" : "sticky",
-                top: 120,
-                height: "fit-content",
-                alignSelf: "start",
-              }}
-              className="reveal slide-left"
-              data-reveal
-            >
-              <div style={{ ...panel, background: "#fff" }}>
-                <div style={{ fontWeight: 700, fontSize: 22, letterSpacing: -0.2 }}>
-                  Alur kerja yang konsisten
-                </div>
-                <div style={{ marginTop: 10, fontSize: 14, opacity: 0.78, lineHeight: 1.75 }}>
-                  Setiap tahap terdokumentasi, dari permintaan hingga update akhir, agar proses mudah diawasi.
-                </div>
-              </div>
-            </div>
-            <div style={{ display: "grid", gap: 12 }}>
-              {[
-                { t: "Permintaan", d: "Kirim detail rute, muatan, dan jadwal." },
-                { t: "Penawaran", d: "Kami kirim estimasi biaya dan timeline." },
-                { t: "Eksekusi", d: "Armada jalan sesuai SOP dan koordinasi." },
-                { t: "Update", d: "Update status dan dokumentasi selesai." },
-              ].map((x, i) => (
-                <div
-                  key={x.t}
-                  style={{
-                    ...card,
-                    position: "relative",
-                    paddingTop: 22,
-                    overflow: "hidden",
-                  }}
-                  className={`lift reveal ${i % 2 === 0 ? "slide-right" : "slide-left"}`}
-                  data-reveal
-                >
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: 12,
-                      right: 12,
-                      fontSize: 12,
-                      fontWeight: 800,
-                      color: BRAND.green,
-                      opacity: 0.8,
-                    }}
-                  >
-                    0{i + 1}
-                  </div>
-                  <div style={{ fontWeight: 700, fontSize: 18 }}>{x.t}</div>
-                  <div style={{ marginTop: 8, fontSize: 13, opacity: 0.78, lineHeight: 1.75 }}>{x.d}</div>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       </section>
@@ -852,116 +1175,290 @@ export default function Landing() {
       <section
         id="contact"
         style={{
-          padding: isMobile ? "64px 0" : "78px 0",
-          background: "linear-gradient(180deg, rgba(92,198,127,0.20) 0%, #ffffff 32%)",
-          scrollSnapAlign: "start",
+          padding: isMobile ? "80px 0" : "120px 0",
           position: "relative",
+          background: "#ffffff",
         }}
       >
+        {/* Background Abstract */}
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: "600px",
+            height: "600px",
+            background: `radial-gradient(circle, ${BRAND.green}10 0%, transparent 70%)`,
+            borderRadius: "50%",
+            filter: "blur(100px)",
+            pointerEvents: "none",
+          }}
+        />
+
         <div style={container}>
-          <div style={{ textAlign: "center" }}>
-            <div style={eyebrow} className="reveal slide-right" data-reveal>Kontak</div>
-            <div style={h2} className="reveal slide-right" data-reveal>Hubungi CV. Mitra Setia</div>
-            <p style={p} className="reveal slide-right" data-reveal>Kirim detail rute & muatan via WhatsApp untuk penawaran cepat.</p>
+          <div style={{ textAlign: "center", marginBottom: 60 }} className="reveal" data-reveal>
+            <div
+              style={{
+                display: "inline-block",
+                padding: "8px 16px",
+                background: BRAND.greenSoft,
+                color: BRAND.green,
+                fontSize: 12,
+                fontWeight: 700,
+                borderRadius: 999,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                marginBottom: 16,
+              }}
+            >
+              Kontak
+            </div>
+            <h2
+              style={{
+                margin: "0 0 16px",
+                fontSize: isMobile ? 36 : 48,
+                fontWeight: 800,
+                lineHeight: 1.2,
+              }}
+            >
+              Hubungi <span style={gradientText}>CV. Mitra Setia</span>
+            </h2>
+            <p
+              style={{
+                margin: "0 auto",
+                maxWidth: 600,
+                fontSize: 18,
+                lineHeight: 1.7,
+                color: BRAND.ink2,
+                opacity: 0.8,
+              }}
+            >
+              Kirim detail rute & muatan via WhatsApp untuk penawaran cepat.
+            </p>
           </div>
 
           <div
             style={{
-              marginTop: 22,
               display: "grid",
               gridTemplateColumns: isNarrow ? "1fr" : "1fr 1fr",
-              gap: 18,
+              gap: 24,
+              maxWidth: 1000,
+              margin: "0 auto",
             }}
           >
-            <div style={card} className="lift reveal slide-left" data-reveal>
-              <div style={{ fontWeight: 1000 }}>WhatsApp</div>
-              <div style={{ marginTop: 10, fontSize: 13, opacity: 0.78, lineHeight: 1.75 }}>
-                Chat admin untuk penawaran cepat.
-              </div>
-              <div style={{ marginTop: 14 }}>
-                <a href={waLink} target="_blank" rel="noreferrer" style={btnGreen} className="lift">
-                  Chat WhatsApp
-                </a>
-              </div>
-
-              <div style={{ marginTop: 18, height: 1, background: BRAND.line }} />
-
-              <div style={{ marginTop: 18, fontWeight: 1000 }}>Telepon</div>
-              <div style={{ marginTop: 10, fontSize: 13, opacity: 0.78 }}>{PHONE}</div>
-              <div style={{ marginTop: 14 }}>
-                <a href={`tel:${PHONE.replace(/\s/g, "")}`} style={btn} className="lift">
-                  Call
-                </a>
-              </div>
-            </div>
-
-            <div style={card} className="lift reveal slide-right" data-reveal>
-              <div style={{ fontWeight: 1000 }}>Alamat</div>
+            {/* WhatsApp Card */}
+            <div
+              className="reveal slide-left"
+              data-reveal
+              style={{
+                ...glassCard,
+                padding: 40,
+                textAlign: "center",
+              }}
+            >
               <div
                 style={{
-                  marginTop: 10,
-                  fontSize: 13,
-                  opacity: 0.78,
-                  lineHeight: 1.75,
+                  width: 80,
+                  height: 80,
+                  margin: "0 auto 20px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 40,
+                  background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
+                  borderRadius: 20,
+                  color: "#fff",
+                }}
+              >
+                💬
+              </div>
+              <h3 style={{ margin: "0 0 8px", fontSize: 24, fontWeight: 800 }}>WhatsApp</h3>
+              <p style={{ margin: "0 0 20px", fontSize: 15, opacity: 0.7 }}>
+                Chat admin untuk penawaran cepat
+              </p>
+              <a
+                href={waLink}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "14px 28px",
+                  background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
+                  color: "#fff",
+                  fontSize: 15,
+                  fontWeight: 700,
+                  borderRadius: 12,
+                  textDecoration: "none",
+                  transition: "all 0.3s ease",
+                }}
+                className="lift"
+              >
+                Chat Sekarang
+              </a>
+              <div
+                style={{
+                  margin: "24px 0",
+                  height: 1,
+                  background: `${BRAND.green}20`,
+                }}
+              />
+              <div style={{ fontSize: 13, opacity: 0.6 }}>📞 {PHONE}</div>
+            </div>
+
+            {/* Location Card */}
+            <div
+              className="reveal slide-right"
+              data-reveal
+              style={{
+                ...glassCard,
+                padding: 40,
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  width: 80,
+                  height: 80,
+                  margin: "0 auto 20px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 40,
+                  background: `linear-gradient(135deg, ${BRAND.greenLight}, ${BRAND.green}40)`,
+                  borderRadius: 20,
+                }}
+              >
+                📍
+              </div>
+              <h3 style={{ margin: "0 0 8px", fontSize: 24, fontWeight: 800 }}>Alamat</h3>
+              <p
+                style={{
+                  margin: "0 0 20px",
+                  fontSize: 14,
+                  lineHeight: 1.7,
+                  opacity: 0.7,
                   whiteSpace: "pre-line",
                 }}
               >
                 {ADDRESS}
-              </div>
-
-              <div style={{ marginTop: 18, height: 1, background: BRAND.line }} />
-
-              <div style={{ marginTop: 18, fontWeight: 1000 }}>Staff Internal</div>
-              <div style={{ marginTop: 10, fontSize: 13, opacity: 0.78, lineHeight: 1.75 }}>
-                Login untuk akses sistem ERP internal.
-              </div>
-              <div style={{ marginTop: 14 }}>
-                <Link to="/login" style={btn} className="lift">
-                  Staff Login (ERP)
-                </Link>
-              </div>
+              </p>
+              <div
+                style={{
+                  margin: "24px 0",
+                  height: 1,
+                  background: `${BRAND.green}20`,
+                }}
+              />
+              <Link
+                to="/login"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "14px 28px",
+                  background: "transparent",
+                  border: `2px solid ${BRAND.green}`,
+                  color: BRAND.green,
+                  fontSize: 15,
+                  fontWeight: 700,
+                  borderRadius: 12,
+                  textDecoration: "none",
+                  transition: "all 0.3s ease",
+                }}
+                className="lift"
+              >
+                Staff Login (ERP)
+              </Link>
             </div>
           </div>
         </div>
       </section>
 
       {/* ===========================
-          FOOTER (simple)
+          FOOTER
          =========================== */}
-      <footer style={{ background: BRAND.footerBg, color: BRAND.footerText }}>
-        <div style={{ ...container, padding: isMobile ? "22px 0" : "26px 0" }}>
-          <div style={{ fontSize: 12, color: BRAND.footerMuted, fontWeight: 850 }}>
-            © {new Date().getFullYear()} CV. Mitra Setia · Medan, Indonesia · Built with MitraSetia ERP
+      <footer
+        style={{
+          background: BRAND.footerBg,
+          color: "#fff",
+          padding: isMobile ? "40px 0" : "60px 0",
+          position: "relative",
+        }}
+      >
+        <div style={container}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 14, opacity: 0.8, marginBottom: 8 }}>
+              © {new Date().getFullYear()} CV. Mitra Setia
+            </div>
+            <div style={{ fontSize: 12, opacity: 0.6 }}>
+              Medan, Indonesia · Built with MitraSetia ERP
+            </div>
           </div>
         </div>
       </footer>
 
-      {/* floating quick action */}
+      {/* Floating Scroll to Top */}
       <button
         type="button"
         onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
         style={{
           position: "fixed",
-          right: isMobile ? 14 : 22,
-          bottom: isMobile ? 16 : 22,
-          width: isMobile ? 44 : 48,
-          height: isMobile ? 44 : 48,
-          borderRadius: 999,
-          border: "1px solid rgba(34,197,94,0.35)",
-          background: `linear-gradient(95deg, ${BRAND.green2}, ${BRAND.green})`,
+          right: isMobile ? 20 : 32,
+          bottom: isMobile ? 20 : 32,
+          width: 56,
+          height: 56,
+          borderRadius: "50%",
+          background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
           color: "#fff",
-          fontWeight: 900,
-          boxShadow: "0 18px 36px rgba(34,197,94,0.25)",
+          fontSize: 24,
+          fontWeight: 700,
+          border: "none",
+          boxShadow: `0 8px 24px ${BRAND.green}60`,
           cursor: "pointer",
-          transform: scrollY > 280 ? "translateY(0)" : "translateY(16px)",
-          opacity: scrollY > 280 ? 1 : 0,
-          transition: "all 220ms ease",
-          zIndex: 60,
+          transform: scrollY > 400 ? "translateY(0)" : "translateY(100px)",
+          opacity: scrollY > 400 ? 1 : 0,
+          transition: "all 0.4s ease",
+          zIndex: 1000,
         }}
         aria-label="Scroll to top"
       >
         ↑
       </button>
+
+      {/* CSS Animations */}
+      <style>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-20px); }
+        }
+        @keyframes floatY {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-15px); }
+        }
+        @keyframes rotate {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes scrollDown {
+          0% { opacity: 0; transform: translateY(-10px); }
+          50% { opacity: 1; }
+          100% { opacity: 0; transform: translateY(10px); }
+        }
+        @keyframes logoSpin {
+          0%, 100% { transform: rotateY(0deg); }
+          50% { transform: rotateY(180deg); }
+        }
+        
+        .lift {
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .lift:hover {
+          transform: translateY(-2px);
+        }
+      `}</style>
     </div>
   );
 }
