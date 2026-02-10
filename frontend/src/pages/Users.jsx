@@ -292,13 +292,18 @@ export default function Users() {
 }
 
 function rolePill(role) {
+  const BRAND = {
+    green: "#4BCA74",
+    greenSoft: "rgba(75,202,116,0.15)",
+  };
+
   const base = {
     display: "inline-block",
-    padding: "6px 10px",
+    padding: "6px 12px",
     borderRadius: 999,
     fontSize: 12,
-    fontWeight: 900,
-    border: "1px solid rgba(6,95,70,0.10)",
+    fontWeight: 800,
+    border: `1px solid ${BRAND.green}40`,
   };
 
   if (role === "ADMIN")
@@ -306,7 +311,7 @@ function rolePill(role) {
       ...base,
       background: "rgba(59,130,246,0.12)",
       color: "#1d4ed8",
-      border: "1px solid rgba(59,130,246,0.18)",
+      border: "1px solid rgba(59,130,246,0.3)",
     };
 
   if (role === "STAFF")
@@ -314,38 +319,54 @@ function rolePill(role) {
       ...base,
       background: "rgba(245,158,11,0.12)",
       color: "#92400e",
-      border: "1px solid rgba(245,158,11,0.20)",
+      border: "1px solid rgba(245,158,11,0.3)",
     };
 
   return {
     ...base,
-    background: "rgba(107,114,128,0.12)",
-    color: "#374151",
-    border: "1px solid rgba(107,114,128,0.20)",
+    background: BRAND.greenSoft,
+    color: BRAND.green,
+    border: `1px solid ${BRAND.green}40`,
   };
 }
 
 function statusVariant(status) {
+  const BRAND = {
+    green: "#4BCA74",
+    greenSoft: "rgba(75,202,116,0.15)",
+  };
+
   if (status === "ACTIVE") {
     return {
-      background: "rgba(34,197,94,0.12)",
-      color: "#065f46",
-      border: "1px solid rgba(34,197,94,0.22)",
+      background: BRAND.greenSoft,
+      color: BRAND.green,
+      border: `1px solid ${BRAND.green}40`,
     };
   }
   if (status === "BREAK") {
     return {
       background: "rgba(245,158,11,0.12)",
       color: "#92400e",
-      border: "1px solid rgba(245,158,11,0.22)",
+      border: "1px solid rgba(245,158,11,0.35)",
     };
   }
   return {
     background: "rgba(239,68,68,0.10)",
     color: "rgba(153,27,27,0.95)",
-    border: "1px solid rgba(239,68,68,0.22)",
+    border: "1px solid rgba(239,68,68,0.3)",
   };
 }
+
+// Modern color palette
+const BRAND = {
+  green: "#4BCA74",
+  green2: "#3BB865",
+  greenLight: "#5FD686",
+  greenDark: "#2D9F56",
+  greenSoft: "rgba(75,202,116,0.15)",
+  ink: "#111827",
+  ink2: "#1F2937",
+};
 
 function makeStyles(isMobile) {
   return {
@@ -359,28 +380,30 @@ function makeStyles(isMobile) {
       alignItems: "center",
       justifyContent: "space-between",
       gap: 12,
-      marginBottom: isMobile ? 12 : 16,
+      marginBottom: isMobile ? 12 : 20,
     },
 
-    hTitle: { fontWeight: 900, fontSize: 20, color: "#0b1f16" },
-    hSub: { marginTop: 4, fontSize: 12, color: "rgba(6, 78, 59, 0.75)", fontWeight: 700 },
+    hTitle: { fontWeight: 800, fontSize: 28, color: BRAND.ink, letterSpacing: "-0.02em" },
+    hSub: { marginTop: 6, fontSize: 15, color: BRAND.ink2, opacity: 0.8 },
 
     pill: {
-      fontSize: 12,
-      fontWeight: 900,
-      padding: "7px 12px",
+      fontSize: 13,
+      fontWeight: 700,
+      padding: "8px 16px",
       borderRadius: 999,
-      background: "#e1f3e7",
-      border: "1px solid rgba(20,136,58,0.22)",
-      color: "#0f6f2f",
+      background: BRAND.greenSoft,
+      border: `1px solid ${BRAND.green}40`,
+      color: BRAND.green,
     },
 
     card: {
-      borderRadius: 16,
-      background: "#ffffff",
-      boxShadow: "0 12px 28px rgba(10, 58, 30, 0.10)",
-      border: "1px solid rgba(10, 58, 30, 0.10)",
-      padding: isMobile ? 14 : 18,
+      borderRadius: 20,
+      background: "rgba(255,255,255,0.85)",
+      backdropFilter: "blur(20px)",
+      WebkitBackdropFilter: "blur(20px)",
+      boxShadow: `0 8px 32px ${BRAND.green}15`,
+      border: `1px solid ${BRAND.greenSoft}`,
+      padding: isMobile ? 16 : 24,
       minWidth: 0,
     },
 
@@ -391,19 +414,21 @@ function makeStyles(isMobile) {
       gap: 12,
       flexWrap: "wrap",
     },
-    searchRow: { display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" },
-    rightNote: { fontSize: 12, fontWeight: 800, color: "rgba(6, 78, 59, 0.75)" },
+    searchRow: { display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" },
+    rightNote: { fontSize: 13, fontWeight: 700, color: BRAND.ink2, opacity: 0.8 },
 
     input: {
       width: isMobile ? "100%" : 300,
       borderRadius: 12,
-      border: "1px solid rgba(10, 58, 30, 0.14)",
+      border: `2px solid ${BRAND.greenSoft}`,
       background: "#ffffff",
-      padding: "10px 12px",
+      padding: "12px 16px",
       outline: "none",
-      fontWeight: 700,
-      color: "#0b1f16",
+      fontWeight: 600,
+      fontSize: 15,
+      color: BRAND.ink,
       boxSizing: "border-box",
+      transition: "all 0.3s ease",
     },
 
     selectWrap: { position: "relative", display: "inline-flex", alignItems: "center" },
@@ -412,125 +437,131 @@ function makeStyles(isMobile) {
       WebkitAppearance: "none",
       MozAppearance: "none",
       borderRadius: 999,
-      border: "1px solid rgba(10, 58, 30, 0.16)",
+      border: `2px solid ${BRAND.greenSoft}`,
       background: "#ffffff",
-      padding: "9px 40px 9px 14px",
-      fontSize: 12,
-      fontWeight: 900,
-      color: "#0b1f16",
+      padding: "10px 40px 10px 16px",
+      fontSize: 14,
+      fontWeight: 700,
+      color: BRAND.ink,
       cursor: "pointer",
       outline: "none",
-      boxShadow: "0 8px 18px rgba(10, 58, 30, 0.08)",
-      transition: "all 0.15s ease",
+      boxShadow: `0 4px 12px ${BRAND.green}10`,
+      transition: "all 0.3s ease",
     },
     selectHover: {
-      boxShadow: "0 14px 28px rgba(20,136,58,0.18)",
-      border: "1px solid rgba(20,136,58,0.26)",
+      boxShadow: `0 8px 20px ${BRAND.green}20`,
+      border: `2px solid ${BRAND.green}60`,
       transform: "translateY(-1px)",
     },
     selectFocus: {
-      boxShadow: "0 0 0 3px rgba(20,136,58,0.16), 0 14px 28px rgba(0,0,0,0.08)",
-      border: "1px solid rgba(20,136,58,0.32)",
+      boxShadow: `0 0 0 3px ${BRAND.greenSoft}, 0 8px 20px ${BRAND.green}20`,
+      border: `2px solid ${BRAND.green}`,
     },
     selectArrow: {
       position: "absolute",
       right: 14,
       pointerEvents: "none",
-      fontSize: 12,
-      fontWeight: 1000,
-      color: "rgba(6, 78, 59, 0.9)",
+      fontSize: 14,
+      fontWeight: 800,
+      color: BRAND.green,
     },
 
     primaryBtn: {
       border: "none",
       borderRadius: 12,
-      padding: "10px 14px",
-      fontWeight: 900,
+      padding: "12px 20px",
+      fontWeight: 700,
+      fontSize: 15,
       cursor: "pointer",
       color: "white",
-      background: "linear-gradient(135deg, #178a3c, #0f6f2f)",
-      boxShadow: "0 12px 24px rgba(20,136,58,0.26)",
+      background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
+      boxShadow: `0 8px 20px ${BRAND.green}40`,
+      transition: "all 0.3s ease",
     },
 
     secondaryBtn: {
       borderRadius: 12,
-      padding: "9px 12px",
-      fontWeight: 900,
+      padding: "10px 16px",
+      fontWeight: 700,
+      fontSize: 14,
       cursor: "pointer",
-      color: "#0f6f2f",
-      background: "rgba(20,136,58,0.10)",
-      border: "1px solid rgba(20,136,58,0.22)",
+      color: BRAND.green,
+      background: BRAND.greenSoft,
+      border: `1px solid ${BRAND.green}40`,
+      transition: "all 0.3s ease",
     },
 
     alertErr: {
-      marginTop: 12,
+      marginTop: 16,
       borderRadius: 14,
       border: "1px solid rgba(239,68,68,0.28)",
       background: "rgba(239,68,68,0.10)",
       color: "rgba(153,27,27,0.95)",
-      padding: "10px 12px",
-      fontWeight: 800,
-      fontSize: 12,
+      padding: "12px 16px",
+      fontWeight: 700,
+      fontSize: 14,
     },
 
     tableWrap: {
-      marginTop: 14,
+      marginTop: 20,
       overflowX: "auto",
-      borderRadius: 14,
-      border: "1px solid rgba(10, 58, 30, 0.10)",
+      borderRadius: 16,
+      border: `1px solid ${BRAND.greenSoft}`,
     },
 
     table: { width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 900 },
 
     th: {
       textAlign: "left",
-      fontSize: 12,
-      letterSpacing: 0.3,
-      fontWeight: 1000,
-      color: "rgba(6, 78, 59, 0.8)",
-      padding: "12px 12px",
-      background: "#f3fbf7",
-      borderBottom: "1px solid rgba(10, 58, 30, 0.08)",
+      fontSize: 13,
+      letterSpacing: 0.5,
+      fontWeight: 800,
+      color: BRAND.ink,
+      padding: "14px 16px",
+      background: BRAND.greenSoft,
+      borderBottom: `1px solid ${BRAND.green}30`,
     },
 
-    tr: { background: "white" },
+    tr: { background: "white", transition: "all 0.2s ease" },
 
     td: {
-      padding: "12px 12px",
-      fontSize: 13,
-      fontWeight: 700,
-      color: "#0b1f16",
-      borderBottom: "1px solid rgba(10, 58, 30, 0.06)",
+      padding: "14px 16px",
+      fontSize: 14,
+      fontWeight: 600,
+      color: BRAND.ink,
+      borderBottom: `1px solid ${BRAND.greenSoft}`,
       verticalAlign: "middle",
     },
 
     tdStrong: {
-      padding: "12px 12px",
-      borderBottom: "1px solid rgba(10, 58, 30, 0.06)",
+      padding: "14px 16px",
+      borderBottom: `1px solid ${BRAND.greenSoft}`,
       verticalAlign: "middle",
     },
 
-    nameRow: { display: "flex", alignItems: "center", gap: 10 },
+    nameRow: { display: "flex", alignItems: "center", gap: 12 },
 
     avatar: {
-      width: 34,
-      height: 34,
+      width: 40,
+      height: 40,
       borderRadius: 12,
       display: "grid",
       placeItems: "center",
-      fontWeight: 1000,
-      color: "#0f6f2f",
-      background: "rgba(20,136,58,0.14)",
-      border: "1px solid rgba(20,136,58,0.20)",
+      fontWeight: 800,
+      fontSize: 16,
+      color: "#fff",
+      background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
+      border: "none",
     },
 
-    nameText: { fontWeight: 900, color: "#0b1f16", fontSize: 13 },
+    nameText: { fontWeight: 700, color: BRAND.ink, fontSize: 15 },
 
     idText: {
-      marginTop: 2,
-      fontSize: 11,
-      fontWeight: 800,
-      color: "rgba(6, 78, 59, 0.65)",
+      marginTop: 4,
+      fontSize: 12,
+      fontWeight: 600,
+      color: BRAND.ink2,
+      opacity: 0.7,
       maxWidth: 240,
       overflow: "hidden",
       textOverflow: "ellipsis",
@@ -538,14 +569,15 @@ function makeStyles(isMobile) {
     },
 
     empty: {
-      padding: 18,
+      padding: 24,
       textAlign: "center",
-      color: "rgba(6, 78, 59, 0.75)",
-      fontWeight: 900,
+      color: BRAND.ink2,
+      fontWeight: 700,
+      fontSize: 14,
     },
 
     footer: {
-      marginTop: 14,
+      marginTop: 20,
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
@@ -553,7 +585,7 @@ function makeStyles(isMobile) {
       flexWrap: "wrap",
     },
 
-    pageInfo: { fontSize: 12, fontWeight: 900, color: "rgba(4,120,87,0.75)" },
+    pageInfo: { fontSize: 14, fontWeight: 700, color: BRAND.ink },
 
     statusWrap: { position: "relative", display: "inline-flex", alignItems: "center" },
 
@@ -562,25 +594,25 @@ function makeStyles(isMobile) {
       WebkitAppearance: "none",
       MozAppearance: "none",
       borderRadius: 999,
-      border: "1px solid rgba(6,95,70,0.16)",
-      padding: "7px 34px 7px 12px",
-      fontSize: 12,
-      fontWeight: 1000,
-      letterSpacing: 0.4,
+      border: `2px solid ${BRAND.greenSoft}`,
+      padding: "8px 36px 8px 14px",
+      fontSize: 13,
+      fontWeight: 700,
+      letterSpacing: 0.3,
       outline: "none",
       cursor: "pointer",
       backgroundImage: "none",
-      boxShadow: "0 8px 18px rgba(0,0,0,0.06)",
-      transition: "transform 0.12s ease, box-shadow 0.12s ease, border 0.12s ease",
+      boxShadow: `0 4px 12px ${BRAND.green}10`,
+      transition: "all 0.2s ease",
     },
 
     statusArrow: {
       position: "absolute",
       right: 12,
       pointerEvents: "none",
-      fontSize: 11,
-      fontWeight: 1000,
-      color: "rgba(4,120,87,0.85)",
+      fontSize: 12,
+      fontWeight: 800,
+      color: BRAND.green,
     },
   };
 }

@@ -1,4 +1,4 @@
-// src/layouts/AppLayout.jsx
+// src/layouts/AppLayout.jsx - Modern Design
 import { useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
@@ -17,15 +17,21 @@ export default function AppLayout() {
   const { user, logout } = useAuth();
   const nav = useNavigate();
 
-  const [hoverLogout, setHoverLogout] = useState(false);
-
-  // ✅ Mobile drawer
   const [mobileOpen, setMobileOpen] = useState(false);
-
-  // ✅ Detect mobile (reactive)
   const [isMobile, setIsMobile] = useState(() =>
     window.matchMedia("(max-width: 900px)").matches
   );
+
+  // Match Landing Page Colors
+  const BRAND = {
+    green: "#4BCA74",
+    green2: "#3BB865",
+    greenLight: "#5FD686",
+    greenDark: "#2D9F56",
+    greenSoft: "rgba(75,202,116,0.15)",
+    ink: "#111827",
+    ink2: "#1F2937",
+  };
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 900px)");
@@ -40,7 +46,6 @@ export default function AppLayout() {
     };
   }, []);
 
-  // ✅ When switching layout modes, close drawer
   useEffect(() => {
     if (!isMobile) setMobileOpen(false);
   }, [isMobile]);
@@ -93,11 +98,278 @@ export default function AppLayout() {
     );
   }
 
+  const s = {
+    page: {
+      minHeight: "100vh",
+      display: "flex",
+      flexDirection: "column",
+      background: `linear-gradient(135deg, ${BRAND.greenLight}20 0%, #ffffff 50%, ${BRAND.greenSoft} 100%)`,
+      fontFamily: '"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
+      color: BRAND.ink,
+      position: "relative",
+      overflow: "hidden",
+    },
+
+    // Floating particles
+    particles: {
+      position: "fixed",
+      inset: 0,
+      pointerEvents: "none",
+      zIndex: 0,
+    },
+
+    main: {
+      minWidth: 0,
+      display: "flex",
+      flexDirection: "column",
+      position: "relative",
+      zIndex: 1,
+    },
+
+    // Desktop topbar
+    topbar: {
+      padding: "16px 24px",
+      background: "rgba(255,255,255,0.85)",
+      backdropFilter: "blur(20px)",
+      WebkitBackdropFilter: "blur(20px)",
+      borderBottom: `1px solid rgba(75,202,116,0.2)`,
+      display: "grid",
+      gridTemplateColumns: "minmax(200px, 1fr) minmax(520px, 3fr) minmax(220px, 1fr)",
+      alignItems: "center",
+      boxSizing: "border-box",
+      boxShadow: `0 4px 20px ${BRAND.greenSoft}`,
+      position: "sticky",
+      top: 0,
+      zIndex: 10,
+    },
+
+    topLeft: {
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+      minWidth: 0,
+    },
+
+    topCenter: {
+      display: "flex",
+      justifyContent: "center",
+      minWidth: 0,
+    },
+
+    brand: { display: "flex", alignItems: "center", gap: 12 },
+
+    brandLogo: {
+      width: 48,
+      height: 48,
+      objectFit: "contain",
+      borderRadius: 12,
+    },
+
+    brandTitle: { fontWeight: 800, fontSize: 18, color: BRAND.ink },
+    brandSub: { marginTop: 2, fontSize: 13, color: BRAND.ink2, opacity: 0.7 },
+
+    topNav: {
+      display: "flex",
+      gap: 8,
+      alignItems: "center",
+      flexWrap: "nowrap",
+      justifyContent: "center",
+      overflowX: "auto",
+      scrollbarWidth: "none",
+      msOverflowStyle: "none",
+    },
+
+    topNavItem: {
+      textDecoration: "none",
+      color: BRAND.ink,
+      fontWeight: 600,
+      fontSize: 14,
+      padding: "10px 16px",
+      borderRadius: 12,
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8,
+      whiteSpace: "nowrap",
+      transition: "all 0.3s ease",
+    },
+
+    topNavActive: {
+      background: `linear-gradient(135deg, ${BRAND.green}, ${BRAND.green2})`,
+      color: "#fff",
+      boxShadow: `0 4px 12px ${BRAND.green}40`,
+    },
+
+    topNavIcon: {
+      width: 18,
+      height: 18,
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    topRight: {
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+      justifyContent: "flex-end",
+    },
+
+    topRole: {
+      fontSize: 13,
+      fontWeight: 700,
+      padding: "8px 16px",
+      borderRadius: 999,
+      background: BRAND.greenSoft,
+      border: `1px solid ${BRAND.green}30`,
+      color: BRAND.green,
+      whiteSpace: "nowrap",
+    },
+
+    topLogout: {
+      border: "none",
+      color: "#ffffff",
+      fontWeight: 700,
+      fontSize: 14,
+      padding: "10px 20px",
+      borderRadius: 12,
+      cursor: "pointer",
+      background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
+      boxShadow: `0 4px 12px ${BRAND.green}40`,
+      transition: "all 0.3s ease",
+    },
+
+    contentOuter: {
+      width: "100%",
+      boxSizing: "border-box",
+      padding: isMobile ? 16 : 24,
+      paddingTop: isMobile ? 16 : 24,
+    },
+
+    contentInner: {
+      maxWidth: 1200,
+      margin: "0 auto",
+      minWidth: 0,
+    },
+
+    // Mobile styles
+    mobileTop: {
+      position: "sticky",
+      top: 0,
+      zIndex: 50,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      padding: "12px 16px",
+      background: "rgba(255,255,255,0.85)",
+      backdropFilter: "blur(20px)",
+      WebkitBackdropFilter: "blur(20px)",
+      borderBottom: `1px solid ${BRAND.greenSoft}`,
+      boxShadow: `0 2px 10px ${BRAND.greenSoft}`,
+    },
+
+    hamburgerBtn: {
+      border: `1px solid ${BRAND.greenSoft}`,
+      background: "#fff",
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      fontSize: 20,
+      fontWeight: 700,
+      cursor: "pointer",
+      color: BRAND.green,
+    },
+
+    mobileTitle: { fontWeight: 800, fontSize: 16, color: BRAND.ink },
+    mobileSub: { fontSize: 12, color: BRAND.ink2, opacity: 0.7, marginTop: 2 },
+
+    drawerOverlay: {
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.4)",
+      backdropFilter: "blur(4px)",
+      WebkitBackdropFilter: "blur(4px)",
+      zIndex: 100,
+      display: "flex",
+      justifyContent: "flex-start",
+    },
+
+    drawer: {
+      width: "85%",
+      maxWidth: 360,
+      height: "100%",
+      background: "rgba(255,255,255,0.95)",
+      backdropFilter: "blur(20px)",
+      WebkitBackdropFilter: "blur(20px)",
+      boxShadow: `10px 0 30px ${BRAND.green}20`,
+      overflowY: "auto",
+    },
+
+    drawerContent: {
+      padding: 20,
+      display: "grid",
+      gap: 12,
+    },
+
+    drawerHeader: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: 20,
+      borderBottom: `1px solid ${BRAND.greenSoft}`,
+    },
+
+    closeBtn: {
+      border: `1px solid ${BRAND.greenSoft}`,
+      background: "#fff",
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      cursor: "pointer",
+      fontSize: 18,
+      fontWeight: 700,
+      color: BRAND.green,
+    },
+
+    logoutBtn: {
+      border: "none",
+      color: "#ffffff",
+      fontWeight: 700,
+      fontSize: 15,
+      padding: "12px 24px",
+      borderRadius: 12,
+      cursor: "pointer",
+      background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
+      boxShadow: `0 4px 12px ${BRAND.green}40`,
+      marginTop: 12,
+    },
+  };
+
   return (
     <div style={s.page}>
       <style>{`.app-topnav::-webkit-scrollbar{display:none;}`}</style>
-      <div style={s.pagePattern} />
-      {/* Mobile: top bar + drawer */}
+
+      {/* Floating Particles */}
+      <div style={s.particles}>
+        {[...Array(isMobile ? 10 : 20)].map((_, i) => (
+          <div
+            key={i}
+            style={{
+              position: "absolute",
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              width: Math.random() * 3 + 2,
+              height: Math.random() * 3 + 2,
+              background: `${BRAND.green}30`,
+              borderRadius: "50%",
+              animation: `float ${Math.random() * 10 + 10}s ease-in-out infinite`,
+              animationDelay: `${Math.random() * 5}s`,
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Mobile */}
       {isMobile && (
         <>
           <header style={s.mobileTop}>
@@ -110,8 +382,8 @@ export default function AppLayout() {
             </button>
 
             <div style={{ minWidth: 0, textAlign: "center", flex: 1 }}>
-              <div style={s.mobileTitle}>Mitra Setia</div>
-              <div style={s.mobileSub}>ERP and Operations</div>
+              <div style={s.mobileTitle}>Mitra Setia ERP</div>
+              <div style={s.mobileSub}>Operations Dashboard</div>
             </div>
 
             <span style={s.topRole}>{role}</span>
@@ -131,7 +403,7 @@ export default function AppLayout() {
                 role="presentation"
               >
                 <div style={s.drawerHeader}>
-                  <div style={{ fontWeight: 900, color: "#0b1f16" }}>Menu</div>
+                  <div style={{ fontWeight: 800, color: BRAND.ink, fontSize: 18 }}>Menu</div>
                   <button
                     onClick={() => setMobileOpen(false)}
                     style={s.closeBtn}
@@ -147,15 +419,7 @@ export default function AppLayout() {
                       await doLogout();
                       setMobileOpen(false);
                     }}
-                    onMouseEnter={() => setHoverLogout(true)}
-                    onMouseLeave={() => setHoverLogout(false)}
-                    style={{
-                      ...s.logoutBtn,
-                      background: hoverLogout
-                        ? "linear-gradient(135deg, #1aa14a, #0f6f2f)"
-                        : "linear-gradient(135deg, #178a3c, #0f6f2f)",
-                      transform: hoverLogout ? "translateY(-1px)" : "translateY(0)",
-                    }}
+                    style={s.logoutBtn}
                   >
                     Logout
                   </button>
@@ -174,8 +438,8 @@ export default function AppLayout() {
               <div style={s.brand}>
                 <img src="/logo3.png" alt="Mitra Setia" style={s.brandLogo} />
                 <div style={{ minWidth: 0 }}>
-                  <div style={s.brandTitle}>Mitra Setia</div>
-                  <div style={s.brandSub}>ERP for operations management</div>
+                  <div style={s.brandTitle}>Mitra Setia ERP</div>
+                  <div style={s.brandSub}>Operations Management</div>
                 </div>
               </div>
             </div>
@@ -188,13 +452,14 @@ export default function AppLayout() {
               <span style={s.topRole}>{role}</span>
               <button
                 onClick={doLogout}
-                onMouseEnter={() => setHoverLogout(true)}
-                onMouseLeave={() => setHoverLogout(false)}
-                style={{
-                  ...s.topLogout,
-                  background: hoverLogout
-                    ? "linear-gradient(135deg, #1aa14a, #0f6f2f)"
-                    : "linear-gradient(135deg, #178a3c, #0f6f2f)",
+                style={s.topLogout}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = `0 6px 20px ${BRAND.green}50`;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = `0 4px 12px ${BRAND.green}40`;
                 }}
               >
                 Logout
@@ -203,242 +468,20 @@ export default function AppLayout() {
           </header>
         )}
 
-        {/* ✅ KEY FIX: on mobile, AppLayout adds NO outer padding (prevents huge white top on some pages) */}
-        <div
-          style={{
-            ...s.contentOuter,
-            padding: isMobile ? 0 : 24,
-            paddingTop: isMobile ? 0 : 18,
-          }}
-        >
-
-          <div
-            style={{
-              ...s.contentInner,
-              padding: isMobile ? 12 : 0, // ✅ mobile padding here instead
-            }}
-          >
+        <div style={s.contentOuter}>
+          <div style={s.contentInner}>
             <Outlet />
           </div>
         </div>
       </main>
+
+      {/* Animations */}
+      <style>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-20px); }
+        }
+      `}</style>
     </div>
   );
 }
-
-const s = {
-  page: {
-    minHeight: "100vh",
-    display: "flex",
-    flexDirection: "column",
-    background:
-      "radial-gradient(circle at 18% 18%, rgba(34, 197, 94, 0.22), transparent 44%), radial-gradient(circle at 80% 12%, rgba(16, 185, 129, 0.20), transparent 40%), #e3f5ea",
-    fontFamily:
-      '"IBM Plex Sans","Source Sans 3","Segoe UI",Roboto,Helvetica,Arial,sans-serif',
-    color: "#0b1f16",
-    overflowX: "hidden",
-    position: "relative",
-  },
-  pagePattern: {
-    pointerEvents: "none",
-    position: "absolute",
-    inset: 0,
-    backgroundImage:
-      "radial-gradient(rgba(16, 185, 129, 0.22) 1px, transparent 1px)",
-    backgroundSize: "12px 12px",
-    opacity: 0.32,
-    zIndex: 0,
-  },
-
-  main: {
-    minWidth: 0,
-    display: "flex",
-    flexDirection: "column",
-  },
-
-  topbar: {
-    padding: "14px 22px",
-    background: "rgba(255,255,255,0.96)",
-    borderBottom: "1px solid rgba(15, 82, 47, 0.12)",
-    backdropFilter: "blur(8px)",
-    display: "grid",
-    gridTemplateColumns: "minmax(200px, 1fr) minmax(520px, 3fr) minmax(220px, 1fr)",
-    alignItems: "center",
-    boxSizing: "border-box",
-    boxShadow: "0 8px 20px rgba(10, 58, 30, 0.08)",
-    position: "relative",
-    zIndex: 2,
-  },
-  topLeft: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    minWidth: 0,
-  },
-  topCenter: {
-    display: "flex",
-    justifyContent: "center",
-    minWidth: 0,
-  },
-  hamburgerLines: {
-    display: "grid",
-    gridTemplateRows: "repeat(3, 2px)",
-    alignContent: "center",
-    justifyItems: "center",
-    width: 18,
-    height: 18,
-    gap: 4,
-    transform: "translateY(1px)",
-  },
-  hamburgerLine: {
-    width: 16,
-    height: 2,
-    background: "#0f6f2f",
-    borderRadius: 999,
-  },
-  brand: { display: "flex", alignItems: "center", gap: 12 },
-  brandLogo: {
-    width: 44,
-    height: 44,
-    objectFit: "contain",
-    background: "transparent",
-  },
-  brandTitle: { fontWeight: 900, fontSize: 16, color: "#0b1f16" },
-  brandSub: { marginTop: 2, fontSize: 12, color: "rgba(6, 78, 59, 0.75)" },
-  topNav: {
-    display: "flex",
-    gap: 8,
-    alignItems: "center",
-    flexWrap: "nowrap",
-    justifyContent: "center",
-    overflowX: "auto",
-    paddingBottom: 2,
-    scrollbarWidth: "none",
-    msOverflowStyle: "none",
-  },
-  topNavItem: {
-    textDecoration: "none",
-    color: "#0b1f16",
-    fontWeight: 700,
-    fontSize: 12,
-    padding: "6px 8px",
-    borderRadius: 10,
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    whiteSpace: "nowrap",
-  },
-  topNavActive: {
-    background: "#e1f3e7",
-    color: "#0f6f2f",
-    border: "1px solid rgba(20,136,58,0.22)",
-  },
-  topNavIcon: {
-    width: 16,
-    height: 16,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  topRight: { display: "flex", alignItems: "center", gap: 10, justifyContent: "flex-end" },
-  topRole: {
-    fontSize: 12,
-    fontWeight: 800,
-    padding: "7px 10px",
-    borderRadius: 999,
-    background: "#ffffff",
-    border: "1px solid rgba(15, 82, 47, 0.18)",
-    color: "#0b1f16",
-    whiteSpace: "nowrap",
-  },
-  topLogout: {
-    border: "none",
-    color: "#ffffff",
-    fontWeight: 800,
-    fontSize: 12,
-    padding: "8px 12px",
-    borderRadius: 999,
-    cursor: "pointer",
-    boxShadow: "0 10px 20px rgba(20,136,58,0.24)",
-  },
-
-  contentOuter: {
-    width: "100%",
-    boxSizing: "border-box",
-    padding: 22,
-    position: "relative",
-    zIndex: 1,
-  },
-  contentInner: {
-    maxWidth: 1100,
-    margin: "0 auto",
-    minWidth: 0,
-  },
-
-  mobileTop: {
-    position: "sticky",
-    top: 0,
-    zIndex: 50,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-    padding: "10px 12px",
-    background: "rgba(255,255,255,0.94)",
-    borderBottom: "1px solid rgba(15, 82, 47, 0.14)",
-    backdropFilter: "blur(8px)",
-  },
-  hamburgerBtn: {
-    border: "1px solid rgba(15, 82, 47, 0.12)",
-    background: "#fff",
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    fontSize: 18,
-    fontWeight: 900,
-    cursor: "pointer",
-    color: "#0b1f16",
-  },
-  mobileTitle: { fontWeight: 900, fontSize: 14, color: "#0b1f16", lineHeight: 1.1 },
-  mobileSub: { fontSize: 12, color: "rgba(6, 78, 59, 0.75)", marginTop: 2 },
-
-  drawerOverlay: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0,0,0,0.35)",
-    zIndex: 100,
-    display: "flex",
-    justifyContent: "flex-start",
-  },
-  drawer: {
-    width: "86%",
-    maxWidth: 360,
-    height: "100%",
-    background: "#fff",
-    boxShadow: "18px 0 50px rgba(10, 58, 30, 0.20)",
-    overflowY: "auto",
-  },
-  drawerContent: {
-    padding: 16,
-    display: "grid",
-    gap: 14,
-  },
-  drawerHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 12,
-    borderBottom: "1px solid rgba(15, 82, 47, 0.10)",
-  },
-  closeBtn: {
-    border: "1px solid rgba(15, 82, 47, 0.12)",
-    background: "#fff",
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    cursor: "pointer",
-    fontSize: 16,
-    fontWeight: 900,
-    color: "#0b1f16",
-  },
-};

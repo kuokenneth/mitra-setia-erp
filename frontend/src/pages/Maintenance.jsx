@@ -4,62 +4,77 @@ import { api } from "../api";
 import { useAuth } from "../AuthContext";
 
 //////////////////////
-// THEME (match Inventory page)
+// THEME - MODERNIZED
 //////////////////////
+
+const BRAND = {
+  green: "#4BCA74",
+  green2: "#3BB865",
+  greenLight: "#5FD686",
+  greenDark: "#2D9F56",
+  greenSoft: "rgba(75,202,116,0.15)",
+  ink: "#111827",
+  ink2: "#1F2937",
+};
+
 const pageBg = {
   minHeight: "100vh",
   padding: 22,
-  color: "#0B2A1F",
+  color: BRAND.ink,
 };
 
-const container = { maxWidth: 1180, margin: "0 auto" };
+const container = { maxWidth: 1240, margin: "0 auto" };
 
 const panel = {
-  background: "#FFFFFF",
-  borderRadius: 18,
-  padding: 18,
-  border: "1px solid rgba(20, 80, 60, 0.10)",
-  boxShadow: "0 14px 40px rgba(10, 40, 30, 0.08)",
+  background: "rgba(255,255,255,0.85)",
+  backdropFilter: "blur(20px)",
+  WebkitBackdropFilter: "blur(20px)",
+  borderRadius: 20,
+  padding: 24,
+  border: `1px solid ${BRAND.greenSoft}`,
+  boxShadow: `0 8px 32px ${BRAND.green}15`,
 };
 
 const headerRow = {
   display: "flex",
   alignItems: "flex-end",
   justifyContent: "space-between",
-  gap: 12,
+  gap: 16,
   flexWrap: "wrap",
 };
 
 const title = {
-  fontSize: 34,
-  fontWeight: 950,
-  letterSpacing: -0.8,
+  fontSize: 32,
+  fontWeight: 800,
+  letterSpacing: "-0.02em",
   margin: 0,
-  lineHeight: 1.05,
+  lineHeight: 1.1,
+  color: BRAND.ink,
 };
-const sub = { marginTop: 8, color: "#2F6B55", fontWeight: 700, fontSize: 12 };
+const sub = { marginTop: 8, color: BRAND.ink2, fontWeight: 600, fontSize: 15, opacity: 0.8 };
 
 //////////////////////
-// Inventory pill controls
+// Modern pill controls
 //////////////////////
 const pillsWrap = {
-  marginTop: 14,
+  marginTop: 16,
   display: "flex",
-  gap: 10,
+  gap: 12,
   flexWrap: "wrap",
   alignItems: "center",
 };
 
 const pillBase = {
-  borderRadius: 999,
-  padding: "10px 16px",
-  fontWeight: 900,
-  border: "1px solid rgba(0,0,0,0.10)",
+  borderRadius: 12,
+  padding: "12px 20px",
+  fontWeight: 700,
+  fontSize: 15,
+  border: `1px solid ${BRAND.greenSoft}`,
   background: "#FFFFFF",
-  color: "#0B2A1F",
-  boxShadow: "0 8px 18px rgba(10, 40, 30, 0.10)",
+  color: BRAND.ink,
+  boxShadow: `0 4px 12px ${BRAND.green}10`,
   cursor: "pointer",
-  transition: "transform .08s ease, box-shadow .08s ease",
+  transition: "all 0.3s ease",
   userSelect: "none",
 };
 
@@ -67,47 +82,49 @@ const btn = (variant = "ghost") => {
   if (variant === "primary") {
     return {
       ...pillBase,
-      border: "1px solid rgba(18, 140, 76, 0.25)",
-      background: "#16A34A",
+      border: "none",
+      background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
       color: "#FFFFFF",
-      boxShadow: "0 10px 22px rgba(22, 163, 74, 0.28)",
+      boxShadow: `0 8px 20px ${BRAND.green}40`,
     };
   }
   if (variant === "danger") {
     return {
       ...pillBase,
-      border: "1px solid rgba(239, 68, 68, 0.25)",
+      border: "1px solid rgba(239, 68, 68, 0.30)",
       background: "rgba(239, 68, 68, 0.10)",
       color: "#991B1B",
-      boxShadow: "0 10px 22px rgba(239, 68, 68, 0.10)",
+      boxShadow: "0 4px 12px rgba(239, 68, 68, 0.15)",
     };
   }
   if (variant === "neutral") {
-    return { ...pillBase, background: "#EEF2F1", boxShadow: "none" };
+    return { ...pillBase, background: BRAND.greenSoft, color: BRAND.green };
   }
   if (variant === "ghost") {
-    return { ...pillBase, background: "#F3F6F5", color: "#123B2A" };
+    return { ...pillBase, background: "#FFFFFF" };
   }
   return pillBase;
 };
 
 const btnSmall = (variant = "ghost") => ({
   ...btn(variant),
-  padding: "9px 13px",
-  fontWeight: 900,
+  padding: "10px 16px",
+  fontSize: 14,
 });
 
 const pillInput = {
-  borderRadius: 999,
-  padding: "10px 14px",
-  fontWeight: 800,
-  border: "1px solid rgba(0,0,0,0.12)",
+  borderRadius: 12,
+  padding: "12px 18px",
+  fontWeight: 600,
+  fontSize: 15,
+  border: `2px solid ${BRAND.greenSoft}`,
   background: "#FFFFFF",
-  color: "#0B2A1F",
+  color: BRAND.ink,
   outline: "none",
-  boxShadow: "0 8px 18px rgba(10, 40, 30, 0.08)",
-  minWidth: 240,
+  boxShadow: `0 4px 12px ${BRAND.green}10`,
+  minWidth: 260,
   boxSizing: "border-box",
+  transition: "all 0.3s ease",
 };
 
 const pillSelectWrap = {
@@ -121,15 +138,16 @@ const pillSelect = {
   WebkitAppearance: "none",
   MozAppearance: "none",
   borderRadius: 999,
-  padding: "10px 42px 10px 14px",
-  fontWeight: 900,
-  border: "1px solid rgba(0,0,0,0.12)",
+  padding: "12px 42px 12px 18px",
+  fontWeight: 700,
+  fontSize: 14,
+  border: `2px solid ${BRAND.greenSoft}`,
   background: "#FFFFFF",
-  color: "#0B2A1F",
-  boxShadow: "0 8px 18px rgba(10, 40, 30, 0.08)",
+  color: BRAND.ink,
+  boxShadow: `0 4px 12px ${BRAND.green}10`,
   cursor: "pointer",
   outline: "none",
-  minWidth: 160,
+  minWidth: 180,
   boxSizing: "border-box",
 };
 
@@ -138,60 +156,66 @@ const selectChevron = {
   right: 14,
   pointerEvents: "none",
   fontSize: 14,
-  color: "rgba(11,42,31,0.65)",
+  fontWeight: 800,
+  color: BRAND.green,
 };
 
-const divider = { height: 1, background: "rgba(20,80,60,0.10)", marginTop: 14 };
+const divider = { height: 1, background: BRAND.greenSoft, marginTop: 16 };
 
 const gridHeader = {
-  marginTop: 14,
+  marginTop: 16,
   display: "grid",
   gridTemplateColumns: "1.4fr 0.5fr 0.5fr 0.4fr",
-  gap: 10,
-  padding: "0 10px",
-  color: "#2F6B55",
-  fontWeight: 1000,
-  fontSize: 11,
-  letterSpacing: 0.6,
-  textTransform: "uppercase",
+  gap: 12,
+  padding: "14px 16px",
+  background: BRAND.greenSoft,
+  color: BRAND.ink,
+  fontWeight: 800,
+  fontSize: 13,
+  letterSpacing: 0.5,
+  borderRadius: 14,
+  borderBottom: `1px solid ${BRAND.green}30`,
 };
 
-const listWrap = { marginTop: 10, display: "flex", flexDirection: "column", gap: 10 };
+const listWrap = { marginTop: 16, display: "flex", flexDirection: "column", gap: 12 };
 
 const cardRow = {
-  background: "linear-gradient(180deg,#FFFFFF 0%,#FBFFFD 100%)",
-  borderRadius: 18,
-  border: "1px solid rgba(20,80,60,0.12)",
-  boxShadow: "0 12px 26px rgba(10,40,30,0.06)",
-  padding: 12,
+  background: "rgba(255,255,255,0.9)",
+  backdropFilter: "blur(10px)",
+  WebkitBackdropFilter: "blur(10px)",
+  borderRadius: 16,
+  border: `1px solid ${BRAND.greenSoft}`,
+  boxShadow: `0 4px 16px ${BRAND.green}10`,
+  padding: 16,
+  transition: "all 0.2s ease",
 };
 
 const rowGrid = {
   display: "grid",
   gridTemplateColumns: "1.4fr 0.5fr 0.5fr 0.4fr",
-  gap: 10,
+  gap: 12,
   alignItems: "center",
 };
 
 const badge = (status) => {
   const map = {
-    OPEN: { bg: "#FFF3C4", bd: "rgba(160,120,0,0.25)", fg: "#5B4300" },
-    DONE: { bg: "#D7F7E4", bd: "rgba(0,120,80,0.20)", fg: "#0B2A1F" },
-    CANCELLED: { bg: "#FFE1E1", bd: "rgba(160,0,0,0.20)", fg: "#5B0000" },
-    LIVE: { bg: "#E8FBF2", bd: "rgba(0,120,80,0.20)", fg: "#0B2A1F" },
-    SELECTED: { bg: "#D7F7E4", bd: "rgba(0,120,80,0.20)", fg: "#0B2A1F" },
+    OPEN: { bg: "rgba(245,158,11,0.12)", bd: "rgba(245,158,11,0.30)", fg: "#92400e" },
+    DONE: { bg: BRAND.greenSoft, bd: `${BRAND.green}40`, fg: BRAND.green },
+    CANCELLED: { bg: "rgba(239,68,68,0.10)", bd: "rgba(239,68,68,0.30)", fg: "#7F1D1D" },
+    LIVE: { bg: BRAND.greenSoft, bd: `${BRAND.green}40`, fg: BRAND.green },
+    SELECTED: { bg: BRAND.greenSoft, bd: `${BRAND.green}40`, fg: BRAND.green },
   };
-  const c = map[status] || { bg: "#eee", bd: "rgba(0,0,0,0.12)", fg: "#0B2A1F" };
+  const c = map[status] || { bg: "#eee", bd: "rgba(0,0,0,0.12)", fg: BRAND.ink };
   return {
     display: "inline-flex",
     alignItems: "center",
     gap: 8,
-    padding: "7px 12px",
+    padding: "8px 14px",
     borderRadius: 999,
     background: c.bg,
     border: `1px solid ${c.bd}`,
-    fontWeight: 1000,
-    fontSize: 12,
+    fontWeight: 800,
+    fontSize: 13,
     color: c.fg,
     whiteSpace: "nowrap",
   };

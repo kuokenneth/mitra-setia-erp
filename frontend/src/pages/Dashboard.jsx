@@ -1,54 +1,50 @@
-// src/pages/Dashboard.jsx
+// src/pages/Dashboard.jsx - Modern Design
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
 
-/**
- * Dashboard v2 (LIVE)
- * - Aggregates real numbers from your existing endpoints (frontend aggregation)
- * - Adds: Top 5 most spending trucks this month (based on /trucks/:id/spareparts monthTotalCost)
- */
-
-//////////////////////
-// THEME
-//////////////////////
-const pageBg = {
-  minHeight: "100vh",
-  padding: 22,
-  color: "#0b1f16",
-  background: "transparent",
+// Match Landing Page Colors
+const BRAND = {
+  green: "#4BCA74",
+  green2: "#3BB865",
+  greenLight: "#5FD686",
+  greenDark: "#2D9F56",
+  greenSoft: "rgba(75,202,116,0.15)",
+  ink: "#111827",
+  ink2: "#1F2937",
 };
 
-const container = { maxWidth: 1300, margin: "0 auto" };
+// Modern Styles
+const s = {
+  page: {
+    minHeight: "100vh",
+    color: BRAND.ink,
+  },
 
-const panel = {
-  background: "#FFFFFF",
-  borderRadius: 16,
-  padding: 18,
-  border: "1px solid rgba(15, 82, 47, 0.12)",
-  boxShadow: "0 14px 30px rgba(10, 58, 30, 0.12)",
-};
-const railPanel = {
-  ...panel,
-  padding: 14,
-};
+  container: { maxWidth: 1200, margin: "0 auto" },
 
-const headerRow = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: 12,
-};
+  glassCard: {
+    background: "rgba(255,255,255,0.85)",
+    backdropFilter: "blur(20px)",
+    WebkitBackdropFilter: "blur(20px)",
+    borderRadius: 20,
+    padding: 24,
+    border: `1px solid ${BRAND.greenSoft}`,
+    boxShadow: `0 8px 32px ${BRAND.green}15`,
+  },
 
-const title = { fontSize: 26, fontWeight: 900, letterSpacing: -0.4 };
-const subtitle = { marginTop: 6, color: "rgba(6, 78, 59, 0.75)", fontWeight: 700, fontSize: 13 };
+  grid: { display: "grid", gap: 20 },
 
-const grid = { display: "grid", gap: 18 };
-const mainGrid = {
-  display: "grid",
-  gap: 18,
-  gridTemplateColumns: "minmax(0, 1fr) 320px",
-  alignItems: "start",
+  headerRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 16,
+    flexWrap: "wrap",
+  },
+
+  title: { fontSize: 32, fontWeight: 800, letterSpacing: "-0.02em" },
+  subtitle: { marginTop: 6, color: BRAND.ink2, fontSize: 15, opacity: 0.8 },
 };
 
 //////////////////////
@@ -84,7 +80,6 @@ function endOfTodayISO() {
   return d.toISOString();
 }
 
-// Low-stock heuristic (adjust if your schema differs)
 function isLowStockItem(item) {
   const qty = Number(item?.qtyTotal ?? item?.totalQty ?? item?.qty ?? 0);
   const rp = Number(item?.reorderPoint ?? item?.minQty ?? 0);
@@ -105,16 +100,32 @@ function fmtMoney(n, currency = "IDR") {
 }
 
 //////////////////////
-// SMALL UI COMPONENTS
+// UI COMPONENTS
 //////////////////////
-function KpiCard({ label, value, sub }) {
+function KpiCard({ label, value, sub, icon }) {
   return (
-    <div style={panel}>
-      <div style={{ fontSize: 12, fontWeight: 800, color: "rgba(6, 78, 59, 0.85)" }}>{label}</div>
-      <div style={{ fontSize: 30, fontWeight: 900, marginTop: 8 }}>{value ?? 0}</div>
-      {sub ? (
-        <div style={{ marginTop: 6, fontSize: 12, color: "rgba(6, 78, 59, 0.65)" }}>{sub}</div>
-      ) : null}
+    <div style={s.glassCard}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: 14,
+            background: "transparent",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 24,
+          }}
+        >
+          {icon || "📊"}
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: BRAND.ink2, opacity: 0.8 }}>{label}</div>
+      </div>
+      <div style={{ fontSize: 36, fontWeight: 800, color: BRAND.green }}>{value ?? 0}</div>
+      {sub && (
+        <div style={{ marginTop: 8, fontSize: 13, color: BRAND.ink2, opacity: 0.7 }}>{sub}</div>
+      )}
     </div>
   );
 }
@@ -123,13 +134,13 @@ function Pill({ children }) {
   return (
     <span
       style={{
-        padding: "5px 10px",
+        padding: "8px 16px",
         borderRadius: 999,
-        background: "#e6f4ea",
-        border: "1px solid rgba(20,136,58,.26)",
-        fontWeight: 800,
-        fontSize: 12,
-        color: "#0b1f16",
+        background: BRAND.greenSoft,
+        border: `1px solid ${BRAND.green}30`,
+        fontWeight: 700,
+        fontSize: 13,
+        color: BRAND.green,
         whiteSpace: "nowrap",
       }}
     >
@@ -143,12 +154,21 @@ function ActionBtn({ label, onClick }) {
     <button
       onClick={onClick}
       style={{
-        padding: "10px 14px",
-        borderRadius: 999,
-        border: "1px solid rgba(31,157,83,.24)",
+        padding: "10px 16px",
+        borderRadius: 12,
+        border: `1px solid ${BRAND.greenSoft}`,
         background: "#ffffff",
-        fontWeight: 800,
+        fontWeight: 700,
+        fontSize: 14,
         cursor: "pointer",
+        transition: "all 0.3s ease",
+        color: BRAND.green,
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = BRAND.greenSoft;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "#ffffff";
       }}
     >
       {label}
@@ -159,24 +179,24 @@ function ActionBtn({ label, onClick }) {
 function StatusBadge({ status }) {
   const s = up(status);
   const map = {
-    READY: { bg: "#d7f3e4", fg: "#0f6f2f", bd: "rgba(16, 185, 129, .28)" },
-    DISPATCH: { bg: "#d7f3e4", fg: "#0f6f2f", bd: "rgba(16, 185, 129, .28)" },
-    MAINTENANCE: { bg: "#fff2e0", fg: "#9a4b0f", bd: "rgba(154,75,15,.22)" },
-    OPEN: { bg: "#fff2e0", fg: "#9a4b0f", bd: "rgba(154,75,15,.22)" },
-    DONE: { bg: "#e2f5ed", fg: "#136f4a", bd: "rgba(19,111,74,.22)" },
-    CANCELLED: { bg: "#f1f5f9", fg: "#475569", bd: "rgba(71,85,105,.18)" },
+    READY: { bg: BRAND.greenSoft, fg: BRAND.green, bd: `${BRAND.green}40` },
+    DISPATCH: { bg: BRAND.greenSoft, fg: BRAND.green, bd: `${BRAND.green}40` },
+    MAINTENANCE: { bg: "#fff2e0", fg: "#9a4b0f", bd: "rgba(154,75,15,.3)" },
+    OPEN: { bg: "#fff2e0", fg: "#9a4b0f", bd: "rgba(154,75,15,.3)" },
+    DONE: { bg: "#e2f5ed", fg: "#136f4a", bd: "rgba(19,111,74,.3)" },
+    CANCELLED: { bg: "#f1f5f9", fg: "#475569", bd: "rgba(71,85,105,.3)" },
   };
-  const c = map[s] || { bg: "#f1f5f9", fg: "#475569", bd: "rgba(71,85,105,.18)" };
+  const c = map[s] || { bg: "#f1f5f9", fg: "#475569", bd: "rgba(71,85,105,.3)" };
 
   return (
     <span
       style={{
-        padding: "4px 10px",
+        padding: "6px 12px",
         borderRadius: 999,
         background: c.bg,
         color: c.fg,
         border: `1px solid ${c.bd}`,
-        fontWeight: 900,
+        fontWeight: 800,
         fontSize: 12,
       }}
     >
@@ -188,21 +208,30 @@ function StatusBadge({ status }) {
 function ProgressRow({ label, value, sub }) {
   return (
     <div style={{ display: "grid", gap: 8 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "rgba(6, 78, 59, 0.75)", fontWeight: 700 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          fontSize: 13,
+          color: BRAND.ink2,
+          fontWeight: 700,
+        }}
+      >
         <span>{label}</span>
         <span>{value}%</span>
       </div>
-      <div style={{ height: 8, borderRadius: 999, background: "#dff1e7", overflow: "hidden" }}>
+      <div style={{ height: 10, borderRadius: 999, background: BRAND.greenSoft, overflow: "hidden" }}>
         <div
           style={{
             height: "100%",
             width: `${value}%`,
-            background: "linear-gradient(90deg, #178a3c, #0f6f2f)",
-            boxShadow: "0 6px 14px rgba(20,136,58,0.28)",
+            background: `linear-gradient(90deg, ${BRAND.green}, ${BRAND.green2})`,
+            boxShadow: `0 2px 8px ${BRAND.green}50`,
+            transition: "width 0.5s ease",
           }}
         />
       </div>
-      {sub ? <div style={{ fontSize: 12, color: "rgba(6, 78, 59, 0.65)" }}>{sub}</div> : null}
+      {sub && <div style={{ fontSize: 12, color: BRAND.ink2, opacity: 0.7 }}>{sub}</div>}
     </div>
   );
 }
@@ -227,8 +256,6 @@ export default function Dashboard() {
   const [todayTrips, setTodayTrips] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [trucks, setTrucks] = useState([]);
-
-  // ✅ NEW: Top 5 spending
   const [topSpend, setTopSpend] = useState([]);
   const [topSpendLoading, setTopSpendLoading] = useState(false);
 
@@ -243,13 +270,14 @@ export default function Dashboard() {
     return match?.driver?.name || match?.driverName || match?.driverUser?.name || "—";
   };
 
-  // ✅ Change these paths if your backend uses different routes
   const endpoints = useMemo(
     () => ({
       trucks: "/trucks",
       maintenance: "/maintenance",
       inventoryItems: "/inventory/items",
-      tripsToday: `/trips?from=${encodeURIComponent(startOfTodayISO())}&to=${encodeURIComponent(endOfTodayISO())}`,
+      tripsToday: `/trips?from=${encodeURIComponent(startOfTodayISO())}&to=${encodeURIComponent(
+        endOfTodayISO()
+      )}`,
     }),
     []
   );
@@ -278,8 +306,9 @@ export default function Dashboard() {
         setTrucks(fetchedTrucks);
         setInventoryCount(items.length);
 
-        // KPI calculations
-        const activeTrucks = fetchedTrucks.filter((t) => ["READY", "DISPATCH"].includes(up(t?.status))).length;
+        const activeTrucks = fetchedTrucks.filter((t) =>
+          ["READY", "DISPATCH"].includes(up(t?.status))
+        ).length;
         const pendingMaintenance = maint.filter((m) => up(m?.status) === "OPEN").length;
         const lowStock = items.filter(isLowStockItem).length;
         const tripsToday = trips.length;
@@ -289,8 +318,6 @@ export default function Dashboard() {
 
         // Alerts
         const a = [];
-
-        // STNK expiry soon (within 14 days)
         const now = new Date();
         const in14 = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
         const stnkSoon = fetchedTrucks
@@ -308,7 +335,6 @@ export default function Dashboard() {
           });
         }
 
-        // Maintenance open too long
         const openLong = maint
           .filter((m) => up(m?.status) === "OPEN" && m?.createdAt)
           .filter((m) => {
@@ -334,10 +360,9 @@ export default function Dashboard() {
         setAlerts(a);
         setSysOk(true);
 
-        // ✅ TOP 5 SPENDING TRUCKS THIS MONTH
+        // Top Spending Trucks
         setTopSpendLoading(true);
         try {
-          // small concurrency limit
           const limit = 6;
           const queue = [...fetchedTrucks];
           const results = [];
@@ -348,7 +373,6 @@ export default function Dashboard() {
               if (!t?.id) continue;
 
               try {
-                // relies on backend: /trucks/:id/spareparts => { monthTotalCost, monthCurrency }
                 const r = await api(`/trucks/${t.id}/spareparts`);
                 results.push({
                   truckId: t.id,
@@ -367,7 +391,9 @@ export default function Dashboard() {
             }
           }
 
-          await Promise.all(Array.from({ length: Math.min(limit, fetchedTrucks.length) }, () => worker()));
+          await Promise.all(
+            Array.from({ length: Math.min(limit, fetchedTrucks.length) }, () => worker())
+          );
 
           if (cancelled) return;
 
@@ -391,30 +417,30 @@ export default function Dashboard() {
   }, [endpoints]);
 
   return (
-    <div style={pageBg}>
-      <div style={container}>
+    <div style={s.page}>
+      <div style={s.container}>
         {/* HEADER */}
-        <div style={{ ...panel, marginBottom: 18 }}>
-          <div style={headerRow}>
+        <div style={{ ...s.glassCard, marginBottom: 20 }}>
+          <div style={s.headerRow}>
             <div>
-              <div style={title}>Welcome back, {user?.name || "User"}</div>
-              <div style={subtitle}>Operations overview for today</div>
+              <div style={s.title}>Welcome back, {user?.name || "User"} 👋</div>
+              <div style={s.subtitle}>Operations overview for today</div>
             </div>
 
-            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
               <Pill>{new Date().toLocaleDateString()}</Pill>
               <span
                 style={{
-                  padding: "6px 12px",
+                  padding: "8px 16px",
                   borderRadius: 999,
-                  background: sysOk ? "#dff5e8" : "#fde8e8",
-                  fontWeight: 800,
-                  fontSize: 12,
-                  color: sysOk ? "#0f6f2f" : "#b42318",
-                  border: `1px solid ${sysOk ? "rgba(15,111,47,.28)" : "rgba(180,35,24,.22)"}`,
+                  background: sysOk ? BRAND.greenSoft : "#fde8e8",
+                  fontWeight: 700,
+                  fontSize: 13,
+                  color: sysOk ? BRAND.green : "#b42318",
+                  border: `1px solid ${sysOk ? `${BRAND.green}40` : "rgba(180,35,24,.3)"}`,
                 }}
               >
-                System: {sysOk ? "OK" : "ERROR"}
+                System: {sysOk ? "OK ✓" : "ERROR"}
               </span>
             </div>
           </div>
@@ -423,138 +449,134 @@ export default function Dashboard() {
         {/* KPI ROW */}
         <div
           style={{
-            ...grid,
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            marginBottom: 18,
+            ...s.grid,
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            marginBottom: 20,
           }}
         >
-          <KpiCard label="Trips Today" value={stats.tripsToday} sub="Scheduled / In-progress / Done" />
-          <KpiCard label="Active Trucks" value={stats.activeTrucks} sub="READY + DISPATCH" />
-          <KpiCard label="Pending Maintenance" value={stats.pendingMaintenance} sub="OPEN jobs" />
-          <KpiCard label="Low Stock Items" value={stats.lowStock} sub="Below reorder point" />
+          <KpiCard label="Trips Today" value={stats.tripsToday} sub="Scheduled / In-progress" icon="🚚" />
+          <KpiCard label="Active Trucks" value={stats.activeTrucks} sub="READY + DISPATCH" icon="✅" />
+          <KpiCard label="Pending Maintenance" value={stats.pendingMaintenance} sub="OPEN jobs" icon="🔧" />
+          <KpiCard label="Low Stock Items" value={stats.lowStock} sub="Below reorder point" icon="📦" />
         </div>
 
         {/* MAIN GRID */}
-        <div style={mainGrid}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: window.innerWidth > 900 ? "1fr 340px" : "1fr",
+            gap: 20,
+          }}
+        >
           {/* LEFT COLUMN */}
-          <div style={{ ...grid }}>
+          <div style={s.grid}>
             {/* TODAY TRIPS */}
-            <div style={panel}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-              <div style={{ fontSize: 18, fontWeight: 900 }}>Today’s Trips</div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                {loading ? <Pill>Loading...</Pill> : <Pill>{todayTrips.length} trip(s)</Pill>}
+            <div style={s.glassCard}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 16 }}>
+                <div style={{ fontSize: 20, fontWeight: 800 }}>Today's Trips</div>
+                <Pill>{loading ? "Loading..." : `${todayTrips.length} trip(s)`}</Pill>
+              </div>
+
+              <div>
+                {loading ? (
+                  <div style={{ color: BRAND.ink2, opacity: 0.7 }}>Loading trips...</div>
+                ) : todayTrips.length === 0 ? (
+                  <div style={{ color: BRAND.ink2, opacity: 0.7 }}>No trips scheduled for today</div>
+                ) : (
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 10px" }}>
+                      <thead>
+                        <tr style={{ textAlign: "left", fontSize: 13, color: BRAND.ink2 }}>
+                          <th style={{ paddingLeft: 10 }}>Trip</th>
+                          <th>Truck</th>
+                          <th>Driver</th>
+                          <th>Route</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {todayTrips.map((t) => (
+                          <tr
+                            key={t.id}
+                            style={{
+                              background: BRAND.greenSoft,
+                              borderRadius: 12,
+                            }}
+                          >
+                            <td style={{ padding: "12px 10px", fontWeight: 700 }}>
+                              {t.code || t.tripNo || t.id?.slice?.(0, 8) || "—"}
+                            </td>
+                            <td style={{ padding: "12px 10px", fontWeight: 700 }}>
+                              {t.truck?.plateNumber || t.truckPlate || "—"}
+                            </td>
+                            <td style={{ padding: "12px 10px", fontWeight: 700 }}>
+                              {t.driver?.name || t.driverName || truckDriverName(t) || "—"}
+                            </td>
+                            <td style={{ padding: "12px 10px", fontSize: 13, color: BRAND.ink2 }}>
+                              {t.fromLocation?.name || t.from || "-"} → {t.toLocation?.name || t.to || "-"}
+                            </td>
+                            <td style={{ padding: "12px 10px" }}>
+                              <StatusBadge status={t.status} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
 
-            <div style={{ marginTop: 12 }}>
-              {loading ? (
-                <div style={{ color: "rgba(6, 78, 59, 0.75)", fontWeight: 700 }}>Loading trips...</div>
-              ) : todayTrips.length === 0 ? (
-                <div style={{ color: "rgba(6, 78, 59, 0.75)", fontWeight: 700 }}>
-                  No trips scheduled for today
-                </div>
-              ) : (
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 10px" }}>
-                    <thead>
-                      <tr style={{ textAlign: "left", fontSize: 12, color: "rgba(6, 78, 59, 0.75)" }}>
-                        <th style={{ paddingLeft: 10 }}>Trip</th>
-                        <th>Truck</th>
-                        <th>Driver</th>
-                        <th>Route</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {todayTrips.map((t) => (
-                        <tr
-                          key={t.id}
-                          style={{
-                            background: "#f3fbf7",
-                            border: "1px solid rgba(10, 58, 30, 0.12)",
-                            boxShadow: "0 10px 24px rgba(10, 58, 30, 0.10)",
-                          }}
-                        >
-                          <td style={{ padding: "12px 10px", fontWeight: 900 }}>
-                            {t.code || t.tripNo || t.id?.slice?.(0, 8) || "—"}
-                          </td>
-                          <td style={{ padding: "12px 10px", fontWeight: 800 }}>
-                            {t.truck?.plateNumber || t.truckPlate || "—"}
-                          </td>
-                          <td style={{ padding: "12px 10px", fontWeight: 800 }}>
-                            {t.driver?.name || t.driverName || truckDriverName(t) || "—"}
-                          </td>
-
-                          <td style={{ padding: "12px 10px", fontWeight: 800, color: "rgba(6, 78, 59, 0.75)" }}>
-                            {t.fromLocation?.name || t.from || "-"} {" -> "} {t.toLocation?.name || t.to || "-"}
-                          </td>
-                          <td style={{ padding: "12px 10px" }}>
-                            <StatusBadge status={t.status} />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-            </div>
-
             {/* TOP SPENDING TRUCKS */}
-            <div style={panel}>
-              <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 12 }}>
+            <div style={s.glassCard}>
+              <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 16 }}>
                 Top Spending Trucks (This Month)
               </div>
 
               {topSpendLoading ? (
-                <div style={{ color: "rgba(6, 78, 59, 0.75)", fontWeight: 700 }}>Calculating...</div>
+                <div style={{ color: BRAND.ink2, opacity: 0.7 }}>Calculating...</div>
               ) : topSpend.length === 0 ? (
-                <div style={{ color: "rgba(6, 78, 59, 0.75)", fontWeight: 700 }}>
-                  No spending recorded yet.
-                </div>
+                <div style={{ color: BRAND.ink2, opacity: 0.7 }}>No spending recorded yet.</div>
               ) : (
-                <div style={{ display: "grid", gap: 10 }}>
+                <div style={{ display: "grid", gap: 12 }}>
                   {topSpend.map((x, idx) => (
                     <div
                       key={x.truckId}
                       style={{
-                        padding: 12,
+                        padding: 16,
                         borderRadius: 14,
-                        background: "#f3fbf7",
-                        border: "1px solid rgba(10, 58, 30, 0.12)",
+                        background: BRAND.greenSoft,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        gap: 10,
+                        gap: 12,
                       }}
                     >
-                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                         <span
                           style={{
-                            width: 26,
-                            height: 26,
+                            width: 32,
+                            height: 32,
                             borderRadius: 999,
                             display: "grid",
                             placeItems: "center",
-                            fontWeight: 900,
-                            background: "rgba(20,136,58,0.18)",
-                            border: "1px solid rgba(20,136,58,0.30)",
-                            color: "#0f6f2f",
+                            fontWeight: 800,
+                            background: `linear-gradient(135deg, ${BRAND.green}, ${BRAND.green2})`,
+                            color: "#fff",
                           }}
                         >
                           {idx + 1}
                         </span>
 
                         <div>
-                          <div style={{ fontWeight: 1000 }}>{x.plateNumber}</div>
-                          <div style={{ marginTop: 2, fontSize: 12, fontWeight: 700, color: "rgba(6, 78, 59, 0.75)" }}>
+                          <div style={{ fontWeight: 800, fontSize: 16 }}>{x.plateNumber}</div>
+                          <div style={{ marginTop: 2, fontSize: 13, color: BRAND.ink2, opacity: 0.7 }}>
                             Spareparts installed
                           </div>
                         </div>
                       </div>
 
-                      <div style={{ fontWeight: 900, color: "#0b1f16" }}>
+                      <div style={{ fontWeight: 800, color: BRAND.green, fontSize: 18 }}>
                         {fmtMoney(x.total, x.currency)}
                       </div>
                     </div>
@@ -565,11 +587,11 @@ export default function Dashboard() {
           </div>
 
           {/* RIGHT RAIL */}
-          <div style={{ ...grid }}>
+          <div style={s.grid}>
             {/* ANALYTICS */}
-            <div style={railPanel}>
-              <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 10 }}>Analytics</div>
-              <div style={{ display: "grid", gap: 12 }}>
+            <div style={s.glassCard}>
+              <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>Analytics</div>
+              <div style={{ display: "grid", gap: 16 }}>
                 <ProgressRow
                   label="Fleet Utilization"
                   value={pct(trucks.length ? (stats.activeTrucks / trucks.length) * 100 : 0)}
@@ -589,38 +611,37 @@ export default function Dashboard() {
             </div>
 
             {/* QUICK ACTIONS */}
-            <div style={railPanel}>
-              <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 10 }}>Quick Actions</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <div style={s.glassCard}>
+              <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>Quick Actions</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                 <ActionBtn label="+ Create Trip" onClick={() => (window.location.href = "/trips")} />
                 <ActionBtn label="+ Receive Stock" onClick={() => (window.location.href = "/inventory")} />
-                <ActionBtn label="+ Maintenance Job" onClick={() => (window.location.href = "/maintenance")} />
+                <ActionBtn label="+ Maintenance" onClick={() => (window.location.href = "/maintenance")} />
                 <ActionBtn label="+ Add Truck" onClick={() => (window.location.href = "/trucks")} />
-                <ActionBtn label="+ Add Driver" onClick={() => (window.location.href = "/users")} />
               </div>
             </div>
 
             {/* ALERTS */}
-            <div style={railPanel}>
-              <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 10 }}>Alerts</div>
+            <div style={s.glassCard}>
+              <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>Alerts</div>
               {loading ? (
-                <div style={{ color: "rgba(6, 78, 59, 0.75)", fontWeight: 700 }}>Checking...</div>
+                <div style={{ color: BRAND.ink2, opacity: 0.7 }}>Checking...</div>
               ) : alerts.length === 0 ? (
-                <div style={{ color: "rgba(6, 78, 59, 0.75)", fontWeight: 700 }}>No alerts</div>
+                <div style={{ color: BRAND.ink2, opacity: 0.7 }}>No alerts ✓</div>
               ) : (
-                <div style={{ display: "grid", gap: 10 }}>
+                <div style={{ display: "grid", gap: 12 }}>
                   {alerts.map((a, idx) => (
                     <div
                       key={idx}
                       style={{
-                        padding: 10,
+                        padding: 14,
                         borderRadius: 12,
-                        background: "#f3fbf7",
-                        border: "1px solid rgba(10, 58, 30, 0.12)",
+                        background: "#fff2e0",
+                        border: "1px solid rgba(154,75,15,.3)",
                       }}
                     >
-                      <div style={{ fontWeight: 800 }}>{a.title}</div>
-                      <div style={{ marginTop: 4, color: "rgba(6, 78, 59, 0.75)", fontWeight: 700, fontSize: 12 }}>
+                      <div style={{ fontWeight: 800, color: "#9a4b0f" }}>⚠️ {a.title}</div>
+                      <div style={{ marginTop: 4, fontSize: 13, color: "#9a4b0f", opacity: 0.8 }}>
                         {a.detail}
                       </div>
                     </div>
@@ -630,24 +651,22 @@ export default function Dashboard() {
             </div>
 
             {/* MY ACCOUNT */}
-            <div style={railPanel}>
-              <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 10 }}>My Account</div>
-              <div style={{ fontSize: 13, lineHeight: 1.8 }}>
+            <div style={s.glassCard}>
+              <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>My Account</div>
+              <div style={{ fontSize: 14, lineHeight: 1.8 }}>
                 <div>
-                  <b>Name:</b> {user?.name || "—"}
+                  <strong>Name:</strong> {user?.name || "—"}
                 </div>
                 <div>
-                  <b>Email:</b> {user?.email || "—"}
+                  <strong>Email:</strong> {user?.email || "—"}
                 </div>
                 <div>
-                  <b>Role:</b> {user?.role || "—"}
+                  <strong>Role:</strong> {user?.role || "—"}
                 </div>
               </div>
             </div>
           </div>
         </div>
-
-        <div style={{ height: 30 }} />
       </div>
     </div>
   );

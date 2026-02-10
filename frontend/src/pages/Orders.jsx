@@ -5,12 +5,23 @@ import { useAuth } from "../AuthContext";
 import { useNavigate } from "react-router-dom";
 
 //////////////////////
-// THEME (match Maintenance page look)
+// THEME - MODERNIZED
 //////////////////////
+
+const BRAND = {
+  green: "#4BCA74",
+  green2: "#3BB865",
+  greenLight: "#5FD686",
+  greenDark: "#2D9F56",
+  greenSoft: "rgba(75,202,116,0.15)",
+  ink: "#111827",
+  ink2: "#1F2937",
+};
+
 const pageBg = {
   minHeight: "100vh",
   padding: 22,
-  color: "#0B2A1F",
+  color: BRAND.ink,
 };
 
 const topBar = {
@@ -18,41 +29,47 @@ const topBar = {
   alignItems: "center",
   justifyContent: "space-between",
   padding: "18px 22px",
-  background: "#FFFFFF",
-  borderBottom: "1px solid rgba(20, 80, 60, 0.10)",
+  background: "rgba(255,255,255,0.85)",
+  backdropFilter: "blur(20px)",
+  WebkitBackdropFilter: "blur(20px)",
+  borderBottom: `1px solid ${BRAND.greenSoft}`,
 };
 
-const container = { maxWidth: 1180, margin: "0 auto" };
+const container = { maxWidth: 1240, margin: "0 auto" };
 
 const panel = {
-  background: "#FFFFFF",
-  borderRadius: 22,
-  padding: 18,
-  border: "1px solid rgba(20, 80, 60, 0.10)",
-  boxShadow: "0 18px 55px rgba(10, 40, 30, 0.08)",
+  background: "rgba(255,255,255,0.85)",
+  backdropFilter: "blur(20px)",
+  WebkitBackdropFilter: "blur(20px)",
+  borderRadius: 20,
+  padding: 24,
+  border: `1px solid ${BRAND.greenSoft}`,
+  boxShadow: `0 8px 32px ${BRAND.green}15`,
 };
 
 const headerRow = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  gap: 12,
+  gap: 16,
   flexWrap: "wrap",
 };
 
 const title = {
-  fontSize: 44,
-  fontWeight: 1000,
-  letterSpacing: -1.2,
+  fontSize: 32,
+  fontWeight: 800,
+  letterSpacing: "-0.02em",
   margin: 0,
-  lineHeight: 1.0,
+  lineHeight: 1.1,
+  color: BRAND.ink,
 };
 
 const subTitle = {
-  marginTop: 6,
-  fontWeight: 800,
-  color: "#2F6B55",
-  fontSize: 13,
+  marginTop: 8,
+  fontWeight: 600,
+  color: BRAND.ink2,
+  fontSize: 15,
+  opacity: 0.8,
 };
 
 const pillRow = {
@@ -60,108 +77,128 @@ const pillRow = {
   alignItems: "center",
   gap: 12,
   flexWrap: "wrap",
-  marginTop: 14,
+  marginTop: 16,
 };
 
 const pillInput = {
-  height: 44,
-  minWidth: 240,
-  padding: "0 14px",
-  borderRadius: 999,
-  border: "1px solid rgba(15, 60, 45, 0.18)",
+  height: 48,
+  minWidth: 260,
+  padding: "0 18px",
+  borderRadius: 12,
+  border: `2px solid ${BRAND.greenSoft}`,
   outline: "none",
-  fontWeight: 800,
-  color: "#0B2A1F",
+  fontWeight: 600,
+  fontSize: 15,
+  color: BRAND.ink,
   background: "#FFFFFF",
-  boxShadow: "0 10px 22px rgba(10, 40, 30, 0.06)",
+  boxShadow: `0 4px 12px ${BRAND.green}10`,
+  transition: "all 0.3s ease",
 };
 
 const pillSelect = {
   ...pillInput,
-  minWidth: 170,
-  paddingRight: 18,
+  minWidth: 200,
+  paddingRight: 40,
   appearance: "none",
+  WebkitAppearance: "none",
+  MozAppearance: "none",
+  backgroundImage: `linear-gradient(45deg, transparent 50%, ${BRAND.green} 50%), linear-gradient(135deg, ${BRAND.green} 50%, transparent 50%)`,
+  backgroundPosition: "calc(100% - 22px) center, calc(100% - 16px) center",
+  backgroundSize: "6px 6px, 6px 6px",
+  backgroundRepeat: "no-repeat",
+  cursor: "pointer",
 };
 
 const pillDate = {
   ...pillInput,
-  minWidth: 160,
+  minWidth: 180,
 };
 
 const btnGreen = {
-  height: 44,
-  padding: "0 18px",
-  borderRadius: 999,
-  border: "1px solid rgba(0,0,0,0.08)",
-  background: "linear-gradient(180deg, #16A34A 0%, #0F8A3B 100%)",
+  height: 48,
+  padding: "0 20px",
+  borderRadius: 12,
+  border: "none",
+  background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
   color: "#FFFFFF",
-  fontWeight: 1000,
+  fontWeight: 700,
+  fontSize: 15,
   cursor: "pointer",
-  boxShadow: "0 16px 28px rgba(22, 163, 74, 0.25)",
+  boxShadow: `0 8px 20px ${BRAND.green}40`,
+  transition: "all 0.3s ease",
 };
 
 const btnGhost = {
-  height: 44,
-  padding: "0 16px",
-  borderRadius: 999,
-  border: "1px solid rgba(15, 60, 45, 0.18)",
+  height: 48,
+  padding: "0 20px",
+  borderRadius: 12,
+  border: `1px solid ${BRAND.greenSoft}`,
   background: "#FFFFFF",
-  color: "#0B2A1F",
-  fontWeight: 900,
+  color: BRAND.ink,
+  fontWeight: 700,
+  fontSize: 15,
   cursor: "pointer",
-  boxShadow: "0 10px 22px rgba(10, 40, 30, 0.06)",
+  boxShadow: `0 4px 12px ${BRAND.green}10`,
+  transition: "all 0.3s ease",
 };
 
 const divider = {
   height: 1,
-  background: "rgba(20, 80, 60, 0.10)",
-  marginTop: 14,
+  background: BRAND.greenSoft,
+  marginTop: 16,
 };
 
 const tableHead = {
   display: "grid",
   gridTemplateColumns: "1.5fr 1.1fr 0.9fr 0.9fr 0.7fr",
   gap: 12,
-  padding: "12px 14px",
-  marginTop: 12,
-  color: "#2F6B55",
-  fontWeight: 1000,
-  letterSpacing: 1.2,
-  fontSize: 12,
+  padding: "14px 16px",
+  marginTop: 16,
+  background: BRAND.greenSoft,
+  borderRadius: 14,
+  color: BRAND.ink,
+  fontWeight: 800,
+  letterSpacing: "0.5px",
+  fontSize: 13,
+  borderBottom: `1px solid ${BRAND.green}30`,
 };
 
 const rowCard = {
   display: "grid",
   gridTemplateColumns: "1.5fr 1.1fr 0.9fr 0.9fr 0.7fr",
   gap: 12,
-  padding: "14px 14px",
+  padding: "16px 16px",
   borderRadius: 16,
-  border: "1px solid rgba(15, 60, 45, 0.12)",
-  background: "linear-gradient(180deg, #FFFFFF 0%, #FBFFFD 100%)",
-  boxShadow: "0 12px 26px rgba(10, 40, 30, 0.06)",
+  border: `1px solid ${BRAND.greenSoft}`,
+  background: "rgba(255,255,255,0.9)",
+  backdropFilter: "blur(10px)",
+  WebkitBackdropFilter: "blur(10px)",
+  boxShadow: `0 4px 16px ${BRAND.green}10`,
   alignItems: "center",
+  transition: "all 0.2s ease",
 };
 
 const subLine = {
-  marginTop: 4,
-  color: "#2F6B55",
-  fontWeight: 900,
-  fontSize: 12,
+  marginTop: 6,
+  color: BRAND.ink2,
+  fontWeight: 600,
+  fontSize: 13,
+  opacity: 0.8,
 };
 
 const badgeBase = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  height: 34,
-  padding: "0 14px",
+  height: 36,
+  padding: "0 16px",
   borderRadius: 999,
-  fontWeight: 1000,
-  fontSize: 12,
-  letterSpacing: 0.6,
-  border: "1px solid rgba(15, 60, 45, 0.16)",
-  background: "#E9FBF1",
-  color: "#0B2A1F",
+  fontWeight: 800,
+  fontSize: 13,
+  letterSpacing: 0.3,
+  border: `1px solid ${BRAND.green}40`,
+  background: BRAND.greenSoft,
+  color: BRAND.green,
   width: "fit-content",
 };
 

@@ -13,61 +13,78 @@ import { useAuth } from "../AuthContext";
  */
 
 //////////////////////
-// STYLES
+// STYLES - MODERNIZED
 //////////////////////
+
+const BRAND = {
+  green: "#4BCA74",
+  green2: "#3BB865",
+  greenLight: "#5FD686",
+  greenDark: "#2D9F56",
+  greenSoft: "rgba(75,202,116,0.15)",
+  ink: "#111827",
+  ink2: "#1F2937",
+};
+
 const pageBg = {
   minHeight: "100vh",
   padding: 22,
-  color: "#0B2A1F",
+  color: BRAND.ink,
 };
 
 const container = {
-  maxWidth: 1180,
+  maxWidth: 1240,
   margin: "0 auto",
 };
 
 const headerTitle = {
-  fontSize: 30,
-  fontWeight: 900,
-  letterSpacing: -0.7,
+  fontSize: 32,
+  fontWeight: 800,
+  letterSpacing: "-0.02em",
   margin: 0,
-  lineHeight: 1.05,
+  lineHeight: 1.1,
+  color: BRAND.ink,
 };
 
 const headerSub = {
   marginTop: 8,
-  color: "#2F6B55",
-  fontWeight: 700,
-  fontSize: 12,
+  color: BRAND.ink2,
+  fontWeight: 600,
+  fontSize: 15,
+  opacity: 0.8,
 };
 
 const wrapCard = {
-  marginTop: 16,
-  background: "#FFFFFF",
-  borderRadius: 22,
-  border: "1px solid rgba(20, 83, 45, 0.12)",
-  boxShadow: "0 14px 40px rgba(16, 24, 40, 0.06)",
-  padding: 18,
+  marginTop: 20,
+  background: "rgba(255,255,255,0.85)",
+  backdropFilter: "blur(20px)",
+  WebkitBackdropFilter: "blur(20px)",
+  borderRadius: 20,
+  border: `1px solid ${BRAND.greenSoft}`,
+  boxShadow: `0 8px 32px ${BRAND.green}15`,
+  padding: 24,
 };
 
 const innerCard = {
-  background: "#FFFFFF",
-  borderRadius: 18,
-  border: "1px solid rgba(20, 83, 45, 0.10)",
-  boxShadow: "0 8px 24px rgba(16, 24, 40, 0.05)",
+  background: "rgba(255,255,255,0.9)",
+  backdropFilter: "blur(10px)",
+  WebkitBackdropFilter: "blur(10px)",
+  borderRadius: 16,
+  border: `1px solid ${BRAND.greenSoft}`,
+  boxShadow: `0 4px 16px ${BRAND.green}10`,
   overflow: "hidden",
 };
 
 const controlRow = {
   display: "flex",
-  gap: 12,
+  gap: 16,
   alignItems: "center",
   flexWrap: "wrap",
   justifyContent: "space-between",
 };
 
-const leftControls = { display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" };
-const rightControls = { display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" };
+const leftControls = { display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" };
+const rightControls = { display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" };
 
 function TruckSearchSelect({ trucks, value, onChange, placeholder = "Search plate number..." }) {
   const [open, setOpen] = useState(false);
@@ -161,40 +178,42 @@ function TruckSearchSelect({ trucks, value, onChange, placeholder = "Search plat
 const pill = {
   display: "inline-flex",
   alignItems: "center",
-  padding: "8px 14px",
+  padding: "8px 16px",
   borderRadius: 999,
-  border: "1px solid rgba(15,23,42,0.10)",
-  background: "rgba(15,23,42,0.04)",
-  color: "#334155",
-  fontWeight: 900,
+  border: `1px solid ${BRAND.greenSoft}`,
+  background: "rgba(255,255,255,0.8)",
+  color: BRAND.ink,
+  fontWeight: 700,
   fontSize: 13,
   whiteSpace: "nowrap",
 };
 
 const pillGreen = {
   ...pill,
-  background: "rgba(22,163,74,0.10)",
-  border: "1px solid rgba(22,163,74,0.25)",
-  color: "#0B2A1F",
+  background: BRAND.greenSoft,
+  border: `1px solid ${BRAND.green}40`,
+  color: BRAND.green,
 };
 
 const pillRed = {
   ...pill,
   background: "rgba(239,68,68,0.10)",
-  border: "1px solid rgba(239,68,68,0.25)",
+  border: "1px solid rgba(239,68,68,0.30)",
   color: "#7F1D1D",
 };
 
 const inputPill = {
-  height: 46,
-  padding: "0 16px",
-  borderRadius: 999,
-  border: "1px solid rgba(20, 83, 45, 0.14)",
+  height: 48,
+  padding: "0 18px",
+  borderRadius: 12,
+  border: `2px solid ${BRAND.greenSoft}`,
   outline: "none",
   background: "#FFFFFF",
-  color: "#0B2A1F",
-  fontWeight: 800,
+  color: BRAND.ink,
+  fontWeight: 600,
+  fontSize: 15,
   minWidth: 260,
+  transition: "all 0.3s ease",
 };
 
 const selectPill = {
@@ -204,85 +223,92 @@ const selectPill = {
   WebkitAppearance: "none",
   MozAppearance: "none",
   paddingRight: 44,
-  backgroundImage:
-    "linear-gradient(45deg, transparent 50%, #0B2A1F 50%), linear-gradient(135deg, #0B2A1F 50%, transparent 50%)",
+  backgroundImage: `linear-gradient(45deg, transparent 50%, ${BRAND.green} 50%), linear-gradient(135deg, ${BRAND.green} 50%, transparent 50%)`,
   backgroundPosition: "calc(100% - 22px) 19px, calc(100% - 16px) 19px",
   backgroundSize: "6px 6px, 6px 6px",
   backgroundRepeat: "no-repeat",
+  cursor: "pointer",
 };
 
 const btn = {
-  height: 46,
-  padding: "0 18px",
-  borderRadius: 999,
-  border: "1px solid rgba(20, 83, 45, 0.14)",
+  height: 48,
+  padding: "0 20px",
+  borderRadius: 12,
+  border: `1px solid ${BRAND.greenSoft}`,
   background: "#FFFFFF",
-  color: "#0B2A1F",
-  fontWeight: 900,
+  color: BRAND.ink,
+  fontWeight: 700,
+  fontSize: 15,
   cursor: "pointer",
+  transition: "all 0.3s ease",
 };
 
 const btnPrimary = {
   ...btn,
-  background: "#16A34A",
-  border: "1px solid rgba(22,163,74,0.45)",
+  background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
+  border: "none",
   color: "white",
+  boxShadow: `0 8px 20px ${BRAND.green}40`,
 };
 
 const btnDanger = {
   ...btn,
   background: "rgba(239,68,68,0.10)",
-  border: "1px solid rgba(239,68,68,0.25)",
+  border: "1px solid rgba(239,68,68,0.30)",
   color: "#7F1D1D",
 };
 
 const tabBtn = (active) => ({
   ...btn,
-  height: 40,
-  padding: "0 14px",
-  background: active ? "rgba(22,163,74,0.10)" : "#FFFFFF",
-  border: active ? "1px solid rgba(22,163,74,0.30)" : "1px solid rgba(20, 83, 45, 0.12)",
-  color: "#0B2A1F",
+  height: 44,
+  padding: "0 18px",
+  background: active ? BRAND.greenSoft : "#FFFFFF",
+  border: active ? `2px solid ${BRAND.green}` : `1px solid ${BRAND.greenSoft}`,
+  color: active ? BRAND.green : BRAND.ink,
+  fontWeight: 700,
 });
 
 const errorBox = {
-  marginTop: 14,
+  marginTop: 16,
   background: "rgba(239,68,68,0.10)",
-  border: "1px solid rgba(239,68,68,0.25)",
-  borderRadius: 18,
-  padding: 14,
+  border: "1px solid rgba(239,68,68,0.30)",
+  borderRadius: 14,
+  padding: 16,
 };
 
-const tableWrap = { overflowX: "auto" };
+const tableWrap = { overflowX: "auto", borderRadius: 16 };
 
 const table = {
   width: "100%",
-  borderCollapse: "collapse",
+  borderCollapse: "separate",
+  borderSpacing: 0,
   minWidth: 900,
 };
 
 const th = {
   textAlign: "left",
-  padding: 14,
-  fontSize: 14,
-  color: "#2F6B55",
-  background: "rgba(22,163,74,0.05)",
-  borderBottom: "1px solid rgba(20, 83, 45, 0.10)",
-  fontWeight: 900,
+  padding: "14px 16px",
+  fontSize: 13,
+  color: BRAND.ink,
+  background: BRAND.greenSoft,
+  borderBottom: `1px solid ${BRAND.green}30`,
+  fontWeight: 800,
+  letterSpacing: "0.5px",
 };
 
 const td = {
-  padding: 14,
-  borderBottom: "1px solid rgba(15,23,42,0.06)",
+  padding: "14px 16px",
+  borderBottom: `1px solid ${BRAND.greenSoft}`,
   verticalAlign: "middle",
-  fontWeight: 800,
-  color: "#0B2A1F",
+  fontWeight: 600,
+  fontSize: 14,
+  color: BRAND.ink,
 };
 
 const tdSoft = {
   ...td,
-  fontWeight: 700,
-  color: "#2B4C3F",
+  fontWeight: 600,
+  color: BRAND.ink2,
 };
 
 //////////////////////
