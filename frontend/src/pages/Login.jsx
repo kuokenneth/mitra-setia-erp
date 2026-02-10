@@ -32,95 +32,109 @@ export default function Login() {
   }
 
   return (
-    <div style={{ ...styles.page, padding: isMobile ? 12 : 20 }}>
-      <div style={{ ...styles.card, padding: isMobile ? 18 : 28 }}>
-        {/* Header */}
-        <div style={{ ...styles.header, marginBottom: isMobile ? 16 : 22 }}>
-          {/* ✅ Clickable logo */}
-          <div
-            style={{ ...styles.logo, width: isMobile ? 44 : 48, height: isMobile ? 44 : 48 }}
-            onClick={() => nav("/")}
-            role="button"
-            title="Back to Home"
-          >
-            ERP
+    <div style={styles.page}>
+      <div
+        style={{
+          ...styles.shell,
+          gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+        }}
+      >
+        {/* Left panel */}
+        {!isMobile && (
+          <div style={styles.leftPanel}>
+            <div style={styles.leftBackdrop} />
+            <div style={styles.leftDots} />
+            <div style={styles.leftBrand} onClick={() => nav("/")} role="button" title="Back to Home">
+              <span style={styles.leftDot} />
+              <span>CV. MITRA SETIA</span>
+            </div>
+            <div style={styles.leftContent}>
+              <div style={styles.leftEyebrow}>Nice to see you again</div>
+              <div style={styles.leftTitle}>WELCOME BACK</div>
+              <div style={styles.leftSub}>
+                Masuk ke sistem ERP internal CV. Mitra Setia untuk mengelola operasional secara efisien & terintegrasi.
+              </div>
+            </div>
           </div>
+        )}
 
-          <div>
-            <h2 style={{ ...styles.title, fontSize: isMobile ? 18 : 20 }}>
-              MitraSetia
-            </h2>
-            <p style={styles.subtitle}>Sign in to your account</p>
+        {/* Right panel */}
+        <div style={styles.rightPanel}>
+          <div style={styles.backHome} onClick={() => nav("/")}>
+            Back to Home
+          </div>
+          <div style={styles.formInner}>
+            <div style={styles.header}>
+              <div>
+                <h2 style={styles.title}>Login Account</h2>
+                <p style={styles.subtitle}>Secure access for internal staff</p>
+              </div>
+            </div>
+
+            <form onSubmit={onSubmit}>
+            <div style={{ ...styles.field, marginBottom: 16 }}>
+              <label style={styles.label}>Email</label>
+              <input
+                style={{ ...styles.input, ...styles.formControl }}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="email@mitrasetia.com"
+                inputMode="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+              />
+            </div>
+
+            <div style={{ ...styles.field, marginBottom: 18 }}>
+              <label style={styles.label}>Password</label>
+              <input
+                style={{ ...styles.input, ...styles.formControl }}
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                autoComplete="current-password"
+              />
+            </div>
+
+            {err && (
+              <div style={styles.errorBox}>
+                <strong>Login failed</strong>
+                <div>{err}</div>
+              </div>
+            )}
+
+            <button
+              disabled={busy}
+              onMouseEnter={() => setHover(true)}
+              onMouseLeave={() => setHover(false)}
+              style={{
+                ...styles.button,
+                ...styles.formControl,
+                opacity: busy ? 0.7 : 1,
+                background: hover ? "#1a8f4a" : "#1f9d53",
+                transform: hover ? "translateY(-1px)" : "translateY(0)",
+                transition: "all 0.2s ease",
+                cursor: busy ? "not-allowed" : "pointer",
+                minHeight: 44,
+              }}
+            >
+              {busy ? "Signing in..." : "Login"}
+            </button>
+
+            <div style={styles.footer}>
+              <div style={styles.registerRow}>
+                <span style={styles.registerText}>Don’t have an account?</span>
+                <span style={styles.registerLink} onClick={() => nav("/register")}>
+                  Register
+                </span>
+              </div>
+              <div style={styles.complianceNote}>Authorized users only.</div>
+            </div>
+            </form>
           </div>
         </div>
-
-        {/* Form */}
-        <form onSubmit={onSubmit}>
-          <div style={styles.field}>
-            <label style={styles.label}>Email</label>
-            <input
-              style={{ ...styles.input, ...styles.formControl }}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="email@mitrasetia.com"
-              inputMode="email"
-              autoComplete="email"
-              autoCapitalize="none"
-              autoCorrect="off"
-            />
-          </div>
-
-          <div style={styles.field}>
-            <label style={styles.label}>Password</label>
-            <input
-              style={{ ...styles.input, ...styles.formControl }}
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="current-password"
-            />
-          </div>
-
-          {err && (
-            <div style={styles.errorBox}>
-              <strong>Login failed</strong>
-              <div>{err}</div>
-            </div>
-          )}
-
-          <button
-            disabled={busy}
-            onMouseEnter={() => setHover(true)}
-            onMouseLeave={() => setHover(false)}
-            style={{
-              ...styles.button,
-              ...styles.formControl,
-              opacity: busy ? 0.7 : 1,
-              background: hover
-                ? "linear-gradient(135deg, #4ade80, #22c55e)"
-                : "linear-gradient(135deg, #22c55e, #16a34a)",
-              transform: hover ? "translateY(-1px)" : "translateY(0)",
-              transition: "all 0.2s ease",
-              cursor: busy ? "not-allowed" : "pointer",
-              minHeight: 44,
-            }}
-          >
-            {busy ? "Signing in..." : "Login"}
-          </button>
-
-          <div style={styles.footer}>
-            <div style={styles.registerRow}>
-              <span style={styles.registerText}>Don’t have an account?</span>
-              <span
-                style={styles.registerLink}
-                onClick={() => nav("/register")}
-              >
-                Register
-              </span>
-            </div>
-          </div>
-        </form>
       </div>
     </div>
   );
@@ -130,57 +144,144 @@ const styles = {
   page: {
     minHeight: "100dvh",                 // ✅ iPhone dynamic viewport
     display: "flex",                     // ✅ more stable than grid for iOS
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom))",
+    alignItems: "stretch",
+    justifyContent: "stretch",
+    padding: 0,
     boxSizing: "border-box",
-    background: "linear-gradient(180deg, #ECFDF5 0%, #F7FFFB 70%)",
+    background: "#ffffff",
     fontFamily:
-      '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif',
+      '"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
   },
 
 
-  card: {
-    width: "min(420px, 94vw)",
-    padding: 28,
-    borderRadius: 18,
+  shell: {
+    width: "100%",
+    minHeight: "100dvh",
+    display: "grid",
+    borderRadius: 0,
+    overflow: "hidden",
     background: "#ffffff",
-    border: "1px solid #d1fae5",
-    boxShadow: "0 20px 40px rgba(0,0,0,0.08)",
+    border: "none",
+    boxShadow: "none",
+  },
+
+  leftPanel: {
+    position: "relative",
+    padding: 56,
+    color: "#f0fff6",
+    background:
+      "radial-gradient(520px 380px at 70% 18%, rgba(255,255,255,0.22), transparent 60%), linear-gradient(135deg, #1b8f4c 0%, #2ccf6a 100%)",
+    display: "flex",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+
+  leftBrand: {
+    position: "absolute",
+    top: 32,
+    left: 36,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 10,
+    fontWeight: 700,
+    fontSize: 12,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    opacity: 0.95,
+    cursor: "pointer",
+  },
+
+  leftDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    background: "rgba(255,255,255,0.9)",
+  },
+
+  leftContent: {
+    marginTop: 0,
+    maxWidth: 360,
+    zIndex: 1,
+  },
+
+  leftEyebrow: {
+    fontSize: 14,
+    letterSpacing: 0.4,
+    textTransform: "none",
+    opacity: 0.9,
+  },
+
+  leftTitle: {
+    marginTop: 12,
+    fontSize: 46,
+    fontWeight: 800,
+    letterSpacing: 1.6,
+    lineHeight: 1.08,
+  },
+
+  leftSub: {
+    marginTop: 16,
+    fontSize: 15,
+    lineHeight: 1.85,
+    opacity: 0.9,
+    maxWidth: 280,
+  },
+
+  leftBackdrop: {
+    position: "absolute",
+    inset: 0,
+    background:
+      "radial-gradient(520px 360px at 18% 18%, rgba(255,255,255,0.10), transparent 65%), radial-gradient(640px 420px at 70% 12%, rgba(255,255,255,0.12), transparent 70%)",
+    pointerEvents: "none",
+  },
+
+  leftDots: {
+    position: "absolute",
+    inset: 0,
+    backgroundImage:
+      "radial-gradient(rgba(255,255,255,0.20) 1px, transparent 1px)",
+    backgroundSize: "12px 12px",
+    opacity: 0.35,
+    pointerEvents: "none",
+    mixBlendMode: "screen",
+  },
+
+  rightPanel: {
+    padding: 48,
+    background: "#ffffff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+
+  formInner: {
+    width: "100%",
+    maxWidth: 420,
   },
 
   header: {
     display: "flex",
-    alignItems: "center",
-    gap: 14,
-    marginBottom: 22,
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 10,
+    textAlign: "left",
+    marginBottom: 26,
   },
 
-  logo: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    display: "grid",
-    placeItems: "center",
-    fontWeight: 900,
-    color: "white",
-    background: "linear-gradient(135deg, #22c55e, #16a34a)",
-    userSelect: "none",
-    cursor: "pointer",
-  },
 
   title: {
     margin: 0,
-    fontSize: 20,
-    fontWeight: 900,
-    color: "#065f46",
-    letterSpacing: -0.2,
+    fontSize: 24,
+    fontWeight: 700,
+    color: "#111827",
+    letterSpacing: -0.3,
   },
 
   subtitle: {
     margin: 0,
-    fontSize: 13,
-    color: "#047857",
+    fontSize: 11.5,
+    color: "#9ca3af",
   },
 
   field: { marginBottom: 14 },
@@ -188,16 +289,16 @@ const styles = {
   label: {
     display: "block",
     fontSize: 13,
-    fontWeight: 800,
+    fontWeight: 600,
     marginBottom: 6,
-    color: "#065f46",
+    color: "#374151",
   },
 
   input: {
-    padding: "12px",
+    padding: "12px 14px",
     borderRadius: 12,
-    border: "1px solid #a7f3d0",
-    background: "#f8fffb",
+    border: "1px solid #e5e7eb",
+    background: "#ffffff",
     fontSize: 16,
     outline: "none",
     minHeight: 44,
@@ -208,20 +309,20 @@ const styles = {
     padding: 12,
     borderRadius: 12,
     border: "none",
-    fontWeight: 900,
+    fontWeight: 700,
     fontSize: 15,
     color: "white",
-    background: "linear-gradient(135deg, #22c55e, #16a34a)",
-    boxShadow: "0 8px 20px rgba(34,197,94,0.35)",
+    background: "#1f9d53",
+    boxShadow: "0 8px 16px rgba(31,157,83,0.22)",
   },
 
   errorBox: {
     marginBottom: 12,
     padding: 12,
     borderRadius: 12,
-    background: "#fee2e2",
+    background: "#fef2f2",
     border: "1px solid #fecaca",
-    color: "#991b1b",
+    color: "#b91c1c",
     fontSize: 12,
     lineHeight: 1.5,
   },
@@ -229,9 +330,9 @@ const styles = {
   footer: {
     marginTop: 16,
     paddingTop: 12,
-    borderTop: "1px solid #d1fae5",
+    borderTop: "1px solid rgba(17,24,39,0.06)",
     fontSize: 12,
-    color: "#047857",
+    color: "#6b7280",
     textAlign: "center",
   },
 
@@ -241,15 +342,30 @@ const styles = {
     display: "flex",
     justifyContent: "center",
     gap: 6,
-    fontSize: 13,
+    fontSize: 12.5,
     flexWrap: "wrap",
   },
 
-  registerText: { color: "#065f46" },
+  registerText: { color: "#6b7280" },
 
   registerLink: {
-    color: "#16a34a",
-    fontWeight: 900,
+    color: "#1f9d53",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+
+  complianceNote: {
+    marginTop: 8,
+    fontSize: 10.5,
+    color: "#9ca3af",
+  },
+  backHome: {
+    position: "absolute",
+    top: 24,
+    right: 32,
+    fontSize: 12,
+    color: "#1f9d53",
+    fontWeight: 600,
     cursor: "pointer",
   },
 };

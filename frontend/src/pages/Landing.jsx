@@ -17,12 +17,12 @@ export default function Landing() {
   const BRAND = {
     ink: "#111827",
     ink2: "#1F2937",
-    mintTop: "#F5F6F7",
-    mintBottom: "#FFFFFF",
+    mintTop: "#6fcf8f",
+    mintBottom: "#5cc67f",
     line: "rgba(20,80,60,0.10)",
     cardLine: "rgba(17,24,39,0.10)",
-    green: "#16A34A",
-    green2: "#22C55E",
+    green: "#1f9d53",
+    green2: "#2ccf6a",
     greenSoft: "rgba(34,197,94,0.14)",
     footerBg: "#0B1F16",
     footerText: "rgba(255,255,255,0.9)",
@@ -88,7 +88,7 @@ export default function Landing() {
 
   const page = {
     minHeight: "100vh",
-    background: `linear-gradient(180deg, ${BRAND.mintTop} 0%, ${BRAND.mintBottom} 60%)`,
+    background: "#ffffff",
     color: BRAND.ink,
     fontFamily:
       '"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
@@ -118,7 +118,7 @@ export default function Landing() {
   const h2 = {
     fontSize: isMobile ? 28 : 40,
     lineHeight: 1.15,
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
     fontWeight: 700,
     margin: "10px 0 12px",
   };
@@ -152,13 +152,13 @@ export default function Landing() {
     gap: 10,
     padding: "12px 16px",
     borderRadius: 12,
-    border: "1px solid rgba(17,24,39,0.10)",
+    border: "1px solid rgba(17,24,39,0.08)",
     background: "#fff",
     color: BRAND.ink,
     fontWeight: 700,
     textDecoration: "none",
     cursor: "pointer",
-    boxShadow: "0 8px 20px rgba(15, 23, 42, 0.08)",
+    boxShadow: "0 10px 22px rgba(15, 23, 42, 0.10)",
     transition: "transform 160ms ease",
   };
 
@@ -167,9 +167,9 @@ export default function Landing() {
     borderRadius: 12,
     padding: "12px 16px",
     background: `linear-gradient(95deg, ${BRAND.green2}, ${BRAND.green})`,
-    border: "1px solid rgba(34,197,94,0.40)",
+    border: "1px solid rgba(31,157,83,0.40)",
     color: "#fff",
-    boxShadow: "0 14px 28px rgba(34,197,94,0.18)",
+    boxShadow: "0 14px 28px rgba(31,157,83,0.20)",
   };
 
   const heroWrap = {
@@ -186,7 +186,7 @@ export default function Landing() {
     minHeight: isMobile ? 560 : isNarrow ? 640 : 720,
   };
 
-  // ✅ Cleaner abstract (corporate wave)
+  // ✅ Layered wave divider
   function AbstractWave({ nextBg = "#ECFDF5" }) {
     return (
       <div
@@ -195,18 +195,42 @@ export default function Landing() {
           left: 0,
           right: 0,
           bottom: -1,
-          height: 86,               // ✅ smaller
+          height: 120,
           pointerEvents: "none",
           overflow: "hidden",
         }}
       >
-        <svg viewBox="0 0 1440 86" preserveAspectRatio="none" width="100%" height="86">
-          {/* ✅ single clean wave, no double band */}
+        <svg viewBox="0 0 1440 120" preserveAspectRatio="none" width="100%" height="120">
+          {/* bottom wave */}
           <path
-            d="M0,44 C220,78 520,22 720,46 C960,74 1180,48 1440,62 L1440,86 L0,86 Z"
-            fill={nextBg}           // ✅ match the next section background
+            d="M0,90 C240,112 520,70 760,92 C1020,114 1240,84 1440,98 L1440,120 L0,120 Z"
+            fill={nextBg}
+          />
+          {/* middle wave */}
+          <path
+            d="M0,76 C220,98 520,58 760,78 C1020,98 1240,70 1440,84 L1440,120 L0,120 Z"
+            fill="rgba(31,157,83,0.22)"
+          />
+          {/* top wave */}
+          <path
+            d="M0,62 C220,84 520,46 760,64 C1020,84 1240,60 1440,72"
+            stroke="rgba(255,255,255,0.65)"
+            strokeWidth="3"
+            fill="none"
           />
         </svg>
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage:
+              "radial-gradient(rgba(255,255,255,0.35) 1px, transparent 1px)",
+            backgroundSize: "16px 16px",
+            opacity: 0.25,
+            maskImage: "linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.65) 55%, rgba(0,0,0,0.95) 100%)",
+            mixBlendMode: "screen",
+          }}
+        />
       </div>
     );
   }
@@ -243,8 +267,22 @@ export default function Landing() {
             style={{
               position: "absolute",
               inset: 0,
-              background: "linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.75) 70%)",
+              background: "linear-gradient(90deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.75) 55%, rgba(255,255,255,0.20) 100%)",
             }}
+          />
+
+          {/* dotted texture */}
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              backgroundImage: "radial-gradient(rgba(31,157,83,0.18) 1px, transparent 1px)",
+              backgroundSize: "16px 16px",
+              opacity: 0.18,
+              mixBlendMode: "multiply",
+              pointerEvents: "none",
+            }}
+            className="dots-drift"
           />
 
           {/* soft top highlight */}
@@ -280,18 +318,12 @@ export default function Landing() {
           >
             <div
               style={{
-                maxWidth: 820,
-                margin: "0 auto",
+                maxWidth: 720,
+                margin: "0",
                 color: BRAND.ink,
-                background: "rgba(255,255,255,0.92)",
-                border: "1px solid rgba(17,24,39,0.08)",
-                borderRadius: 28,
-                padding: isMobile ? 18 : 26,
-                boxShadow: "0 20px 44px rgba(15,23,42,0.12)",
-                backdropFilter: "blur(10px)",
-                textAlign: "center",
+                textAlign: "left",
               }}
-              className="fade-up"
+              className="stagger"
             >
               {/* tag pill */}
               <div
@@ -301,13 +333,14 @@ export default function Landing() {
                   gap: 10,
                   padding: "8px 12px",
                   borderRadius: 999,
-                  background: "rgba(34,197,94,0.10)",
-                  border: "1px solid rgba(34,197,94,0.25)",
+                  background: "rgba(255,255,255,0.85)",
+                  border: "1px solid rgba(31,157,83,0.25)",
                   fontSize: 12,
                   fontWeight: 800,
                   color: BRAND.ink,
-                  margin: "0 auto",
+                  margin: 0,
                 }}
+                className="float-soft"
               >
                 <span
                   style={{
@@ -315,7 +348,7 @@ export default function Landing() {
                     height: 8,
                     borderRadius: 999,
                     background: BRAND.green2,
-                    boxShadow: "0 0 10px rgba(34,197,94,0.50)",
+                    boxShadow: "0 0 10px rgba(31,157,83,0.50)",
                   }}
                 />
                 {HERO.tag}
@@ -323,10 +356,10 @@ export default function Landing() {
 
               <h1
                 style={{
-                  margin: "16px 0 12px",
+                  margin: "18px 0 16px",
                   fontSize: isMobile ? 34 : isNarrow ? 50 : 72,
                   lineHeight: 1.08,
-                  letterSpacing: isMobile ? -0.6 : -1.0,
+                  letterSpacing: isMobile ? -0.4 : -0.8,
                   fontWeight: 700,
                   whiteSpace: "pre-line",
                 }}
@@ -334,11 +367,11 @@ export default function Landing() {
                 {HERO.title}
               </h1>
 
-              <p style={{ margin: "0 auto", fontSize: isMobile ? 15 : 16, lineHeight: 1.8, opacity: 0.78, maxWidth: 620 }}>
+              <p style={{ margin: 0, fontSize: isMobile ? 15 : 16, lineHeight: 1.85, opacity: 0.78, maxWidth: 560 }}>
                 {HERO.desc}
               </p>
 
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 18, justifyContent: "center" }}>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 18, justifyContent: "flex-start" }}>
                 {"href" in HERO.ctaA ? (
                   <a
                     href={HERO.ctaA.href}
@@ -384,6 +417,27 @@ export default function Landing() {
             </div>
           </div>
 
+          {/* scroll indicator */}
+          <div
+            style={{
+              position: "absolute",
+              left: "50%",
+              bottom: isMobile ? 42 : 34,
+              transform: "translateX(-50%)",
+              fontSize: 11,
+              letterSpacing: 1.6,
+              textTransform: "uppercase",
+              color: "rgba(17,24,39,0.55)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            
+            <span className="float-soft" style={{ fontSize: 16, lineHeight: 1 }}>↓</span>
+          </div>
+
           {/* abstract */}
           <AbstractWave nextBg={BRAND.mintTop} />
 
@@ -391,9 +445,53 @@ export default function Landing() {
       </section>
 
       {/* ===========================
+          CAPABILITIES (DOODLE)
+         =========================== */}
+      <section style={{ ...section, background: BRAND.mintTop }}>
+        <div
+          style={{
+            ...container,
+            display: "grid",
+            gridTemplateColumns: isNarrow ? "1fr" : "1.1fr 0.9fr",
+            gap: 24,
+            alignItems: "center",
+          }}
+        >
+          <div className="reveal slide-left" data-reveal>
+            <div style={eyebrow}>Kapabilitas</div>
+            <div style={{ ...h2, fontSize: isMobile ? 30 : 42 }}>
+              Operasi logistik terintegrasi.
+            </div>
+            <p style={{ ...p, maxWidth: 560 }}>
+              Dari pengangkutan rutin hingga kontrak perusahaan, proses kami terukur dan terdokumentasi.
+            </p>
+          </div>
+          <div className="reveal slide-right" data-reveal>
+            <img
+              src="/doodle.png"
+              alt="Logistics illustration"
+              style={{
+                width: "100%",
+                height: "auto",
+                opacity: 0.75,
+                filter: "drop-shadow(0 16px 32px rgba(15,23,42,0.10))",
+                mixBlendMode: "multiply",
+              }}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ===========================
           SERVICES
          =========================== */}
-      <section id="services" style={{ ...section, background: BRAND.mintTop }}>
+      <section
+        id="services"
+        style={{
+          ...section,
+          background: "#ffffff",
+        }}
+      >
         <div style={container}>
           <div style={sectionCenter}>
             <div style={eyebrow} className="reveal slide-left" data-reveal>Layanan</div>
@@ -442,15 +540,24 @@ export default function Landing() {
                 data-reveal
               >
                 <div style={{ position: "relative" }}>
-                  <div
-                    style={{
-                      width: 28,
-                      height: 3,
-                      borderRadius: 999,
-                      background: "linear-gradient(90deg, rgba(34,197,94,0.9), rgba(34,197,94,0.2))",
-                      marginBottom: 10,
-                    }}
-                  />
+                  {[
+                    { w: 22, h: 3, r: 999, bg: "linear-gradient(90deg, rgba(31,157,83,0.95), rgba(31,157,83,0.25))" },
+                    { w: 12, h: 12, r: 6, bg: "linear-gradient(135deg, rgba(31,157,83,0.95), rgba(31,157,83,0.45))" },
+                    { w: 28, h: 2, r: 2, bg: "linear-gradient(90deg, rgba(31,157,83,0.85), rgba(31,157,83,0.15))" },
+                  ].map((a, idx) =>
+                    idx === i ? (
+                      <div
+                        key={idx}
+                        style={{
+                          width: a.w,
+                          height: a.h,
+                          borderRadius: a.r,
+                          background: a.bg,
+                          marginBottom: 10,
+                        }}
+                      />
+                    ) : null
+                  )}
                   <div style={{ fontWeight: 700, fontSize: 18, letterSpacing: -0.2 }}>{x.t}</div>
                   <div style={{ marginTop: 6, fontSize: 12, opacity: 0.72, lineHeight: 1.6 }}>
                     Layanan terfokus dan terukur untuk kebutuhan operasional perusahaan.
@@ -524,11 +631,11 @@ export default function Landing() {
           key={x.title}
           style={{
             ...section,
-            background: "#fff",
-            borderTop: `1px solid ${BRAND.line}`,
+            background: "linear-gradient(180deg, rgba(92,198,127,0.20) 0%, #ffffff 32%)",
             minHeight: isMobile ? "60vh" : "72vh",
             display: "grid",
             placeItems: "center",
+            position: "relative",
           }}
         >
           <div
@@ -591,7 +698,7 @@ export default function Landing() {
       {/* ===========================
           FAQ
          =========================== */}
-      <section style={{ ...section, background: "#fff", borderTop: `1px solid ${BRAND.line}` }}>
+      <section style={{ ...section, background: "linear-gradient(180deg, rgba(92,198,127,0.20) 0%, #ffffff 32%)", position: "relative" }}>
         <div style={container}>
           <div style={{ textAlign: "center" }}>
             <div style={eyebrow} className="reveal slide-right" data-reveal>FAQ</div>
@@ -662,7 +769,7 @@ export default function Landing() {
       {/* ===========================
           TIMELINE
          =========================== */}
-      <section style={{ ...section, background: BRAND.mintTop, borderTop: `1px solid ${BRAND.line}` }}>
+      <section style={{ ...section, background: BRAND.mintTop, position: "relative" }}>
         <div style={container}>
           <div style={sectionCenter}>
             <div style={eyebrow} className="reveal slide-left" data-reveal>Alur</div>
@@ -746,9 +853,9 @@ export default function Landing() {
         id="contact"
         style={{
           padding: isMobile ? "64px 0" : "78px 0",
-          background: "#fff",
-          borderTop: `1px solid ${BRAND.line}`,
+          background: "linear-gradient(180deg, rgba(92,198,127,0.20) 0%, #ffffff 32%)",
           scrollSnapAlign: "start",
+          position: "relative",
         }}
       >
         <div style={container}>

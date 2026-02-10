@@ -15,17 +15,22 @@ import { useAuth } from "../AuthContext";
 const pageBg = {
   minHeight: "100vh",
   padding: 22,
-  color: "#0B2A1F",
+  color: "#0b1f16",
+  background: "transparent",
 };
 
 const container = { maxWidth: 1300, margin: "0 auto" };
 
 const panel = {
   background: "#FFFFFF",
-  borderRadius: 20,
+  borderRadius: 16,
   padding: 18,
-  border: "1px solid rgba(20, 80, 60, 0.10)",
-  boxShadow: "0 18px 55px rgba(10, 40, 30, 0.08)",
+  border: "1px solid rgba(15, 82, 47, 0.12)",
+  boxShadow: "0 14px 30px rgba(10, 58, 30, 0.12)",
+};
+const railPanel = {
+  ...panel,
+  padding: 14,
 };
 
 const headerRow = {
@@ -35,10 +40,16 @@ const headerRow = {
   gap: 12,
 };
 
-const title = { fontSize: 30, fontWeight: 900, letterSpacing: -0.8 };
-const subtitle = { marginTop: 6, color: "#2F6B55", fontWeight: 700, fontSize: 13 };
+const title = { fontSize: 26, fontWeight: 900, letterSpacing: -0.4 };
+const subtitle = { marginTop: 6, color: "rgba(6, 78, 59, 0.75)", fontWeight: 700, fontSize: 13 };
 
 const grid = { display: "grid", gap: 18 };
+const mainGrid = {
+  display: "grid",
+  gap: 18,
+  gridTemplateColumns: "minmax(0, 1fr) 320px",
+  alignItems: "start",
+};
 
 //////////////////////
 // HELPERS
@@ -53,6 +64,12 @@ function safeArr(v) {
 
 function up(v) {
   return String(v || "").toUpperCase();
+}
+
+function pct(n) {
+  const v = Number(n || 0);
+  if (!Number.isFinite(v)) return 0;
+  return Math.max(0, Math.min(100, Math.round(v)));
 }
 
 function startOfTodayISO() {
@@ -93,9 +110,11 @@ function fmtMoney(n, currency = "IDR") {
 function KpiCard({ label, value, sub }) {
   return (
     <div style={panel}>
-      <div style={{ fontSize: 13, fontWeight: 800, color: "#2F6B55" }}>{label}</div>
-      <div style={{ fontSize: 34, fontWeight: 900, marginTop: 8 }}>{value ?? 0}</div>
-      {sub ? <div style={{ marginTop: 6, fontSize: 12, color: "#5E8F7B" }}>{sub}</div> : null}
+      <div style={{ fontSize: 12, fontWeight: 800, color: "rgba(6, 78, 59, 0.85)" }}>{label}</div>
+      <div style={{ fontSize: 30, fontWeight: 900, marginTop: 8 }}>{value ?? 0}</div>
+      {sub ? (
+        <div style={{ marginTop: 6, fontSize: 12, color: "rgba(6, 78, 59, 0.65)" }}>{sub}</div>
+      ) : null}
     </div>
   );
 }
@@ -106,11 +125,11 @@ function Pill({ children }) {
       style={{
         padding: "5px 10px",
         borderRadius: 999,
-        background: "#F1FFF9",
-        border: "1px solid rgba(20,80,60,.18)",
-        fontWeight: 900,
+        background: "#e6f4ea",
+        border: "1px solid rgba(20,136,58,.26)",
+        fontWeight: 800,
         fontSize: 12,
-        color: "#1E6F50",
+        color: "#0b1f16",
         whiteSpace: "nowrap",
       }}
     >
@@ -126,9 +145,9 @@ function ActionBtn({ label, onClick }) {
       style={{
         padding: "10px 14px",
         borderRadius: 999,
-        border: "1px solid rgba(20,80,60,.25)",
-        background: "#F6FFFB",
-        fontWeight: 900,
+        border: "1px solid rgba(31,157,83,.24)",
+        background: "#ffffff",
+        fontWeight: 800,
         cursor: "pointer",
       }}
     >
@@ -140,14 +159,14 @@ function ActionBtn({ label, onClick }) {
 function StatusBadge({ status }) {
   const s = up(status);
   const map = {
-    READY: { bg: "#E7F8EF", fg: "#1E6F50", bd: "rgba(30,111,80,.22)" },
-    DISPATCH: { bg: "#EAF2FF", fg: "#2456A6", bd: "rgba(36,86,166,.22)" },
-    MAINTENANCE: { bg: "#FFF3E6", fg: "#A15A12", bd: "rgba(161,90,18,.22)" },
-    OPEN: { bg: "#FFF3E6", fg: "#A15A12", bd: "rgba(161,90,18,.22)" },
-    DONE: { bg: "#E7F8EF", fg: "#1E6F50", bd: "rgba(30,111,80,.22)" },
-    CANCELLED: { bg: "#F5F6F7", fg: "#46525B", bd: "rgba(70,82,91,.18)" },
+    READY: { bg: "#d7f3e4", fg: "#0f6f2f", bd: "rgba(16, 185, 129, .28)" },
+    DISPATCH: { bg: "#d7f3e4", fg: "#0f6f2f", bd: "rgba(16, 185, 129, .28)" },
+    MAINTENANCE: { bg: "#fff2e0", fg: "#9a4b0f", bd: "rgba(154,75,15,.22)" },
+    OPEN: { bg: "#fff2e0", fg: "#9a4b0f", bd: "rgba(154,75,15,.22)" },
+    DONE: { bg: "#e2f5ed", fg: "#136f4a", bd: "rgba(19,111,74,.22)" },
+    CANCELLED: { bg: "#f1f5f9", fg: "#475569", bd: "rgba(71,85,105,.18)" },
   };
-  const c = map[s] || { bg: "#F5F6F7", fg: "#46525B", bd: "rgba(70,82,91,.18)" };
+  const c = map[s] || { bg: "#f1f5f9", fg: "#475569", bd: "rgba(71,85,105,.18)" };
 
   return (
     <span
@@ -166,6 +185,28 @@ function StatusBadge({ status }) {
   );
 }
 
+function ProgressRow({ label, value, sub }) {
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "rgba(6, 78, 59, 0.75)", fontWeight: 700 }}>
+        <span>{label}</span>
+        <span>{value}%</span>
+      </div>
+      <div style={{ height: 8, borderRadius: 999, background: "#dff1e7", overflow: "hidden" }}>
+        <div
+          style={{
+            height: "100%",
+            width: `${value}%`,
+            background: "linear-gradient(90deg, #178a3c, #0f6f2f)",
+            boxShadow: "0 6px 14px rgba(20,136,58,0.28)",
+          }}
+        />
+      </div>
+      {sub ? <div style={{ fontSize: 12, color: "rgba(6, 78, 59, 0.65)" }}>{sub}</div> : null}
+    </div>
+  );
+}
+
 //////////////////////
 // MAIN
 //////////////////////
@@ -181,6 +222,7 @@ export default function Dashboard() {
     pendingMaintenance: 0,
     lowStock: 0,
   });
+  const [inventoryCount, setInventoryCount] = useState(0);
 
   const [todayTrips, setTodayTrips] = useState([]);
   const [alerts, setAlerts] = useState([]);
@@ -234,6 +276,7 @@ export default function Dashboard() {
         if (cancelled) return;
 
         setTrucks(fetchedTrucks);
+        setInventoryCount(items.length);
 
         // KPI calculations
         const activeTrucks = fetchedTrucks.filter((t) => ["READY", "DISPATCH"].includes(up(t?.status))).length;
@@ -354,7 +397,7 @@ export default function Dashboard() {
         <div style={{ ...panel, marginBottom: 18 }}>
           <div style={headerRow}>
             <div>
-              <div style={title}>Welcome back, {user?.name || "User"} 👋</div>
+              <div style={title}>Welcome back, {user?.name || "User"}</div>
               <div style={subtitle}>Operations overview for today</div>
             </div>
 
@@ -364,11 +407,11 @@ export default function Dashboard() {
                 style={{
                   padding: "6px 12px",
                   borderRadius: 999,
-                  background: sysOk ? "#E7F8EF" : "#FFF1F1",
-                  fontWeight: 900,
+                  background: sysOk ? "#dff5e8" : "#fde8e8",
+                  fontWeight: 800,
                   fontSize: 12,
-                  color: sysOk ? "#1E6F50" : "#B42318",
-                  border: `1px solid ${sysOk ? "rgba(30,111,80,.22)" : "rgba(180,35,24,.22)"}`,
+                  color: sysOk ? "#0f6f2f" : "#b42318",
+                  border: `1px solid ${sysOk ? "rgba(15,111,47,.28)" : "rgba(180,35,24,.22)"}`,
                 }}
               >
                 System: {sysOk ? "OK" : "ERROR"}
@@ -392,26 +435,30 @@ export default function Dashboard() {
         </div>
 
         {/* MAIN GRID */}
-        <div style={{ ...grid, gridTemplateColumns: "2fr 1fr" }}>
-          {/* TODAY TRIPS */}
-          <div style={panel}>
+        <div style={mainGrid}>
+          {/* LEFT COLUMN */}
+          <div style={{ ...grid }}>
+            {/* TODAY TRIPS */}
+            <div style={panel}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
               <div style={{ fontSize: 18, fontWeight: 900 }}>Today’s Trips</div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                {loading ? <Pill>Loading…</Pill> : <Pill>{todayTrips.length} trip(s)</Pill>}
+                {loading ? <Pill>Loading...</Pill> : <Pill>{todayTrips.length} trip(s)</Pill>}
               </div>
             </div>
 
             <div style={{ marginTop: 12 }}>
               {loading ? (
-                <div style={{ color: "#6C9A88", fontWeight: 800 }}>Loading trips…</div>
+                <div style={{ color: "rgba(6, 78, 59, 0.75)", fontWeight: 700 }}>Loading trips...</div>
               ) : todayTrips.length === 0 ? (
-                <div style={{ color: "#6C9A88", fontWeight: 800 }}>No trips scheduled for today</div>
+                <div style={{ color: "rgba(6, 78, 59, 0.75)", fontWeight: 700 }}>
+                  No trips scheduled for today
+                </div>
               ) : (
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 10px" }}>
                     <thead>
-                      <tr style={{ textAlign: "left", fontSize: 12, color: "#2F6B55" }}>
+                      <tr style={{ textAlign: "left", fontSize: 12, color: "rgba(6, 78, 59, 0.75)" }}>
                         <th style={{ paddingLeft: 10 }}>Trip</th>
                         <th>Truck</th>
                         <th>Driver</th>
@@ -424,9 +471,9 @@ export default function Dashboard() {
                         <tr
                           key={t.id}
                           style={{
-                            background: "#F8FFFC",
-                            border: "1px solid rgba(20,80,60,.10)",
-                            boxShadow: "0 10px 25px rgba(10,40,30,.06)",
+                            background: "#f3fbf7",
+                            border: "1px solid rgba(10, 58, 30, 0.12)",
+                            boxShadow: "0 10px 24px rgba(10, 58, 30, 0.10)",
                           }}
                         >
                           <td style={{ padding: "12px 10px", fontWeight: 900 }}>
@@ -439,8 +486,8 @@ export default function Dashboard() {
                             {t.driver?.name || t.driverName || truckDriverName(t) || "—"}
                           </td>
 
-                          <td style={{ padding: "12px 10px", fontWeight: 800, color: "#2F6B55" }}>
-                            {t.fromLocation?.name || t.from || "—"} → {t.toLocation?.name || t.to || "—"}
+                          <td style={{ padding: "12px 10px", fontWeight: 800, color: "rgba(6, 78, 59, 0.75)" }}>
+                            {t.fromLocation?.name || t.from || "-"} {" -> "} {t.toLocation?.name || t.to || "-"}
                           </td>
                           <td style={{ padding: "12px 10px" }}>
                             <StatusBadge status={t.status} />
@@ -452,61 +499,20 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
-          </div>
-
-          {/* RIGHT SIDE */}
-          <div style={{ ...grid }}>
-            {/* QUICK ACTIONS */}
-            <div style={panel}>
-              <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 12 }}>Quick Actions</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                <ActionBtn label="+ Create Trip" onClick={() => (window.location.href = "/trips")} />
-                <ActionBtn label="+ Receive Stock" onClick={() => (window.location.href = "/inventory")} />
-                <ActionBtn label="+ Maintenance Job" onClick={() => (window.location.href = "/maintenance")} />
-                <ActionBtn label="+ Add Truck" onClick={() => (window.location.href = "/trucks")} />
-                <ActionBtn label="+ Add Driver" onClick={() => (window.location.href = "/users")} />
-              </div>
             </div>
 
-            {/* ALERTS */}
-            <div style={panel}>
-              <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 12 }}>Alerts</div>
-              {loading ? (
-                <div style={{ color: "#6C9A88", fontWeight: 800 }}>Checking…</div>
-              ) : alerts.length === 0 ? (
-                <div style={{ color: "#6C9A88", fontWeight: 800 }}>No alerts 🎉</div>
-              ) : (
-                <div style={{ display: "grid", gap: 10 }}>
-                  {alerts.map((a, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        padding: 12,
-                        borderRadius: 16,
-                        background: "#F8FFFC",
-                        border: "1px solid rgba(20,80,60,.10)",
-                      }}
-                    >
-                      <div style={{ fontWeight: 900 }}>{a.title}</div>
-                      <div style={{ marginTop: 4, color: "#2F6B55", fontWeight: 800, fontSize: 12 }}>
-                        {a.detail}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* ✅ TOP SPENDING TRUCKS */}
+            {/* TOP SPENDING TRUCKS */}
             <div style={panel}>
               <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 12 }}>
                 Top Spending Trucks (This Month)
               </div>
 
               {topSpendLoading ? (
-                <div style={{ color: "#6C9A88", fontWeight: 800 }}>Calculating…</div>
+                <div style={{ color: "rgba(6, 78, 59, 0.75)", fontWeight: 700 }}>Calculating...</div>
               ) : topSpend.length === 0 ? (
-                <div style={{ color: "#6C9A88", fontWeight: 800 }}>No spending recorded yet.</div>
+                <div style={{ color: "rgba(6, 78, 59, 0.75)", fontWeight: 700 }}>
+                  No spending recorded yet.
+                </div>
               ) : (
                 <div style={{ display: "grid", gap: 10 }}>
                   {topSpend.map((x, idx) => (
@@ -514,9 +520,9 @@ export default function Dashboard() {
                       key={x.truckId}
                       style={{
                         padding: 12,
-                        borderRadius: 16,
-                        background: "#F8FFFC",
-                        border: "1px solid rgba(20,80,60,.10)",
+                        borderRadius: 14,
+                        background: "#f3fbf7",
+                        border: "1px solid rgba(10, 58, 30, 0.12)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
@@ -531,10 +537,10 @@ export default function Dashboard() {
                             borderRadius: 999,
                             display: "grid",
                             placeItems: "center",
-                            fontWeight: 1000,
-                            background: "rgba(34,197,94,0.14)",
-                            border: "1px solid rgba(34,197,94,0.26)",
-                            color: "#065f46",
+                            fontWeight: 900,
+                            background: "rgba(20,136,58,0.18)",
+                            border: "1px solid rgba(20,136,58,0.30)",
+                            color: "#0f6f2f",
                           }}
                         >
                           {idx + 1}
@@ -542,14 +548,80 @@ export default function Dashboard() {
 
                         <div>
                           <div style={{ fontWeight: 1000 }}>{x.plateNumber}</div>
-                          <div style={{ marginTop: 2, fontSize: 12, fontWeight: 800, color: "#2F6B55" }}>
+                          <div style={{ marginTop: 2, fontSize: 12, fontWeight: 700, color: "rgba(6, 78, 59, 0.75)" }}>
                             Spareparts installed
                           </div>
                         </div>
                       </div>
 
-                      <div style={{ fontWeight: 1000, color: "#053a2f" }}>
+                      <div style={{ fontWeight: 900, color: "#0b1f16" }}>
                         {fmtMoney(x.total, x.currency)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* RIGHT RAIL */}
+          <div style={{ ...grid }}>
+            {/* ANALYTICS */}
+            <div style={railPanel}>
+              <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 10 }}>Analytics</div>
+              <div style={{ display: "grid", gap: 12 }}>
+                <ProgressRow
+                  label="Fleet Utilization"
+                  value={pct(trucks.length ? (stats.activeTrucks / trucks.length) * 100 : 0)}
+                  sub={`${stats.activeTrucks} active of ${trucks.length || 0} trucks`}
+                />
+                <ProgressRow
+                  label="Maintenance Load"
+                  value={pct(trucks.length ? (stats.pendingMaintenance / trucks.length) * 100 : 0)}
+                  sub={`${stats.pendingMaintenance} open maintenance jobs`}
+                />
+                <ProgressRow
+                  label="Inventory Health"
+                  value={pct(inventoryCount ? 100 - (stats.lowStock / inventoryCount) * 100 : 100)}
+                  sub={`${stats.lowStock} low stock of ${inventoryCount} items`}
+                />
+              </div>
+            </div>
+
+            {/* QUICK ACTIONS */}
+            <div style={railPanel}>
+              <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 10 }}>Quick Actions</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                <ActionBtn label="+ Create Trip" onClick={() => (window.location.href = "/trips")} />
+                <ActionBtn label="+ Receive Stock" onClick={() => (window.location.href = "/inventory")} />
+                <ActionBtn label="+ Maintenance Job" onClick={() => (window.location.href = "/maintenance")} />
+                <ActionBtn label="+ Add Truck" onClick={() => (window.location.href = "/trucks")} />
+                <ActionBtn label="+ Add Driver" onClick={() => (window.location.href = "/users")} />
+              </div>
+            </div>
+
+            {/* ALERTS */}
+            <div style={railPanel}>
+              <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 10 }}>Alerts</div>
+              {loading ? (
+                <div style={{ color: "rgba(6, 78, 59, 0.75)", fontWeight: 700 }}>Checking...</div>
+              ) : alerts.length === 0 ? (
+                <div style={{ color: "rgba(6, 78, 59, 0.75)", fontWeight: 700 }}>No alerts</div>
+              ) : (
+                <div style={{ display: "grid", gap: 10 }}>
+                  {alerts.map((a, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: 10,
+                        borderRadius: 12,
+                        background: "#f3fbf7",
+                        border: "1px solid rgba(10, 58, 30, 0.12)",
+                      }}
+                    >
+                      <div style={{ fontWeight: 800 }}>{a.title}</div>
+                      <div style={{ marginTop: 4, color: "rgba(6, 78, 59, 0.75)", fontWeight: 700, fontSize: 12 }}>
+                        {a.detail}
                       </div>
                     </div>
                   ))}
@@ -558,8 +630,8 @@ export default function Dashboard() {
             </div>
 
             {/* MY ACCOUNT */}
-            <div style={panel}>
-              <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 12 }}>My Account</div>
+            <div style={railPanel}>
+              <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 10 }}>My Account</div>
               <div style={{ fontSize: 13, lineHeight: 1.8 }}>
                 <div>
                   <b>Name:</b> {user?.name || "—"}

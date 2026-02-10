@@ -69,131 +69,147 @@ export default function Register() {
   }
 
   return (
-    <div style={{ ...styles.page, padding: isMobile ? 12 : 20 }}>
-      <div style={{ ...styles.card, padding: isMobile ? 18 : 28 }}>
-        {/* Header */}
-        <div style={{ ...styles.header, marginBottom: isMobile ? 16 : 22 }}>
-          {/* ✅ Clickable logo -> Home */}
-          <div
-            style={{ ...styles.logo, width: isMobile ? 44 : 48, height: isMobile ? 44 : 48 }}
-            onClick={() => nav("/")}
-            role="button"
-            title="Back to Home"
-          >
-            ERP
+    <div style={styles.page}>
+      <div
+        style={{
+          ...styles.shell,
+          gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+        }}
+      >
+        {!isMobile && (
+          <div style={styles.leftPanel}>
+            <div style={styles.leftBackdrop} />
+            <div style={styles.leftDots} />
+            <div style={styles.leftBrand} onClick={() => nav("/")} role="button" title="Back to Home">
+              <span style={styles.leftDot} />
+              <span>CV. MITRA SETIA</span>
+            </div>
+            <div style={styles.leftContent}>
+              <div style={styles.leftEyebrow}>Staff Registration</div>
+              <div style={styles.leftTitle}>CREATE ACCOUNT</div>
+              <div style={styles.leftSub}>
+                Pendaftaran hanya untuk staff dengan undangan resmi. Gunakan kode undangan
+                yang diberikan admin.
+              </div>
+            </div>
           </div>
+        )}
 
-          <div>
-            <h2 style={{ ...styles.title, fontSize: isMobile ? 18 : 20 }}>MitraSetia</h2>
-            <p style={styles.subtitle}>Register a new user</p>
+        <div style={styles.rightPanel}>
+          <div style={styles.formInner}>
+            <div style={styles.header}>
+              <div>
+                <h2 style={styles.title}>Register Account</h2>
+                <p style={styles.subtitle}>Authorized registration for internal staff</p>
+              </div>
+            </div>
+
+            <form onSubmit={onSubmit}>
+              <div style={{ ...styles.field, marginBottom: 14 }}>
+                <label style={styles.label}>Name</label>
+                <input
+                  style={{ ...styles.input, ...styles.formControl }}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="name"
+                  autoComplete="name"
+                />
+              </div>
+
+              <div style={{ ...styles.field, marginBottom: 14 }}>
+                <label style={styles.label}>Email</label>
+                <input
+                  style={{ ...styles.input, ...styles.formControl }}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="email@mitrasetia.com"
+                  autoComplete="email"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                />
+              </div>
+
+              <div style={{ ...styles.field, marginBottom: 14 }}>
+                <label style={styles.label}>Password</label>
+                <input
+                  style={{ ...styles.input, ...styles.formControl }}
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                />
+              </div>
+
+              <div style={{ ...styles.field, marginBottom: 14 }}>
+                <label style={styles.label}>Confirm Password</label>
+                <input
+                  style={{
+                    ...styles.input,
+                    ...styles.formControl,
+                    border: pwdMismatch ? "1px solid #fca5a5" : styles.input.border,
+                    background: pwdMismatch ? "#fff7f7" : styles.input.background,
+                  }}
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                />
+                {pwdMismatch && <div style={styles.inlineError}>Passwords do not match.</div>}
+              </div>
+
+              <div style={{ ...styles.field, marginBottom: 16 }}>
+                <label style={styles.label}>Invitation Code</label>
+                <input
+                  style={{ ...styles.input, ...styles.formControl }}
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value)}
+                  placeholder="Provided by admin"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                />
+                <div style={styles.hint}>Ask admin for the invite code.</div>
+              </div>
+
+              {err && (
+                <div style={styles.errorBox}>
+                  <strong>Register failed</strong>
+                  <div>{err}</div>
+                </div>
+              )}
+
+              <button
+                disabled={!canSubmit}
+                onMouseEnter={() => setHover(true)}
+                onMouseLeave={() => setHover(false)}
+                style={{
+                  ...styles.button,
+                  ...styles.formControl,
+                  opacity: canSubmit ? 1 : 0.55,
+                  cursor: canSubmit ? "pointer" : "not-allowed",
+                  background: hover ? "#1a8f4a" : "#1f9d53",
+                  transform: hover && canSubmit ? "translateY(-1px)" : "translateY(0)",
+                  transition: "all 0.2s ease",
+                  minHeight: 44,
+                }}
+              >
+                {busy ? "Creating..." : "Register"}
+              </button>
+
+              <div style={styles.footer}>
+                <div style={styles.registerRow}>
+                  <span style={styles.registerText}>Already registered?</span>
+                  <span style={styles.registerLink} onClick={() => nav("/login")}>
+                    Login
+                  </span>
+                </div>
+                <div style={styles.complianceNote}>Invitation code required.</div>
+              </div>
+            </form>
           </div>
         </div>
-
-        <form onSubmit={onSubmit}>
-          <div style={styles.field}>
-            <label style={styles.label}>Name</label>
-            <input
-              style={{ ...styles.input, ...styles.formControl }}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="name"
-              autoComplete="name"
-            />
-          </div>
-
-          <div style={styles.field}>
-            <label style={styles.label}>Email</label>
-            <input
-              style={{ ...styles.input, ...styles.formControl }}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="email@mitrasetia.com"
-              autoComplete="email"
-              inputMode="email"
-              autoCapitalize="none"
-              autoCorrect="off"
-            />
-          </div>
-
-          <div style={styles.field}>
-            <label style={styles.label}>Password</label>
-            <input
-              style={{ ...styles.input, ...styles.formControl }}
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="new-password"
-            />
-          </div>
-
-          <div style={styles.field}>
-            <label style={styles.label}>Confirm Password</label>
-            <input
-              style={{
-                ...styles.input,
-                ...styles.formControl,
-                border: pwdMismatch ? "1px solid #fca5a5" : styles.input.border,
-                background: pwdMismatch ? "#fff7f7" : styles.input.background,
-              }}
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="new-password"
-            />
-            {pwdMismatch && <div style={styles.inlineError}>Passwords do not match.</div>}
-          </div>
-
-          <div style={styles.field}>
-            <label style={styles.label}>Invitation Code</label>
-            <input
-              style={{ ...styles.input, ...styles.formControl }}
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value)}
-              placeholder="Provided by admin"
-              autoCapitalize="none"
-              autoCorrect="off"
-            />
-            <div style={styles.hint}>Ask admin for the invite code.</div>
-          </div>
-
-          {err && (
-            <div style={styles.errorBox}>
-              <strong>Register failed</strong>
-              <div>{err}</div>
-            </div>
-          )}
-
-          <button
-            disabled={!canSubmit}
-            onMouseEnter={() => setHover(true)}
-            onMouseLeave={() => setHover(false)}
-            style={{
-              ...styles.button,
-              ...styles.formControl,
-              opacity: canSubmit ? 1 : 0.55,
-              cursor: canSubmit ? "pointer" : "not-allowed",
-              background: hover
-                ? "linear-gradient(135deg, #4ade80, #22c55e)"
-                : "linear-gradient(135deg, #22c55e, #16a34a)",
-              transform: hover && canSubmit ? "translateY(-1px)" : "translateY(0)",
-              transition: "all 0.2s ease",
-              minHeight: 44,
-            }}
-          >
-            {busy ? "Creating..." : "Register"}
-          </button>
-
-          <div style={styles.footer}>
-            <div style={styles.registerRow}>
-              <span style={styles.registerText}>Already have an account?</span>
-              <span style={styles.registerLink} onClick={() => nav("/login")}>
-                Login
-              </span>
-            </div>
-          </div>
-        </form>
       </div>
     </div>
   );
@@ -201,96 +217,220 @@ export default function Register() {
 
 const styles = {
   page: {
-    minHeight: "100dvh",                 // ✅ iPhone dynamic viewport
-    display: "flex",                     // ✅ more stable than grid for iOS
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom))",
+    minHeight: "100dvh",
+    display: "flex",
+    alignItems: "stretch",
+    justifyContent: "stretch",
+    padding: 0,
     boxSizing: "border-box",
-    background: "linear-gradient(180deg, #ECFDF5 0%, #F7FFFB 70%)",
+    background: "#ffffff",
     fontFamily:
-      '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif',
+      '"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
   },
 
-  card: {
-    width: "min(420px, 94vw)",
-    padding: 28,
-    borderRadius: 18,
-    background: "#ffffff",
-    border: "1px solid #d1fae5",
-    boxShadow: "0 20px 40px rgba(0,0,0,0.08)",
-  },
-  header: { display: "flex", alignItems: "center", gap: 14, marginBottom: 22 },
-  logo: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+  shell: {
+    width: "100%",
+    minHeight: "100dvh",
     display: "grid",
-    placeItems: "center",
-    fontWeight: 900,
-    color: "white",
-    background: "linear-gradient(135deg, #22c55e, #16a34a)",
-    userSelect: "none",
+    borderRadius: 0,
+    overflow: "hidden",
+    background: "#ffffff",
+    border: "none",
+    boxShadow: "none",
+  },
+
+  leftPanel: {
+    position: "relative",
+    padding: 56,
+    color: "#f0fff6",
+    background:
+      "radial-gradient(520px 380px at 70% 18%, rgba(255,255,255,0.22), transparent 60%), linear-gradient(135deg, #1b8f4c 0%, #2ccf6a 100%)",
+    display: "flex",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+
+  leftBrand: {
+    position: "absolute",
+    top: 32,
+    left: 36,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 10,
+    fontWeight: 700,
+    fontSize: 12,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    opacity: 0.95,
     cursor: "pointer",
   },
-  title: { margin: 0, fontSize: 20, fontWeight: 900, color: "#065f46", letterSpacing: -0.2 },
-  subtitle: { margin: 0, fontSize: 13, color: "#047857" },
+
+  leftDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    background: "rgba(255,255,255,0.9)",
+  },
+
+  leftContent: {
+    marginTop: 0,
+    maxWidth: 360,
+    zIndex: 1,
+  },
+
+  leftEyebrow: {
+    fontSize: 14,
+    letterSpacing: 0.4,
+    textTransform: "none",
+    opacity: 0.9,
+  },
+
+  leftTitle: {
+    marginTop: 12,
+    fontSize: 44,
+    fontWeight: 800,
+    letterSpacing: 1.6,
+    lineHeight: 1.08,
+  },
+
+  leftSub: {
+    marginTop: 16,
+    fontSize: 15,
+    lineHeight: 1.85,
+    opacity: 0.9,
+    maxWidth: 300,
+  },
+
+  leftBackdrop: {
+    position: "absolute",
+    inset: 0,
+    background:
+      "radial-gradient(520px 360px at 18% 18%, rgba(255,255,255,0.10), transparent 65%), radial-gradient(640px 420px at 70% 12%, rgba(255,255,255,0.12), transparent 70%)",
+    pointerEvents: "none",
+  },
+
+  leftDots: {
+    position: "absolute",
+    inset: 0,
+    backgroundImage:
+      "radial-gradient(rgba(255,255,255,0.20) 1px, transparent 1px)",
+    backgroundSize: "12px 12px",
+    opacity: 0.35,
+    pointerEvents: "none",
+    mixBlendMode: "screen",
+  },
+
+  rightPanel: {
+    padding: 48,
+    background: "#ffffff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  formInner: {
+    width: "100%",
+    maxWidth: 440,
+  },
+
+  header: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 10,
+    textAlign: "left",
+    marginBottom: 22,
+  },
+
+
+  title: {
+    margin: 0,
+    fontSize: 24,
+    fontWeight: 700,
+    color: "#111827",
+    letterSpacing: -0.3,
+  },
+
+  subtitle: {
+    margin: 0,
+    fontSize: 12,
+    color: "#9ca3af",
+  },
+
   field: { marginBottom: 14 },
+
   label: {
     display: "block",
     fontSize: 13,
-    fontWeight: 800,
+    fontWeight: 600,
     marginBottom: 6,
-    color: "#065f46",
+    color: "#374151",
   },
-  hint: { marginTop: 6, fontSize: 12, color: "#047857" },
-  inlineError: { marginTop: 6, fontSize: 12, color: "#b91c1c", fontWeight: 800 },
+
+  hint: { marginTop: 6, fontSize: 12, color: "#6b7280" },
+
+  inlineError: { marginTop: 6, fontSize: 12, color: "#b91c1c", fontWeight: 700 },
+
   input: {
-    padding: "12px 12px",
+    padding: "12px 14px",
     borderRadius: 12,
-    border: "1px solid #a7f3d0",
-    background: "#f8fffb",
+    border: "1px solid #e5e7eb",
+    background: "#ffffff",
     fontSize: 16,
     outline: "none",
     minHeight: 44,
   },
+
   button: {
-    marginTop: 10,
+    marginTop: 8,
     padding: 12,
     borderRadius: 12,
     border: "none",
-    fontWeight: 900,
+    fontWeight: 700,
     fontSize: 15,
     color: "white",
-    boxShadow: "0 8px 20px rgba(34,197,94,0.35)",
+    background: "#1f9d53",
+    boxShadow: "0 8px 16px rgba(31,157,83,0.22)",
   },
+
   errorBox: {
     marginBottom: 12,
     padding: 12,
     borderRadius: 12,
-    background: "#fee2e2",
+    background: "#fef2f2",
     border: "1px solid #fecaca",
-    color: "#991b1b",
+    color: "#b91c1c",
     fontSize: 12,
     lineHeight: 1.5,
   },
+
   registerRow: {
-    marginTop: 10,
+    marginTop: 12,
     display: "flex",
     justifyContent: "center",
     gap: 6,
-    fontSize: 13,
+    fontSize: 12.5,
     flexWrap: "wrap",
   },
-  registerText: { color: "#065f46" },
-  registerLink: { color: "#16a34a", fontWeight: 900, cursor: "pointer" },
+
+  registerText: { color: "#6b7280" },
+
+  registerLink: { color: "#1f9d53", fontWeight: 700, cursor: "pointer" },
+
   footer: {
     marginTop: 16,
-    paddingTop: 1,
-    borderTop: "1px solid #d1fae5",
+    paddingTop: 12,
+    borderTop: "1px solid rgba(17,24,39,0.06)",
     fontSize: 12,
-    color: "#047857",
+    color: "#6b7280",
     textAlign: "center",
   },
+
+  complianceNote: {
+    marginTop: 8,
+    fontSize: 10.5,
+    color: "#9ca3af",
+  },
+
   formControl: { width: "100%", boxSizing: "border-box" },
 };

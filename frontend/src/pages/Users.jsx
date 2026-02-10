@@ -58,19 +58,51 @@ export default function Users() {
     }
   }
 
+  function matchesQuery(u, query) {
+    if (!query) return true;
+    const qn = query.trim().toLowerCase();
+    if (!qn) return true;
+    const name = (u?.name || "").toLowerCase();
+    const email = (u?.email || "").toLowerCase();
+    const phone = (u?.phone || "").toLowerCase();
+    return name.includes(qn) || email.includes(qn) || phone.includes(qn);
+  }
+
   async function load() {
     setLoading(true);
     setErr("");
     try {
       const params = new URLSearchParams();
-      if (q.trim()) params.set("q", q.trim());
       if (roleFilter) params.set("role", roleFilter);
       params.set("skip", String(skip));
       params.set("take", String(take));
 
-      const data = await api(`/users?${params.toString()}`);
-      setItems(data.items || []);
-      setTotal(data.total || 0);
+      if (q.trim()) {
+        // Fetch all pages for a global, case-insensitive search
+        const first = await api(`/users?${params.toString()}`);
+        const totalCount = first.total || 0;
+        const pages = Math.max(1, Math.ceil(totalCount / take));
+        const rest = await Promise.all(
+          Array.from({ length: pages - 1 }, (_, i) =>
+            api(
+              `/users?${new URLSearchParams({
+                ...(roleFilter ? { role: roleFilter } : {}),
+                skip: String((i + 1) * take),
+                take: String(take),
+              }).toString()}`
+            )
+          )
+        );
+        const allItems = [first, ...rest].flatMap((r) => r.items || []);
+        const filtered = allItems.filter((u) => matchesQuery(u, q));
+        setItems(filtered);
+        setTotal(filtered.length);
+      } else {
+        const data = await api(`/users?${params.toString()}`);
+        const rawItems = data.items || [];
+        setItems(rawItems);
+        setTotal(data.total || rawItems.length);
+      }
     } catch (e) {
       setErr(e.message || "Failed to load users");
     } finally {
@@ -82,13 +114,17 @@ export default function Users() {
     if (!allowed) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [skip]);
+  }, [skip, roleFilter]);
 
-  function onSearch(e) {
-    e.preventDefault();
-    setPage(0);
-    load();
-  }
+  useEffect(() => {
+    if (!allowed) return;
+    const t = setTimeout(() => {
+      setPage(0);
+      load();
+    }, 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q]);
 
   if (!allowed) {
     return (
@@ -120,7 +156,7 @@ export default function Users() {
 
       <div style={s.card}>
         <div style={s.toolbar}>
-          <form onSubmit={onSearch} style={s.searchRow}>
+          <div style={s.searchRow}>
             <input
               style={s.input}
               value={q}
@@ -154,10 +190,7 @@ export default function Users() {
               <div style={s.selectArrow}>▾</div>
             </div>
 
-            <button disabled={loading} style={{ ...s.primaryBtn, opacity: loading ? 0.7 : 1 }}>
-              {loading ? "Loading…" : "Search"}
-            </button>
-          </form>
+          </div>
 
           <div style={s.rightNote}>
             Showing {items.length} of {total}
@@ -317,36 +350,36 @@ function statusVariant(status) {
 function makeStyles(isMobile) {
   return {
     page: {
-      padding: isMobile ? 0 : 6,
-      paddingTop: isMobile ? 0 : 6,
+      padding: isMobile ? 0 : 8,
+      paddingTop: isMobile ? 0 : 10,
     },
 
     headerRow: {
       display: "flex",
-      alignItems: "end",
+      alignItems: "center",
       justifyContent: "space-between",
       gap: 12,
-      marginBottom: isMobile ? 10 : 14,
+      marginBottom: isMobile ? 12 : 16,
     },
 
-    hTitle: { fontWeight: 1000, fontSize: 18, color: "#053a2f" },
-    hSub: { marginTop: 4, fontSize: 12, color: "rgba(4,120,87,0.85)", fontWeight: 700 },
+    hTitle: { fontWeight: 900, fontSize: 20, color: "#0b1f16" },
+    hSub: { marginTop: 4, fontSize: 12, color: "rgba(6, 78, 59, 0.75)", fontWeight: 700 },
 
     pill: {
       fontSize: 12,
       fontWeight: 900,
-      padding: "7px 10px",
+      padding: "7px 12px",
       borderRadius: 999,
-      background: "#fff",
-      border: "1px solid rgba(6,95,70,0.10)",
-      color: "#065f46",
+      background: "#e1f3e7",
+      border: "1px solid rgba(20,136,58,0.22)",
+      color: "#0f6f2f",
     },
 
     card: {
-      borderRadius: 18,
-      background: "linear-gradient(180deg, #fff 0%, #fbfffd 100%)",
-      boxShadow: "0 12px 30px rgba(0,0,0,0.06)",
-      border: "1px solid rgba(6,95,70,0.08)",
+      borderRadius: 16,
+      background: "#ffffff",
+      boxShadow: "0 12px 28px rgba(10, 58, 30, 0.10)",
+      border: "1px solid rgba(10, 58, 30, 0.10)",
       padding: isMobile ? 14 : 18,
       minWidth: 0,
     },
@@ -359,17 +392,17 @@ function makeStyles(isMobile) {
       flexWrap: "wrap",
     },
     searchRow: { display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" },
-    rightNote: { fontSize: 12, fontWeight: 800, color: "rgba(4,120,87,0.75)" },
+    rightNote: { fontSize: 12, fontWeight: 800, color: "rgba(6, 78, 59, 0.75)" },
 
     input: {
-      width: 280,
-      borderRadius: 14,
-      border: "1px solid rgba(6,95,70,0.12)",
-      background: "white",
-      padding: "11px 12px",
+      width: isMobile ? "100%" : 300,
+      borderRadius: 12,
+      border: "1px solid rgba(10, 58, 30, 0.14)",
+      background: "#ffffff",
+      padding: "10px 12px",
       outline: "none",
-      fontWeight: 800,
-      color: "#053a2f",
+      fontWeight: 700,
+      color: "#0b1f16",
       boxSizing: "border-box",
     },
 
@@ -379,54 +412,54 @@ function makeStyles(isMobile) {
       WebkitAppearance: "none",
       MozAppearance: "none",
       borderRadius: 999,
-      border: "1px solid rgba(6,95,70,0.18)",
-      background: "linear-gradient(180deg, #ffffff 0%, #f6fffb 100%)",
-      padding: "10px 44px 10px 16px",
-      fontSize: 13,
-      fontWeight: 1000,
-      color: "#053a2f",
+      border: "1px solid rgba(10, 58, 30, 0.16)",
+      background: "#ffffff",
+      padding: "9px 40px 9px 14px",
+      fontSize: 12,
+      fontWeight: 900,
+      color: "#0b1f16",
       cursor: "pointer",
       outline: "none",
-      boxShadow: "0 8px 18px rgba(0,0,0,0.06)",
+      boxShadow: "0 8px 18px rgba(10, 58, 30, 0.08)",
       transition: "all 0.15s ease",
     },
     selectHover: {
-      boxShadow: "0 14px 28px rgba(34,197,94,0.18)",
-      border: "1px solid rgba(34,197,94,0.26)",
+      boxShadow: "0 14px 28px rgba(20,136,58,0.18)",
+      border: "1px solid rgba(20,136,58,0.26)",
       transform: "translateY(-1px)",
     },
     selectFocus: {
-      boxShadow: "0 0 0 3px rgba(34,197,94,0.16), 0 14px 28px rgba(0,0,0,0.08)",
-      border: "1px solid rgba(34,197,94,0.32)",
+      boxShadow: "0 0 0 3px rgba(20,136,58,0.16), 0 14px 28px rgba(0,0,0,0.08)",
+      border: "1px solid rgba(20,136,58,0.32)",
     },
     selectArrow: {
       position: "absolute",
-      right: 16,
+      right: 14,
       pointerEvents: "none",
       fontSize: 12,
       fontWeight: 1000,
-      color: "rgba(4,120,87,0.9)",
+      color: "rgba(6, 78, 59, 0.9)",
     },
 
     primaryBtn: {
       border: "none",
-      borderRadius: 14,
-      padding: "11px 14px",
-      fontWeight: 1000,
+      borderRadius: 12,
+      padding: "10px 14px",
+      fontWeight: 900,
       cursor: "pointer",
       color: "white",
-      background: "linear-gradient(135deg, #22c55e, #16a34a)",
-      boxShadow: "0 14px 30px rgba(34,197,94,0.22)",
+      background: "linear-gradient(135deg, #178a3c, #0f6f2f)",
+      boxShadow: "0 12px 24px rgba(20,136,58,0.26)",
     },
 
     secondaryBtn: {
-      borderRadius: 14,
-      padding: "10px 14px",
-      fontWeight: 1000,
+      borderRadius: 12,
+      padding: "9px 12px",
+      fontWeight: 900,
       cursor: "pointer",
-      color: "#065f46",
-      background: "rgba(34,197,94,0.10)",
-      border: "1px solid rgba(34,197,94,0.18)",
+      color: "#0f6f2f",
+      background: "rgba(20,136,58,0.10)",
+      border: "1px solid rgba(20,136,58,0.22)",
     },
 
     alertErr: {
@@ -444,7 +477,7 @@ function makeStyles(isMobile) {
       marginTop: 14,
       overflowX: "auto",
       borderRadius: 14,
-      border: "1px solid rgba(6,95,70,0.08)",
+      border: "1px solid rgba(10, 58, 30, 0.10)",
     },
 
     table: { width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 900 },
@@ -454,10 +487,10 @@ function makeStyles(isMobile) {
       fontSize: 12,
       letterSpacing: 0.3,
       fontWeight: 1000,
-      color: "rgba(4,120,87,0.75)",
+      color: "rgba(6, 78, 59, 0.8)",
       padding: "12px 12px",
-      background: "rgba(6,95,70,0.03)",
-      borderBottom: "1px solid rgba(6,95,70,0.08)",
+      background: "#f3fbf7",
+      borderBottom: "1px solid rgba(10, 58, 30, 0.08)",
     },
 
     tr: { background: "white" },
@@ -465,15 +498,15 @@ function makeStyles(isMobile) {
     td: {
       padding: "12px 12px",
       fontSize: 13,
-      fontWeight: 800,
-      color: "#053a2f",
-      borderBottom: "1px solid rgba(6,95,70,0.06)",
+      fontWeight: 700,
+      color: "#0b1f16",
+      borderBottom: "1px solid rgba(10, 58, 30, 0.06)",
       verticalAlign: "middle",
     },
 
     tdStrong: {
       padding: "12px 12px",
-      borderBottom: "1px solid rgba(6,95,70,0.06)",
+      borderBottom: "1px solid rgba(10, 58, 30, 0.06)",
       verticalAlign: "middle",
     },
 
@@ -486,18 +519,18 @@ function makeStyles(isMobile) {
       display: "grid",
       placeItems: "center",
       fontWeight: 1000,
-      color: "#065f46",
-      background: "rgba(34,197,94,0.12)",
-      border: "1px solid rgba(34,197,94,0.16)",
+      color: "#0f6f2f",
+      background: "rgba(20,136,58,0.14)",
+      border: "1px solid rgba(20,136,58,0.20)",
     },
 
-    nameText: { fontWeight: 1000, color: "#053a2f", fontSize: 13 },
+    nameText: { fontWeight: 900, color: "#0b1f16", fontSize: 13 },
 
     idText: {
       marginTop: 2,
       fontSize: 11,
       fontWeight: 800,
-      color: "rgba(4,120,87,0.65)",
+      color: "rgba(6, 78, 59, 0.65)",
       maxWidth: 240,
       overflow: "hidden",
       textOverflow: "ellipsis",
@@ -507,7 +540,7 @@ function makeStyles(isMobile) {
     empty: {
       padding: 18,
       textAlign: "center",
-      color: "rgba(4,120,87,0.75)",
+      color: "rgba(6, 78, 59, 0.75)",
       fontWeight: 900,
     },
 

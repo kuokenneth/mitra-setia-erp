@@ -8,11 +8,11 @@ export default function PublicLayout() {
 
   const BRAND = useMemo(
     () => ({
-      emerald: "#16A34A",
-      emerald2: "#22C55E",
+      emerald: "#1f9d53",
+      emerald2: "#2ccf6a",
       forest: "#111827",
-      mintTop: "#E9FFF4",
-      mintBottom: "#F5F6F7",
+      mintTop: "#6fcf8f",
+      mintBottom: "#5cc67f",
       glass: "rgba(255,255,255,0.72)",
     }),
     []
@@ -39,8 +39,11 @@ export default function PublicLayout() {
 
   const page = {
     minHeight: "100dvh",
-    background: `radial-gradient(820px 520px at 12% 10%, rgba(34,197,94,0.18), transparent 60%),
+    background: `radial-gradient(700px 420px at 14% 12%, rgba(34,197,94,0.22), transparent 60%),
                  linear-gradient(180deg, ${BRAND.mintTop} 0%, ${BRAND.mintBottom} 70%)`,
+    backgroundImage:
+      "radial-gradient(rgba(255,255,255,0.25) 1px, transparent 1px)",
+    backgroundSize: "16px 16px",
     color: BRAND.forest,
     fontFamily:
       '"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
@@ -52,15 +55,15 @@ export default function PublicLayout() {
     zIndex: 50,
     transition: "all 220ms ease",
     backdropFilter: "blur(10px)",
-    background: scrolled ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.78)",
-    borderBottom: "1px solid rgba(17, 24, 39, 0.08)",
+    background: scrolled ? "rgba(255,255,255,0.96)" : "transparent",
+    borderBottom: scrolled ? "1px solid rgba(17, 24, 39, 0.06)" : "none",
     boxShadow: "none",
   };
 
   const wrap = {
     maxWidth: 1180,
     margin: "0 auto",
-    padding: isMobile ? "10px 12px" : scrolled ? "10px 18px" : "16px 18px",
+    padding: isMobile ? "10px 12px" : scrolled ? "10px 18px" : "18px 18px",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
@@ -82,8 +85,8 @@ export default function PublicLayout() {
     gap: 12,
     padding: scrolled ? "6px 10px" : "8px 12px",
     borderRadius: 16,
-    background: "rgba(255,255,255,0.88)",
-    border: "1px solid rgba(17,24,39,0.08)",
+    background: "transparent",
+    border: "1px solid transparent",
     boxShadow: "none",
     transition: "all 220ms ease",
   };
@@ -130,19 +133,19 @@ export default function PublicLayout() {
     borderRadius: 999,
     fontWeight: 700,
     textDecoration: "none",
-    background: `linear-gradient(95deg, ${BRAND.emerald2}, ${BRAND.emerald})`,
-    color: "#fff",
-    border: "1px solid rgba(34,197,94,0.40)",
-    boxShadow: "0 10px 24px rgba(34,197,94,0.20)",
+    background: "transparent",
+    color: BRAND.forest,
+    border: "1px solid rgba(17,24,39,0.16)",
+    boxShadow: "none",
     transition: "transform 160ms ease",
   };
 
   const outletWrap = {
     width: "100%",
     minHeight: hideChrome ? "100dvh" : "auto",
-    display: hideChrome ? "grid" : "block",
-    placeItems: hideChrome ? "center" : "unset",
-    padding: hideChrome ? (isMobile ? 12 : 18) : 0,
+    display: "block",
+    placeItems: "unset",
+    padding: 0,
     boxSizing: "border-box",
   };
 
