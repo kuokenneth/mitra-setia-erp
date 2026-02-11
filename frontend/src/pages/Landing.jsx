@@ -197,193 +197,19 @@ export default function Landing() {
           }}
         />
 
-        {/* Animated Floating Particles */}
+        {/* Enhanced Animated Floating Particles - Corporate Style */}
         <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
-          {/* Particle 1 - Large slow floating */}
-          <div
-            className="particle particle-1"
-            style={{
-              position: "absolute",
-              top: "15%",
-              right: "20%",
-              width: 8,
-              height: 8,
-              background: "rgba(255,255,255,0.15)",
-              borderRadius: "50%",
-            }}
-          />
-          {/* Particle 2 */}
-          <div
-            className="particle particle-2"
-            style={{
-              position: "absolute",
-              top: "45%",
-              right: "10%",
-              width: 6,
-              height: 6,
-              background: "rgba(255,255,255,0.12)",
-              borderRadius: "50%",
-            }}
-          />
-          {/* Particle 3 */}
-          <div
-            className="particle particle-3"
-            style={{
-              position: "absolute",
-              top: "70%",
-              right: "35%",
-              width: 10,
-              height: 10,
-              background: "rgba(255,255,255,0.1)",
-              borderRadius: "50%",
-            }}
-          />
-          {/* Particle 4 */}
-          <div
-            className="particle particle-4"
-            style={{
-              position: "absolute",
-              top: "25%",
-              right: "45%",
-              width: 5,
-              height: 5,
-              background: "rgba(255,255,255,0.18)",
-              borderRadius: "50%",
-            }}
-          />
-          {/* Particle 5 */}
-          <div
-            className="particle particle-5"
-            style={{
-              position: "absolute",
-              top: "80%",
-              right: "15%",
-              width: 7,
-              height: 7,
-              background: "rgba(255,255,255,0.14)",
-              borderRadius: "50%",
-            }}
-          />
-          {/* Particle 6 */}
-          <div
-            className="particle particle-6"
-            style={{
-              position: "absolute",
-              top: "35%",
-              right: "55%",
-              width: 4,
-              height: 4,
-              background: "rgba(255,255,255,0.2)",
-              borderRadius: "50%",
-            }}
-          />
-          {/* Particle 7 - Diamond shape */}
-          <div
-            className="particle particle-7"
-            style={{
-              position: "absolute",
-              top: "55%",
-              right: "25%",
-              width: 8,
-              height: 8,
-              background: "rgba(255,255,255,0.12)",
-              transform: "rotate(45deg)",
-            }}
-          />
-          {/* Particle 8 */}
-          <div
-            className="particle particle-8"
-            style={{
-              position: "absolute",
-              top: "20%",
-              right: "65%",
-              width: 6,
-              height: 6,
-              background: "rgba(255,255,255,0.16)",
-              borderRadius: "50%",
-            }}
-          />
-          {/* Particle 9 - Small subtle */}
-          <div
-            className="particle particle-9"
-            style={{
-              position: "absolute",
-              top: "60%",
-              right: "50%",
-              width: 3,
-              height: 3,
-              background: "rgba(255,255,255,0.25)",
-              borderRadius: "50%",
-            }}
-          />
-          {/* Particle 10 */}
-          <div
-            className="particle particle-10"
-            style={{
-              position: "absolute",
-              top: "85%",
-              right: "60%",
-              width: 5,
-              height: 5,
-              background: "rgba(255,255,255,0.12)",
-              borderRadius: "50%",
-            }}
-          />
           
-          {/* Animated connecting lines/paths */}
-          <svg
-            className="animated-lines"
-            style={{
-              position: "absolute",
-              top: 0,
-              right: 0,
-              width: "60%",
-              height: "100%",
-              opacity: 0.15,
-            }}
-            viewBox="0 0 400 600"
-            fill="none"
-            preserveAspectRatio="xMidYMid slice"
-          >
-            {/* Curved path 1 */}
-            <path
-              className="line-path line-1"
-              d="M 350 50 Q 200 150 250 300 T 150 500"
-              stroke="rgba(255,255,255,0.4)"
-              strokeWidth="1"
-              fill="none"
-              strokeDasharray="8 12"
-            />
-            {/* Curved path 2 */}
-            <path
-              className="line-path line-2"
-              d="M 400 200 Q 300 250 320 400 T 200 580"
-              stroke="rgba(255,255,255,0.3)"
-              strokeWidth="1"
-              fill="none"
-              strokeDasharray="6 10"
-            />
-            {/* Straight diagonal */}
-            <path
-              className="line-path line-3"
-              d="M 100 0 L 300 600"
-              stroke="rgba(255,255,255,0.2)"
-              strokeWidth="0.5"
-              fill="none"
-              strokeDasharray="4 8"
-            />
-          </svg>
-
-          {/* Glowing orbs */}
+          {/* === LARGE GLOWING ORBS === */}
           <div
             className="glow-orb glow-1"
             style={{
               position: "absolute",
-              top: "30%",
-              right: "15%",
-              width: 120,
-              height: 120,
-              background: "radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%)",
+              top: "10%",
+              right: "5%",
+              width: 280,
+              height: 280,
+              background: "radial-gradient(circle, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 40%, transparent 70%)",
               borderRadius: "50%",
             }}
           />
@@ -391,12 +217,385 @@ export default function Landing() {
             className="glow-orb glow-2"
             style={{
               position: "absolute",
-              top: "60%",
-              right: "40%",
-              width: 80,
-              height: 80,
-              background: "radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 70%)",
+              top: "50%",
+              right: "25%",
+              width: 200,
+              height: 200,
+              background: "radial-gradient(circle, rgba(212,232,220,0.15) 0%, rgba(212,232,220,0.05) 40%, transparent 70%)",
               borderRadius: "50%",
+            }}
+          />
+          <div
+            className="glow-orb glow-3"
+            style={{
+              position: "absolute",
+              bottom: "10%",
+              left: "10%",
+              width: 180,
+              height: 180,
+              background: "radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 60%)",
+              borderRadius: "50%",
+            }}
+          />
+          <div
+            className="glow-orb glow-4"
+            style={{
+              position: "absolute",
+              top: "30%",
+              left: "5%",
+              width: 150,
+              height: 150,
+              background: "radial-gradient(circle, rgba(212,232,220,0.12) 0%, transparent 60%)",
+              borderRadius: "50%",
+            }}
+          />
+
+          {/* === FLOATING PARTICLES - LARGER & MORE VISIBLE === */}
+          {/* Large particles */}
+          <div
+            className="particle particle-1"
+            style={{
+              position: "absolute",
+              top: "12%",
+              right: "18%",
+              width: 14,
+              height: 14,
+              background: "rgba(255,255,255,0.25)",
+              borderRadius: "50%",
+              boxShadow: "0 0 20px rgba(255,255,255,0.3)",
+            }}
+          />
+          <div
+            className="particle particle-2"
+            style={{
+              position: "absolute",
+              top: "35%",
+              right: "8%",
+              width: 12,
+              height: 12,
+              background: "rgba(212,232,220,0.35)",
+              borderRadius: "50%",
+              boxShadow: "0 0 15px rgba(212,232,220,0.4)",
+            }}
+          />
+          <div
+            className="particle particle-3"
+            style={{
+              position: "absolute",
+              top: "65%",
+              right: "30%",
+              width: 16,
+              height: 16,
+              background: "rgba(255,255,255,0.2)",
+              borderRadius: "50%",
+              boxShadow: "0 0 25px rgba(255,255,255,0.25)",
+            }}
+          />
+          {/* Medium particles */}
+          <div
+            className="particle particle-4"
+            style={{
+              position: "absolute",
+              top: "22%",
+              right: "42%",
+              width: 10,
+              height: 10,
+              background: "rgba(255,255,255,0.3)",
+              borderRadius: "50%",
+              boxShadow: "0 0 12px rgba(255,255,255,0.35)",
+            }}
+          />
+          <div
+            className="particle particle-5"
+            style={{
+              position: "absolute",
+              top: "78%",
+              right: "12%",
+              width: 11,
+              height: 11,
+              background: "rgba(212,232,220,0.3)",
+              borderRadius: "50%",
+              boxShadow: "0 0 15px rgba(212,232,220,0.35)",
+            }}
+          />
+          <div
+            className="particle particle-6"
+            style={{
+              position: "absolute",
+              top: "48%",
+              right: "55%",
+              width: 8,
+              height: 8,
+              background: "rgba(255,255,255,0.35)",
+              borderRadius: "50%",
+              boxShadow: "0 0 10px rgba(255,255,255,0.4)",
+            }}
+          />
+          {/* Diamond shaped particles */}
+          <div
+            className="particle particle-7"
+            style={{
+              position: "absolute",
+              top: "55%",
+              right: "22%",
+              width: 12,
+              height: 12,
+              background: "rgba(255,255,255,0.2)",
+              transform: "rotate(45deg)",
+              boxShadow: "0 0 15px rgba(255,255,255,0.25)",
+            }}
+          />
+          <div
+            className="particle particle-11"
+            style={{
+              position: "absolute",
+              top: "28%",
+              right: "68%",
+              width: 10,
+              height: 10,
+              background: "rgba(212,232,220,0.25)",
+              transform: "rotate(45deg)",
+              boxShadow: "0 0 12px rgba(212,232,220,0.3)",
+            }}
+          />
+          {/* Small accent particles */}
+          <div
+            className="particle particle-8"
+            style={{
+              position: "absolute",
+              top: "18%",
+              right: "62%",
+              width: 9,
+              height: 9,
+              background: "rgba(255,255,255,0.28)",
+              borderRadius: "50%",
+              boxShadow: "0 0 12px rgba(255,255,255,0.3)",
+            }}
+          />
+          <div
+            className="particle particle-9"
+            style={{
+              position: "absolute",
+              top: "58%",
+              right: "48%",
+              width: 7,
+              height: 7,
+              background: "rgba(255,255,255,0.35)",
+              borderRadius: "50%",
+              boxShadow: "0 0 10px rgba(255,255,255,0.4)",
+            }}
+          />
+          <div
+            className="particle particle-10"
+            style={{
+              position: "absolute",
+              top: "82%",
+              right: "58%",
+              width: 8,
+              height: 8,
+              background: "rgba(212,232,220,0.28)",
+              borderRadius: "50%",
+              boxShadow: "0 0 12px rgba(212,232,220,0.35)",
+            }}
+          />
+          {/* Extra particles for more density */}
+          <div
+            className="particle particle-12"
+            style={{
+              position: "absolute",
+              top: "40%",
+              left: "8%",
+              width: 10,
+              height: 10,
+              background: "rgba(255,255,255,0.22)",
+              borderRadius: "50%",
+              boxShadow: "0 0 15px rgba(255,255,255,0.28)",
+            }}
+          />
+          <div
+            className="particle particle-13"
+            style={{
+              position: "absolute",
+              top: "72%",
+              left: "15%",
+              width: 12,
+              height: 12,
+              background: "rgba(212,232,220,0.25)",
+              borderRadius: "50%",
+              boxShadow: "0 0 18px rgba(212,232,220,0.3)",
+            }}
+          />
+          <div
+            className="particle particle-14"
+            style={{
+              position: "absolute",
+              top: "15%",
+              left: "25%",
+              width: 8,
+              height: 8,
+              background: "rgba(255,255,255,0.3)",
+              borderRadius: "50%",
+              boxShadow: "0 0 12px rgba(255,255,255,0.35)",
+            }}
+          />
+          <div
+            className="particle particle-15"
+            style={{
+              position: "absolute",
+              top: "88%",
+              right: "35%",
+              width: 9,
+              height: 9,
+              background: "rgba(255,255,255,0.25)",
+              borderRadius: "50%",
+              boxShadow: "0 0 14px rgba(255,255,255,0.3)",
+            }}
+          />
+          
+          {/* === ANIMATED SVG LINES - MORE VISIBLE === */}
+          <svg
+            className="animated-lines"
+            style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              width: "70%",
+              height: "100%",
+              opacity: 0.35,
+            }}
+            viewBox="0 0 500 700"
+            fill="none"
+            preserveAspectRatio="xMidYMid slice"
+          >
+            {/* Main curved path */}
+            <path
+              className="line-path line-1"
+              d="M 450 30 Q 300 120 350 280 T 200 480 Q 150 580 100 680"
+              stroke="rgba(255,255,255,0.5)"
+              strokeWidth="1.5"
+              fill="none"
+              strokeDasharray="12 16"
+            />
+            {/* Secondary curved path */}
+            <path
+              className="line-path line-2"
+              d="M 500 180 Q 380 250 400 380 T 280 560 Q 220 640 180 700"
+              stroke="rgba(212,232,220,0.45)"
+              strokeWidth="1.5"
+              fill="none"
+              strokeDasharray="10 14"
+            />
+            {/* Accent diagonal line */}
+            <path
+              className="line-path line-3"
+              d="M 180 0 Q 280 200 220 400 T 350 700"
+              stroke="rgba(255,255,255,0.35)"
+              strokeWidth="1"
+              fill="none"
+              strokeDasharray="8 12"
+            />
+            {/* Grid-like subtle lines */}
+            <path
+              className="line-path line-4"
+              d="M 0 150 Q 150 180 300 150 T 500 200"
+              stroke="rgba(255,255,255,0.2)"
+              strokeWidth="0.8"
+              fill="none"
+              strokeDasharray="6 10"
+            />
+            <path
+              className="line-path line-5"
+              d="M 0 450 Q 200 420 350 480 T 500 420"
+              stroke="rgba(212,232,220,0.25)"
+              strokeWidth="0.8"
+              fill="none"
+              strokeDasharray="6 10"
+            />
+          </svg>
+
+          {/* === LEFT SIDE SVG LINES === */}
+          <svg
+            className="animated-lines-left"
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "50%",
+              height: "100%",
+              opacity: 0.25,
+            }}
+            viewBox="0 0 400 700"
+            fill="none"
+            preserveAspectRatio="xMidYMid slice"
+          >
+            <path
+              className="line-path line-6"
+              d="M 50 0 Q 100 150 60 300 T 120 550 Q 80 650 100 700"
+              stroke="rgba(255,255,255,0.4)"
+              strokeWidth="1"
+              fill="none"
+              strokeDasharray="8 12"
+            />
+            <path
+              className="line-path line-7"
+              d="M 0 100 Q 80 200 40 350 T 100 600"
+              stroke="rgba(212,232,220,0.35)"
+              strokeWidth="1"
+              fill="none"
+              strokeDasharray="6 10"
+            />
+          </svg>
+
+          {/* === FLOATING RING ELEMENTS === */}
+          <div
+            className="ring ring-1"
+            style={{
+              position: "absolute",
+              top: "20%",
+              right: "15%",
+              width: 60,
+              height: 60,
+              border: "2px solid rgba(255,255,255,0.15)",
+              borderRadius: "50%",
+            }}
+          />
+          <div
+            className="ring ring-2"
+            style={{
+              position: "absolute",
+              top: "60%",
+              right: "8%",
+              width: 40,
+              height: 40,
+              border: "2px solid rgba(212,232,220,0.2)",
+              borderRadius: "50%",
+            }}
+          />
+          <div
+            className="ring ring-3"
+            style={{
+              position: "absolute",
+              top: "75%",
+              left: "20%",
+              width: 50,
+              height: 50,
+              border: "2px solid rgba(255,255,255,0.12)",
+              borderRadius: "50%",
+            }}
+          />
+
+          {/* === SUBTLE GRID PATTERN OVERLAY === */}
+          <div
+            className="grid-pattern"
+            style={{
+              position: "absolute",
+              inset: 0,
+              backgroundImage: `
+                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)
+              `,
+              backgroundSize: "80px 80px",
+              opacity: 0.5,
             }}
           />
         </div>
@@ -1711,80 +1910,154 @@ export default function Landing() {
           transform: translateY(0) translateX(0);
         }
         
-        /* ============ FLOATING PARTICLES ============ */
+        /* ============ ENHANCED FLOATING PARTICLES ============ */
         @keyframes float-slow {
           0%, 100% { transform: translateY(0) translateX(0); }
-          25% { transform: translateY(-20px) translateX(10px); }
-          50% { transform: translateY(-10px) translateX(-5px); }
-          75% { transform: translateY(-25px) translateX(5px); }
+          25% { transform: translateY(-25px) translateX(12px); }
+          50% { transform: translateY(-12px) translateX(-8px); }
+          75% { transform: translateY(-30px) translateX(6px); }
         }
         
         @keyframes float-medium {
           0%, 100% { transform: translateY(0) translateX(0); }
-          33% { transform: translateY(-15px) translateX(-8px); }
-          66% { transform: translateY(-8px) translateX(12px); }
+          33% { transform: translateY(-20px) translateX(-12px); }
+          66% { transform: translateY(-10px) translateX(15px); }
         }
         
         @keyframes float-fast {
-          0%, 100% { transform: translateY(0) translateX(0); opacity: 0.15; }
-          50% { transform: translateY(-30px) translateX(-15px); opacity: 0.25; }
+          0%, 100% { transform: translateY(0) translateX(0); }
+          50% { transform: translateY(-35px) translateX(-18px); }
         }
         
         @keyframes float-diagonal {
           0%, 100% { transform: translate(0, 0) rotate(45deg); }
-          50% { transform: translate(-20px, -20px) rotate(45deg); }
+          50% { transform: translate(-25px, -25px) rotate(45deg); }
         }
         
+        @keyframes float-gentle {
+          0%, 100% { transform: translateY(0) translateX(0); }
+          50% { transform: translateY(-18px) translateX(8px); }
+        }
+        
+        @keyframes float-wave {
+          0%, 100% { transform: translateY(0) translateX(0); }
+          25% { transform: translateY(-15px) translateX(20px); }
+          50% { transform: translateY(-25px) translateX(0); }
+          75% { transform: translateY(-15px) translateX(-20px); }
+        }
+        
+        /* ============ ENHANCED GLOW ANIMATIONS ============ */
         @keyframes pulse-glow {
-          0%, 100% { transform: scale(1); opacity: 0.08; }
-          50% { transform: scale(1.1); opacity: 0.12; }
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.15); opacity: 0.8; }
         }
         
+        @keyframes pulse-glow-slow {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.08); opacity: 0.85; }
+        }
+        
+        @keyframes breathe {
+          0%, 100% { transform: scale(1); opacity: 0.8; }
+          50% { transform: scale(1.12); opacity: 1; }
+        }
+        
+        /* ============ CIRCLE/RING ANIMATIONS ============ */
         @keyframes circle-breathe {
           0%, 100% { transform: scale(1); opacity: 0.1; }
-          50% { transform: scale(1.05); opacity: 0.15; }
+          50% { transform: scale(1.08); opacity: 0.18; }
         }
         
+        @keyframes ring-pulse {
+          0%, 100% { transform: scale(1); opacity: 0.15; }
+          50% { transform: scale(1.2); opacity: 0.08; }
+        }
+        
+        @keyframes ring-float {
+          0%, 100% { transform: translateY(0) scale(1); }
+          50% { transform: translateY(-15px) scale(1.05); }
+        }
+        
+        /* ============ LINE ANIMATIONS ============ */
         @keyframes dash-flow {
+          0% { stroke-dashoffset: 0; }
+          100% { stroke-dashoffset: 56; }
+        }
+        
+        @keyframes dash-flow-slow {
           0% { stroke-dashoffset: 0; }
           100% { stroke-dashoffset: 40; }
         }
         
-        /* Particles */
-        .particle-1 { animation: float-slow 8s ease-in-out infinite; }
-        .particle-2 { animation: float-medium 6s ease-in-out infinite 0.5s; }
-        .particle-3 { animation: float-slow 10s ease-in-out infinite 1s; }
-        .particle-4 { animation: float-fast 5s ease-in-out infinite 0.3s; }
-        .particle-5 { animation: float-medium 7s ease-in-out infinite 0.8s; }
-        .particle-6 { animation: float-fast 4s ease-in-out infinite 0.2s; }
-        .particle-7 { animation: float-diagonal 9s ease-in-out infinite; }
-        .particle-8 { animation: float-slow 11s ease-in-out infinite 1.5s; }
-        .particle-9 { animation: float-fast 3.5s ease-in-out infinite 0.4s; }
-        .particle-10 { animation: float-medium 8s ease-in-out infinite 2s; }
+        /* ============ GRID ANIMATION ============ */
+        @keyframes grid-shift {
+          0%, 100% { background-position: 0 0; }
+          50% { background-position: 40px 40px; }
+        }
         
-        /* Glowing orbs */
-        .glow-1 { animation: pulse-glow 6s ease-in-out infinite; }
-        .glow-2 { animation: pulse-glow 8s ease-in-out infinite 1s; }
+        .grid-pattern {
+          animation: grid-shift 30s ease-in-out infinite;
+        }
         
-        /* Decorative circles */
-        .deco-circle-1 { animation: circle-breathe 12s ease-in-out infinite; }
-        .deco-circle-2 { animation: circle-breathe 10s ease-in-out infinite 2s; }
-        .deco-circle-3 { animation: circle-breathe 14s ease-in-out infinite 1s; }
-        .deco-circle-4 { animation: circle-breathe 8s ease-in-out infinite 3s; }
+        /* ============ PARTICLE ASSIGNMENTS ============ */
+        .particle-1 { animation: float-slow 9s ease-in-out infinite; }
+        .particle-2 { animation: float-medium 7s ease-in-out infinite 0.5s; }
+        .particle-3 { animation: float-slow 11s ease-in-out infinite 1s; }
+        .particle-4 { animation: float-fast 6s ease-in-out infinite 0.3s; }
+        .particle-5 { animation: float-medium 8s ease-in-out infinite 0.8s; }
+        .particle-6 { animation: float-fast 5s ease-in-out infinite 0.2s; }
+        .particle-7 { animation: float-diagonal 10s ease-in-out infinite; }
+        .particle-8 { animation: float-gentle 12s ease-in-out infinite 1.5s; }
+        .particle-9 { animation: float-fast 4.5s ease-in-out infinite 0.4s; }
+        .particle-10 { animation: float-medium 9s ease-in-out infinite 2s; }
+        .particle-11 { animation: float-diagonal 8s ease-in-out infinite 1s; }
+        .particle-12 { animation: float-wave 10s ease-in-out infinite 0.6s; }
+        .particle-13 { animation: float-gentle 11s ease-in-out infinite 1.2s; }
+        .particle-14 { animation: float-fast 5.5s ease-in-out infinite 0.7s; }
+        .particle-15 { animation: float-medium 7.5s ease-in-out infinite 1.8s; }
         
-        /* Animated lines */
-        .line-1 { animation: dash-flow 15s linear infinite; }
-        .line-2 { animation: dash-flow 20s linear infinite reverse; }
-        .line-3 { animation: dash-flow 25s linear infinite; }
+        /* ============ GLOW ORB ASSIGNMENTS ============ */
+        .glow-1 { animation: pulse-glow 7s ease-in-out infinite; }
+        .glow-2 { animation: pulse-glow-slow 9s ease-in-out infinite 1s; }
+        .glow-3 { animation: breathe 8s ease-in-out infinite 2s; }
+        .glow-4 { animation: pulse-glow 10s ease-in-out infinite 1.5s; }
         
-        /* Mobile optimization - reduce particles */
+        /* ============ RING ASSIGNMENTS ============ */
+        .ring-1 { animation: ring-float 8s ease-in-out infinite; }
+        .ring-2 { animation: ring-pulse 6s ease-in-out infinite 1s; }
+        .ring-3 { animation: ring-float 10s ease-in-out infinite 2s; }
+        
+        /* ============ DECORATIVE CIRCLES ============ */
+        .deco-circle-1 { animation: circle-breathe 14s ease-in-out infinite; }
+        .deco-circle-2 { animation: circle-breathe 12s ease-in-out infinite 2s; }
+        .deco-circle-3 { animation: circle-breathe 16s ease-in-out infinite 1s; }
+        .deco-circle-4 { animation: circle-breathe 10s ease-in-out infinite 3s; }
+        
+        /* ============ LINE PATH ASSIGNMENTS ============ */
+        .line-1 { animation: dash-flow 12s linear infinite; }
+        .line-2 { animation: dash-flow 16s linear infinite reverse; }
+        .line-3 { animation: dash-flow-slow 20s linear infinite; }
+        .line-4 { animation: dash-flow-slow 25s linear infinite 2s; }
+        .line-5 { animation: dash-flow 18s linear infinite reverse 1s; }
+        .line-6 { animation: dash-flow 14s linear infinite; }
+        .line-7 { animation: dash-flow-slow 22s linear infinite reverse; }
+        
+        /* ============ MOBILE OPTIMIZATION ============ */
         @media (max-width: 768px) {
-          .particle-4, .particle-6, .particle-8, .particle-9, .particle-10,
-          .glow-2, .deco-circle-2, .deco-circle-4 {
+          .particle-6, .particle-8, .particle-9, .particle-10,
+          .particle-11, .particle-12, .particle-14, .particle-15,
+          .glow-3, .glow-4, .ring-2, .ring-3,
+          .deco-circle-2, .deco-circle-4 {
             display: none;
           }
           .animated-lines {
-            opacity: 0.08;
+            opacity: 0.2;
+          }
+          .animated-lines-left {
+            opacity: 0.15;
+          }
+          .grid-pattern {
+            opacity: 0.3;
           }
         }
       `}</style>
