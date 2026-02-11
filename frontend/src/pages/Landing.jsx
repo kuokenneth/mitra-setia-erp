@@ -197,8 +197,213 @@ export default function Landing() {
           }}
         />
 
-        {/* Decorative Elements */}
+        {/* Animated Floating Particles */}
+        <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
+          {/* Particle 1 - Large slow floating */}
+          <div
+            className="particle particle-1"
+            style={{
+              position: "absolute",
+              top: "15%",
+              right: "20%",
+              width: 8,
+              height: 8,
+              background: "rgba(255,255,255,0.15)",
+              borderRadius: "50%",
+            }}
+          />
+          {/* Particle 2 */}
+          <div
+            className="particle particle-2"
+            style={{
+              position: "absolute",
+              top: "45%",
+              right: "10%",
+              width: 6,
+              height: 6,
+              background: "rgba(255,255,255,0.12)",
+              borderRadius: "50%",
+            }}
+          />
+          {/* Particle 3 */}
+          <div
+            className="particle particle-3"
+            style={{
+              position: "absolute",
+              top: "70%",
+              right: "35%",
+              width: 10,
+              height: 10,
+              background: "rgba(255,255,255,0.1)",
+              borderRadius: "50%",
+            }}
+          />
+          {/* Particle 4 */}
+          <div
+            className="particle particle-4"
+            style={{
+              position: "absolute",
+              top: "25%",
+              right: "45%",
+              width: 5,
+              height: 5,
+              background: "rgba(255,255,255,0.18)",
+              borderRadius: "50%",
+            }}
+          />
+          {/* Particle 5 */}
+          <div
+            className="particle particle-5"
+            style={{
+              position: "absolute",
+              top: "80%",
+              right: "15%",
+              width: 7,
+              height: 7,
+              background: "rgba(255,255,255,0.14)",
+              borderRadius: "50%",
+            }}
+          />
+          {/* Particle 6 */}
+          <div
+            className="particle particle-6"
+            style={{
+              position: "absolute",
+              top: "35%",
+              right: "55%",
+              width: 4,
+              height: 4,
+              background: "rgba(255,255,255,0.2)",
+              borderRadius: "50%",
+            }}
+          />
+          {/* Particle 7 - Diamond shape */}
+          <div
+            className="particle particle-7"
+            style={{
+              position: "absolute",
+              top: "55%",
+              right: "25%",
+              width: 8,
+              height: 8,
+              background: "rgba(255,255,255,0.12)",
+              transform: "rotate(45deg)",
+            }}
+          />
+          {/* Particle 8 */}
+          <div
+            className="particle particle-8"
+            style={{
+              position: "absolute",
+              top: "20%",
+              right: "65%",
+              width: 6,
+              height: 6,
+              background: "rgba(255,255,255,0.16)",
+              borderRadius: "50%",
+            }}
+          />
+          {/* Particle 9 - Small subtle */}
+          <div
+            className="particle particle-9"
+            style={{
+              position: "absolute",
+              top: "60%",
+              right: "50%",
+              width: 3,
+              height: 3,
+              background: "rgba(255,255,255,0.25)",
+              borderRadius: "50%",
+            }}
+          />
+          {/* Particle 10 */}
+          <div
+            className="particle particle-10"
+            style={{
+              position: "absolute",
+              top: "85%",
+              right: "60%",
+              width: 5,
+              height: 5,
+              background: "rgba(255,255,255,0.12)",
+              borderRadius: "50%",
+            }}
+          />
+          
+          {/* Animated connecting lines/paths */}
+          <svg
+            className="animated-lines"
+            style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              width: "60%",
+              height: "100%",
+              opacity: 0.15,
+            }}
+            viewBox="0 0 400 600"
+            fill="none"
+            preserveAspectRatio="xMidYMid slice"
+          >
+            {/* Curved path 1 */}
+            <path
+              className="line-path line-1"
+              d="M 350 50 Q 200 150 250 300 T 150 500"
+              stroke="rgba(255,255,255,0.4)"
+              strokeWidth="1"
+              fill="none"
+              strokeDasharray="8 12"
+            />
+            {/* Curved path 2 */}
+            <path
+              className="line-path line-2"
+              d="M 400 200 Q 300 250 320 400 T 200 580"
+              stroke="rgba(255,255,255,0.3)"
+              strokeWidth="1"
+              fill="none"
+              strokeDasharray="6 10"
+            />
+            {/* Straight diagonal */}
+            <path
+              className="line-path line-3"
+              d="M 100 0 L 300 600"
+              stroke="rgba(255,255,255,0.2)"
+              strokeWidth="0.5"
+              fill="none"
+              strokeDasharray="4 8"
+            />
+          </svg>
+
+          {/* Glowing orbs */}
+          <div
+            className="glow-orb glow-1"
+            style={{
+              position: "absolute",
+              top: "30%",
+              right: "15%",
+              width: 120,
+              height: 120,
+              background: "radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%)",
+              borderRadius: "50%",
+            }}
+          />
+          <div
+            className="glow-orb glow-2"
+            style={{
+              position: "absolute",
+              top: "60%",
+              right: "40%",
+              width: 80,
+              height: 80,
+              background: "radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 70%)",
+              borderRadius: "50%",
+            }}
+          />
+        </div>
+
+        {/* Decorative Circles - Now Animated */}
         <div
+          className="deco-circle deco-circle-1"
           style={{
             position: "absolute",
             top: "10%",
@@ -211,6 +416,20 @@ export default function Landing() {
           }}
         />
         <div
+          className="deco-circle deco-circle-2"
+          style={{
+            position: "absolute",
+            top: "5%",
+            right: "8%",
+            width: 300,
+            height: 300,
+            border: `1px solid rgba(255,255,255,0.06)`,
+            borderRadius: "50%",
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          className="deco-circle deco-circle-3"
           style={{
             position: "absolute",
             bottom: "15%",
@@ -218,6 +437,19 @@ export default function Landing() {
             width: 300,
             height: 300,
             border: `1px solid rgba(255,255,255,0.08)`,
+            borderRadius: "50%",
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          className="deco-circle deco-circle-4"
+          style={{
+            position: "absolute",
+            bottom: "25%",
+            left: "2%",
+            width: 150,
+            height: 150,
+            border: `1px solid rgba(255,255,255,0.05)`,
             borderRadius: "50%",
             pointerEvents: "none",
           }}
@@ -239,7 +471,7 @@ export default function Landing() {
               style={{
                 display: "inline-block",
                 padding: "8px 16px",
-                background: "rgba(255,255,255,0.15)",
+                background: "rgba(255,255,255,0.18)",
                 borderRadius: 4,
                 fontSize: 12,
                 fontWeight: 600,
@@ -265,8 +497,19 @@ export default function Landing() {
                 marginBottom: 24,
               }}
             >
-              Meningkatkan efisiensi operasional melalui pengiriman yang{" "}
-              <span style={{ color: BRAND.accent }}>andal & konsisten.</span>
+              Meningkatkan{" "}
+              <span style={{ color: BRAND.accent }}>efisiensi operasional</span>{" "}
+              melalui pengiriman yang{" "}
+              <span
+                style={{
+                  background: "linear-gradient(90deg, #ffffff, #d4e8dc)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                }}
+              >
+                andal & konsisten.
+              </span>
             </h1>
 
             {/* Description */}
@@ -281,8 +524,12 @@ export default function Landing() {
                 maxWidth: 600,
               }}
             >
-              CV. Mitra Setia adalah mitra logistik terpercaya untuk pengangkutan rutin dan 
-              kontrak perusahaan dengan standar layanan yang tinggi.
+              <span style={{ color: "#d4e8dc", fontWeight: 600 }}>CV. Mitra Setia</span>{" "}
+              membantu pengangkutan rutin dan kontrak perusahaan dengan{" "}
+              <span style={{ color: "#ffffff", fontWeight: 600 }}>
+                standar layanan yang tinggi
+              </span>{" "}
+              dan eksekusi yang rapi.
             </p>
 
             {/* CTA Buttons */}
@@ -1462,6 +1709,83 @@ export default function Landing() {
         .reveal.is-visible {
           opacity: 1;
           transform: translateY(0) translateX(0);
+        }
+        
+        /* ============ FLOATING PARTICLES ============ */
+        @keyframes float-slow {
+          0%, 100% { transform: translateY(0) translateX(0); }
+          25% { transform: translateY(-20px) translateX(10px); }
+          50% { transform: translateY(-10px) translateX(-5px); }
+          75% { transform: translateY(-25px) translateX(5px); }
+        }
+        
+        @keyframes float-medium {
+          0%, 100% { transform: translateY(0) translateX(0); }
+          33% { transform: translateY(-15px) translateX(-8px); }
+          66% { transform: translateY(-8px) translateX(12px); }
+        }
+        
+        @keyframes float-fast {
+          0%, 100% { transform: translateY(0) translateX(0); opacity: 0.15; }
+          50% { transform: translateY(-30px) translateX(-15px); opacity: 0.25; }
+        }
+        
+        @keyframes float-diagonal {
+          0%, 100% { transform: translate(0, 0) rotate(45deg); }
+          50% { transform: translate(-20px, -20px) rotate(45deg); }
+        }
+        
+        @keyframes pulse-glow {
+          0%, 100% { transform: scale(1); opacity: 0.08; }
+          50% { transform: scale(1.1); opacity: 0.12; }
+        }
+        
+        @keyframes circle-breathe {
+          0%, 100% { transform: scale(1); opacity: 0.1; }
+          50% { transform: scale(1.05); opacity: 0.15; }
+        }
+        
+        @keyframes dash-flow {
+          0% { stroke-dashoffset: 0; }
+          100% { stroke-dashoffset: 40; }
+        }
+        
+        /* Particles */
+        .particle-1 { animation: float-slow 8s ease-in-out infinite; }
+        .particle-2 { animation: float-medium 6s ease-in-out infinite 0.5s; }
+        .particle-3 { animation: float-slow 10s ease-in-out infinite 1s; }
+        .particle-4 { animation: float-fast 5s ease-in-out infinite 0.3s; }
+        .particle-5 { animation: float-medium 7s ease-in-out infinite 0.8s; }
+        .particle-6 { animation: float-fast 4s ease-in-out infinite 0.2s; }
+        .particle-7 { animation: float-diagonal 9s ease-in-out infinite; }
+        .particle-8 { animation: float-slow 11s ease-in-out infinite 1.5s; }
+        .particle-9 { animation: float-fast 3.5s ease-in-out infinite 0.4s; }
+        .particle-10 { animation: float-medium 8s ease-in-out infinite 2s; }
+        
+        /* Glowing orbs */
+        .glow-1 { animation: pulse-glow 6s ease-in-out infinite; }
+        .glow-2 { animation: pulse-glow 8s ease-in-out infinite 1s; }
+        
+        /* Decorative circles */
+        .deco-circle-1 { animation: circle-breathe 12s ease-in-out infinite; }
+        .deco-circle-2 { animation: circle-breathe 10s ease-in-out infinite 2s; }
+        .deco-circle-3 { animation: circle-breathe 14s ease-in-out infinite 1s; }
+        .deco-circle-4 { animation: circle-breathe 8s ease-in-out infinite 3s; }
+        
+        /* Animated lines */
+        .line-1 { animation: dash-flow 15s linear infinite; }
+        .line-2 { animation: dash-flow 20s linear infinite reverse; }
+        .line-3 { animation: dash-flow 25s linear infinite; }
+        
+        /* Mobile optimization - reduce particles */
+        @media (max-width: 768px) {
+          .particle-4, .particle-6, .particle-8, .particle-9, .particle-10,
+          .glow-2, .deco-circle-2, .deco-circle-4 {
+            display: none;
+          }
+          .animated-lines {
+            opacity: 0.08;
+          }
         }
       `}</style>
     </div>
