@@ -72,6 +72,18 @@ enum TripStatus {
   CANCELLED
 }
 
+enum ExpensePaymentMethod {
+  BANK_TRANSFER
+  CASH
+  OTHER
+}
+
+enum ExpenseStatus {
+  SUBMITTED
+  PAID
+  APPROVED
+}
+
 ////////////////////////////////////////////////////
 // MODELS
 ////////////////////////////////////////////////////
@@ -92,6 +104,8 @@ model User {
   trips          Trip[]
 
   sparePartAssignmentsCreated TruckSparePartAssignment[] @relation("SparePartAssignmentCreatedBy")
+  expensesCreated             Expense[]                 @relation("ExpenseCreatedBy")
+  expensesApproved            Expense[]                 @relation("ExpenseApprovedBy")
 }
 
 model Driver {
@@ -417,4 +431,46 @@ model StockMovement {
   @@index([createdById])
   @@index([fromLocationId])
   @@index([toLocationId])
+}
+
+model Expense {
+  id String @id @default(cuid())
+
+  status ExpenseStatus @default(SUBMITTED)
+  paymentMethod ExpensePaymentMethod @default(BANK_TRANSFER)
+  bankName      String?
+  accountName   String?
+  accountNumber String?
+
+  amount   Int
+  currency String @default("IDR")
+
+  reason     String
+  clientName String?
+  notes      String?
+
+  proofUrl      String?
+  proofFileName String?
+  proofMimeType String?
+  proofSize     Int?
+  paidAt        DateTime?
+
+  createdById String?
+  createdBy   User? @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+
+  approvedById String?
+  approvedBy   User? @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
+  approvedAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([status])
+  @@index([paymentMethod])
+  @@index([bankName])
+  @@index([accountName])
+  @@index([accountNumber])
+  @@index([clientName])
+  @@index([createdById])
+  @@index([approvedById])
+  @@index([createdAt])
 }

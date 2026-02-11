@@ -15,6 +15,7 @@ const truckRoutes = require("./routes/trucks");
 const inventoryRoutes = require("./routes/inventory");
 const maintenanceRoutes = require("./routes/maintenance");
 const ordersRoutes = require("./routes/orders");
+const expensesRoutes = require("./routes/expenses");
 const uploadsRoutes = require("./routes/uploads"); // <-- keep for POST upload API
 const tripsRouter = require("./routes/trips");
 const dispatchRouter = require("./routes/dispatch");
@@ -80,6 +81,7 @@ app.use("/trucks", truckRoutes);
 app.use("/inventory", inventoryRoutes);
 app.use("/maintenance", maintenanceRoutes);
 app.use("/orders", ordersRoutes);
+app.use("/expenses", expensesRoutes);
 
 /**
  * ✅ Upload API should NOT be /uploads (conflicts with static).

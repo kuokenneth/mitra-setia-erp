@@ -18,6 +18,7 @@ import Trucks from "./pages/Trucks";
 import Inventory from "./pages/Inventory";
 import Maintenance from "./pages/Maintenance";
 import Orders from "./pages/Orders";
+import Expenses from "./pages/Expenses";
 import DriverHome from "./pages/DriverHome";
 import DriverJobs from "./pages/DriverJobs";
 import EditProfile from "./pages/EditProfile";
@@ -53,6 +54,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             <Route path="/trucks" element={<Trucks />} />
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/maintenance" element={<Maintenance />} />
+            <Route path="/expenses" element={<Expenses />} />
             <Route path="/orders" element={<Orders />} />
             <Route path="/orders/new" element={<OrderCreate />} />
             <Route path="/orders/:id" element={<OrderDetail />} />

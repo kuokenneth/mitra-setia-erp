@@ -1,34 +1,37 @@
-// src/layouts/PublicLayout.jsx - Modern Design
+// src/layouts/PublicLayout.jsx - Corporate Green Design
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 
 export default function PublicLayout() {
   const { pathname } = useLocation();
   const hideChrome = pathname === "/login" || pathname === "/register";
+  const isLanding = pathname === "/";
 
+  // Corporate Green Color Palette
   const BRAND = useMemo(
     () => ({
-      ink: "#111827",
-      ink2: "#1F2937",
-      green: "#1f9d53",
-      green2: "#2ccf6a",
-      greenLight: "#a7f3d0",
-      greenDark: "#065f46",
-      greenSoft: "rgba(34,197,94,0.1)",
-      glass: "rgba(255,255,255,0.85)",
-      glassBorder: "rgba(255,255,255,0.4)",
+      primary: "#0D7C3D",
+      primaryDark: "#0A6331",
+      primaryLight: "#10A050",
+      secondary: "#F5F9F7",
+      accent: "#D4E8DC",
+      text: "#1A1A1A",
+      textLight: "#4A4A4A",
+      textMuted: "#6B7280",
+      white: "#FFFFFF",
+      border: "#E5E7EB",
     }),
     []
   );
 
   const [isMobile, setIsMobile] = useState(
-    typeof window !== "undefined" ? window.innerWidth <= 640 : false
+    typeof window !== "undefined" ? window.innerWidth <= 768 : false
   );
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth <= 640);
+    const onResize = () => setIsMobile(window.innerWidth <= 768);
     const onScroll = () => setScrolled(window.scrollY > 50);
 
     window.addEventListener("resize", onResize);
@@ -43,33 +46,36 @@ export default function PublicLayout() {
 
   const page = {
     minHeight: "100dvh",
-    background: "#ffffff",
-    color: BRAND.ink,
-    fontFamily:
-      '"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
+    background: BRAND.white,
+    color: BRAND.text,
+    fontFamily: '"Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     position: "relative",
   };
 
-  // Modern glassmorphic navbar
+  // Navbar styles - transparent on landing hero, white when scrolled or on other pages
+  const showTransparent = false;
+  
   const topbar = {
-    position: "relative",
-    zIndex: 100,
-    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-    background: scrolled ? BRAND.glass : "transparent",
-    backdropFilter: scrolled ? "blur(20px)" : "none",
-    WebkitBackdropFilter: scrolled ? "blur(20px)" : "none",
-    borderBottom: scrolled ? `1px solid ${BRAND.glassBorder}` : "none",
-    boxShadow: scrolled ? "0 4px 20px rgba(31, 157, 83, 0.08)" : "none",
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    transition: "all 0.3s ease",
+    background: BRAND.white,
+    boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
   };
 
   const wrap = {
-    maxWidth: 1240,
+    maxWidth: 1280,
     margin: "0 auto",
-    padding: isMobile ? "12px 20px" : "16px 32px",
+    padding: isMobile ? "12px 20px" : "16px 48px",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 16,
+    height: scrolled ? 70 : 80,
+    transition: "height 0.3s ease",
   };
 
   const brand = {
@@ -77,74 +83,79 @@ export default function PublicLayout() {
     alignItems: "center",
     gap: 12,
     textDecoration: "none",
-    color: BRAND.ink,
     transition: "transform 0.3s ease",
   };
 
-  const logoIcon = {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    display: "block",
+  const logoImg = {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
     objectFit: "contain",
+    display: "block",
     background: "transparent",
-    transition: "transform 0.3s ease",
-    border:"none",
-  };
-
-  const brandText = {
-    lineHeight: 1.2,
   };
 
   const brandTitle = {
-    fontWeight: 800,
-    letterSpacing: "-0.02em",
+    fontWeight: 700,
     fontSize: isMobile ? 16 : 18,
     margin: 0,
-    color: BRAND.ink,
+    color: showTransparent ? BRAND.white : BRAND.text,
+    transition: "color 0.3s ease",
   };
 
   const brandSub = {
     margin: 0,
-    fontSize: 12,
-    opacity: 0.7,
+    fontSize: 11,
     fontWeight: 600,
-    color: BRAND.ink2,
+    letterSpacing: "0.5px",
+    color: showTransparent ? "rgba(255,255,255,0.8)" : BRAND.textMuted,
+    transition: "color 0.3s ease",
   };
 
-  const nav = {
-    display: "flex",
-    alignItems: "center",
-    gap: 16,
-  };
+  const navLinks = [
+    { label: "Tentang Kami", href: "/#about" },
+    { label: "Layanan", href: "/#services" },
+    { label: "Keunggulan", href: "/#why-us" },
+    { label: "Kontak", href: "/#contact" },
+  ];
 
-  const navLink = {
+  const navLinkStyle = {
     fontSize: 14,
     fontWeight: 600,
-    color: BRAND.ink,
+    color: showTransparent ? BRAND.white : BRAND.text,
     textDecoration: "none",
     transition: "color 0.3s ease",
     padding: "8px 0",
   };
 
-  const loginBtn = {
-    padding: isMobile ? "10px 20px" : "12px 24px",
-    borderRadius: 12,
-    fontWeight: 700,
+  const contactBtn = {
+    padding: "10px 20px",
+    borderRadius: 6,
+    fontWeight: 600,
     fontSize: 14,
     textDecoration: "none",
-    background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
-    color: "#fff",
-    border: "none",
-    boxShadow: `0 4px 12px ${BRAND.green}40`,
+    background: "transparent",
+    border: `2px solid ${showTransparent ? BRAND.white : BRAND.primary}`,
+    color: showTransparent ? BRAND.white : BRAND.primary,
     transition: "all 0.3s ease",
-    display: "inline-block",
+  };
+
+  const loginBtn = {
+    padding: "10px 20px",
+    borderRadius: 6,
+    fontWeight: 600,
+    fontSize: 14,
+    textDecoration: "none",
+    background: BRAND.primary,
+    color: BRAND.white,
+    border: "none",
+    transition: "all 0.3s ease",
   };
 
   const hamburger = {
     display: "flex",
     flexDirection: "column",
-    gap: 4,
+    gap: 5,
     cursor: "pointer",
     padding: 8,
     background: "transparent",
@@ -154,7 +165,7 @@ export default function PublicLayout() {
   const hamburgerLine = {
     width: 24,
     height: 2,
-    background: BRAND.ink,
+    background: showTransparent ? BRAND.white : BRAND.text,
     borderRadius: 2,
     transition: "all 0.3s ease",
   };
@@ -165,15 +176,10 @@ export default function PublicLayout() {
     left: 0,
     right: 0,
     bottom: 0,
-    background: BRAND.glass,
-    backdropFilter: "blur(20px)",
-    WebkitBackdropFilter: "blur(20px)",
-    zIndex: 99,
+    background: BRAND.white,
+    zIndex: 9999,
     display: "flex",
     flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 32,
     transform: menuOpen ? "translateX(0)" : "translateX(100%)",
     transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
   };
@@ -181,32 +187,21 @@ export default function PublicLayout() {
   const outletWrap = {
     width: "100%",
     minHeight: hideChrome ? "100dvh" : "auto",
-    paddingTop: 0,
+    paddingTop: hideChrome ? 0 : 0, // Landing handles its own padding
   };
 
   return (
     <div style={page}>
       {!hideChrome && (
         <>
-          {/* Modern Navbar */}
-          <div style={topbar}>
+          {/* Corporate Navbar */}
+          <nav style={topbar} data-testid="main-navigation">
             <div style={wrap}>
               {/* Logo/Brand */}
-              <Link
-                to="/"
-                style={brand}
-                onMouseEnter={(e) => {
-                  const icon = e.currentTarget.querySelector('[data-logo-icon]');
-                  if (icon) icon.style.transform = "rotateY(180deg)";
-                }}
-                onMouseLeave={(e) => {
-                  const icon = e.currentTarget.querySelector('[data-logo-icon]');
-                  if (icon) icon.style.transform = "rotateY(0deg)";
-                }}
-              >
-                <img src="/logo3.png" alt="CV. Mitra Setia" style={logoIcon} data-logo-icon />
+              <Link to="/" style={brand} data-testid="logo">
+                <img src="/logo3.png" alt="CV. Mitra Setia" style={logoImg} />
                 {!isMobile && (
-                  <div style={brandText}>
+                  <div>
                     <p style={brandTitle}>CV. Mitra Setia</p>
                     <p style={brandSub}>Transport & Logistics</p>
                   </div>
@@ -215,107 +210,132 @@ export default function PublicLayout() {
 
               {/* Desktop Navigation */}
               {!isMobile && (
-                <div style={nav}>
-                  <a
-                    href="/#services"
-                    style={navLink}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = BRAND.green)}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = BRAND.ink)}
-                  >
-                    Layanan
-                  </a>
-                  <a
-                    href="/#contact"
-                    style={navLink}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = BRAND.green)}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = BRAND.ink)}
-                  >
-                    Kontak
-                  </a>
-                  <Link
-                    to="/login"
-                    style={loginBtn}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "translateY(-2px)";
-                      e.currentTarget.style.boxShadow = `0 6px 20px ${BRAND.green}50`;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "translateY(0)";
-                      e.currentTarget.style.boxShadow = `0 4px 12px ${BRAND.green}40`;
-                    }}
-                  >
-                    Login
-                  </Link>
+                <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
+                  {navLinks.map((link) => (
+                    <a
+                      key={link.label}
+                      href={link.href}
+                      style={navLinkStyle}
+                      data-testid={`nav-${link.label.toLowerCase().replace(/\s/g, '-')}`}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = BRAND.primary)}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = showTransparent ? BRAND.white : BRAND.text)}
+                    >
+                      {link.label}
+                    </a>
+                  ))}
                 </div>
               )}
 
-              {/* Mobile Hamburger */}
-              {isMobile && (
-                <button
-                  style={hamburger}
-                  onClick={() => setMenuOpen(!menuOpen)}
-                  aria-label="Toggle menu"
+              {/* CTA Buttons */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                {!isMobile && (
+                  <a
+                    href="https://wa.me/62XXXXXXXXXX"
+                    target="_blank"
+                    rel="noreferrer"
+                    style={contactBtn}
+                    data-testid="nav-whatsapp-btn"
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = BRAND.primary;
+                      e.currentTarget.style.borderColor = BRAND.primary;
+                      e.currentTarget.style.color = BRAND.white;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "transparent";
+                      e.currentTarget.style.borderColor = showTransparent ? BRAND.white : BRAND.primary;
+                      e.currentTarget.style.color = showTransparent ? BRAND.white : BRAND.primary;
+                    }}
+                  >
+                    Hubungi Kami
+                  </a>
+                )}
+                <Link
+                  to="/login"
+                  style={loginBtn}
+                  data-testid="nav-login-btn"
+                  onMouseEnter={(e) => (e.currentTarget.style.background = BRAND.primaryDark)}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = BRAND.primary)}
                 >
-                  <span style={hamburgerLine} />
-                  <span style={hamburgerLine} />
-                  <span style={hamburgerLine} />
-                </button>
-              )}
+                  Login
+                </Link>
+
+                {/* Mobile Hamburger */}
+                {isMobile && (
+                  <button
+                    style={hamburger}
+                    onClick={() => setMenuOpen(!menuOpen)}
+                    aria-label="Toggle menu"
+                    data-testid="mobile-menu-btn"
+                  >
+                    <span style={hamburgerLine} />
+                    <span style={hamburgerLine} />
+                    <span style={hamburgerLine} />
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          </nav>
 
           {/* Mobile Menu */}
           {isMobile && (
-            <div style={mobileMenu}>
-              <button
-                style={{
-                  position: "absolute",
-                  top: 20,
-                  right: 20,
-                  background: "transparent",
-                  border: "none",
-                  fontSize: 32,
-                  cursor: "pointer",
-                  color: BRAND.ink,
-                }}
-                onClick={() => setMenuOpen(false)}
-              >
-                ×
-              </button>
-              
-              <a
-                href="/#services"
-                style={{
-                  ...navLink,
-                  fontSize: 24,
-                  fontWeight: 700,
-                }}
-                onClick={() => setMenuOpen(false)}
-              >
-                Layanan
-              </a>
-              <a
-                href="/#contact"
-                style={{
-                  ...navLink,
-                  fontSize: 24,
-                  fontWeight: 700,
-                }}
-                onClick={() => setMenuOpen(false)}
-              >
-                Kontak
-              </a>
-              <Link
-                to="/login"
-                style={{
-                  ...loginBtn,
-                  fontSize: 18,
-                  padding: "16px 40px",
-                }}
-                onClick={() => setMenuOpen(false)}
-              >
-                Login
-              </Link>
+            <div style={mobileMenu} data-testid="mobile-menu">
+              {/* Close Button */}
+              <div style={{ display: "flex", justifyContent: "flex-end", padding: 20 }}>
+                <button
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    fontSize: 32,
+                    cursor: "pointer",
+                    color: BRAND.text,
+                    padding: 8,
+                  }}
+                  onClick={() => setMenuOpen(false)}
+                  aria-label="Close menu"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Mobile Links */}
+              <div style={{ display: "flex", flexDirection: "column", padding: "20px 32px", gap: 8 }}>
+                {navLinks.map((link) => (
+                  <a
+                    key={link.label}
+                    href={link.href}
+                    style={{
+                      fontSize: 18,
+                      fontWeight: 600,
+                      color: BRAND.text,
+                      textDecoration: "none",
+                      padding: "16px 0",
+                      borderBottom: `1px solid ${BRAND.border}`,
+                    }}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    {link.label}
+                  </a>
+                ))}
+                <a
+                  href="https://wa.me/62XXXXXXXXXX"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    marginTop: 24,
+                    padding: "16px",
+                    background: BRAND.primary,
+                    color: BRAND.white,
+                    fontSize: 16,
+                    fontWeight: 600,
+                    borderRadius: 6,
+                    textDecoration: "none",
+                    textAlign: "center",
+                  }}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Hubungi Kami
+                </a>
+              </div>
             </div>
           )}
         </>
@@ -326,12 +346,9 @@ export default function PublicLayout() {
         <Outlet />
       </div>
 
-      {/* Add keyframe animations */}
+      {/* Global Styles */}
       <style>{`
-        @keyframes logoSpin {
-          0%, 100% { transform: rotateY(0deg); }
-          50% { transform: rotateY(180deg); }
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
       `}</style>
     </div>
   );

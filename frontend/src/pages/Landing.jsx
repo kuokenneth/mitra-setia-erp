@@ -1,4 +1,5 @@
-// src/pages/Landing.jsx - Modern Redesign with Top 5 Enhancements
+// src/pages/Landing.jsx - Corporate Professional Redesign (Asian Agri Inspired)
+// Note: Navigation bar is handled by PublicLayout.jsx
 import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 
@@ -12,41 +13,35 @@ export default function Landing() {
     "Halo CV. Mitra Setia, saya ingin tanya layanan pengangkutan."
   )}`;
 
-  // Modern color palette
+  // Corporate Green Color Palette
   const BRAND = {
-    ink: "#111827",
-    ink2: "#1F2937",
-    green: "#1f9d53",
-    green2: "#3BB865",
-    greenLight: "#5FD686",
-    greenDark: "#2D9F56",
-    greenSoft: "rgba(75,202,116,0.15)",
-    glass: "rgba(255,255,255,0.85)",
-    glassBorder: "rgba(255,255,255,0.4)",
-    footerBg: "#1F7A44",
+    primary: "#0D7C3D",
+    primaryDark: "#0A6331",
+    primaryLight: "#10A050",
+    secondary: "#F5F9F7",
+    accent: "#D4E8DC",
+    text: "#1A1A1A",
+    textLight: "#4A4A4A",
+    textMuted: "#6B7280",
+    white: "#FFFFFF",
+    border: "#E5E7EB",
   };
 
   const [vw, setVw] = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
   const [scrollY, setScrollY] = useState(0);
-  const [openFaq, setOpenFaq] = useState(0);
-  const [openService, setOpenService] = useState(0);
-  const [showNavbar, setShowNavbar] = useState(false);
+  const [activeTab, setActiveTab] = useState(0);
   
-  // Refs for 3D tilt and counter animations
+  // Counter animation
   const statsRef = useRef(null);
   const [countersStarted, setCountersStarted] = useState(false);
-  const [counts, setCounts] = useState({ deliveries: 0, clients: 0, fleet: 0 });
+  const [counts, setCounts] = useState({ deliveries: 0, clients: 0, fleet: 0, years: 0 });
 
-  const isMobile = vw <= 640;
-  const isNarrow = vw < 980;
+  const isMobile = vw <= 768;
+  const isTablet = vw <= 1024;
 
   useEffect(() => {
     const onResize = () => setVw(window.innerWidth);
-    const onScroll = () => {
-      const y = window.scrollY || 0;
-      setScrollY(y);
-      setShowNavbar(y > 100);
-    };
+    const onScroll = () => setScrollY(window.scrollY || 0);
 
     window.addEventListener("resize", onResize);
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -59,7 +54,7 @@ export default function Landing() {
     };
   }, []);
 
-  // Animated Counter Effect
+  // Counter Animation
   useEffect(() => {
     if (!statsRef.current || countersStarted) return;
 
@@ -67,10 +62,8 @@ export default function Landing() {
       (entries) => {
         if (entries[0].isIntersecting) {
           setCountersStarted(true);
-          
-          // Animate counters
           const duration = 2000;
-          const targets = { deliveries: 500, clients: 10, fleet: 30 };
+          const targets = { deliveries: 500, clients: 50, fleet: 30, years: 10 };
           const steps = 60;
           const stepDuration = duration / steps;
           
@@ -78,25 +71,22 @@ export default function Landing() {
           const timer = setInterval(() => {
             step++;
             const progress = step / steps;
-            
             setCounts({
               deliveries: Math.floor(targets.deliveries * progress),
               clients: Math.floor(targets.clients * progress),
               fleet: Math.floor(targets.fleet * progress),
+              years: Math.floor(targets.years * progress),
             });
-            
             if (step >= steps) {
               clearInterval(timer);
               setCounts(targets);
             }
           }, stepDuration);
-          
           observer.disconnect();
         }
       },
       { threshold: 0.3 }
     );
-
     observer.observe(statsRef.current);
     return () => observer.disconnect();
   }, [countersStarted]);
@@ -106,7 +96,7 @@ export default function Landing() {
     const nodes = document.querySelectorAll("[data-reveal]");
     if (!("IntersectionObserver" in window) || nodes.length === 0) {
       nodes.forEach((n) => n.classList.add("is-visible"));
-      return undefined;
+      return;
     }
     const obs = new IntersectionObserver(
       (entries) => {
@@ -123,509 +113,245 @@ export default function Landing() {
     return () => obs.disconnect();
   }, []);
 
-  const parallax = Math.min(60, scrollY * 0.15);
-
-  // Styles
   const container = {
-    maxWidth: 1240,
+    maxWidth: 1280,
     margin: "0 auto",
-    padding: isMobile ? "0 20px" : "0 32px",
+    padding: isMobile ? "0 20px" : "0 48px",
   };
 
-  const glassCard = {
-    background: BRAND.glass,
-    backdropFilter: "blur(20px)",
-    WebkitBackdropFilter: "blur(20px)",
-    border: `1px solid ${BRAND.glassBorder}`,
-    borderRadius: 24,
-    boxShadow: "0 8px 32px rgba(31, 157, 83, 0.1)",
-  };
+  const services = [
+    {
+      id: 0,
+      title: "Pengangkutan Pupuk",
+      shortTitle: "Pupuk",
+      desc: "Pengiriman terjadwal untuk kebun & distributor pupuk dengan SOP yang jelas dan dokumentasi lengkap.",
+      details: "Kami menyediakan layanan pengangkutan pupuk dengan armada yang terawat dan driver berpengalaman. Setiap pengiriman dilengkapi dengan dokumentasi lengkap dan tracking real-time.",
+      image: "https://images.unsplash.com/photo-1562811950-41d4a4944a4b?w=800&q=80",
+    },
+    {
+      id: 1,
+      title: "Logistik Operasional",
+      shortTitle: "Logistik",
+      desc: "Pengiriman parts/komponen/barang untuk pabrik & armada dengan koordinasi yang rapi.",
+      details: "Layanan logistik terintegrasi untuk kebutuhan operasional perusahaan Anda. Dari spare parts hingga komponen pabrik, kami pastikan pengiriman tepat waktu.",
+      image: "https://images.unsplash.com/photo-1741495515999-0567609a236e?w=800&q=80",
+    },
+    {
+      id: 2,
+      title: "Kontrak Perusahaan",
+      shortTitle: "Kontrak",
+      desc: "Kerjasama jangka panjang untuk pengiriman rutin & kebutuhan operasional dengan harga kompetitif.",
+      details: "Program kemitraan jangka panjang dengan benefit eksklusif. Dapatkan prioritas armada, harga khusus, dan dedicated account manager untuk perusahaan Anda.",
+      image: "https://images.unsplash.com/photo-1724556271642-e9acaf03ac23?w=800&q=80",
+    },
+  ];
 
-  const gradientText = {
-    background: `linear-gradient(135deg, ${BRAND.green}, ${BRAND.green2})`,
-    WebkitBackgroundClip: "text",
-    WebkitTextFillColor: "transparent",
-    backgroundClip: "text",
-  };
-
-  // 3D Tilt Effect Handler
-  const handleCardTilt = (e, cardRef) => {
-    if (isMobile) return;
-    
-    const card = cardRef;
-    const rect = card.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 2;
-    
-    const rotateX = (y - centerY) / 10;
-    const rotateY = (centerX - x) / 10;
-    
-    card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.02, 1.02, 1.02)`;
-  };
-
-  const resetCardTilt = (cardRef) => {
-    if (isMobile) return;
-    cardRef.style.transform = "perspective(1000px) rotateX(0) rotateY(0) scale3d(1, 1, 1)";
-  };
+  const navLinks = [
+    { label: "Tentang Kami", href: "#about" },
+    { label: "Layanan", href: "#services" },
+    { label: "Keunggulan", href: "#why-us" },
+    { label: "Kontak", href: "#contact" },
+  ];
 
   return (
     <div
       style={{
         minHeight: "100vh",
-        background: "#ffffff",
-        color: BRAND.ink,
-        fontFamily: '"Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-        position: "relative",
-        overflow: "hidden",
+        background: BRAND.white,
+        color: BRAND.text,
+        fontFamily: '"Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       }}
     >
-      {/* ===========================
-          FLOATING NAVBAR - Enhancement #1
-         =========================== */}
-      <nav
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 100,
-          transform: showNavbar ? "translateY(0)" : "translateY(-100%)",
-          opacity: showNavbar ? 1 : 0,
-          transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
-        }}
-      >
-        <div
-          style={{
-            ...glassCard,
-            margin: "16px auto",
-            maxWidth: 1200,
-            padding: "12px 24px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            borderRadius: 16,
-          }}
-        >
-          {/* Logo with Animation */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              cursor: "pointer",
-            }}
-            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          >
-            <img
-              src="/logo3.png"
-              alt="CV. Mitra Setia"
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 10,
-                objectFit: "contain",
-                border: "none",
-                padding: 4,
-              }}
-            />
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: BRAND.ink }}>
-                CV. Mitra Setia
-              </div>
-              <div style={{ fontSize: 10, color: BRAND.ink2, opacity: 0.7 }}>
-                Transport & Logistics
-              </div>
-            </div>
-          </div>
-
-          {/* Nav Links */}
-          {!isMobile && (
-            <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
-              {["services", "contact"].map((link) => (
-                <a
-                  key={link}
-                  href={`#${link}`}
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    color: BRAND.ink,
-                    textDecoration: "none",
-                    textTransform: "capitalize",
-                    transition: "color 0.3s",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = BRAND.green)}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = BRAND.ink)}
-                >
-                  {link}
-                </a>
-              ))}
-            </div>
-          )}
-
-          {/* CTA Button */}
-          <Link
-            to="/login"
-            style={{
-              padding: "10px 20px",
-              background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
-              color: "#fff",
-              fontSize: 14,
-              fontWeight: 700,
-              borderRadius: 10,
-              textDecoration: "none",
-              transition: "all 0.3s",
-            }}
-          >
-            Login
-          </Link>
-        </div>
-      </nav>
-
-      {/* ===========================
-          PARTICLE ANIMATION - Enhancement #4
-         =========================== */}
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          pointerEvents: "none",
-          zIndex: 1,
-          overflow: "hidden",
-        }}
-      >
-        {[...Array(isMobile ? 15 : 30)].map((_, i) => (
-          <div
-            key={i}
-            style={{
-              position: "absolute",
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              width: Math.random() * 4 + 2,
-              height: Math.random() * 4 + 2,
-              background: `${BRAND.green}${Math.random() > 0.5 ? "40" : "20"}`,
-              borderRadius: "50%",
-              animation: `float ${Math.random() * 10 + 10}s ease-in-out infinite`,
-              animationDelay: `${Math.random() * 5}s`,
-            }}
-          />
-        ))}
-      </div>
-
       {/* ===========================
           HERO SECTION
          =========================== */}
       <section
+        data-testid="hero-section"
         style={{
           position: "relative",
-          minHeight: isMobile ? "100vh" : "95vh",
-          overflow: "hidden",
+          minHeight: "100vh",
           display: "flex",
           alignItems: "center",
+          background: BRAND.primary,
+          overflow: "hidden",
         }}
       >
-        {/* Abstract Background Layers */}
+        {/* Background Image with Overlay */}
         <div
           style={{
             position: "absolute",
             inset: 0,
-            background: `linear-gradient(135deg, ${BRAND.greenLight} 0%, #ffffff 50%, ${BRAND.greenSoft} 100%)`,
+            backgroundImage: `url(https://images.unsplash.com/photo-1753579167765-d88ba3719f96?w=1920&q=80)`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            opacity: 0.3,
           }}
         />
-
-        {/* Animated Gradient Blobs */}
+        
+        {/* Gradient Overlay */}
         <div
           style={{
             position: "absolute",
-            top: "-20%",
-            right: "-10%",
-            width: isMobile ? "400px" : "700px",
-            height: isMobile ? "400px" : "700px",
-            background: `radial-gradient(circle, ${BRAND.green2}40 0%, transparent 70%)`,
+            inset: 0,
+            background: `linear-gradient(135deg, ${BRAND.primary} 0%, ${BRAND.primaryDark} 50%, rgba(10,99,49,0.95) 100%)`,
+          }}
+        />
+
+        {/* Decorative Elements */}
+        <div
+          style={{
+            position: "absolute",
+            top: "10%",
+            right: "5%",
+            width: 400,
+            height: 400,
+            border: `1px solid rgba(255,255,255,0.1)`,
             borderRadius: "50%",
-            filter: "blur(60px)",
-            animation: "float 20s ease-in-out infinite",
-            transform: `translateY(${parallax}px)`,
+            pointerEvents: "none",
           }}
         />
-
         <div
           style={{
             position: "absolute",
-            bottom: "-15%",
+            bottom: "15%",
             left: "-5%",
-            width: isMobile ? "350px" : "600px",
-            height: isMobile ? "350px" : "600px",
-            background: `radial-gradient(circle, ${BRAND.green}30 0%, transparent 70%)`,
+            width: 300,
+            height: 300,
+            border: `1px solid rgba(255,255,255,0.08)`,
             borderRadius: "50%",
-            filter: "blur(50px)",
-            animation: "float 25s ease-in-out infinite reverse",
+            pointerEvents: "none",
           }}
         />
-
-        {/* Geometric Shapes */}
-        <div
-          style={{
-            position: "absolute",
-            top: "15%",
-            left: "5%",
-            width: "200px",
-            height: "200px",
-            border: `2px solid ${BRAND.green}30`,
-            borderRadius: "30% 70% 70% 30% / 30% 30% 70% 70%",
-            animation: "rotate 30s linear infinite",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: "20%",
-            right: "8%",
-            width: "150px",
-            height: "150px",
-            border: `2px solid ${BRAND.green2}40`,
-            borderRadius: "50%",
-            animation: "rotate 25s linear infinite reverse",
-          }}
-        />
-
-        {/* Grid Pattern */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            backgroundImage: `
-              linear-gradient(${BRAND.green}08 1px, transparent 1px),
-              linear-gradient(90deg, ${BRAND.green}08 1px, transparent 1px)
-            `,
-            backgroundSize: "60px 60px",
-            opacity: 0.4,
-          }}
-        />
-
-        {/* Floating Doodle */}
-        <div
-          style={{
-            position: "absolute",
-            top: isMobile ? "10%" : "15%",
-            right: isMobile ? "-10%" : "5%",
-            width: isMobile ? "250px" : "400px",
-            opacity: 0.15,
-            animation: "floatY 8s ease-in-out infinite",
-            transform: `translateY(${parallax * 0.5}px)`,
-          }}
-        >
-          <img
-            src="/doodle.png"
-            alt=""
-            style={{ width: "100%", height: "auto", filter: "saturate(0.8)" }}
-          />
-        </div>
 
         {/* Hero Content */}
         <div style={{ ...container, position: "relative", zIndex: 10, width: "100%" }}>
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: isNarrow ? "1fr" : "1.2fr 0.8fr",
-              gap: 40,
-              alignItems: "center",
+              maxWidth: 800,
+              paddingTop: isMobile ? 120 : 80,
+              paddingBottom: isMobile ? 60 : 80,
             }}
           >
-            {/* Left Content */}
-            <div className="stagger">
-              {/* Tag Badge */}
-              <div
+            {/* Tagline */}
+            <div
+              className="reveal"
+              data-reveal
+              style={{
+                display: "inline-block",
+                padding: "8px 16px",
+                background: "rgba(255,255,255,0.15)",
+                borderRadius: 4,
+                fontSize: 12,
+                fontWeight: 600,
+                color: BRAND.white,
+                letterSpacing: "1px",
+                textTransform: "uppercase",
+                marginBottom: 24,
+              }}
+            >
+              Solusi Logistik Terpercaya
+            </div>
+
+            {/* Main Heading */}
+            <h1
+              className="reveal"
+              data-reveal
+              style={{
+                margin: 0,
+                fontSize: isMobile ? 36 : isTablet ? 48 : 60,
+                lineHeight: 1.15,
+                fontWeight: 700,
+                color: BRAND.white,
+                marginBottom: 24,
+              }}
+            >
+              Meningkatkan efisiensi operasional melalui pengiriman yang{" "}
+              <span style={{ color: BRAND.accent }}>andal & konsisten.</span>
+            </h1>
+
+            {/* Description */}
+            <p
+              className="reveal"
+              data-reveal
+              style={{
+                fontSize: isMobile ? 16 : 18,
+                lineHeight: 1.8,
+                color: "rgba(255,255,255,0.85)",
+                marginBottom: 40,
+                maxWidth: 600,
+              }}
+            >
+              CV. Mitra Setia adalah mitra logistik terpercaya untuk pengangkutan rutin dan 
+              kontrak perusahaan dengan standar layanan yang tinggi.
+            </p>
+
+            {/* CTA Buttons */}
+            <div
+              className="reveal"
+              data-reveal
+              style={{ display: "flex", gap: 16, flexWrap: "wrap" }}
+            >
+              <a
+                href={waLink}
+                target="_blank"
+                rel="noreferrer"
+                data-testid="hero-cta-primary"
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 8,
-                  padding: "10px 20px",
-                  background: BRAND.glass,
-                  backdropFilter: "blur(10px)",
-                  border: `1px solid ${BRAND.green}40`,
-                  borderRadius: 999,
-                  fontSize: 13,
+                  padding: "16px 32px",
+                  background: BRAND.white,
+                  color: BRAND.primary,
+                  fontSize: 15,
                   fontWeight: 700,
-                  color: BRAND.green,
-                  marginBottom: 24,
+                  borderRadius: 6,
+                  textDecoration: "none",
+                  transition: "all 0.3s ease",
                 }}
-                className="float-soft"
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 10px 30px rgba(0,0,0,0.2)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
               >
-                <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: BRAND.green2,
-                    boxShadow: `0 0 10px ${BRAND.green2}`,
-                  }}
-                />
-                Transport & Logistics
-              </div>
-
-              {/* Main Heading */}
-              <h1
+                Minta Penawaran
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+              </a>
+              <a
+                href="#about"
+                data-testid="hero-cta-secondary"
                 style={{
-                  margin: 0,
-                  fontSize: isMobile ? 42 : isNarrow ? 56 : 72,
-                  lineHeight: 1.1,
-                  fontWeight: 800,
-                  letterSpacing: "-0.02em",
-                  marginBottom: 20,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "16px 32px",
+                  background: "transparent",
+                  border: `2px solid rgba(255,255,255,0.5)`,
+                  color: BRAND.white,
+                  fontSize: 15,
+                  fontWeight: 700,
+                  borderRadius: 6,
+                  textDecoration: "none",
+                  transition: "all 0.3s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(255,255,255,0.1)";
+                  e.currentTarget.style.borderColor = BRAND.white;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.5)";
                 }}
               >
-                Pengangkutan rutin{" "}
-                <span style={gradientText}>& kontrak perusahaan.</span>
-              </h1>
-
-              {/* Description */}
-              <p
-                style={{
-                  fontSize: isMobile ? 16 : 18,
-                  lineHeight: 1.7,
-                  color: BRAND.ink2,
-                  marginBottom: 32,
-                  maxWidth: 580,
-                }}
-              >
-                Pengiriman terjadwal dengan koordinasi yang rapi untuk kebutuhan
-                operasional perusahaan.
-              </p>
-
-              {/* CTA Buttons */}
-              <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-                <a
-                  href={waLink}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "16px 32px",
-                    background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
-                    color: "#fff",
-                    fontSize: 16,
-                    fontWeight: 700,
-                    borderRadius: 16,
-                    textDecoration: "none",
-                    boxShadow: `0 10px 30px ${BRAND.green}40`,
-                    transition: "all 0.3s ease",
-                    border: "none",
-                  }}
-                  className="lift"
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-2px)";
-                    e.currentTarget.style.boxShadow = `0 15px 40px ${BRAND.green}50`;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = `0 10px 30px ${BRAND.green}40`;
-                  }}
-                >
-                  Minta Penawaran
-                </a>
-
-                <a
-                  href="#services"
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "16px 32px",
-                    background: BRAND.glass,
-                    backdropFilter: "blur(10px)",
-                    color: BRAND.ink,
-                    fontSize: 16,
-                    fontWeight: 700,
-                    borderRadius: 16,
-                    textDecoration: "none",
-                    border: `1px solid ${BRAND.glassBorder}`,
-                    transition: "all 0.3s ease",
-                  }}
-                  className="lift"
-                >
-                  Lihat Layanan
-                </a>
-              </div>
-
-              {/* Info Text */}
-              <div
-                style={{
-                  marginTop: 24,
-                  fontSize: 13,
-                  color: BRAND.ink2,
-                  opacity: 0.8,
-                }}
-              >
-                📍 Berbasis di Medan
-                <br />
-                ⚡ Operasional harian · Dokumentasi rapi · Kontak cepat
-              </div>
+                Pelajari Lebih Lanjut
+              </a>
             </div>
-
-            {/* Right - Animated Counter Cards - Enhancement #3 */}
-            {!isMobile && (
-              <div className="reveal slide-right" data-reveal ref={statsRef}>
-                <div
-                  style={{
-                    ...glassCard,
-                    padding: 32,
-                    display: "grid",
-                    gap: 24,
-                  }}
-                >
-                  {[
-                    { label: "Pengiriman Sukses", value: counts.deliveries, icon: "📦", suffix: "+" },
-                    { label: "Klien Aktif", value: counts.clients, icon: "🤝", suffix: "+" },
-                    { label: "Armada Siap", value: counts.fleet, icon: "🚚", suffix: "+" },
-                  ].map((stat, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 16,
-                        padding: 20,
-                        background: "rgba(255,255,255,0.6)",
-                        borderRadius: 16,
-                        border: `1px solid ${BRAND.green}20`,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 32,
-                          width: 60,
-                          height: 60,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          background: `linear-gradient(135deg, ${BRAND.greenLight}, ${BRAND.green}30)`,
-                          borderRadius: 16,
-                        }}
-                      >
-                        {stat.icon}
-                      </div>
-                      <div>
-                        <div
-                          style={{
-                            fontSize: 28,
-                            fontWeight: 800,
-                            ...gradientText,
-                          }}
-                        >
-                          {stat.value}{stat.suffix}
-                        </div>
-                        <div style={{ fontSize: 13, color: BRAND.ink2, opacity: 0.8 }}>
-                          {stat.label}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
@@ -640,576 +366,777 @@ export default function Landing() {
             flexDirection: "column",
             alignItems: "center",
             gap: 8,
-            opacity: 0.6,
+            color: "rgba(255,255,255,0.6)",
           }}
         >
-          <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.1em" }}>SCROLL</span>
           <div
             style={{
-              width: 2,
+              width: 24,
               height: 40,
-              background: `linear-gradient(180deg, ${BRAND.green}, transparent)`,
-              animation: "scrollDown 2s ease-in-out infinite",
+              border: "2px solid rgba(255,255,255,0.4)",
+              borderRadius: 12,
+              display: "flex",
+              justifyContent: "center",
+              paddingTop: 6,
             }}
-          />
+          >
+            <div
+              style={{
+                width: 4,
+                height: 8,
+                background: BRAND.white,
+                borderRadius: 2,
+                animation: "scrollBounce 2s ease-in-out infinite",
+              }}
+            />
+          </div>
         </div>
       </section>
 
       {/* ===========================
-          SERVICES SECTION with 3D Tilt - Enhancement #2
+          PHILOSOPHY BAR
          =========================== */}
       <section
-        id="services"
         style={{
-          padding: isMobile ? "80px 0" : "120px 0",
-          position: "relative",
-          background: "#ffffff",
+          background: BRAND.primaryDark,
+          padding: "16px 0",
         }}
       >
-        {/* Background Doodle Watermark */}
-        <div
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            width: "800px",
-            opacity: 0.03,
-            pointerEvents: "none",
-          }}
-        >
-          <img src="/doodle.png" alt="" style={{ width: "100%" }} />
-        </div>
-
         <div style={container}>
-          {/* Section Header */}
-          <div style={{ textAlign: "center", marginBottom: 60 }} className="reveal" data-reveal>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: isMobile ? 16 : 40,
+              flexWrap: "wrap",
+              textAlign: "center",
+            }}
+          >
+            {["Masyarakat", "Negara", "Pelanggan", "Perusahaan"].map((item, i) => (
+              <div
+                key={item}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  color: BRAND.white,
+                  fontSize: 13,
+                  fontWeight: 600,
+                }}
+              >
+                {i > 0 && !isMobile && (
+                  <span style={{ color: "rgba(255,255,255,0.3)", marginRight: 8 }}>•</span>
+                )}
+                <span>{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ===========================
+          ABOUT SECTION
+         =========================== */}
+      <section
+        id="about"
+        data-testid="about-section"
+        style={{
+          padding: isMobile ? "80px 0" : "120px 0",
+          background: BRAND.white,
+        }}
+      >
+        <div style={container}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: isTablet ? "1fr" : "1fr 1fr",
+              gap: 60,
+              alignItems: "center",
+            }}
+          >
+            {/* Content */}
+            <div className="reveal slide-left" data-reveal>
+              <div
+                style={{
+                  display: "inline-block",
+                  padding: "6px 12px",
+                  background: BRAND.accent,
+                  color: BRAND.primary,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  borderRadius: 4,
+                  letterSpacing: "0.5px",
+                  textTransform: "uppercase",
+                  marginBottom: 20,
+                }}
+              >
+                Tentang Kami
+              </div>
+              <h2
+                style={{
+                  margin: "0 0 20px",
+                  fontSize: isMobile ? 32 : 42,
+                  fontWeight: 700,
+                  lineHeight: 1.2,
+                  color: BRAND.text,
+                }}
+              >
+                CV. Mitra Setia adalah perusahaan logistik yang menempatkan{" "}
+                <span style={{ color: BRAND.primary }}>kemitraan</span> di jantung operasinya.
+              </h2>
+              <p
+                style={{
+                  fontSize: 16,
+                  lineHeight: 1.8,
+                  color: BRAND.textLight,
+                  marginBottom: 24,
+                }}
+              >
+                Berdiri sejak tahun 2014, CV. Mitra Setia telah berkembang menjadi salah satu 
+                penyedia layanan transportasi dan logistik terpercaya di Sumatera Utara. 
+                Dengan armada yang terawat dan tim profesional, kami melayani berbagai 
+                kebutuhan pengangkutan untuk perusahaan dan industri.
+              </p>
+              <p
+                style={{
+                  fontSize: 16,
+                  lineHeight: 1.8,
+                  color: BRAND.textLight,
+                  marginBottom: 32,
+                }}
+              >
+                Bisnis kami meliputi pengangkutan pupuk, logistik operasional, hingga 
+                kontrak jangka panjang dengan perusahaan-perusahaan terkemuka.
+              </p>
+              <a
+                href="#services"
+                data-testid="about-learn-more"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: 15,
+                  fontWeight: 700,
+                  color: BRAND.primary,
+                  textDecoration: "none",
+                  borderBottom: `2px solid ${BRAND.primary}`,
+                  paddingBottom: 4,
+                  transition: "all 0.3s ease",
+                }}
+              >
+                Tentang Kami
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+              </a>
+            </div>
+
+            {/* Image */}
+            <div className="reveal slide-right" data-reveal>
+              <div
+                style={{
+                  position: "relative",
+                  borderRadius: 8,
+                  overflow: "hidden",
+                  boxShadow: "0 20px 60px rgba(0,0,0,0.1)",
+                }}
+              >
+                <img
+                  src="https://images.unsplash.com/photo-1741495515999-0567609a236e?w=800&q=80"
+                  alt="CV. Mitra Setia Fleet"
+                  style={{
+                    width: "100%",
+                    height: isMobile ? 300 : 450,
+                    objectFit: "cover",
+                  }}
+                />
+                {/* Overlay Badge */}
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: 24,
+                    left: 24,
+                    background: BRAND.primary,
+                    color: BRAND.white,
+                    padding: "16px 24px",
+                    borderRadius: 6,
+                  }}
+                >
+                  <div style={{ fontSize: 28, fontWeight: 800, lineHeight: 1 }}>10+</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginTop: 4 }}>Tahun Pengalaman</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===========================
+          QUOTE SECTION
+         =========================== */}
+      <section
+        style={{
+          padding: isMobile ? "60px 0" : "80px 0",
+          background: BRAND.secondary,
+        }}
+      >
+        <div style={container}>
+          <div
+            className="reveal"
+            data-reveal
+            style={{
+              maxWidth: 900,
+              margin: "0 auto",
+              textAlign: "center",
+            }}
+          >
             <div
               style={{
                 display: "inline-block",
-                padding: "8px 16px",
-                background: BRAND.greenSoft,
-                color: BRAND.green,
+                padding: "6px 12px",
+                background: BRAND.accent,
+                color: BRAND.primary,
                 fontSize: 12,
                 fontWeight: 700,
-                borderRadius: 999,
-                letterSpacing: "0.1em",
+                borderRadius: 4,
+                letterSpacing: "0.5px",
                 textTransform: "uppercase",
-                marginBottom: 16,
+                marginBottom: 24,
               }}
             >
-              Layanan
+              Filosofi Kami
+            </div>
+            <h3
+              style={{
+                margin: 0,
+                fontSize: isMobile ? 24 : 32,
+                fontWeight: 600,
+                lineHeight: 1.5,
+                color: BRAND.text,
+                fontStyle: "italic",
+              }}
+            >
+              "Kami percaya bahwa perusahaan harus baik bagi Masyarakat, baik bagi Negara, 
+              baik bagi Pelanggan – dengan demikian akan baik bagi Perusahaan."
+            </h3>
+            <div
+              style={{
+                marginTop: 24,
+                fontSize: 14,
+                fontWeight: 600,
+                color: BRAND.primary,
+              }}
+            >
+              — Pendiri CV. Mitra Setia
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===========================
+          SERVICES SECTION (Tab Style)
+         =========================== */}
+      <section
+        id="services"
+        data-testid="services-section"
+        style={{
+          padding: isMobile ? "80px 0" : "120px 0",
+          background: BRAND.white,
+        }}
+      >
+        <div style={container}>
+          {/* Section Header */}
+          <div
+            className="reveal"
+            data-reveal
+            style={{ marginBottom: 48 }}
+          >
+            <div
+              style={{
+                display: "inline-block",
+                padding: "6px 12px",
+                background: BRAND.accent,
+                color: BRAND.primary,
+                fontSize: 12,
+                fontWeight: 700,
+                borderRadius: 4,
+                letterSpacing: "0.5px",
+                textTransform: "uppercase",
+                marginBottom: 20,
+              }}
+            >
+              Layanan Kami
+            </div>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: isMobile ? 32 : 42,
+                fontWeight: 700,
+                lineHeight: 1.2,
+                color: BRAND.text,
+              }}
+            >
+              Apa Yang Kami Lakukan
+            </h2>
+          </div>
+
+          {/* Tab Navigation */}
+          <div
+            className="reveal"
+            data-reveal
+            style={{
+              display: "flex",
+              gap: 0,
+              marginBottom: 40,
+              borderBottom: `2px solid ${BRAND.border}`,
+              overflowX: "auto",
+            }}
+          >
+            {services.map((service, i) => (
+              <button
+                key={service.id}
+                data-testid={`service-tab-${i}`}
+                onClick={() => setActiveTab(i)}
+                style={{
+                  flex: isMobile ? "none" : 1,
+                  padding: isMobile ? "16px 24px" : "20px 32px",
+                  background: "transparent",
+                  border: "none",
+                  borderBottom: `3px solid ${activeTab === i ? BRAND.primary : "transparent"}`,
+                  fontSize: 15,
+                  fontWeight: 600,
+                  color: activeTab === i ? BRAND.primary : BRAND.textMuted,
+                  cursor: "pointer",
+                  transition: "all 0.3s ease",
+                  whiteSpace: "nowrap",
+                  marginBottom: -2,
+                }}
+              >
+                {isMobile ? service.shortTitle : service.title}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab Content */}
+          <div
+            className="reveal"
+            data-reveal
+            style={{
+              display: "grid",
+              gridTemplateColumns: isTablet ? "1fr" : "1fr 1fr",
+              gap: 48,
+              alignItems: "center",
+            }}
+          >
+            {/* Text Content */}
+            <div>
+              <h3
+                style={{
+                  margin: "0 0 16px",
+                  fontSize: isMobile ? 24 : 28,
+                  fontWeight: 700,
+                  color: BRAND.text,
+                }}
+              >
+                {services[activeTab].title}
+              </h3>
+              <p
+                style={{
+                  fontSize: 16,
+                  lineHeight: 1.8,
+                  color: BRAND.textLight,
+                  marginBottom: 16,
+                }}
+              >
+                {services[activeTab].desc}
+              </p>
+              <p
+                style={{
+                  fontSize: 16,
+                  lineHeight: 1.8,
+                  color: BRAND.textLight,
+                  marginBottom: 32,
+                }}
+              >
+                {services[activeTab].details}
+              </p>
+              <a
+                href={waLink}
+                target="_blank"
+                rel="noreferrer"
+                data-testid="service-cta"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: 15,
+                  fontWeight: 700,
+                  color: BRAND.primary,
+                  textDecoration: "none",
+                  borderBottom: `2px solid ${BRAND.primary}`,
+                  paddingBottom: 4,
+                }}
+              >
+                Pelajari Lebih Lanjut
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+              </a>
+            </div>
+
+            {/* Image */}
+            <div
+              style={{
+                borderRadius: 8,
+                overflow: "hidden",
+                boxShadow: "0 20px 60px rgba(0,0,0,0.1)",
+              }}
+            >
+              <img
+                src={services[activeTab].image}
+                alt={services[activeTab].title}
+                style={{
+                  width: "100%",
+                  height: isMobile ? 280 : 380,
+                  objectFit: "cover",
+                  transition: "all 0.5s ease",
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===========================
+          STATS SECTION
+         =========================== */}
+      <section
+        ref={statsRef}
+        data-testid="stats-section"
+        style={{
+          padding: isMobile ? "60px 0" : "80px 0",
+          background: BRAND.primary,
+        }}
+      >
+        <div style={container}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)",
+              gap: isMobile ? 32 : 48,
+              textAlign: "center",
+            }}
+          >
+            {[
+              { value: counts.deliveries, suffix: "+", label: "Pengiriman Sukses" },
+              { value: counts.clients, suffix: "+", label: "Klien Aktif" },
+              { value: counts.fleet, suffix: "+", label: "Unit Armada" },
+              { value: counts.years, suffix: "+", label: "Tahun Pengalaman" },
+            ].map((stat, i) => (
+              <div key={i} data-testid={`stat-${i}`}>
+                <div
+                  style={{
+                    fontSize: isMobile ? 36 : 48,
+                    fontWeight: 800,
+                    color: BRAND.white,
+                    lineHeight: 1,
+                    marginBottom: 8,
+                  }}
+                >
+                  {stat.value}{stat.suffix}
+                </div>
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: "rgba(255,255,255,0.8)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  {stat.label}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ===========================
+          WHY US SECTION
+         =========================== */}
+      <section
+        id="why-us"
+        data-testid="why-us-section"
+        style={{
+          padding: isMobile ? "80px 0" : "120px 0",
+          background: BRAND.secondary,
+        }}
+      >
+        <div style={container}>
+          {/* Section Header */}
+          <div
+            className="reveal"
+            data-reveal
+            style={{ textAlign: "center", marginBottom: 60 }}
+          >
+            <div
+              style={{
+                display: "inline-block",
+                padding: "6px 12px",
+                background: BRAND.accent,
+                color: BRAND.primary,
+                fontSize: 12,
+                fontWeight: 700,
+                borderRadius: 4,
+                letterSpacing: "0.5px",
+                textTransform: "uppercase",
+                marginBottom: 20,
+              }}
+            >
+              Mengapa Kami
             </div>
             <h2
               style={{
                 margin: "0 0 16px",
-                fontSize: isMobile ? 36 : 48,
-                fontWeight: 800,
+                fontSize: isMobile ? 32 : 42,
+                fontWeight: 700,
                 lineHeight: 1.2,
-                letterSpacing: "-0.02em",
+                color: BRAND.text,
               }}
             >
-              Fokus pada rute yang{" "}
-              <span style={gradientText}>konsisten & andal</span>
+              Filosofi Bisnis Kami
             </h2>
             <p
               style={{
                 margin: "0 auto",
                 maxWidth: 600,
-                fontSize: 18,
-                lineHeight: 1.7,
-                color: BRAND.ink2,
-                opacity: 0.8,
+                fontSize: 16,
+                lineHeight: 1.8,
+                color: BRAND.textLight,
               }}
             >
-              Pengangkutan rutin, logistik operasional, dan kontrak perusahaan dengan
-              standar yang jelas.
+              CV. Mitra Setia percaya bahwa untuk menjadi bisnis yang berkelanjutan, 
+              semua kegiatan perusahaan harus bermanfaat bagi semua pihak.
             </p>
           </div>
 
-          {/* Service Cards with 3D Tilt Effect */}
+          {/* Values Grid */}
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: isNarrow ? "1fr" : "repeat(3, 1fr)",
+              gridTemplateColumns: isMobile ? "1fr" : isTablet ? "repeat(2, 1fr)" : "repeat(4, 1fr)",
               gap: 24,
             }}
           >
             {[
               {
-                icon: "🌾",
-                title: "Pengangkutan Pupuk",
-                desc: "Pengiriman terjadwal untuk kebun & distributor pupuk dengan SOP yang jelas.",
-                color: BRAND.green,
+                title: "Masyarakat",
+                desc: "Tumbuh bersama masyarakat sekitar dengan membuka lapangan kerja.",
+                icon: "👥",
               },
               {
-                icon: "📦",
-                title: "Logistik",
-                desc: "Pengiriman parts/komponen/barang untuk pabrik & armada dengan dokumentasi rapi.",
-                color: BRAND.green2,
+                title: "Negara",
+                desc: "Berkontribusi pada pembangunan nasional melalui bisnis kami.",
+                icon: "🏛️",
               },
               {
+                title: "Pelanggan",
+                desc: "Kemitraan kuat yang didasari oleh kualitas dan transparansi.",
                 icon: "🤝",
-                title: "Kontrak Perusahaan",
-                desc: "Kerjasama jangka panjang untuk pengiriman rutin & kebutuhan operasional.",
-                color: BRAND.greenDark,
               },
-            ].map((service, i) => (
+              {
+                title: "Perusahaan",
+                desc: "Penyediaan layanan berkualitas tinggi untuk keberlanjutan bisnis.",
+                icon: "🏢",
+              },
+            ].map((item, i) => (
               <div
                 key={i}
                 className="reveal"
                 data-reveal
+                data-testid={`value-card-${i}`}
                 style={{
-                  ...glassCard,
+                  background: BRAND.white,
                   padding: 32,
-                  position: "relative",
-                  overflow: "hidden",
-                  transition: "all 0.1s ease",
-                  cursor: "pointer",
-                  transformStyle: "preserve-3d",
+                  borderRadius: 8,
+                  textAlign: "center",
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.04)",
+                  border: `1px solid ${BRAND.border}`,
+                  transition: "all 0.3s ease",
                 }}
-                onMouseMove={(e) => handleCardTilt(e, e.currentTarget)}
-                onMouseLeave={(e) => resetCardTilt(e.currentTarget)}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-4px)";
+                  e.currentTarget.style.boxShadow = "0 12px 40px rgba(0,0,0,0.08)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.04)";
+                }}
               >
-                {/* Gradient Accent */}
                 <div
                   style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: 4,
-                    background: `linear-gradient(90deg, ${service.color}, ${BRAND.green2})`,
-                  }}
-                />
-
-                {/* Icon */}
-                <div
-                  style={{
-                    width: 80,
-                    height: 80,
+                    width: 60,
+                    height: 60,
+                    margin: "0 auto 20px",
+                    background: BRAND.accent,
+                    borderRadius: 8,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    fontSize: 40,
-                    background: `linear-gradient(135deg, ${service.color}20, ${service.color}10)`,
-                    borderRadius: 20,
-                    marginBottom: 20,
+                    fontSize: 28,
                   }}
                 >
-                  {service.icon}
+                  {item.icon}
                 </div>
-
-                <h3
+                <h4
                   style={{
                     margin: "0 0 12px",
-                    fontSize: 22,
-                    fontWeight: 800,
-                    color: BRAND.ink,
+                    fontSize: 18,
+                    fontWeight: 700,
+                    color: BRAND.primary,
                   }}
                 >
-                  {service.title}
-                </h3>
-
+                  {item.title}
+                </h4>
                 <p
                   style={{
                     margin: 0,
-                    fontSize: 15,
-                    lineHeight: 1.7,
-                    color: BRAND.ink2,
-                    opacity: 0.8,
-                  }}
-                >
-                  {service.desc}
-                </p>
-
-                <button
-                  type="button"
-                  onClick={() => setOpenService(openService === i ? -1 : i)}
-                  style={{
-                    marginTop: 20,
-                    padding: "10px 20px",
-                    background: "transparent",
-                    border: `2px solid ${service.color}40`,
-                    borderRadius: 12,
-                    color: service.color,
-                    fontWeight: 700,
                     fontSize: 14,
-                    cursor: "pointer",
-                    transition: "all 0.3s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = service.color;
-                    e.currentTarget.style.color = "#fff";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "transparent";
-                    e.currentTarget.style.color = service.color;
+                    lineHeight: 1.7,
+                    color: BRAND.textLight,
                   }}
                 >
-                  {openService === i ? "Tutup Detail" : "Lihat Detail"} →
-                </button>
+                  {item.desc}
+                </p>
               </div>
             ))}
           </div>
+        </div>
+      </section>
 
-          {/* CTA */}
+      {/* ===========================
+          CTA BANNER
+         =========================== */}
+      <section
+        style={{
+          padding: isMobile ? "60px 0" : "80px 0",
+          background: BRAND.primary,
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        {/* Decorative */}
+        <div
+          style={{
+            position: "absolute",
+            top: "-50%",
+            right: "-10%",
+            width: 400,
+            height: 400,
+            border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: "50%",
+          }}
+        />
+
+        <div style={container}>
           <div
-            style={{
-              marginTop: 60,
-              textAlign: "center",
-              display: "flex",
-              gap: 16,
-              justifyContent: "center",
-              flexWrap: "wrap",
-            }}
             className="reveal"
             data-reveal
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 32,
+            }}
           >
+            <div style={{ maxWidth: 600 }}>
+              <h3
+                style={{
+                  margin: "0 0 12px",
+                  fontSize: isMobile ? 24 : 32,
+                  fontWeight: 700,
+                  color: BRAND.white,
+                }}
+              >
+                Siap untuk bermitra dengan kami?
+              </h3>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: 16,
+                  color: "rgba(255,255,255,0.8)",
+                }}
+              >
+                Hubungi kami sekarang untuk mendapatkan penawaran terbaik.
+              </p>
+            </div>
             <a
               href={waLink}
               target="_blank"
               rel="noreferrer"
+              data-testid="cta-banner-btn"
               style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
                 padding: "16px 32px",
-                background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
-                color: "#fff",
-                fontSize: 16,
+                background: BRAND.white,
+                color: BRAND.primary,
+                fontSize: 15,
                 fontWeight: 700,
-                borderRadius: 16,
+                borderRadius: 6,
                 textDecoration: "none",
-                boxShadow: `0 10px 30px ${BRAND.green}40`,
                 transition: "all 0.3s ease",
               }}
-              className="lift"
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-2px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+              }}
             >
-              Minta Penawaran Sekarang
+              Hubungi Kami
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
             </a>
           </div>
         </div>
       </section>
 
       {/* ===========================
-          FEATURES - Split Layout
-         =========================== */}
-      {[
-        {
-          title: "Pengiriman yang konsisten, setiap hari.",
-          desc: "Jadwal terukur, komunikasi jelas, dan dokumentasi rapi untuk setiap perjalanan.",
-          img: "/hero-1.jpg",
-        },
-        {
-          title: "Kontrol operasional yang lebih baik.",
-          desc: "Koordinasi armada dan update status agar pengambilan keputusan lebih cepat.",
-          img: "/hero-2.jpg",
-        },
-        {
-          title: "Partner yang bisa diandalkan.",
-          desc: "Kontrak jangka panjang dengan standar layanan yang stabil.",
-          img: "/hero-3.jpg",
-        },
-      ].map((feature, i) => (
-        <section
-          key={i}
-          style={{
-            padding: isMobile ? "80px 0" : "120px 0",
-            position: "relative",
-            background: i % 2 === 0 ? `linear-gradient(135deg, ${BRAND.greenLight}30 0%, #ffffff 100%)` : "#ffffff",
-          }}
-        >
-          {/* Abstract Background */}
-          <div
-            style={{
-              position: "absolute",
-              top: i % 2 === 0 ? "20%" : "auto",
-              bottom: i % 2 !== 0 ? "20%" : "auto",
-              right: i % 2 === 0 ? "-5%" : "auto",
-              left: i % 2 !== 0 ? "-5%" : "auto",
-              width: "400px",
-              height: "400px",
-              background: `radial-gradient(circle, ${BRAND.green}15 0%, transparent 70%)`,
-              borderRadius: "50%",
-              filter: "blur(80px)",
-              pointerEvents: "none",
-            }}
-          />
-
-          <div style={container}>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: isNarrow ? "1fr" : "1fr 1fr",
-                gap: 60,
-                alignItems: "center",
-              }}
-            >
-              {/* Content */}
-              <div
-                className="reveal slide-left"
-                data-reveal
-                style={{ order: i % 2 === 0 ? 1 : 2 }}
-              >
-                <div
-                  style={{
-                    display: "inline-block",
-                    padding: "6px 12px",
-                    background: BRAND.greenSoft,
-                    color: BRAND.green,
-                    fontSize: 11,
-                    fontWeight: 700,
-                    borderRadius: 999,
-                    letterSpacing: "0.1em",
-                    textTransform: "uppercase",
-                    marginBottom: 16,
-                  }}
-                >
-                  Highlight {i + 1}
-                </div>
-                <h3
-                  style={{
-                    margin: "0 0 16px",
-                    fontSize: isMobile ? 32 : 42,
-                    fontWeight: 800,
-                    lineHeight: 1.2,
-                    letterSpacing: "-0.02em",
-                  }}
-                >
-                  {feature.title}
-                </h3>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: 18,
-                    lineHeight: 1.7,
-                    color: BRAND.ink2,
-                    opacity: 0.8,
-                    maxWidth: 500,
-                  }}
-                >
-                  {feature.desc}
-                </p>
-              </div>
-
-              {/* Image with Glass Frame */}
-              <div
-                className="reveal slide-right"
-                data-reveal
-                style={{ order: i % 2 === 0 ? 2 : 1 }}
-              >
-                <div
-                  style={{
-                    position: "relative",
-                    borderRadius: 32,
-                    overflow: "hidden",
-                    ...glassCard,
-                    padding: 12,
-                  }}
-                >
-                  <div
-                    style={{
-                      borderRadius: 24,
-                      overflow: "hidden",
-                      height: isMobile ? 250 : 400,
-                      position: "relative",
-                    }}
-                  >
-                    <img
-                      src={feature.img}
-                      alt={feature.title}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                      }}
-                    />
-                    {/* Gradient Overlay */}
-                    <div
-                      style={{
-                        position: "absolute",
-                        inset: 0,
-                        background: `linear-gradient(135deg, ${BRAND.green}20 0%, transparent 100%)`,
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-      ))}
-
-      {/* ===========================
-          FAQ
-         =========================== */}
-      <section
-        style={{
-          padding: isMobile ? "80px 0" : "120px 0",
-          position: "relative",
-          background: `linear-gradient(180deg, ${BRAND.greenLight}20 0%, #ffffff 100%)`,
-        }}
-      >
-        <div style={container}>
-          <div style={{ textAlign: "center", marginBottom: 60 }} className="reveal" data-reveal>
-            <div
-              style={{
-                display: "inline-block",
-                padding: "8px 16px",
-                background: BRAND.greenSoft,
-                color: BRAND.green,
-                fontSize: 12,
-                fontWeight: 700,
-                borderRadius: 999,
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-                marginBottom: 16,
-              }}
-            >
-              FAQ
-            </div>
-            <h2
-              style={{
-                margin: "0 0 16px",
-                fontSize: isMobile ? 36 : 48,
-                fontWeight: 800,
-                lineHeight: 1.2,
-              }}
-            >
-              Pertanyaan yang <span style={gradientText}>sering ditanyakan</span>
-            </h2>
-          </div>
-
-          <div style={{ maxWidth: 800, margin: "0 auto", display: "grid", gap: 16 }}>
-            {[
-              {
-                q: "Bagaimana cara minta penawaran cepat?",
-                a: "Kirim detail rute, jenis muatan, dan jadwal lewat WhatsApp. Tim kami akan respon dengan estimasi.",
-              },
-              {
-                q: "Apakah tersedia kontrak pengiriman rutin?",
-                a: "Ya. Kami melayani kontrak bulanan hingga tahunan untuk kebutuhan operasional perusahaan.",
-              },
-              {
-                q: "Apakah ada update pengiriman selama perjalanan?",
-                a: "Ada. Kami berikan update status secara berkala sesuai kebutuhan klien.",
-              },
-            ].map((faq, i) => {
-              const isOpen = openFaq === i;
-              return (
-                <div
-                  key={i}
-                  className="reveal"
-                  data-reveal
-                  style={{
-                    ...glassCard,
-                    padding: 24,
-                    transition: "all 0.3s ease",
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setOpenFaq(isOpen ? -1 : i)}
-                    style={{
-                      width: "100%",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      background: "transparent",
-                      border: "none",
-                      padding: 0,
-                      cursor: "pointer",
-                      textAlign: "left",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 18,
-                        fontWeight: 700,
-                        color: BRAND.ink,
-                      }}
-                    >
-                      {faq.q}
-                    </span>
-                    <div
-                      style={{
-                        width: 32,
-                        height: 32,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        background: isOpen ? BRAND.green : BRAND.greenSoft,
-                        color: isOpen ? "#fff" : BRAND.green,
-                        borderRadius: "50%",
-                        fontSize: 20,
-                        fontWeight: 700,
-                        transition: "all 0.3s ease",
-                      }}
-                    >
-                      {isOpen ? "−" : "+"}
-                    </div>
-                  </button>
-                  {isOpen && (
-                    <div
-                      style={{
-                        marginTop: 16,
-                        paddingTop: 16,
-                        borderTop: `1px solid ${BRAND.green}20`,
-                        fontSize: 15,
-                        lineHeight: 1.7,
-                        color: BRAND.ink2,
-                        opacity: 0.8,
-                      }}
-                    >
-                      {faq.a}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* ===========================
-          CONTACT
+          CONTACT SECTION
          =========================== */}
       <section
         id="contact"
+        data-testid="contact-section"
         style={{
           padding: isMobile ? "80px 0" : "120px 0",
-          position: "relative",
-          background: "#ffffff",
+          background: BRAND.white,
         }}
       >
-        {/* Background Abstract */}
-        <div
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            width: "600px",
-            height: "600px",
-            background: `radial-gradient(circle, ${BRAND.green}10 0%, transparent 70%)`,
-            borderRadius: "50%",
-            filter: "blur(100px)",
-            pointerEvents: "none",
-          }}
-        />
-
         <div style={container}>
-          <div style={{ textAlign: "center", marginBottom: 60 }} className="reveal" data-reveal>
+          {/* Section Header */}
+          <div
+            className="reveal"
+            data-reveal
+            style={{ textAlign: "center", marginBottom: 60 }}
+          >
             <div
               style={{
                 display: "inline-block",
-                padding: "8px 16px",
-                background: BRAND.greenSoft,
-                color: BRAND.green,
+                padding: "6px 12px",
+                background: BRAND.accent,
+                color: BRAND.primary,
                 fontSize: 12,
                 fontWeight: 700,
-                borderRadius: 999,
-                letterSpacing: "0.1em",
+                borderRadius: 4,
+                letterSpacing: "0.5px",
                 textTransform: "uppercase",
-                marginBottom: 16,
+                marginBottom: 20,
               }}
             >
               Kontak
@@ -1217,33 +1144,23 @@ export default function Landing() {
             <h2
               style={{
                 margin: "0 0 16px",
-                fontSize: isMobile ? 36 : 48,
-                fontWeight: 800,
+                fontSize: isMobile ? 32 : 42,
+                fontWeight: 700,
                 lineHeight: 1.2,
+                color: BRAND.text,
               }}
             >
-              Hubungi <span style={gradientText}>CV. Mitra Setia</span>
+              Ayo Terlibat Bersama Kami
             </h2>
-            <p
-              style={{
-                margin: "0 auto",
-                maxWidth: 600,
-                fontSize: 18,
-                lineHeight: 1.7,
-                color: BRAND.ink2,
-                opacity: 0.8,
-              }}
-            >
-              Kirim detail rute & muatan via WhatsApp untuk penawaran cepat.
-            </p>
           </div>
 
+          {/* Contact Cards */}
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: isNarrow ? "1fr" : "1fr 1fr",
-              gap: 24,
-              maxWidth: 1000,
+              gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)",
+              gap: 32,
+              maxWidth: 900,
               margin: "0 auto",
             }}
           >
@@ -1251,30 +1168,35 @@ export default function Landing() {
             <div
               className="reveal slide-left"
               data-reveal
+              data-testid="contact-whatsapp"
               style={{
-                ...glassCard,
+                background: BRAND.secondary,
                 padding: 40,
+                borderRadius: 8,
                 textAlign: "center",
+                border: `1px solid ${BRAND.border}`,
               }}
             >
               <div
                 style={{
-                  width: 80,
-                  height: 80,
+                  width: 64,
+                  height: 64,
                   margin: "0 auto 20px",
+                  background: BRAND.primary,
+                  borderRadius: 8,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: 40,
-                  background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
-                  borderRadius: 20,
-                  color: "#fff",
+                  color: BRAND.white,
+                  fontSize: 28,
                 }}
               >
                 💬
               </div>
-              <h3 style={{ margin: "0 0 8px", fontSize: 24, fontWeight: 800 }}>WhatsApp</h3>
-              <p style={{ margin: "0 0 20px", fontSize: 15, opacity: 0.7 }}>
+              <h4 style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 700, color: BRAND.text }}>
+                WhatsApp
+              </h4>
+              <p style={{ margin: "0 0 24px", fontSize: 14, color: BRAND.textMuted }}>
                 Chat admin untuk penawaran cepat
               </p>
               <a
@@ -1282,93 +1204,99 @@ export default function Landing() {
                 target="_blank"
                 rel="noreferrer"
                 style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
+                  display: "inline-block",
                   padding: "14px 28px",
-                  background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
-                  color: "#fff",
-                  fontSize: 15,
+                  background: BRAND.primary,
+                  color: BRAND.white,
+                  fontSize: 14,
                   fontWeight: 700,
-                  borderRadius: 12,
+                  borderRadius: 6,
                   textDecoration: "none",
                   transition: "all 0.3s ease",
                 }}
-                className="lift"
+                onMouseEnter={(e) => (e.currentTarget.style.background = BRAND.primaryDark)}
+                onMouseLeave={(e) => (e.currentTarget.style.background = BRAND.primary)}
               >
                 Chat Sekarang
               </a>
               <div
                 style={{
-                  margin: "24px 0",
-                  height: 1,
-                  background: `${BRAND.green}20`,
+                  marginTop: 24,
+                  paddingTop: 24,
+                  borderTop: `1px solid ${BRAND.border}`,
+                  fontSize: 14,
+                  color: BRAND.textMuted,
                 }}
-              />
-              <div style={{ fontSize: 13, opacity: 0.6 }}>📞 {PHONE}</div>
+              >
+                📞 {PHONE}
+              </div>
             </div>
 
-            {/* Location Card */}
+            {/* Address Card */}
             <div
               className="reveal slide-right"
               data-reveal
+              data-testid="contact-address"
               style={{
-                ...glassCard,
+                background: BRAND.secondary,
                 padding: 40,
+                borderRadius: 8,
                 textAlign: "center",
+                border: `1px solid ${BRAND.border}`,
               }}
             >
               <div
                 style={{
-                  width: 80,
-                  height: 80,
+                  width: 64,
+                  height: 64,
                   margin: "0 auto 20px",
+                  background: BRAND.accent,
+                  borderRadius: 8,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: 40,
-                  background: `linear-gradient(135deg, ${BRAND.greenLight}, ${BRAND.green}40)`,
-                  borderRadius: 20,
+                  fontSize: 28,
                 }}
               >
                 📍
               </div>
-              <h3 style={{ margin: "0 0 8px", fontSize: 24, fontWeight: 800 }}>Alamat</h3>
+              <h4 style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 700, color: BRAND.text }}>
+                Kantor Kami
+              </h4>
               <p
                 style={{
-                  margin: "0 0 20px",
+                  margin: "0 0 24px",
                   fontSize: 14,
-                  lineHeight: 1.7,
-                  opacity: 0.7,
+                  lineHeight: 1.8,
+                  color: BRAND.textMuted,
                   whiteSpace: "pre-line",
                 }}
               >
                 {ADDRESS}
               </p>
-              <div
-                style={{
-                  margin: "24px 0",
-                  height: 1,
-                  background: `${BRAND.green}20`,
-                }}
-              />
               <Link
                 to="/login"
+                data-testid="contact-login-btn"
                 style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
+                  display: "inline-block",
                   padding: "14px 28px",
                   background: "transparent",
-                  border: `2px solid ${BRAND.green}`,
-                  color: BRAND.green,
-                  fontSize: 15,
+                  border: `2px solid ${BRAND.primary}`,
+                  color: BRAND.primary,
+                  fontSize: 14,
                   fontWeight: 700,
-                  borderRadius: 12,
+                  borderRadius: 6,
                   textDecoration: "none",
                   transition: "all 0.3s ease",
                 }}
-                className="lift"
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = BRAND.primary;
+                  e.currentTarget.style.color = BRAND.white;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.color = BRAND.primary;
+                }}
               >
                 Staff Login (ERP)
               </Link>
@@ -1381,47 +1309,130 @@ export default function Landing() {
           FOOTER
          =========================== */}
       <footer
+        data-testid="footer"
         style={{
-          background: BRAND.footerBg,
-          color: "#fff",
-          padding: isMobile ? "40px 0" : "60px 0",
-          position: "relative",
+          background: BRAND.primaryDark,
+          color: BRAND.white,
+          padding: isMobile ? "48px 0 24px" : "64px 0 32px",
         }}
       >
         <div style={container}>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 14, opacity: 0.8, marginBottom: 8 }}>
-              © {new Date().getFullYear()} CV. Mitra Setia
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : "2fr 1fr 1fr",
+              gap: 48,
+              marginBottom: 48,
+            }}
+          >
+            {/* Company Info */}
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+                <img
+                  src="/logo3.png"
+                  alt="CV. Mitra Setia"
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 8,
+                    objectFit: "contain",
+                    display: "block",
+                    background: BRAND.white,
+                  }}
+                />
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 700 }}>CV. Mitra Setia</div>
+                  <div style={{ fontSize: 12, opacity: 0.7 }}>Transport & Logistics</div>
+                </div>
+              </div>
+              <p style={{ fontSize: 14, lineHeight: 1.8, opacity: 0.8, maxWidth: 350 }}>
+                Mitra logistik terpercaya untuk pengangkutan rutin dan kontrak perusahaan 
+                di Sumatera Utara.
+              </p>
             </div>
-            <div style={{ fontSize: 12, opacity: 0.6 }}>
-              Medan, Indonesia · Built with MitraSetia ERP
+
+            {/* Quick Links */}
+            <div>
+              <h5 style={{ fontSize: 14, fontWeight: 700, marginBottom: 20, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Menu
+              </h5>
+              {navLinks.map((link) => (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  style={{
+                    display: "block",
+                    fontSize: 14,
+                    color: "rgba(255,255,255,0.8)",
+                    textDecoration: "none",
+                    marginBottom: 12,
+                    transition: "color 0.3s ease",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = BRAND.white)}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.8)")}
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+
+            {/* Contact */}
+            <div>
+              <h5 style={{ fontSize: 14, fontWeight: 700, marginBottom: 20, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Kontak
+              </h5>
+              <div style={{ fontSize: 14, lineHeight: 2, opacity: 0.8 }}>
+                <div>📞 {PHONE}</div>
+                <div>📍 Medan, Sumatera Utara</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Bar */}
+          <div
+            style={{
+              paddingTop: 24,
+              borderTop: "1px solid rgba(255,255,255,0.1)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 16,
+            }}
+          >
+            <div style={{ fontSize: 13, opacity: 0.7 }}>
+              © {new Date().getFullYear()} CV. Mitra Setia. All rights reserved.
+            </div>
+            <div style={{ fontSize: 12, opacity: 0.5 }}>
+              Built with MitraSetia ERP
             </div>
           </div>
         </div>
       </footer>
 
-      {/* Floating Scroll to Top */}
+      {/* Scroll to Top Button */}
       <button
         type="button"
         onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        data-testid="scroll-to-top"
         style={{
           position: "fixed",
-          right: isMobile ? 20 : 32,
-          bottom: isMobile ? 20 : 32,
-          width: 56,
-          height: 56,
-          borderRadius: "50%",
-          background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
-          color: "#fff",
-          fontSize: 24,
+          right: 24,
+          bottom: 24,
+          width: 48,
+          height: 48,
+          borderRadius: 8,
+          background: BRAND.primary,
+          color: BRAND.white,
+          fontSize: 20,
           fontWeight: 700,
           border: "none",
-          boxShadow: `0 8px 24px ${BRAND.green}60`,
+          boxShadow: "0 4px 20px rgba(13, 124, 61, 0.3)",
           cursor: "pointer",
           transform: scrollY > 400 ? "translateY(0)" : "translateY(100px)",
           opacity: scrollY > 400 ? 1 : 0,
-          transition: "all 0.4s ease",
-          zIndex: 1000,
+          transition: "all 0.3s ease",
+          zIndex: 999,
         }}
         aria-label="Scroll to top"
       >
@@ -1430,33 +1441,27 @@ export default function Landing() {
 
       {/* CSS Animations */}
       <style>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-20px); }
-        }
-        @keyframes floatY {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-15px); }
-        }
-        @keyframes rotate {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes scrollDown {
-          0% { opacity: 0; transform: translateY(-10px); }
-          50% { opacity: 1; }
-          100% { opacity: 0; transform: translateY(10px); }
-        }
-        @keyframes logoSpin {
-          0%, 100% { transform: rotateY(0deg); }
-          50% { transform: rotateY(180deg); }
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        
+        @keyframes scrollBounce {
+          0%, 100% { transform: translateY(0); opacity: 1; }
+          50% { transform: translateY(8px); opacity: 0.5; }
         }
         
-        .lift {
-          transition: transform 0.3s ease, box-shadow 0.3s ease;
+        .reveal {
+          opacity: 0;
+          transform: translateY(20px);
+          transition: opacity 0.6s ease, transform 0.6s ease;
         }
-        .lift:hover {
-          transform: translateY(-2px);
+        .reveal.slide-left {
+          transform: translateX(-30px);
+        }
+        .reveal.slide-right {
+          transform: translateX(30px);
+        }
+        .reveal.is-visible {
+          opacity: 1;
+          transform: translateY(0) translateX(0);
         }
       `}</style>
     </div>

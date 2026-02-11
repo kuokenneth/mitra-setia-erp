@@ -1,3 +1,4 @@
+// src/pages/Login.jsx - Corporate Green Theme
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -10,12 +11,28 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  const [hover, setHover] = useState(false);
+  const [focusedField, setFocusedField] = useState(null);
 
   const isMobile = useMemo(
-    () => typeof window !== "undefined" && window.innerWidth <= 640,
+    () => typeof window !== "undefined" && window.innerWidth <= 768,
     []
   );
+
+  // Corporate Green Color Palette
+  const BRAND = {
+    primary: "#0D7C3D",
+    primaryDark: "#0A6331",
+    primaryLight: "#10A050",
+    secondary: "#F5F9F7",
+    accent: "#D4E8DC",
+    text: "#1A1A1A",
+    textLight: "#4A4A4A",
+    textMuted: "#6B7280",
+    white: "#FFFFFF",
+    border: "#E5E7EB",
+    error: "#DC2626",
+    errorBg: "#FEF2F2",
+  };
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -32,340 +49,407 @@ export default function Login() {
   }
 
   return (
-    <div style={styles.page}>
+    <div
+      style={{
+        minHeight: "100dvh",
+        display: "flex",
+        background: BRAND.white,
+        fontFamily: '"Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      }}
+    >
       <div
         style={{
-          ...styles.shell,
+          width: "100%",
+          minHeight: "100dvh",
+          display: "grid",
           gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
         }}
       >
-        {/* Left panel */}
+        {/* Left Panel - Branding */}
         {!isMobile && (
-          <div style={styles.leftPanel}>
-            <div style={styles.leftBackdrop} />
-            <div style={styles.leftDots} />
-            <div style={styles.leftBrand} onClick={() => nav("/")} role="button" title="Back to Home">
-              <span style={styles.leftDot} />
-              <span>CV. MITRA SETIA</span>
-            </div>
-            <div style={styles.leftContent}>
-              <div style={styles.leftEyebrow}>Nice to see you again</div>
-              <div style={styles.leftTitle}>WELCOME BACK</div>
-              <div style={styles.leftSub}>
-                Masuk ke sistem ERP internal CV. Mitra Setia untuk mengelola operasional secara efisien & terintegrasi.
+          <div
+            style={{
+              position: "relative",
+              padding: 64,
+              background: BRAND.primary,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              overflow: "hidden",
+            }}
+          >
+            {/* Background Pattern */}
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                backgroundImage: `url(https://images.unsplash.com/photo-1753579167765-d88ba3719f96?w=1200&q=80)`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+                opacity: 0.15,
+              }}
+            />
+            
+            {/* Gradient Overlay */}
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                background: `linear-gradient(135deg, ${BRAND.primary} 0%, ${BRAND.primaryDark} 100%)`,
+              }}
+            />
+
+            {/* Decorative Circle */}
+            <div
+              style={{
+                position: "absolute",
+                top: "10%",
+                right: "-10%",
+                width: 300,
+                height: 300,
+                border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: "50%",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                bottom: "15%",
+                left: "-5%",
+                width: 200,
+                height: 200,
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: "50%",
+              }}
+            />
+
+            {/* Logo */}
+            <div
+              onClick={() => nav("/")}
+              data-testid="login-logo"
+              style={{
+                position: "absolute",
+                top: 40,
+                left: 48,
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                cursor: "pointer",
+                zIndex: 10,
+              }}
+            >
+              <img
+                src="/logo3.png"
+                alt="CV. Mitra Setia"
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 8,
+                  objectFit: "contain",
+                  display: "block",
+                  background: BRAND.white,
+                }}
+              />
+              <div style={{ color: BRAND.white }}>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>CV. Mitra Setia</div>
+                <div style={{ fontSize: 10, opacity: 0.8 }}>Transport & Logistics</div>
               </div>
+            </div>
+
+            {/* Content */}
+            <div style={{ position: "relative", zIndex: 10, maxWidth: 400 }}>
+              <div
+                style={{
+                  display: "inline-block",
+                  padding: "6px 12px",
+                  background: "rgba(255,255,255,0.15)",
+                  borderRadius: 4,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: BRAND.white,
+                  letterSpacing: "0.5px",
+                  textTransform: "uppercase",
+                  marginBottom: 24,
+                }}
+              >
+                Staff Portal
+              </div>
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: 48,
+                  fontWeight: 800,
+                  color: BRAND.white,
+                  lineHeight: 1.1,
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                Selamat Datang Kembali
+              </h1>
+              <p
+                style={{
+                  marginTop: 20,
+                  fontSize: 16,
+                  lineHeight: 1.7,
+                  color: "rgba(255,255,255,0.85)",
+                  maxWidth: 340,
+                }}
+              >
+                Masuk ke sistem ERP internal untuk mengelola operasional secara efisien & terintegrasi.
+              </p>
             </div>
           </div>
         )}
 
-        {/* Right panel */}
-        <div style={styles.rightPanel}>
-          <div style={styles.backHome} onClick={() => nav("/")}>
-            Back to Home
+        {/* Right Panel - Form */}
+        <div
+          style={{
+            padding: isMobile ? "40px 24px" : 64,
+            background: BRAND.white,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            position: "relative",
+          }}
+        >
+          {/* Back to Home */}
+          <div
+            onClick={() => nav("/")}
+            data-testid="login-back-home"
+            style={{
+              position: "absolute",
+              top: isMobile ? 20 : 40,
+              right: isMobile ? 24 : 48,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 13,
+              fontWeight: 600,
+              color: BRAND.primary,
+              cursor: "pointer",
+              transition: "opacity 0.2s",
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            Kembali
           </div>
-          <div style={styles.formInner}>
-            <div style={styles.header}>
-              <div>
-                <h2 style={styles.title}>Login Account</h2>
-                <p style={styles.subtitle}>Secure access for internal staff</p>
-              </div>
-            </div>
 
-            <form onSubmit={onSubmit}>
-            <div style={{ ...styles.field, marginBottom: 16 }}>
-              <label style={styles.label}>Email</label>
-              <input
-                style={{ ...styles.input, ...styles.formControl }}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="email@mitrasetia.com"
-                inputMode="email"
-                autoComplete="email"
-                autoCapitalize="none"
-                autoCorrect="off"
-              />
-            </div>
-
-            <div style={{ ...styles.field, marginBottom: 18 }}>
-              <label style={styles.label}>Password</label>
-              <input
-                style={{ ...styles.input, ...styles.formControl }}
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                autoComplete="current-password"
-              />
-            </div>
-
-            {err && (
-              <div style={styles.errorBox}>
-                <strong>Login failed</strong>
-                <div>{err}</div>
-              </div>
-            )}
-
-            <button
-              disabled={busy}
-              onMouseEnter={() => setHover(true)}
-              onMouseLeave={() => setHover(false)}
+          {/* Mobile Logo */}
+          {isMobile && (
+            <div
+              onClick={() => nav("/")}
               style={{
-                ...styles.button,
-                ...styles.formControl,
-                opacity: busy ? 0.7 : 1,
-                background: hover ? "#1a8f4a" : "#1f9d53",
-                transform: hover ? "translateY(-1px)" : "translateY(0)",
-                transition: "all 0.2s ease",
-                cursor: busy ? "not-allowed" : "pointer",
-                minHeight: 44,
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                marginBottom: 40,
+                cursor: "pointer",
               }}
             >
-              {busy ? "Signing in..." : "Login"}
-            </button>
-
-            <div style={styles.footer}>
-              <div style={styles.registerRow}>
-                <span style={styles.registerText}>Don’t have an account?</span>
-                <span style={styles.registerLink} onClick={() => nav("/register")}>
-                  Register
-                </span>
+              <img
+                src="/logo3.png"
+                alt="CV. Mitra Setia"
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 8,
+                  objectFit: "contain",
+                  display: "block",
+                  background: BRAND.white,
+                }}
+              />
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: BRAND.text }}>CV. Mitra Setia</div>
+                <div style={{ fontSize: 11, color: BRAND.textMuted }}>Transport & Logistics</div>
               </div>
-              <div style={styles.complianceNote}>Authorized users only.</div>
             </div>
+          )}
+
+          {/* Form Container */}
+          <div style={{ maxWidth: 400, width: "100%", margin: isMobile ? 0 : "0 auto" }}>
+            {/* Header */}
+            <div style={{ marginBottom: 32 }}>
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: 28,
+                  fontWeight: 700,
+                  color: BRAND.text,
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                Login
+              </h2>
+              <p
+                style={{
+                  margin: "8px 0 0",
+                  fontSize: 14,
+                  color: BRAND.textMuted,
+                }}
+              >
+                Masuk dengan akun staff Anda
+              </p>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={onSubmit}>
+              {/* Email Field */}
+              <div style={{ marginBottom: 20 }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: BRAND.textLight,
+                    marginBottom: 8,
+                  }}
+                >
+                  Email
+                </label>
+                <input
+                  data-testid="login-email-input"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onFocus={() => setFocusedField("email")}
+                  onBlur={() => setFocusedField(null)}
+                  placeholder="email@mitrasetia.com"
+                  autoComplete="email"
+                  style={{
+                    width: "100%",
+                    padding: "14px 16px",
+                    fontSize: 15,
+                    border: `2px solid ${focusedField === "email" ? BRAND.primary : BRAND.border}`,
+                    borderRadius: 8,
+                    outline: "none",
+                    transition: "border-color 0.2s",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              {/* Password Field */}
+              <div style={{ marginBottom: 24 }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: BRAND.textLight,
+                    marginBottom: 8,
+                  }}
+                >
+                  Password
+                </label>
+                <input
+                  data-testid="login-password-input"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onFocus={() => setFocusedField("password")}
+                  onBlur={() => setFocusedField(null)}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  style={{
+                    width: "100%",
+                    padding: "14px 16px",
+                    fontSize: 15,
+                    border: `2px solid ${focusedField === "password" ? BRAND.primary : BRAND.border}`,
+                    borderRadius: 8,
+                    outline: "none",
+                    transition: "border-color 0.2s",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              {/* Error Message */}
+              {err && (
+                <div
+                  data-testid="login-error"
+                  style={{
+                    marginBottom: 20,
+                    padding: 16,
+                    background: BRAND.errorBg,
+                    border: `1px solid ${BRAND.error}20`,
+                    borderRadius: 8,
+                    color: BRAND.error,
+                    fontSize: 13,
+                  }}
+                >
+                  <strong style={{ display: "block", marginBottom: 4 }}>Login gagal</strong>
+                  {err}
+                </div>
+              )}
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={busy}
+                data-testid="login-submit-btn"
+                style={{
+                  width: "100%",
+                  padding: "14px 24px",
+                  background: busy ? BRAND.textMuted : BRAND.primary,
+                  color: BRAND.white,
+                  fontSize: 15,
+                  fontWeight: 700,
+                  border: "none",
+                  borderRadius: 8,
+                  cursor: busy ? "not-allowed" : "pointer",
+                  transition: "all 0.2s",
+                  boxShadow: `0 4px 12px ${BRAND.primary}30`,
+                }}
+                onMouseEnter={(e) => {
+                  if (!busy) e.currentTarget.style.background = BRAND.primaryDark;
+                }}
+                onMouseLeave={(e) => {
+                  if (!busy) e.currentTarget.style.background = BRAND.primary;
+                }}
+              >
+                {busy ? "Memproses..." : "Login"}
+              </button>
             </form>
+
+            {/* Footer */}
+            <div
+              style={{
+                marginTop: 24,
+                paddingTop: 24,
+                borderTop: `1px solid ${BRAND.border}`,
+                textAlign: "center",
+              }}
+            >
+              <p style={{ margin: 0, fontSize: 14, color: BRAND.textMuted }}>
+                Belum punya akun?{" "}
+                <span
+                  onClick={() => nav("/register")}
+                  data-testid="login-register-link"
+                  style={{
+                    color: BRAND.primary,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Daftar
+                </span>
+              </p>
+              <p
+                style={{
+                  margin: "12px 0 0",
+                  fontSize: 11,
+                  color: BRAND.textMuted,
+                  opacity: 0.7,
+                }}
+              >
+                Hanya untuk pengguna yang berwenang
+              </p>
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
-const styles = {
-  page: {
-    minHeight: "100dvh",                 // ✅ iPhone dynamic viewport
-    display: "flex",                     // ✅ more stable than grid for iOS
-    alignItems: "stretch",
-    justifyContent: "stretch",
-    padding: 0,
-    boxSizing: "border-box",
-    background: "#ffffff",
-    fontFamily:
-      '"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
-  },
-
-
-  shell: {
-    width: "100%",
-    minHeight: "100dvh",
-    display: "grid",
-    borderRadius: 0,
-    overflow: "hidden",
-    background: "#ffffff",
-    border: "none",
-    boxShadow: "none",
-  },
-
-  leftPanel: {
-    position: "relative",
-    padding: 56,
-    color: "#f0fff6",
-    background:
-      "radial-gradient(520px 380px at 70% 18%, rgba(255,255,255,0.22), transparent 60%), linear-gradient(135deg, #1b8f4c 0%, #2ccf6a 100%)",
-    display: "flex",
-    alignItems: "center",
-    overflow: "hidden",
-  },
-
-  leftBrand: {
-    position: "absolute",
-    top: 32,
-    left: 36,
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 10,
-    fontWeight: 700,
-    fontSize: 12,
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    opacity: 0.95,
-    cursor: "pointer",
-  },
-
-  leftDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    background: "rgba(255,255,255,0.9)",
-  },
-
-  leftContent: {
-    marginTop: 0,
-    maxWidth: 360,
-    zIndex: 1,
-  },
-
-  leftEyebrow: {
-    fontSize: 14,
-    letterSpacing: 0.4,
-    textTransform: "none",
-    opacity: 0.9,
-  },
-
-  leftTitle: {
-    marginTop: 12,
-    fontSize: 46,
-    fontWeight: 800,
-    letterSpacing: 1.6,
-    lineHeight: 1.08,
-  },
-
-  leftSub: {
-    marginTop: 16,
-    fontSize: 15,
-    lineHeight: 1.85,
-    opacity: 0.9,
-    maxWidth: 280,
-  },
-
-  leftBackdrop: {
-    position: "absolute",
-    inset: 0,
-    background:
-      "radial-gradient(520px 360px at 18% 18%, rgba(255,255,255,0.10), transparent 65%), radial-gradient(640px 420px at 70% 12%, rgba(255,255,255,0.12), transparent 70%)",
-    pointerEvents: "none",
-  },
-
-  leftDots: {
-    position: "absolute",
-    inset: 0,
-    backgroundImage:
-      "radial-gradient(rgba(255,255,255,0.20) 1px, transparent 1px)",
-    backgroundSize: "12px 12px",
-    opacity: 0.35,
-    pointerEvents: "none",
-    mixBlendMode: "screen",
-  },
-
-  rightPanel: {
-    padding: 48,
-    background: "#ffffff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-  },
-
-  formInner: {
-    width: "100%",
-    maxWidth: 420,
-  },
-
-  header: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "flex-start",
-    gap: 10,
-    textAlign: "left",
-    marginBottom: 26,
-  },
-
-
-  title: {
-    margin: 0,
-    fontSize: 24,
-    fontWeight: 700,
-    color: "#111827",
-    letterSpacing: -0.3,
-  },
-
-  subtitle: {
-    margin: 0,
-    fontSize: 11.5,
-    color: "#9ca3af",
-  },
-
-  field: { marginBottom: 14 },
-
-  label: {
-    display: "block",
-    fontSize: 13,
-    fontWeight: 600,
-    marginBottom: 6,
-    color: "#374151",
-  },
-
-  input: {
-    padding: "12px 14px",
-    borderRadius: 12,
-    border: "1px solid #e5e7eb",
-    background: "#ffffff",
-    fontSize: 16,
-    outline: "none",
-    minHeight: 44,
-  },
-
-  button: {
-    marginTop: 10,
-    padding: 12,
-    borderRadius: 12,
-    border: "none",
-    fontWeight: 700,
-    fontSize: 15,
-    color: "white",
-    background: "#1f9d53",
-    boxShadow: "0 8px 16px rgba(31,157,83,0.22)",
-  },
-
-  errorBox: {
-    marginBottom: 12,
-    padding: 12,
-    borderRadius: 12,
-    background: "#fef2f2",
-    border: "1px solid #fecaca",
-    color: "#b91c1c",
-    fontSize: 12,
-    lineHeight: 1.5,
-  },
-
-  footer: {
-    marginTop: 16,
-    paddingTop: 12,
-    borderTop: "1px solid rgba(17,24,39,0.06)",
-    fontSize: 12,
-    color: "#6b7280",
-    textAlign: "center",
-  },
-
-  formControl: { width: "100%", boxSizing: "border-box" },
-
-  registerRow: {
-    display: "flex",
-    justifyContent: "center",
-    gap: 6,
-    fontSize: 12.5,
-    flexWrap: "wrap",
-  },
-
-  registerText: { color: "#6b7280" },
-
-  registerLink: {
-    color: "#1f9d53",
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-
-  complianceNote: {
-    marginTop: 8,
-    fontSize: 10.5,
-    color: "#9ca3af",
-  },
-  backHome: {
-    position: "absolute",
-    top: 24,
-    right: 32,
-    fontSize: 12,
-    color: "#1f9d53",
-    fontWeight: 600,
-    cursor: "pointer",
-  },
-};

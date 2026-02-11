@@ -1,3 +1,4 @@
+// src/pages/Register.jsx - Corporate Green Theme
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
@@ -8,18 +9,32 @@ export default function Register() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [inviteCode, setInviteCode] = useState("");
-
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  const [hover, setHover] = useState(false);
+  const [focusedField, setFocusedField] = useState(null);
 
   const isMobile = useMemo(
-    () => typeof window !== "undefined" && window.innerWidth <= 640,
+    () => typeof window !== "undefined" && window.innerWidth <= 768,
     []
   );
+
+  // Corporate Green Color Palette
+  const BRAND = {
+    primary: "#0D7C3D",
+    primaryDark: "#0A6331",
+    primaryLight: "#10A050",
+    secondary: "#F5F9F7",
+    accent: "#D4E8DC",
+    text: "#1A1A1A",
+    textLight: "#4A4A4A",
+    textMuted: "#6B7280",
+    white: "#FFFFFF",
+    border: "#E5E7EB",
+    error: "#DC2626",
+    errorBg: "#FEF2F2",
+  };
 
   const emailNorm = useMemo(() => email.trim().toLowerCase(), [email]);
 
@@ -42,11 +57,11 @@ export default function Register() {
     setBusy(true);
 
     try {
-      if (!emailNorm) throw new Error("Email is required.");
-      if (!password) throw new Error("Password is required.");
-      if (password.length < 6) throw new Error("Password must be at least 6 characters.");
-      if (password !== confirmPassword) throw new Error("Confirm password does not match.");
-      if (!inviteCode.trim()) throw new Error("Invitation code is required.");
+      if (!emailNorm) throw new Error("Email wajib diisi.");
+      if (!password) throw new Error("Password wajib diisi.");
+      if (password.length < 6) throw new Error("Password minimal 6 karakter.");
+      if (password !== confirmPassword) throw new Error("Konfirmasi password tidak cocok.");
+      if (!inviteCode.trim()) throw new Error("Kode undangan wajib diisi.");
 
       await api("/auth/register", {
         method: "POST",
@@ -68,369 +83,491 @@ export default function Register() {
     }
   }
 
+  const inputStyle = (fieldName) => ({
+    width: "100%",
+    padding: "14px 16px",
+    fontSize: 15,
+    border: `2px solid ${focusedField === fieldName ? BRAND.primary : BRAND.border}`,
+    borderRadius: 8,
+    outline: "none",
+    transition: "border-color 0.2s",
+    boxSizing: "border-box",
+  });
+
   return (
-    <div style={styles.page}>
+    <div
+      style={{
+        minHeight: "100dvh",
+        display: "flex",
+        background: BRAND.white,
+        fontFamily: '"Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      }}
+    >
       <div
         style={{
-          ...styles.shell,
+          width: "100%",
+          minHeight: "100dvh",
+          display: "grid",
           gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
         }}
       >
+        {/* Left Panel - Branding */}
         {!isMobile && (
-          <div style={styles.leftPanel}>
-            <div style={styles.leftBackdrop} />
-            <div style={styles.leftDots} />
-            <div style={styles.leftBrand} onClick={() => nav("/")} role="button" title="Back to Home">
-              <span style={styles.leftDot} />
-              <span>CV. MITRA SETIA</span>
-            </div>
-            <div style={styles.leftContent}>
-              <div style={styles.leftEyebrow}>Staff Registration</div>
-              <div style={styles.leftTitle}>CREATE ACCOUNT</div>
-              <div style={styles.leftSub}>
-                Pendaftaran hanya untuk staff dengan undangan resmi. Gunakan kode undangan
-                yang diberikan admin.
+          <div
+            style={{
+              position: "relative",
+              padding: 64,
+              background: BRAND.primary,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              overflow: "hidden",
+            }}
+          >
+            {/* Background Pattern */}
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                backgroundImage: `url(https://images.unsplash.com/photo-1741495515999-0567609a236e?w=1200&q=80)`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+                opacity: 0.15,
+              }}
+            />
+            
+            {/* Gradient Overlay */}
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                background: `linear-gradient(135deg, ${BRAND.primary} 0%, ${BRAND.primaryDark} 100%)`,
+              }}
+            />
+
+            {/* Decorative Circle */}
+            <div
+              style={{
+                position: "absolute",
+                top: "10%",
+                right: "-10%",
+                width: 300,
+                height: 300,
+                border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: "50%",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                bottom: "15%",
+                left: "-5%",
+                width: 200,
+                height: 200,
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: "50%",
+              }}
+            />
+
+            {/* Logo */}
+            <div
+              onClick={() => nav("/")}
+              data-testid="register-logo"
+              style={{
+                position: "absolute",
+                top: 40,
+                left: 48,
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                cursor: "pointer",
+                zIndex: 10,
+              }}
+            >
+              <img
+                src="/logo3.png"
+                alt="CV. Mitra Setia"
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 8,
+                  objectFit: "contain",
+                  display: "block",
+                  background: BRAND.white,
+                }}
+              />
+              <div style={{ color: BRAND.white }}>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>CV. Mitra Setia</div>
+                <div style={{ fontSize: 10, opacity: 0.8 }}>Transport & Logistics</div>
               </div>
+            </div>
+
+            {/* Content */}
+            <div style={{ position: "relative", zIndex: 10, maxWidth: 400 }}>
+              <div
+                style={{
+                  display: "inline-block",
+                  padding: "6px 12px",
+                  background: "rgba(255,255,255,0.15)",
+                  borderRadius: 4,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: BRAND.white,
+                  letterSpacing: "0.5px",
+                  textTransform: "uppercase",
+                  marginBottom: 24,
+                }}
+              >
+                Registrasi Staff
+              </div>
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: 48,
+                  fontWeight: 800,
+                  color: BRAND.white,
+                  lineHeight: 1.1,
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                Bergabung dengan Tim
+              </h1>
+              <p
+                style={{
+                  marginTop: 20,
+                  fontSize: 16,
+                  lineHeight: 1.7,
+                  color: "rgba(255,255,255,0.85)",
+                  maxWidth: 340,
+                }}
+              >
+                Pendaftaran hanya untuk staff dengan undangan resmi. Gunakan kode undangan yang diberikan admin.
+              </p>
             </div>
           </div>
         )}
 
-        <div style={styles.rightPanel}>
-          <div style={styles.formInner}>
-            <div style={styles.header}>
+        {/* Right Panel - Form */}
+        <div
+          style={{
+            padding: isMobile ? "40px 24px" : 64,
+            background: BRAND.white,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            position: "relative",
+            overflowY: "auto",
+          }}
+        >
+          {/* Back to Home */}
+          <div
+            onClick={() => nav("/")}
+            data-testid="register-back-home"
+            style={{
+              position: "absolute",
+              top: isMobile ? 20 : 40,
+              right: isMobile ? 24 : 48,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 13,
+              fontWeight: 600,
+              color: BRAND.primary,
+              cursor: "pointer",
+              transition: "opacity 0.2s",
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            Kembali
+          </div>
+
+          {/* Mobile Logo */}
+          {isMobile && (
+            <div
+              onClick={() => nav("/")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                marginBottom: 32,
+                cursor: "pointer",
+              }}
+            >
+              <img
+                src="/logo3.png"
+                alt="CV. Mitra Setia"
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 8,
+                  objectFit: "contain",
+                  display: "block",
+                  background: BRAND.white,
+                }}
+              />
               <div>
-                <h2 style={styles.title}>Register Account</h2>
-                <p style={styles.subtitle}>Authorized registration for internal staff</p>
+                <div style={{ fontSize: 16, fontWeight: 700, color: BRAND.text }}>CV. Mitra Setia</div>
+                <div style={{ fontSize: 11, color: BRAND.textMuted }}>Transport & Logistics</div>
               </div>
             </div>
+          )}
 
+          {/* Form Container */}
+          <div style={{ maxWidth: 420, width: "100%", margin: isMobile ? 0 : "0 auto" }}>
+            {/* Header */}
+            <div style={{ marginBottom: 28 }}>
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: 28,
+                  fontWeight: 700,
+                  color: BRAND.text,
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                Daftar Akun
+              </h2>
+              <p
+                style={{
+                  margin: "8px 0 0",
+                  fontSize: 14,
+                  color: BRAND.textMuted,
+                }}
+              >
+                Registrasi akun staff baru
+              </p>
+            </div>
+
+            {/* Form */}
             <form onSubmit={onSubmit}>
-              <div style={{ ...styles.field, marginBottom: 14 }}>
-                <label style={styles.label}>Name</label>
+              {/* Name Field */}
+              <div style={{ marginBottom: 16 }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: BRAND.textLight,
+                    marginBottom: 8,
+                  }}
+                >
+                  Nama Lengkap
+                </label>
                 <input
-                  style={{ ...styles.input, ...styles.formControl }}
+                  data-testid="register-name-input"
+                  type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="name"
+                  onFocus={() => setFocusedField("name")}
+                  onBlur={() => setFocusedField(null)}
+                  placeholder="Nama lengkap"
                   autoComplete="name"
+                  style={inputStyle("name")}
                 />
               </div>
 
-              <div style={{ ...styles.field, marginBottom: 14 }}>
-                <label style={styles.label}>Email</label>
+              {/* Email Field */}
+              <div style={{ marginBottom: 16 }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: BRAND.textLight,
+                    marginBottom: 8,
+                  }}
+                >
+                  Email
+                </label>
                 <input
-                  style={{ ...styles.input, ...styles.formControl }}
+                  data-testid="register-email-input"
+                  type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  onFocus={() => setFocusedField("email")}
+                  onBlur={() => setFocusedField(null)}
                   placeholder="email@mitrasetia.com"
                   autoComplete="email"
-                  inputMode="email"
-                  autoCapitalize="none"
-                  autoCorrect="off"
+                  style={inputStyle("email")}
                 />
               </div>
 
-              <div style={{ ...styles.field, marginBottom: 14 }}>
-                <label style={styles.label}>Password</label>
+              {/* Password Field */}
+              <div style={{ marginBottom: 16 }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: BRAND.textLight,
+                    marginBottom: 8,
+                  }}
+                >
+                  Password
+                </label>
                 <input
-                  style={{ ...styles.input, ...styles.formControl }}
+                  data-testid="register-password-input"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  onFocus={() => setFocusedField("password")}
+                  onBlur={() => setFocusedField(null)}
+                  placeholder="Minimal 6 karakter"
                   autoComplete="new-password"
+                  style={inputStyle("password")}
                 />
               </div>
 
-              <div style={{ ...styles.field, marginBottom: 14 }}>
-                <label style={styles.label}>Confirm Password</label>
-                <input
+              {/* Confirm Password Field */}
+              <div style={{ marginBottom: 16 }}>
+                <label
                   style={{
-                    ...styles.input,
-                    ...styles.formControl,
-                    border: pwdMismatch ? "1px solid #fca5a5" : styles.input.border,
-                    background: pwdMismatch ? "#fff7f7" : styles.input.background,
+                    display: "block",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: BRAND.textLight,
+                    marginBottom: 8,
                   }}
+                >
+                  Konfirmasi Password
+                </label>
+                <input
+                  data-testid="register-confirm-password-input"
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="••••••••"
+                  onFocus={() => setFocusedField("confirmPassword")}
+                  onBlur={() => setFocusedField(null)}
+                  placeholder="Ulangi password"
                   autoComplete="new-password"
+                  style={{
+                    ...inputStyle("confirmPassword"),
+                    borderColor: pwdMismatch ? BRAND.error : (focusedField === "confirmPassword" ? BRAND.primary : BRAND.border),
+                  }}
                 />
-                {pwdMismatch && <div style={styles.inlineError}>Passwords do not match.</div>}
+                {pwdMismatch && (
+                  <p style={{ margin: "6px 0 0", fontSize: 12, color: BRAND.error, fontWeight: 600 }}>
+                    Password tidak cocok
+                  </p>
+                )}
               </div>
 
-              <div style={{ ...styles.field, marginBottom: 16 }}>
-                <label style={styles.label}>Invitation Code</label>
+              {/* Invite Code Field */}
+              <div style={{ marginBottom: 20 }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: BRAND.textLight,
+                    marginBottom: 8,
+                  }}
+                >
+                  Kode Undangan
+                </label>
                 <input
-                  style={{ ...styles.input, ...styles.formControl }}
+                  data-testid="register-invite-code-input"
+                  type="text"
                   value={inviteCode}
                   onChange={(e) => setInviteCode(e.target.value)}
-                  placeholder="Provided by admin"
-                  autoCapitalize="none"
-                  autoCorrect="off"
+                  onFocus={() => setFocusedField("inviteCode")}
+                  onBlur={() => setFocusedField(null)}
+                  placeholder="Kode dari admin"
+                  style={inputStyle("inviteCode")}
                 />
-                <div style={styles.hint}>Ask admin for the invite code.</div>
+                <p style={{ margin: "6px 0 0", fontSize: 12, color: BRAND.textMuted }}>
+                  Minta kode undangan dari admin
+                </p>
               </div>
 
+              {/* Error Message */}
               {err && (
-                <div style={styles.errorBox}>
-                  <strong>Register failed</strong>
-                  <div>{err}</div>
+                <div
+                  data-testid="register-error"
+                  style={{
+                    marginBottom: 20,
+                    padding: 16,
+                    background: BRAND.errorBg,
+                    border: `1px solid ${BRAND.error}20`,
+                    borderRadius: 8,
+                    color: BRAND.error,
+                    fontSize: 13,
+                  }}
+                >
+                  <strong style={{ display: "block", marginBottom: 4 }}>Registrasi gagal</strong>
+                  {err}
                 </div>
               )}
 
+              {/* Submit Button */}
               <button
+                type="submit"
                 disabled={!canSubmit}
-                onMouseEnter={() => setHover(true)}
-                onMouseLeave={() => setHover(false)}
+                data-testid="register-submit-btn"
                 style={{
-                  ...styles.button,
-                  ...styles.formControl,
-                  opacity: canSubmit ? 1 : 0.55,
+                  width: "100%",
+                  padding: "14px 24px",
+                  background: canSubmit ? BRAND.primary : BRAND.textMuted,
+                  color: BRAND.white,
+                  fontSize: 15,
+                  fontWeight: 700,
+                  border: "none",
+                  borderRadius: 8,
                   cursor: canSubmit ? "pointer" : "not-allowed",
-                  background: hover ? "#1a8f4a" : "#1f9d53",
-                  transform: hover && canSubmit ? "translateY(-1px)" : "translateY(0)",
-                  transition: "all 0.2s ease",
-                  minHeight: 44,
+                  transition: "all 0.2s",
+                  opacity: canSubmit ? 1 : 0.6,
+                  boxShadow: canSubmit ? `0 4px 12px ${BRAND.primary}30` : "none",
+                }}
+                onMouseEnter={(e) => {
+                  if (canSubmit) e.currentTarget.style.background = BRAND.primaryDark;
+                }}
+                onMouseLeave={(e) => {
+                  if (canSubmit) e.currentTarget.style.background = BRAND.primary;
                 }}
               >
-                {busy ? "Creating..." : "Register"}
+                {busy ? "Memproses..." : "Daftar"}
               </button>
-
-              <div style={styles.footer}>
-                <div style={styles.registerRow}>
-                  <span style={styles.registerText}>Already registered?</span>
-                  <span style={styles.registerLink} onClick={() => nav("/login")}>
-                    Login
-                  </span>
-                </div>
-                <div style={styles.complianceNote}>Invitation code required.</div>
-              </div>
             </form>
+
+            {/* Footer */}
+            <div
+              style={{
+                marginTop: 24,
+                paddingTop: 24,
+                borderTop: `1px solid ${BRAND.border}`,
+                textAlign: "center",
+              }}
+            >
+              <p style={{ margin: 0, fontSize: 14, color: BRAND.textMuted }}>
+                Sudah punya akun?{" "}
+                <span
+                  onClick={() => nav("/login")}
+                  data-testid="register-login-link"
+                  style={{
+                    color: BRAND.primary,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Login
+                </span>
+              </p>
+              <p
+                style={{
+                  margin: "12px 0 0",
+                  fontSize: 11,
+                  color: BRAND.textMuted,
+                  opacity: 0.7,
+                }}
+              >
+                Membutuhkan kode undangan
+              </p>
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
-const styles = {
-  page: {
-    minHeight: "100dvh",
-    display: "flex",
-    alignItems: "stretch",
-    justifyContent: "stretch",
-    padding: 0,
-    boxSizing: "border-box",
-    background: "#ffffff",
-    fontFamily:
-      '"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
-  },
-
-  shell: {
-    width: "100%",
-    minHeight: "100dvh",
-    display: "grid",
-    borderRadius: 0,
-    overflow: "hidden",
-    background: "#ffffff",
-    border: "none",
-    boxShadow: "none",
-  },
-
-  leftPanel: {
-    position: "relative",
-    padding: 56,
-    color: "#f0fff6",
-    background:
-      "radial-gradient(520px 380px at 70% 18%, rgba(255,255,255,0.22), transparent 60%), linear-gradient(135deg, #1b8f4c 0%, #2ccf6a 100%)",
-    display: "flex",
-    alignItems: "center",
-    overflow: "hidden",
-  },
-
-  leftBrand: {
-    position: "absolute",
-    top: 32,
-    left: 36,
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 10,
-    fontWeight: 700,
-    fontSize: 12,
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    opacity: 0.95,
-    cursor: "pointer",
-  },
-
-  leftDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    background: "rgba(255,255,255,0.9)",
-  },
-
-  leftContent: {
-    marginTop: 0,
-    maxWidth: 360,
-    zIndex: 1,
-  },
-
-  leftEyebrow: {
-    fontSize: 14,
-    letterSpacing: 0.4,
-    textTransform: "none",
-    opacity: 0.9,
-  },
-
-  leftTitle: {
-    marginTop: 12,
-    fontSize: 44,
-    fontWeight: 800,
-    letterSpacing: 1.6,
-    lineHeight: 1.08,
-  },
-
-  leftSub: {
-    marginTop: 16,
-    fontSize: 15,
-    lineHeight: 1.85,
-    opacity: 0.9,
-    maxWidth: 300,
-  },
-
-  leftBackdrop: {
-    position: "absolute",
-    inset: 0,
-    background:
-      "radial-gradient(520px 360px at 18% 18%, rgba(255,255,255,0.10), transparent 65%), radial-gradient(640px 420px at 70% 12%, rgba(255,255,255,0.12), transparent 70%)",
-    pointerEvents: "none",
-  },
-
-  leftDots: {
-    position: "absolute",
-    inset: 0,
-    backgroundImage:
-      "radial-gradient(rgba(255,255,255,0.20) 1px, transparent 1px)",
-    backgroundSize: "12px 12px",
-    opacity: 0.35,
-    pointerEvents: "none",
-    mixBlendMode: "screen",
-  },
-
-  rightPanel: {
-    padding: 48,
-    background: "#ffffff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  formInner: {
-    width: "100%",
-    maxWidth: 440,
-  },
-
-  header: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "flex-start",
-    gap: 10,
-    textAlign: "left",
-    marginBottom: 22,
-  },
-
-
-  title: {
-    margin: 0,
-    fontSize: 24,
-    fontWeight: 700,
-    color: "#111827",
-    letterSpacing: -0.3,
-  },
-
-  subtitle: {
-    margin: 0,
-    fontSize: 12,
-    color: "#9ca3af",
-  },
-
-  field: { marginBottom: 14 },
-
-  label: {
-    display: "block",
-    fontSize: 13,
-    fontWeight: 600,
-    marginBottom: 6,
-    color: "#374151",
-  },
-
-  hint: { marginTop: 6, fontSize: 12, color: "#6b7280" },
-
-  inlineError: { marginTop: 6, fontSize: 12, color: "#b91c1c", fontWeight: 700 },
-
-  input: {
-    padding: "12px 14px",
-    borderRadius: 12,
-    border: "1px solid #e5e7eb",
-    background: "#ffffff",
-    fontSize: 16,
-    outline: "none",
-    minHeight: 44,
-  },
-
-  button: {
-    marginTop: 8,
-    padding: 12,
-    borderRadius: 12,
-    border: "none",
-    fontWeight: 700,
-    fontSize: 15,
-    color: "white",
-    background: "#1f9d53",
-    boxShadow: "0 8px 16px rgba(31,157,83,0.22)",
-  },
-
-  errorBox: {
-    marginBottom: 12,
-    padding: 12,
-    borderRadius: 12,
-    background: "#fef2f2",
-    border: "1px solid #fecaca",
-    color: "#b91c1c",
-    fontSize: 12,
-    lineHeight: 1.5,
-  },
-
-  registerRow: {
-    marginTop: 12,
-    display: "flex",
-    justifyContent: "center",
-    gap: 6,
-    fontSize: 12.5,
-    flexWrap: "wrap",
-  },
-
-  registerText: { color: "#6b7280" },
-
-  registerLink: { color: "#1f9d53", fontWeight: 700, cursor: "pointer" },
-
-  footer: {
-    marginTop: 16,
-    paddingTop: 12,
-    borderTop: "1px solid rgba(17,24,39,0.06)",
-    fontSize: 12,
-    color: "#6b7280",
-    textAlign: "center",
-  },
-
-  complianceNote: {
-    marginTop: 8,
-    fontSize: 10.5,
-    color: "#9ca3af",
-  },
-
-  formControl: { width: "100%", boxSizing: "border-box" },
-};

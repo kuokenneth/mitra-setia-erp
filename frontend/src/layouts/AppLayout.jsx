@@ -5,6 +5,7 @@ import {
   FiBarChart2,
   FiBox,
   FiClipboard,
+  FiDollarSign,
   FiFileText,
   FiTool,
   FiTruck,
@@ -68,6 +69,7 @@ export default function AppLayout() {
       { to: "/trucks", label: "Trucks", icon: FiTruck },
       { to: "/inventory", label: "Inventory", icon: FiBox },
       { to: "/maintenance", label: "Maintenance", icon: FiTool },
+      { to: "/expenses", label: "Expenses", icon: FiDollarSign },
       { to: "/orders", label: "Orders", icon: FiFileText },
     ];
   }, [isDriver, isOwnerAdmin, canManageDrivers]);
