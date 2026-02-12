@@ -1,7 +1,29 @@
+// src/pages/CreateDriver.jsx - Corporate Minimalist Design
 import { useState } from "react";
 import { api } from "../api";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
+import { FiUser, FiMail, FiLock, FiPhone, FiArrowLeft, FiCheck, FiInfo } from "react-icons/fi";
+
+// Corporate Green Color Palette (matching Landing Page)
+const BRAND = {
+  primary: "#0D7C3D",
+  primaryDark: "#0A6331",
+  primaryLight: "#10A050",
+  secondary: "#F5F9F7",
+  accent: "#D4E8DC",
+  text: "#1A1A1A",
+  textLight: "#4A4A4A",
+  textMuted: "#6B7280",
+  white: "#FFFFFF",
+  border: "#E5E7EB",
+  warning: "#F59E0B",
+  warningBg: "#FFFBEB",
+  success: "#10B981",
+  successBg: "#ECFDF5",
+  error: "#EF4444",
+  errorBg: "#FEF2F2",
+};
 
 export default function CreateDriver() {
   const nav = useNavigate();
@@ -49,17 +71,15 @@ export default function CreateDriver() {
 
   if (!canManageDrivers) {
     return (
-      <div style={s.page}>
-        <div style={s.headerRow}>
-          <div>
-            <div style={s.hTitle}>Create Driver</div>
-            <div style={s.hSub}>You don’t have permission to access this page.</div>
-          </div>
+      <div data-testid="create-driver-page">
+        <div style={s.header}>
+          <h1 style={s.title}>Create Driver</h1>
+          <p style={s.subtitle}>You don't have permission to access this page.</p>
         </div>
-
         <div style={s.card}>
           <div style={s.alertErr}>Forbidden</div>
-          <button onClick={() => nav(-1)} style={s.secondaryBtn}>
+          <button onClick={() => nav(-1)} style={s.secondaryBtn} data-testid="back-btn">
+            <FiArrowLeft size={16} />
             Back
           </button>
         </div>
@@ -68,77 +88,93 @@ export default function CreateDriver() {
   }
 
   return (
-    <div style={s.page}>
+    <div data-testid="create-driver-page">
+      {/* Header */}
       <div style={s.headerRow}>
         <div>
-          <div style={s.hTitle}>Create Driver</div>
-          <div style={s.hSub}>Add a new driver account for operations.</div>
+          <h1 style={s.title}>Create Driver</h1>
+          <p style={s.subtitle}>Add a new driver account for operations.</p>
         </div>
-
-        <div style={s.rolePill}>STAFF TOOL</div>
+        <span style={s.badge}>STAFF TOOL</span>
       </div>
 
       <div style={s.grid}>
-        {/* FORM */}
+        {/* Form Card */}
         <div style={s.card}>
-          <div style={s.cardTitle}>Driver Details</div>
-          <div style={s.cardSub}>
-            Create a driver login. They can sign in and see driver pages.
+          <div style={s.cardHeader}>
+            <h2 style={s.cardTitle}>Driver Details</h2>
+            <p style={s.cardSubtitle}>Create a driver login. They can sign in and see driver pages.</p>
           </div>
 
-          {err ? <div style={s.alertErr}>{err}</div> : null}
-          {ok ? <div style={s.alertOk}>{ok}</div> : null}
+          {err && <div style={s.alertErr}>{err}</div>}
+          {ok && <div style={s.alertOk}><FiCheck size={16} /> {ok}</div>}
 
-          <form onSubmit={onSubmit} style={{ marginTop: 14 }}>
+          <form onSubmit={onSubmit} style={s.form}>
             <div style={s.fieldRow}>
-              <div style={s.label}>Full Name</div>
+              <label style={s.label}>
+                <FiUser size={14} color={BRAND.textMuted} />
+                Full Name
+              </label>
               <input
                 style={s.input}
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 placeholder="e.g. Andi Wijaya"
+                data-testid="driver-name-input"
               />
             </div>
 
             <div style={s.fieldRow}>
-              <div style={s.label}>Email</div>
+              <label style={s.label}>
+                <FiMail size={14} color={BRAND.textMuted} />
+                Email
+              </label>
               <input
                 style={s.input}
+                type="email"
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                 placeholder="driver@email.com"
+                data-testid="driver-email-input"
               />
             </div>
 
             <div style={s.fieldRow}>
-              <div style={s.label}>Temporary Password</div>
+              <label style={s.label}>
+                <FiLock size={14} color={BRAND.textMuted} />
+                Temporary Password
+              </label>
               <input
                 style={s.input}
                 type="password"
                 value={form.password}
                 onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
                 placeholder="Set an initial password"
+                data-testid="driver-password-input"
               />
-              <div style={s.help}>Driver should change it later (next feature).</div>
+              <p style={s.help}>Driver should change it later.</p>
             </div>
 
             <div style={s.fieldRow}>
-              <div style={s.label}>Phone (optional)</div>
+              <label style={s.label}>
+                <FiPhone size={14} color={BRAND.textMuted} />
+                Phone (optional)
+              </label>
               <input
                 style={s.input}
                 value={form.phone}
                 onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                 placeholder="+62..."
+                data-testid="driver-phone-input"
               />
             </div>
 
             <div style={s.actions}>
               <button
+                type="submit"
                 disabled={loading}
-                style={{
-                  ...s.primaryBtn,
-                  opacity: loading ? 0.7 : 1,
-                }}
+                style={{ ...s.primaryBtn, opacity: loading ? 0.7 : 1 }}
+                data-testid="create-driver-btn"
               >
                 {loading ? "Creating…" : "Create Driver"}
               </button>
@@ -148,47 +184,46 @@ export default function CreateDriver() {
                 onClick={() => nav(-1)}
                 disabled={loading}
                 style={s.secondaryBtn}
+                data-testid="back-btn"
               >
+                <FiArrowLeft size={16} />
                 Back
               </button>
             </div>
 
-            <div style={s.tip}>
-              Tip: If you get “Email already in use”, use a different email.
-            </div>
+            <p style={s.tip}>
+              <FiInfo size={12} /> Tip: If you get "Email already in use", use a different email.
+            </p>
           </form>
         </div>
 
-        {/* SIDE SUMMARY */}
+        {/* Side Panel */}
         <div style={s.sideCol}>
-          <div style={s.summaryCard}>
-            <div style={s.summaryTitle}>What happens next?</div>
-            <div style={s.summaryText}>
-              • A new user is created with role <b>DRIVER</b>
-              <br />
-              • They can login and access <b>Driver Home</b> + <b>My Jobs</b>
-              <br />
-              • Later we can add: SIM/license, assigned truck, password reset
-            </div>
+          <div style={s.sideCard}>
+            <h3 style={s.sideTitle}>What happens next?</h3>
+            <ul style={s.sideList}>
+              <li>A new user is created with role <strong>DRIVER</strong></li>
+              <li>They can login and access <strong>Driver Home</strong> + <strong>My Jobs</strong></li>
+              <li>Later we can add: SIM/license, assigned truck, password reset</li>
+            </ul>
 
             <div style={s.divider} />
 
-            <div style={s.kv}>
-              <div style={s.k}>Creator</div>
-              <div style={s.v}>{user?.name || "-"}</div>
+            <div style={s.kvRow}>
+              <span style={s.kvLabel}>Creator</span>
+              <span style={s.kvValue}>{user?.name || "-"}</span>
             </div>
-
-            <div style={s.kv}>
-              <div style={s.k}>Your Role</div>
-              <div style={s.v}>{role}</div>
+            <div style={s.kvRow}>
+              <span style={s.kvLabel}>Your Role</span>
+              <span style={s.kvValue}>{role}</span>
             </div>
           </div>
 
-          <div style={s.miniCard}>
-            <div style={s.miniTitle}>Next upgrade</div>
-            <div style={s.miniText}>
+          <div style={s.sideCard}>
+            <h3 style={s.sideTitle}>Next upgrade</h3>
+            <p style={s.sideText}>
               Add driver profile fields: SIM number, expiry, address, assigned truck.
-            </div>
+            </p>
           </div>
         </div>
       </div>
@@ -196,200 +231,206 @@ export default function CreateDriver() {
   );
 }
 
-const BRAND = {
-  green: "#4BCA74",
-  green2: "#3BB865",
-  greenLight: "#5FD686",
-  greenDark: "#2D9F56",
-  greenSoft: "rgba(75,202,116,0.15)",
-  ink: "#111827",
-  ink2: "#1F2937",
-};
-
 const s = {
-  page: { padding: 6 },
-
   headerRow: {
     display: "flex",
-    alignItems: "end",
+    alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
-    marginBottom: 14,
+    gap: 16,
+    marginBottom: 24,
+    flexWrap: "wrap",
   },
 
-  hTitle: { fontWeight: 800, fontSize: 24, color: BRAND.ink, letterSpacing: "-0.02em" },
-  hSub: { marginTop: 4, fontSize: 14, color: BRAND.ink2, opacity: 0.8 },
+  header: { marginBottom: 24 },
+  title: { margin: 0, fontSize: 28, fontWeight: 700, color: BRAND.text },
+  subtitle: { margin: "8px 0 0", fontSize: 14, color: BRAND.textMuted },
 
-  rolePill: {
-    fontSize: 13,
-    fontWeight: 700,
-    padding: "8px 16px",
-    borderRadius: 999,
-    background: BRAND.greenSoft,
-    border: `1px solid ${BRAND.green}40`,
-    color: BRAND.green,
-    whiteSpace: "nowrap",
+  badge: {
+    fontSize: 12,
+    fontWeight: 600,
+    padding: "6px 12px",
+    borderRadius: 4,
+    background: BRAND.accent,
+    color: BRAND.primary,
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
   },
 
   grid: {
     display: "grid",
-    gridTemplateColumns: "1.35fr 0.85fr",
-    gap: 20,
+    gridTemplateColumns: "1.4fr 0.8fr",
+    gap: 24,
     alignItems: "start",
   },
 
   card: {
-    borderRadius: 20,
-    background: "rgba(255,255,255,0.85)",
-    backdropFilter: "blur(20px)",
-    WebkitBackdropFilter: "blur(20px)",
-    boxShadow: `0 8px 32px ${BRAND.green}15`,
-    border: `1px solid ${BRAND.greenSoft}`,
+    borderRadius: 8,
+    background: BRAND.white,
+    border: `1px solid ${BRAND.border}`,
     padding: 24,
-    minWidth: 0,
   },
 
-  cardTitle: { fontWeight: 800, fontSize: 18, color: BRAND.ink },
-  cardSub: { marginTop: 6, fontSize: 14, color: BRAND.ink2, opacity: 0.8 },
+  cardHeader: { marginBottom: 20 },
+  cardTitle: { margin: 0, fontSize: 18, fontWeight: 600, color: BRAND.text },
+  cardSubtitle: { margin: "6px 0 0", fontSize: 14, color: BRAND.textMuted },
 
   alertErr: {
-    marginTop: 12,
-    borderRadius: 14,
-    border: "1px solid rgba(239,68,68,0.28)",
-    background: "rgba(239,68,68,0.10)",
-    color: "rgba(153,27,27,0.95)",
+    marginBottom: 16,
+    borderRadius: 6,
+    border: `1px solid ${BRAND.error}30`,
+    background: BRAND.errorBg,
+    color: BRAND.error,
     padding: "12px 16px",
-    fontWeight: 700,
-    fontSize: 13,
+    fontWeight: 500,
+    fontSize: 14,
   },
 
   alertOk: {
-    marginTop: 12,
-    borderRadius: 14,
-    border: `1px solid ${BRAND.green}40`,
-    background: BRAND.greenSoft,
-    color: BRAND.green,
+    marginBottom: 16,
+    borderRadius: 6,
+    border: `1px solid ${BRAND.success}40`,
+    background: BRAND.successBg,
+    color: BRAND.success,
     padding: "12px 16px",
-    fontWeight: 700,
-    fontSize: 13,
+    fontWeight: 500,
+    fontSize: 14,
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
   },
 
-  fieldRow: { marginTop: 14 },
+  form: { display: "grid", gap: 16 },
+
+  fieldRow: {},
+
   label: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
     fontSize: 14,
-    fontWeight: 700,
-    color: BRAND.ink,
+    fontWeight: 500,
+    color: BRAND.text,
     marginBottom: 8,
   },
 
   input: {
     width: "100%",
-    borderRadius: 12,
-    border: `2px solid ${BRAND.greenSoft}`,
-    background: "white",
-    padding: "12px 16px",
+    borderRadius: 6,
+    border: `1px solid ${BRAND.border}`,
+    background: BRAND.white,
+    padding: "12px 14px",
     outline: "none",
-    fontWeight: 600,
-    fontSize: 15,
-    color: BRAND.ink,
+    fontWeight: 500,
+    fontSize: 14,
+    color: BRAND.text,
     boxSizing: "border-box",
-    transition: "all 0.3s ease",
+    transition: "border-color 0.2s ease",
   },
 
   help: {
-    marginTop: 8,
-    fontSize: 13,
-    color: BRAND.ink2,
-    opacity: 0.7,
+    marginTop: 6,
+    fontSize: 12,
+    color: BRAND.textMuted,
   },
 
   actions: {
-    marginTop: 20,
+    marginTop: 8,
     display: "flex",
     gap: 12,
     flexWrap: "wrap",
   },
 
   primaryBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
     border: "none",
-    borderRadius: 12,
-    padding: "14px 24px",
-    fontWeight: 700,
-    fontSize: 15,
+    borderRadius: 6,
+    padding: "12px 24px",
+    fontWeight: 600,
+    fontSize: 14,
     cursor: "pointer",
-    color: "white",
-    background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
-    boxShadow: `0 8px 20px ${BRAND.green}40`,
-    transition: "all 0.3s ease",
+    color: BRAND.white,
+    background: BRAND.primary,
+    transition: "all 0.2s ease",
   },
 
   secondaryBtn: {
-    borderRadius: 12,
-    padding: "14px 24px",
-    fontWeight: 700,
-    fontSize: 15,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 6,
+    padding: "12px 20px",
+    fontWeight: 500,
+    fontSize: 14,
     cursor: "pointer",
-    color: BRAND.green,
-    background: BRAND.greenSoft,
-    border: `1px solid ${BRAND.green}40`,
-    transition: "all 0.3s ease",
+    color: BRAND.textLight,
+    background: BRAND.white,
+    border: `1px solid ${BRAND.border}`,
+    transition: "all 0.2s ease",
   },
 
   tip: {
-    marginTop: 12,
-    fontSize: 13,
-    color: BRAND.ink2,
-    opacity: 0.7,
+    marginTop: 8,
+    fontSize: 12,
+    color: BRAND.textMuted,
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
   },
 
   sideCol: { display: "flex", flexDirection: "column", gap: 20 },
 
-  summaryCard: {
-    borderRadius: 20,
-    background: "rgba(255,255,255,0.85)",
-    backdropFilter: "blur(20px)",
-    WebkitBackdropFilter: "blur(20px)",
-    boxShadow: `0 8px 32px ${BRAND.green}15`,
-    border: `1px solid ${BRAND.greenSoft}`,
-    padding: 24,
+  sideCard: {
+    borderRadius: 8,
+    background: BRAND.white,
+    border: `1px solid ${BRAND.border}`,
+    padding: 20,
   },
 
-  summaryTitle: { fontWeight: 800, color: BRAND.ink, fontSize: 16 },
-  summaryText: {
-    marginTop: 12,
+  sideTitle: { margin: 0, fontSize: 16, fontWeight: 600, color: BRAND.text },
+
+  sideList: {
+    margin: "12px 0 0",
+    paddingLeft: 20,
     fontSize: 14,
-    color: BRAND.ink2,
+    color: BRAND.textLight,
+    lineHeight: 1.8,
+  },
+
+  sideText: {
+    margin: "10px 0 0",
+    fontSize: 14,
+    color: BRAND.textLight,
     lineHeight: 1.6,
   },
 
   divider: {
     height: 1,
-    background: BRAND.greenSoft,
+    background: BRAND.border,
     margin: "16px 0",
   },
 
-  kv: {
+  kvRow: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: 12,
-    padding: "10px 0",
+    padding: "8px 0",
   },
-  k: { fontSize: 14, fontWeight: 600, color: BRAND.ink2 },
-  v: { fontSize: 14, fontWeight: 700, color: BRAND.ink },
 
-  miniCard: {
-    borderRadius: 20,
-    background: "rgba(255,255,255,0.85)",
-    backdropFilter: "blur(20px)",
-    border: `1px solid ${BRAND.greenSoft}`,
-    padding: 20,
-  },
-  miniTitle: { fontWeight: 800, color: BRAND.ink, fontSize: 16 },
-  miniText: {
-    marginTop: 8,
-    fontSize: 14,
-    color: BRAND.ink2,
-    lineHeight: 1.5,
-  },
+  kvLabel: { fontSize: 14, color: BRAND.textMuted },
+  kvValue: { fontSize: 14, fontWeight: 600, color: BRAND.text },
 };
+
+// Responsive CSS
+const style = document.createElement('style');
+style.textContent = `
+  @media (max-width: 900px) {
+    [data-testid="create-driver-page"] > div:nth-child(2) {
+      grid-template-columns: 1fr !important;
+    }
+  }
+`;
+if (typeof document !== 'undefined') {
+  document.head.appendChild(style);
+}

@@ -1,77 +1,66 @@
-// src/pages/Inventory.jsx
+// src/pages/Inventory.jsx - Corporate Minimalist Design
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
 
-/**
- * ✅ Updated (Serialized Receive Pricing - IDR):
- * - For SERIALIZED items, backend requires units[] (serial required).
- * - You must provide either:
- *    A) purchasePrice per unit, OR
- *    B) totalPurchasePrice (backend divides equally)
- * - You cannot use qty-only receive for serialized anymore.
- */
-
-//////////////////////
-// STYLES - MODERNIZED
-//////////////////////
-
+// Corporate Green Color Palette (matching Landing/Dashboard)
 const BRAND = {
-  green: "#4BCA74",
-  green2: "#3BB865",
-  greenLight: "#5FD686",
-  greenDark: "#2D9F56",
-  greenSoft: "rgba(75,202,116,0.15)",
-  ink: "#111827",
-  ink2: "#1F2937",
+  primary: "#0D7C3D",
+  primaryDark: "#0A6331",
+  primaryLight: "#10A050",
+  secondary: "#F5F9F7",
+  accent: "#D4E8DC",
+  text: "#1A1A1A",
+  textMuted: "#6B7280",
+  white: "#FFFFFF",
+  border: "#E5E7EB",
+  borderLight: "#F3F4F6",
+  danger: "#DC2626",
+  dangerLight: "#FEE2E2",
+  warning: "#F59E0B",
+  warningLight: "#FEF3C7",
 };
 
+//////////////////////
+// STYLES
+//////////////////////
 const pageBg = {
   minHeight: "100vh",
-  padding: 22,
-  color: BRAND.ink,
+  padding: 24,
+  background: BRAND.secondary,
+  color: BRAND.text,
 };
 
 const container = {
-  maxWidth: 1240,
+  maxWidth: 1280,
   margin: "0 auto",
 };
 
 const headerTitle = {
-  fontSize: 32,
-  fontWeight: 800,
-  letterSpacing: "-0.02em",
+  fontSize: 28,
+  fontWeight: 700,
   margin: 0,
-  lineHeight: 1.1,
-  color: BRAND.ink,
+  color: BRAND.text,
 };
 
 const headerSub = {
-  marginTop: 8,
-  color: BRAND.ink2,
-  fontWeight: 600,
-  fontSize: 15,
-  opacity: 0.8,
+  marginTop: 4,
+  color: BRAND.textMuted,
+  fontSize: 14,
 };
 
 const wrapCard = {
-  marginTop: 20,
-  background: "rgba(255,255,255,0.85)",
-  backdropFilter: "blur(20px)",
-  WebkitBackdropFilter: "blur(20px)",
-  borderRadius: 20,
-  border: `1px solid ${BRAND.greenSoft}`,
-  boxShadow: `0 8px 32px ${BRAND.green}15`,
+  marginTop: 24,
+  background: BRAND.white,
+  borderRadius: 8,
+  border: `1px solid ${BRAND.border}`,
   padding: 24,
 };
 
 const innerCard = {
-  background: "rgba(255,255,255,0.9)",
-  backdropFilter: "blur(10px)",
-  WebkitBackdropFilter: "blur(10px)",
-  borderRadius: 16,
-  border: `1px solid ${BRAND.greenSoft}`,
-  boxShadow: `0 4px 16px ${BRAND.green}10`,
+  background: BRAND.white,
+  borderRadius: 8,
+  border: `1px solid ${BRAND.border}`,
   overflow: "hidden",
 };
 
@@ -113,7 +102,7 @@ function TruckSearchSelect({ trucks, value, onChange, placeholder = "Search plat
   return (
     <div style={{ position: "relative" }}>
       <input
-        style={{ ...inputPill, borderRadius: 14, minWidth: 0, width: "100%", boxSizing: "border-box" }}
+        style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
         value={query}
         placeholder={placeholder}
         onChange={(e) => {
@@ -129,19 +118,19 @@ function TruckSearchSelect({ trucks, value, onChange, placeholder = "Search plat
         <div
           style={{
             position: "absolute",
-            top: "calc(100% + 8px)",
+            top: "calc(100% + 4px)",
             left: 0,
             right: 0,
-            background: "#fff",
-            border: "1px solid rgba(20, 83, 45, 0.14)",
-            boxShadow: "0 18px 40px rgba(16, 24, 40, 0.12)",
-            borderRadius: 14,
+            background: BRAND.white,
+            border: `1px solid ${BRAND.border}`,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+            borderRadius: 8,
             overflow: "hidden",
             zIndex: 50,
           }}
         >
           {filtered.length === 0 ? (
-            <div style={{ padding: 12, fontWeight: 800, color: "#64748B" }}>No trucks found</div>
+            <div style={{ padding: 12, fontWeight: 500, color: BRAND.textMuted }}>No trucks found</div>
           ) : (
             filtered.map((t) => (
               <button
@@ -160,10 +149,13 @@ function TruckSearchSelect({ trucks, value, onChange, placeholder = "Search plat
                   border: "none",
                   background: "transparent",
                   cursor: "pointer",
+                  transition: "background 0.15s ease",
                 }}
+                onMouseEnter={(e) => e.target.style.background = BRAND.secondary}
+                onMouseLeave={(e) => e.target.style.background = "transparent"}
               >
-                <div style={{ fontWeight: 900, color: "#0B2A1F" }}>{t.plateNumber || "-"}</div>
-                <div style={{ marginTop: 2, fontWeight: 800, color: "#2F6B55", fontSize: 12 }}>
+                <div style={{ fontWeight: 600, color: BRAND.text }}>{t.plateNumber || "-"}</div>
+                <div style={{ marginTop: 2, color: BRAND.textMuted, fontSize: 12 }}>
                   {t.brand ? `${t.brand}` : ""} {t.model ? `${t.model}` : ""}
                 </div>
               </button>
@@ -178,105 +170,104 @@ function TruckSearchSelect({ trucks, value, onChange, placeholder = "Search plat
 const pill = {
   display: "inline-flex",
   alignItems: "center",
-  padding: "8px 16px",
-  borderRadius: 999,
-  border: `1px solid ${BRAND.greenSoft}`,
-  background: "rgba(255,255,255,0.8)",
-  color: BRAND.ink,
-  fontWeight: 700,
+  padding: "6px 12px",
+  borderRadius: 6,
+  border: `1px solid ${BRAND.border}`,
+  background: BRAND.secondary,
+  color: BRAND.text,
+  fontWeight: 500,
   fontSize: 13,
   whiteSpace: "nowrap",
 };
 
 const pillGreen = {
   ...pill,
-  background: BRAND.greenSoft,
-  border: `1px solid ${BRAND.green}40`,
-  color: BRAND.green,
+  background: BRAND.accent,
+  border: `1px solid ${BRAND.primary}30`,
+  color: BRAND.primary,
 };
 
 const pillRed = {
   ...pill,
-  background: "rgba(239,68,68,0.10)",
-  border: "1px solid rgba(239,68,68,0.30)",
-  color: "#7F1D1D",
+  background: BRAND.dangerLight,
+  border: `1px solid ${BRAND.danger}30`,
+  color: BRAND.danger,
 };
 
 const inputPill = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 12,
-  border: `2px solid ${BRAND.greenSoft}`,
+  height: 42,
+  padding: "0 14px",
+  borderRadius: 6,
+  border: `1px solid ${BRAND.border}`,
   outline: "none",
-  background: "#FFFFFF",
-  color: BRAND.ink,
-  fontWeight: 600,
-  fontSize: 15,
+  background: BRAND.white,
+  color: BRAND.text,
+  fontWeight: 500,
+  fontSize: 14,
   minWidth: 260,
-  transition: "all 0.3s ease",
+  transition: "border-color 0.2s ease",
 };
 
 const selectPill = {
   ...inputPill,
-  minWidth: 220,
+  minWidth: 200,
   appearance: "none",
   WebkitAppearance: "none",
   MozAppearance: "none",
-  paddingRight: 44,
-  backgroundImage: `linear-gradient(45deg, transparent 50%, ${BRAND.green} 50%), linear-gradient(135deg, ${BRAND.green} 50%, transparent 50%)`,
-  backgroundPosition: "calc(100% - 22px) 19px, calc(100% - 16px) 19px",
-  backgroundSize: "6px 6px, 6px 6px",
+  paddingRight: 36,
+  backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236B7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+  backgroundPosition: "right 10px center",
+  backgroundSize: "16px",
   backgroundRepeat: "no-repeat",
   cursor: "pointer",
 };
 
 const btn = {
-  height: 48,
-  padding: "0 20px",
-  borderRadius: 12,
-  border: `1px solid ${BRAND.greenSoft}`,
-  background: "#FFFFFF",
-  color: BRAND.ink,
-  fontWeight: 700,
-  fontSize: 15,
+  height: 42,
+  padding: "0 16px",
+  borderRadius: 6,
+  border: `1px solid ${BRAND.border}`,
+  background: BRAND.white,
+  color: BRAND.text,
+  fontWeight: 500,
+  fontSize: 14,
   cursor: "pointer",
-  transition: "all 0.3s ease",
+  transition: "all 0.2s ease",
 };
 
 const btnPrimary = {
   ...btn,
-  background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
-  border: "none",
-  color: "white",
-  boxShadow: `0 8px 20px ${BRAND.green}40`,
+  background: BRAND.primary,
+  border: `1px solid ${BRAND.primary}`,
+  color: BRAND.white,
 };
 
 const btnDanger = {
   ...btn,
-  background: "rgba(239,68,68,0.10)",
-  border: "1px solid rgba(239,68,68,0.30)",
-  color: "#7F1D1D",
+  background: BRAND.dangerLight,
+  border: `1px solid ${BRAND.danger}30`,
+  color: BRAND.danger,
 };
 
 const tabBtn = (active) => ({
   ...btn,
-  height: 44,
-  padding: "0 18px",
-  background: active ? BRAND.greenSoft : "#FFFFFF",
-  border: active ? `2px solid ${BRAND.green}` : `1px solid ${BRAND.greenSoft}`,
-  color: active ? BRAND.green : BRAND.ink,
-  fontWeight: 700,
+  height: 38,
+  padding: "0 14px",
+  background: active ? BRAND.primary : BRAND.white,
+  border: active ? `1px solid ${BRAND.primary}` : `1px solid ${BRAND.border}`,
+  color: active ? BRAND.white : BRAND.text,
+  fontWeight: 500,
 });
 
 const errorBox = {
   marginTop: 16,
-  background: "rgba(239,68,68,0.10)",
-  border: "1px solid rgba(239,68,68,0.30)",
-  borderRadius: 14,
+  background: BRAND.dangerLight,
+  border: `1px solid ${BRAND.danger}30`,
+  borderRadius: 6,
   padding: 16,
 };
 
-const tableWrap = { overflowX: "auto", borderRadius: 16 };
+const tableWrap = { overflowX: "auto", borderRadius: 8 };
 
 const table = {
   width: "100%",
@@ -287,72 +278,41 @@ const table = {
 
 const th = {
   textAlign: "left",
-  padding: "14px 16px",
-  fontSize: 13,
-  color: BRAND.ink,
-  background: BRAND.greenSoft,
-  borderBottom: `1px solid ${BRAND.green}30`,
-  fontWeight: 800,
+  padding: "12px 16px",
+  fontSize: 12,
+  color: BRAND.textMuted,
+  background: BRAND.secondary,
+  borderBottom: `1px solid ${BRAND.border}`,
+  fontWeight: 600,
+  textTransform: "uppercase",
   letterSpacing: "0.5px",
 };
 
 const td = {
-  padding: "14px 16px",
-  borderBottom: `1px solid ${BRAND.greenSoft}`,
+  padding: "12px 16px",
+  borderBottom: `1px solid ${BRAND.borderLight}`,
   verticalAlign: "middle",
-  fontWeight: 600,
+  fontWeight: 500,
   fontSize: 14,
-  color: BRAND.ink,
+  color: BRAND.text,
 };
 
 const tdSoft = {
   ...td,
-  fontWeight: 600,
-  color: BRAND.ink2,
+  color: BRAND.textMuted,
 };
 
 //////////////////////
 // HOVER BUTTON SYSTEM
 //////////////////////
-function shadeColor(hex, amt) {
-  let c = String(hex || "").replace("#", "").trim();
-  if (c.length === 3) c = c.split("").map((x) => x + x).join("");
-  if (c.length !== 6) return hex;
-
-  const num = parseInt(c, 16);
-  let r = (num >> 16) & 255;
-  let g = (num >> 8) & 255;
-  let b = num & 255;
-
-  r = Math.max(0, Math.min(255, r + amt));
-  g = Math.max(0, Math.min(255, g + amt));
-  b = Math.max(0, Math.min(255, b + amt));
-
-  const out = (r << 16) | (g << 8) | b;
-  return `#${out.toString(16).padStart(6, "0")}`;
-}
-
-function makeHoverStyle(base) {
-  const bg = base?.background || "#FFFFFF";
-  const isHexBg = typeof bg === "string" && bg.startsWith("#");
-
-  return {
-    ...base,
-    transform: "translateY(-1px)",
-    boxShadow: "0 10px 22px rgba(16,24,40,0.10)",
-    background: isHexBg ? shadeColor(bg, -10) : bg,
-    filter: "brightness(0.98)",
-  };
-}
-
 function Btn({ style, disabled, children, ...props }) {
   const [hover, setHover] = useState(false);
 
   const finalStyle = {
     ...style,
-    transition: "transform 120ms ease, box-shadow 120ms ease, filter 120ms ease, background 120ms ease",
-    ...(hover && !disabled ? makeHoverStyle(style) : null),
-    ...(disabled ? { opacity: 0.55, cursor: "not-allowed", transform: "none", boxShadow: "none" } : null),
+    transition: "all 0.2s ease",
+    ...(hover && !disabled ? { transform: "translateY(-1px)", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" } : null),
+    ...(disabled ? { opacity: 0.5, cursor: "not-allowed" } : null),
   };
 
   return (
@@ -384,7 +344,7 @@ function Modal({ open, title, onClose, children }) {
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(15, 23, 42, 0.35)",
+        background: "rgba(0, 0, 0, 0.5)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -396,29 +356,29 @@ function Modal({ open, title, onClose, children }) {
         onClick={(e) => e.stopPropagation()}
         style={{
           width: "min(920px, 100%)",
-          background: "#FFFFFF",
-          borderRadius: 22,
-          border: "1px solid rgba(20, 83, 45, 0.14)",
-          boxShadow: "0 20px 60px rgba(16, 24, 40, 0.18)",
+          background: BRAND.white,
+          borderRadius: 8,
+          border: `1px solid ${BRAND.border}`,
+          boxShadow: "0 20px 40px rgba(0, 0, 0, 0.15)",
           overflow: "hidden",
         }}
       >
         <div
           style={{
             padding: 16,
-            borderBottom: "1px solid rgba(15,23,42,0.06)",
+            borderBottom: `1px solid ${BRAND.border}`,
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
             gap: 12,
           }}
         >
-          <div style={{ fontSize: 16, fontWeight: 900, color: "#0B2A1F" }}>{title}</div>
+          <div style={{ fontSize: 18, fontWeight: 600, color: BRAND.text }}>{title}</div>
           <Btn style={btn} onClick={onClose}>
             Close
           </Btn>
         </div>
-        <div style={{ padding: 16 }}>{children}</div>
+        <div style={{ padding: 20 }}>{children}</div>
       </div>
     </div>
   );
@@ -443,7 +403,6 @@ function buildQuery(paramsObj) {
   return s ? `?${s}` : "";
 }
 
-// ✅ UPDATED: validate serial is required; price optional
 function parseUnitLines(text) {
   const lines = String(text || "")
     .split("\n")
@@ -471,7 +430,7 @@ export default function Inventory() {
   const role = user?.role || "UNKNOWN";
   const allowed = role === "OWNER" || role === "ADMIN" || role === "STAFF";
 
-  const [tab, setTab] = useState("ITEMS"); // ITEMS | UNITS | MOVEMENTS
+  const [tab, setTab] = useState("ITEMS");
   const [q, setQ] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
@@ -490,9 +449,7 @@ export default function Inventory() {
   const [openReceive, setOpenReceive] = useState(false);
   const [openAssign, setOpenAssign] = useState(false);
   const [openCreateLocation, setOpenCreateLocation] = useState(false);
-
   const [openConsume, setOpenConsume] = useState(false);
-
   const [openBarcode, setOpenBarcode] = useState(false);
   const [barcodeForm, setBarcodeForm] = useState({ unitId: "", barcode: "" });
 
@@ -509,14 +466,13 @@ export default function Inventory() {
     isSerialized: false,
   });
 
-  // ✅ UPDATED: totalPurchasePrice for serialized equal split
   const [receiveForm, setReceiveForm] = useState({
     itemId: "",
     locationId: "",
     qty: 1,
     note: "",
     unitLines: "",
-    totalPurchasePrice: "", // ✅ NEW
+    totalPurchasePrice: "",
   });
 
   const [assignForm, setAssignForm] = useState({
@@ -662,13 +618,11 @@ export default function Inventory() {
         setLoading(false);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowed]);
 
   useEffect(() => {
     if (!allowed) return;
     refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
   async function createItem() {
@@ -721,7 +675,6 @@ export default function Inventory() {
     }
   }
 
-  // ✅ UPDATED: serialized requires units[] + pricing logic
   async function receiveStock() {
     setErr("");
     try {
@@ -759,7 +712,7 @@ export default function Inventory() {
         }
 
         payload.units = unitsPayload.map((u) => ({
-          serialNumber: u.serialNumber, // REQUIRED
+          serialNumber: u.serialNumber,
           barcode: u.barcode || undefined,
           ...(hasAnyUnitPrice ? { purchasePrice: Number(u.purchasePrice) } : {}),
         }));
@@ -879,7 +832,7 @@ export default function Inventory() {
         <div style={container}>
           <div style={wrapCard}>
             <h1 style={headerTitle}>Inventory</h1>
-            <div style={headerSub}>You don’t have access to this page.</div>
+            <div style={headerSub}>You don't have access to this page.</div>
           </div>
         </div>
       </div>
@@ -891,11 +844,11 @@ export default function Inventory() {
   return (
     <div style={pageBg}>
       <div style={container}>
-        {/* header */}
+        {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <div>
             <h1 style={headerTitle}>Inventory</h1>
-            <div style={headerSub}>Spareparts master data, stock, units, and movements</div>
+            <div style={headerSub}>Manage spare parts, stock, units, and movements</div>
           </div>
 
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
@@ -938,9 +891,9 @@ export default function Inventory() {
           </div>
         </div>
 
-        {/* main card */}
+        {/* Main Card */}
         <div style={wrapCard}>
-          {/* tabs + search */}
+          {/* Tabs + Search */}
           <div style={controlRow}>
             <div style={leftControls}>
               <Btn style={tabBtn(tab === "ITEMS")} onClick={() => setTab("ITEMS")}>
@@ -956,7 +909,7 @@ export default function Inventory() {
 
             <div style={rightControls}>
               <input
-                style={{ ...inputPill, minWidth: 420 }}
+                style={{ ...inputPill, minWidth: 320 }}
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Search by name / SKU / barcode..."
@@ -969,12 +922,12 @@ export default function Inventory() {
 
           {err ? (
             <div style={errorBox}>
-              <div style={{ fontWeight: 900, color: "#7F1D1D" }}>Error</div>
-              <div style={{ marginTop: 6, whiteSpace: "pre-wrap", color: "#7F1D1D", fontWeight: 700 }}>{err}</div>
+              <div style={{ fontWeight: 600, color: BRAND.danger }}>Error</div>
+              <div style={{ marginTop: 6, whiteSpace: "pre-wrap", color: BRAND.danger }}>{err}</div>
             </div>
           ) : null}
 
-          <div style={{ marginTop: 14 }}>
+          <div style={{ marginTop: 16 }}>
             {tab === "ITEMS" ? (
               <ItemsTable
                 items={filteredItems}
@@ -1040,9 +993,9 @@ export default function Inventory() {
             </div>
 
             <div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55", marginBottom: 6 }}>Barcode</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Barcode</div>
               <input
-                style={{ ...inputPill, borderRadius: 14, minWidth: 0, width: "100%", boxSizing: "border-box" }}
+                style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 value={barcodeForm.barcode}
                 onChange={(e) => setBarcodeForm((p) => ({ ...p, barcode: e.target.value }))}
                 placeholder="Scan / type barcode..."
@@ -1050,7 +1003,7 @@ export default function Inventory() {
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 14 }}>
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
             <Btn style={btn} onClick={() => setOpenBarcode(false)}>
               Cancel
             </Btn>
@@ -1065,9 +1018,9 @@ export default function Inventory() {
             <Pill variant="red">Unit ID: {scrapForm.unitId || "-"}</Pill>
 
             <div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55", marginBottom: 6 }}>Reason / Note</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Reason / Note</div>
               <input
-                style={{ ...inputPill, borderRadius: 14, minWidth: 0, width: "100%", boxSizing: "border-box" }}
+                style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 value={scrapForm.note}
                 onChange={(e) => setScrapForm((p) => ({ ...p, note: e.target.value }))}
                 placeholder="e.g. Broken, punctured, unsafe to use"
@@ -1088,42 +1041,42 @@ export default function Inventory() {
         <Modal open={openCreateItem} title="Create Item (Sparepart Master)" onClose={() => setOpenCreateItem(false)}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55", marginBottom: 6 }}>SKU</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>SKU</div>
               <input
-                style={{ ...inputPill, borderRadius: 14, minWidth: 0 }}
+                style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 value={createItemForm.sku}
                 onChange={(e) => setCreateItemForm((p) => ({ ...p, sku: e.target.value }))}
               />
             </div>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55", marginBottom: 6 }}>Unit</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Unit</div>
               <input
-                style={{ ...inputPill, borderRadius: 14, minWidth: 0 }}
+                style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 value={createItemForm.unit}
                 onChange={(e) => setCreateItemForm((p) => ({ ...p, unit: e.target.value }))}
               />
             </div>
 
             <div style={{ gridColumn: "1 / -1" }}>
-              <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55", marginBottom: 6 }}>Name</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Name</div>
               <input
-                style={{ ...inputPill, borderRadius: 14, minWidth: 0 }}
+                style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 value={createItemForm.name}
                 onChange={(e) => setCreateItemForm((p) => ({ ...p, name: e.target.value }))}
               />
             </div>
 
-            <label style={{ display: "flex", alignItems: "center", gap: 10, gridColumn: "1 / -1", color: "#2B4C3F", fontWeight: 900 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, gridColumn: "1 / -1", color: BRAND.text, fontWeight: 500 }}>
               <input
                 type="checkbox"
                 checked={createItemForm.isSerialized}
                 onChange={(e) => setCreateItemForm((p) => ({ ...p, isSerialized: e.target.checked }))}
               />
-              Serialized (unit-level tracking, disappears when assigned)
+              Serialized (unit-level tracking)
             </label>
           </div>
 
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 14 }}>
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
             <Btn style={btn} onClick={() => setOpenCreateItem(false)}>
               Cancel
             </Btn>
@@ -1135,25 +1088,25 @@ export default function Inventory() {
 
         <Modal open={openReceive} title="Receive Stock (IN)" onClose={() => setOpenReceive(false)}>
           {locations.length === 0 ? (
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontWeight: 900, color: "#0B2A1F" }}>No location found</div>
-              <div style={{ marginTop: 6, color: "#2F6B55", fontWeight: 800 }}>
-                You must create at least one location (e.g. Main Warehouse) before receiving stock.
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 600, color: BRAND.text }}>No location found</div>
+              <div style={{ marginTop: 6, color: BRAND.textMuted }}>
+                Create at least one location (e.g. Main Warehouse) before receiving stock.
               </div>
               <div style={{ marginTop: 12 }}>
                 <Btn style={btnPrimary} onClick={() => setOpenCreateLocation(true)}>
                   + Create Location
                 </Btn>
               </div>
-              <div style={{ marginTop: 12, height: 1, background: "rgba(15,23,42,0.06)" }} />
+              <div style={{ marginTop: 12, height: 1, background: BRAND.border }} />
             </div>
           ) : null}
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55", marginBottom: 6 }}>Item</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Item</div>
               <select
-                style={{ ...selectPill, borderRadius: 14, minWidth: 0 }}
+                style={{ ...selectPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 value={receiveForm.itemId}
                 onChange={(e) => setReceiveForm((p) => ({ ...p, itemId: e.target.value }))}
               >
@@ -1167,7 +1120,7 @@ export default function Inventory() {
             </div>
 
             <div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55", marginBottom: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>
                 Location{" "}
                 {locations.length > 0 ? (
                   <Btn
@@ -1180,13 +1133,13 @@ export default function Inventory() {
                 ) : null}
               </div>
               <select
-                style={{ ...selectPill, borderRadius: 14, minWidth: 0 }}
+                style={{ ...selectPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 value={receiveForm.locationId}
                 onChange={(e) => setReceiveForm((p) => ({ ...p, locationId: e.target.value }))}
                 disabled={locations.length === 0}
               >
                 {locations.length === 0 ? (
-                  <option value="">No locations yet — create one first</option>
+                  <option value="">No locations yet</option>
                 ) : (
                   <>
                     <option value="">Select location...</option>
@@ -1201,46 +1154,45 @@ export default function Inventory() {
             </div>
 
             <div style={{ gridColumn: "1 / -1" }}>
-              <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55", marginBottom: 6 }}>Note</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Note</div>
               <input
-                style={{ ...inputPill, borderRadius: 14, minWidth: 0 }}
+                style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 value={receiveForm.note}
                 onChange={(e) => setReceiveForm((p) => ({ ...p, note: e.target.value }))}
               />
             </div>
 
             <div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55", marginBottom: 6 }}>Qty</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Qty</div>
               <input
-                style={{ ...inputPill, borderRadius: 14, minWidth: 0 }}
+                style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 type="number"
                 step="0.01"
                 value={receiveForm.qty}
                 onChange={(e) => setReceiveForm((p) => ({ ...p, qty: e.target.value }))}
               />
-              <div style={{ marginTop: 6, fontSize: 12, color: "#2B4C3F", opacity: 0.75, fontWeight: 700 }}>
+              <div style={{ marginTop: 6, fontSize: 12, color: BRAND.textMuted }}>
                 For serialized items, Qty is ignored (units list required).
               </div>
             </div>
 
-            {/* ✅ NEW: Total Purchase Price only for serialized */}
             {(() => {
               const item = items.find((x) => x.id === receiveForm.itemId);
               if (!item?.isSerialized) return null;
 
               return (
                 <div style={{ gridColumn: "1 / -1" }}>
-                  <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55", marginBottom: 6 }}>
-                    Total Purchase Price (IDR) — optional (divided equally)
+                  <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>
+                    Total Purchase Price (IDR) — optional
                   </div>
                   <input
-                    style={{ ...inputPill, borderRadius: 14, minWidth: 0, width: "100%", boxSizing: "border-box" }}
+                    style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                     type="number"
                     value={receiveForm.totalPurchasePrice || ""}
                     onChange={(e) => setReceiveForm((p) => ({ ...p, totalPurchasePrice: e.target.value }))}
                     placeholder="e.g. 20000000"
                   />
-                  <div style={{ marginTop: 6, fontSize: 12, color: "#2B4C3F", opacity: 0.75, fontWeight: 700 }}>
+                  <div style={{ marginTop: 6, fontSize: 12, color: BRAND.textMuted }}>
                     Use either per-unit price in lines OR this total price (not both).
                   </div>
                 </div>
@@ -1248,14 +1200,14 @@ export default function Inventory() {
             })()}
 
             <div style={{ gridColumn: "1 / -1" }}>
-              <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
                 Serialized Units {(() => {
                   const item = items.find((x) => x.id === receiveForm.itemId);
                   return item?.isSerialized ? "(required)" : "(optional)";
                 })()}
               </div>
 
-              <div style={{ fontSize: 12, color: "#2B4C3F", opacity: 0.75, marginTop: 4, fontWeight: 700 }}>
+              <div style={{ fontSize: 12, color: BRAND.textMuted, marginTop: 4 }}>
                 One per line: <code>serial,price</code>. Price can be blank if you fill Total Purchase Price.
               </div>
 
@@ -1264,24 +1216,25 @@ export default function Inventory() {
                   width: "100%",
                   marginTop: 10,
                   padding: 12,
-                  borderRadius: 14,
-                  border: "1px solid rgba(20, 83, 45, 0.14)",
+                  borderRadius: 6,
+                  border: `1px solid ${BRAND.border}`,
                   outline: "none",
-                  background: "#FFFFFF",
-                  color: "#0B2A1F",
-                  height: 140,
+                  background: BRAND.white,
+                  color: BRAND.text,
+                  height: 120,
                   resize: "vertical",
                   boxSizing: "border-box",
-                  fontWeight: 700,
+                  fontFamily: "monospace",
+                  fontSize: 13,
                 }}
                 value={receiveForm.unitLines}
                 onChange={(e) => setReceiveForm((p) => ({ ...p, unitLines: e.target.value }))}
-                placeholder={`Example (per-unit price):\nSN001,2000000\nSN002,2000000\n\nExample (total price):\nSN001,\nSN002,`}
+                placeholder={`Example:\nSN001,2000000\nSN002,2000000`}
               />
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 14 }}>
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
             <Btn style={btn} onClick={() => setOpenReceive(false)}>
               Cancel
             </Btn>
@@ -1291,29 +1244,27 @@ export default function Inventory() {
           </div>
         </Modal>
 
-        {/* the rest of your modals & tables unchanged */}
-        {/* ... */}
         <Modal open={openConsume} title="Use Stock (Consume / OUT)" onClose={() => setOpenConsume(false)}>
           {locations.length === 0 ? (
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontWeight: 900, color: "#0B2A1F" }}>No location found</div>
-              <div style={{ marginTop: 6, color: "#2F6B55", fontWeight: 800 }}>
-                You must create at least one location before using stock.
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 600, color: BRAND.text }}>No location found</div>
+              <div style={{ marginTop: 6, color: BRAND.textMuted }}>
+                Create at least one location before using stock.
               </div>
               <div style={{ marginTop: 12 }}>
                 <Btn style={btnPrimary} onClick={() => setOpenCreateLocation(true)}>
                   + Create Location
                 </Btn>
               </div>
-              <div style={{ marginTop: 12, height: 1, background: "rgba(15,23,42,0.06)" }} />
+              <div style={{ marginTop: 12, height: 1, background: BRAND.border }} />
             </div>
           ) : null}
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55", marginBottom: 6 }}>Item (non-serialized)</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Item (non-serialized)</div>
               <select
-                style={{ ...selectPill, borderRadius: 14, minWidth: 0 }}
+                style={{ ...selectPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 value={consumeForm.itemId}
                 onChange={(e) => {
                   const nextItemId = e.target.value;
@@ -1336,7 +1287,7 @@ export default function Inventory() {
             </div>
 
             <div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55", marginBottom: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>
                 Location{" "}
                 <Btn
                   style={{ ...btn, height: 28, padding: "0 10px", marginLeft: 8, fontSize: 12 }}
@@ -1347,7 +1298,7 @@ export default function Inventory() {
                 </Btn>
               </div>
               <select
-                style={{ ...selectPill, borderRadius: 14, minWidth: 0 }}
+                style={{ ...selectPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 value={consumeForm.locationId}
                 onChange={(e) => setConsumeForm((p) => ({ ...p, locationId: e.target.value }))}
                 disabled={locations.length === 0}
@@ -1361,77 +1312,50 @@ export default function Inventory() {
               </select>
             </div>
 
-            <div style={{ gridColumn: "1 / -1" }}>
-              {(() => {
-                const item = items.find((x) => x.id === consumeForm.itemId);
-                if (!item) return <div style={{ color: "#64748B", fontWeight: 800 }}>Select an item to see available stock.</div>;
-
-                const totalQty = sumStocks(item.stocks);
-                const locQty = Number((item.stocks || []).find((s) => s.locationId === consumeForm.locationId)?.qty || 0);
-
-                return (
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                    <Pill>
-                      Total: {totalQty} {item.unit || ""}
-                    </Pill>
-                    <Pill variant={consumeForm.locationId ? "green" : "grey"}>
-                      This location: {consumeForm.locationId ? `${locQty} ${item.unit || ""}` : "—"}
-                    </Pill>
-                    {item.isSerialized ? <Pill variant="red">Serialized item (not allowed here)</Pill> : null}
-                  </div>
-                );
-              })()}
-            </div>
-
             <div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55", marginBottom: 6 }}>Qty Used</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Qty to use</div>
               <input
-                style={{ ...inputPill, borderRadius: 14, minWidth: 0 }}
+                style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 type="number"
                 step="0.01"
                 value={consumeForm.qty}
                 onChange={(e) => setConsumeForm((p) => ({ ...p, qty: e.target.value }))}
-                placeholder="e.g. 15"
               />
             </div>
 
             <div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55", marginBottom: 6 }}>Note (optional)</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Note</div>
               <input
-                style={{ ...inputPill, borderRadius: 14, minWidth: 0 }}
+                style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 value={consumeForm.note}
                 onChange={(e) => setConsumeForm((p) => ({ ...p, note: e.target.value }))}
-                placeholder="e.g. Oil refill for Truck B1234"
+                placeholder="Optional reason"
               />
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 14 }}>
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
             <Btn style={btn} onClick={() => setOpenConsume(false)}>
               Cancel
             </Btn>
-            <Btn style={btnDanger} onClick={consumeStock} disabled={locations.length === 0}>
-              Use / Reduce Stock
+            <Btn style={btnPrimary} onClick={consumeStock} disabled={locations.length === 0}>
+              Use Stock
             </Btn>
-          </div>
-          <div style={{ marginTop: 12, color: "#2F6B55", fontWeight: 800, fontSize: 12 }}>
-            This will reduce stock at the selected location and record a movement (audit trail).
           </div>
         </Modal>
 
         <Modal open={openCreateLocation} title="Create Location" onClose={() => setOpenCreateLocation(false)}>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55", marginBottom: 6 }}>
-              Location Name (e.g. Main Warehouse)
-            </div>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Location Name</div>
             <input
-              style={{ ...inputPill, borderRadius: 14, minWidth: 0, width: "100%" }}
+              style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
               value={newLocationName}
               onChange={(e) => setNewLocationName(e.target.value)}
+              placeholder="e.g. Main Warehouse"
             />
           </div>
 
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 14 }}>
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             <Btn style={btn} onClick={() => setOpenCreateLocation(false)}>
               Cancel
             </Btn>
@@ -1441,58 +1365,50 @@ export default function Inventory() {
           </div>
         </Modal>
 
-        <Modal open={openAssign} title="Assign Unit to Truck (OUT)" onClose={() => setOpenAssign(false)}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div style={{ gridColumn: "1 / -1" }}>
+        <Modal open={openAssign} title="Assign Unit to Truck" onClose={() => setOpenAssign(false)}>
+          <div style={{ display: "grid", gap: 12 }}>
+            <div>
               <Pill variant="green">Unit ID: {assignForm.unitId || "-"}</Pill>
             </div>
 
             <div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55", marginBottom: 6 }}>Truck</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Select Truck</div>
               <TruckSearchSelect
                 trucks={trucks}
                 value={assignForm.truckId}
-                onChange={(truckId) => setAssignForm((p) => ({ ...p, truckId }))}
+                onChange={(val) => setAssignForm((p) => ({ ...p, truckId: val }))}
                 placeholder="Search plate number..."
               />
-
             </div>
 
             <div>
-              <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55", marginBottom: 6 }}>Installed At (optional)</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Installed At</div>
               <input
-                style={{ ...inputPill, borderRadius: 14, minWidth: 0 }}
+                style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 value={assignForm.installedAt}
                 onChange={(e) => setAssignForm((p) => ({ ...p, installedAt: e.target.value }))}
-                placeholder="Leave empty = now"
+                placeholder="e.g. Front Left Tire"
               />
             </div>
-            <div style={{ gridColumn: "1 / -1" }}>
-              <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55", marginBottom: 6 }}>Note</div>
+
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Note</div>
               <input
-                style={{ ...inputPill, borderRadius: 14, minWidth: 0 }}
+                style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 value={assignForm.note}
                 onChange={(e) => setAssignForm((p) => ({ ...p, note: e.target.value }))}
+                placeholder="Optional note"
               />
             </div>
 
-            <div style={{ gridColumn: "1 / -1" }}>
-              <div style={{ fontSize: 12, fontWeight: 900, color: "#2F6B55", marginBottom: 6 }}>Maintenance ID (optional)</div>
-              <input
-                style={{ ...inputPill, borderRadius: 14, minWidth: 0 }}
-                value={assignForm.maintenanceId}
-                onChange={(e) => setAssignForm((p) => ({ ...p, maintenanceId: e.target.value }))}
-              />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <Btn style={btn} onClick={() => setOpenAssign(false)}>
+                Cancel
+              </Btn>
+              <Btn style={btnPrimary} onClick={assignUnit}>
+                Assign
+              </Btn>
             </div>
-          </div>
-
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 14 }}>
-            <Btn style={btn} onClick={() => setOpenAssign(false)}>
-              Cancel
-            </Btn>
-            <Btn style={btnPrimary} onClick={assignUnit}>
-              Assign
-            </Btn>
           </div>
         </Modal>
       </div>
@@ -1500,84 +1416,55 @@ export default function Inventory() {
   );
 }
 
-// ✅ Everything below here is unchanged from your file
-// (ItemsTable, UnitsTable, MovementsTable)
-
+//////////////////////
+// TABLE COMPONENTS
+//////////////////////
 function ItemsTable({ items, loading, onUse }) {
-  const total = items.length;
+  if (loading) {
+    return <div style={{ padding: 20, color: BRAND.textMuted }}>Loading...</div>;
+  }
+
+  if (items.length === 0) {
+    return <div style={{ padding: 20, color: BRAND.textMuted }}>No items found.</div>;
+  }
 
   return (
-    <div style={innerCard}>
-      <div style={{ padding: 16, borderBottom: "1px solid rgba(15,23,42,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: "#0B2A1F" }}>Items</div>
-          <div style={{ marginTop: 4, color: "#2F6B55", fontWeight: 800, fontSize: 18 }}>Sparepart master + stock totals</div>
-        </div>
-        <Pill variant="grey">{loading ? "Loading…" : `${total} items`}</Pill>
-      </div>
-
-      <div style={tableWrap}>
-        <table style={table}>
-          <thead>
-            <tr>
-              <th style={th}>SKU</th>
-              <th style={th}>Name</th>
-              <th style={th}>Unit</th>
-              <th style={th}>Serialized</th>
-              <th style={th}>Total Qty</th>
-              <th style={th}>By Location</th>
-              <th style={th}>Action</th>
+    <div style={tableWrap}>
+      <table style={table}>
+        <thead>
+          <tr>
+            <th style={th}>SKU</th>
+            <th style={th}>Name</th>
+            <th style={th}>Unit</th>
+            <th style={th}>Serialized</th>
+            <th style={th}>Total Stock</th>
+            <th style={th}>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((it) => (
+            <tr key={it.id}>
+              <td style={td}>{it.sku || "-"}</td>
+              <td style={td}>{it.name || "-"}</td>
+              <td style={tdSoft}>{it.unit || "-"}</td>
+              <td style={tdSoft}>{it.isSerialized ? "Yes" : "No"}</td>
+              <td style={td}>{sumStocks(it.stocks)}</td>
+              <td style={td}>
+                {!it.isSerialized ? (
+                  <Btn
+                    style={{ ...btn, height: 32, padding: "0 12px", fontSize: 12 }}
+                    onClick={() => onUse(it.id)}
+                  >
+                    Use
+                  </Btn>
+                ) : (
+                  <span style={{ color: BRAND.textMuted, fontSize: 12 }}>—</span>
+                )}
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {items.map((it) => {
-              const totalQty = sumStocks(it.stocks);
-              const canUse = !it.isSerialized && totalQty > 0;
-
-              return (
-                <tr key={it.id}>
-                  <td style={{ ...td, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>{it.sku}</td>
-                  <td style={td}>{it.name}</td>
-                  <td style={tdSoft}>{it.unit}</td>
-                  <td style={tdSoft}>{it.isSerialized ? <Pill variant="green">Yes</Pill> : <Pill>No</Pill>}</td>
-                  <td style={td}>{totalQty}</td>
-                  <td style={tdSoft}>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                      {(it.stocks || []).length === 0 ? (
-                        <span style={{ color: "#64748B", fontWeight: 800 }}>—</span>
-                      ) : (
-                        it.stocks.map((s) => (
-                          <Pill key={s.id}>
-                            {s.location?.name || "Unknown"}: {s.qty}
-                          </Pill>
-                        ))
-                      )}
-                    </div>
-                  </td>
-                  <td style={tdSoft}>
-                    <Btn
-                      style={canUse ? btnDanger : { ...btnDanger, opacity: 0.55, cursor: "not-allowed" }}
-                      disabled={!canUse}
-                      onClick={() => onUse(it.id)}
-                      title={!canUse ? "No stock to use" : "Reduce non-serialized stock"}
-                    >
-                      Use
-                    </Btn>
-                  </td>
-                </tr>
-              );
-            })}
-
-            {items.length === 0 ? (
-              <tr>
-                <td colSpan={7} style={{ padding: 18, color: "#64748B", fontWeight: 900 }}>
-                  No items yet. Create sparepart master with “New Item”.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -1599,260 +1486,163 @@ function UnitsTable({
   onApplyFilters,
 }) {
   return (
-    <div style={innerCard}>
-      <div style={{ padding: 16, borderBottom: "1px solid rgba(15,23,42,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: "#0B2A1F" }}>Units</div>
-          <div style={{ marginTop: 4, color: "#2F6B55", fontWeight: 800, fontSize: 18 }}>Serialized unit tracking. IN_STOCK can be assigned.</div>
-        </div>
-        <Pill variant="grey">{loading ? "Loading…" : `${units.length} units`}</Pill>
+    <div>
+      {/* Filters */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        <select
+          style={{ ...selectPill, minWidth: 140 }}
+          value={unitStatus}
+          onChange={(e) => setUnitStatus(e.target.value)}
+        >
+          <option value="">All Status</option>
+          <option value="IN_STOCK">IN_STOCK</option>
+          <option value="ASSIGNED">ASSIGNED</option>
+          <option value="SCRAPPED">SCRAPPED</option>
+        </select>
+
+        <select
+          style={{ ...selectPill, minWidth: 160 }}
+          value={unitItemId}
+          onChange={(e) => setUnitItemId(e.target.value)}
+        >
+          <option value="">All Items</option>
+          {items.map((it) => (
+            <option key={it.id} value={it.id}>
+              {it.sku} — {it.name}
+            </option>
+          ))}
+        </select>
+
+        <select
+          style={{ ...selectPill, minWidth: 160 }}
+          value={unitLocationId}
+          onChange={(e) => setUnitLocationId(e.target.value)}
+        >
+          <option value="">All Locations</option>
+          {locations.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.name}
+            </option>
+          ))}
+        </select>
+
+        <Btn style={btn} onClick={onApplyFilters}>
+          Apply
+        </Btn>
       </div>
 
-      <div style={{ padding: 16 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 14 }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 900, color: "#2F6B55", marginBottom: 8 }}>Status</div>
-            <select style={selectPill} value={unitStatus} onChange={(e) => setUnitStatus(e.target.value)}>
-              <option value="">All</option>
-              <option value="IN_STOCK">IN_STOCK</option>
-              <option value="ASSIGNED">ASSIGNED</option>
-              <option value="SCRAPPED">SCRAPPED</option>
-              <option value="LOST">LOST</option>
-            </select>
-          </div>
-
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 900, color: "#2F6B55", marginBottom: 8 }}>Item</div>
-            <select style={selectPill} value={unitItemId} onChange={(e) => setUnitItemId(e.target.value)}>
-              <option value="">All serialized items</option>
-              {items.map((it) => (
-                <option key={it.id} value={it.id}>
-                  {it.sku} — {it.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 900, color: "#2F6B55", marginBottom: 8 }}>Location</div>
-            <select style={selectPill} value={unitLocationId} onChange={(e) => setUnitLocationId(e.target.value)}>
-              <option value="">All locations</option>
-              {locations.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div style={{ display: "flex", alignItems: "end" }}>
-            <Btn style={btnPrimary} onClick={onApplyFilters}>
-              Apply
-            </Btn>
-          </div>
-        </div>
-      </div>
-
-      <div style={tableWrap}>
-        <table style={{ ...table, minWidth: 1100 }}>
-          <thead>
-            <tr>
-              <th style={th}>Item</th>
-              <th style={th}>Serial</th>
-              {/*<th style={th}>Barcode</th>*/}
-              <th style={th}>Price</th>
-              <th style={th}>Status</th>
-              <th style={th}>Location</th>
-              <th style={th}>Currently Used By</th>
-              <th style={th}>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {units.map((u) => {
-              const currentTruck = (u.assignments || [])[0]?.truck;
-              const canAssign = u.status === "IN_STOCK";
-
-              return (
-                <tr key={u.id}>
-                  <td style={td}>
-                    <div style={{ fontWeight: 900 }}>{u.item?.name || "-"}</div>
-                    <div style={{ marginTop: 2, fontWeight: 800, color: "#2F6B55", fontSize: 13 }}>{u.item?.sku || ""}</div>
-                  </td>
-                  <td style={{ ...tdSoft, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>{u.serialNumber || "—"}</td>
-                  {/*<td style={{ ...tdSoft, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>{u.barcode || "—"}</td>*/}
-                  {/* ✅ PRICE */}
-                  <td style={tdSoft}>
-                    {u.purchasePrice
-                      ? `Rp ${Number(u.purchasePrice).toLocaleString("id-ID")}`
-                      : "—"}
-                  </td>
-                  <td style={tdSoft}>
-                    <Pill variant={u.status === "IN_STOCK" ? "green" : "grey"}>{u.status}</Pill>
-                  </td>
-                  <td style={tdSoft}>{u.location?.name || "—"}</td>
-                  <td style={tdSoft}>
-                    {currentTruck ? <Pill variant="green">{currentTruck.plateNumber}</Pill> : <span style={{ color: "#64748B", fontWeight: 800 }}>—</span>}
-                  </td>
-                  <td style={tdSoft}>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      {/*<Btn style={btn} onClick={() => onBarcode(u)}>
-                        Barcode
-                      </Btn>*/}
-                      <Btn style={btnDanger} onClick={() => onScrap(u)}>
-                        Scrap
-                      </Btn>
-                      <Btn style={btnPrimary} onClick={() => onAssign(u)} disabled={!canAssign}>
-                        Assign
-                      </Btn>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-
-            {units.length === 0 ? (
+      {loading ? (
+        <div style={{ padding: 20, color: BRAND.textMuted }}>Loading...</div>
+      ) : units.length === 0 ? (
+        <div style={{ padding: 20, color: BRAND.textMuted }}>No units found.</div>
+      ) : (
+        <div style={tableWrap}>
+          <table style={table}>
+            <thead>
               <tr>
-                <td colSpan={7} style={{ padding: 18, color: "#64748B", fontWeight: 900 }}>
-                  No units found. Receive stock for a serialized item first.
-                </td>
+                <th style={th}>Serial</th>
+                <th style={th}>Item</th>
+                <th style={th}>Barcode</th>
+                <th style={th}>Status</th>
+                <th style={th}>Location</th>
+                <th style={th}>Truck</th>
+                <th style={th}>Actions</th>
               </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {units.map((u) => {
+                const currentAssign = (u.assignments || [])[0];
+                const truck = currentAssign?.truck;
+                return (
+                  <tr key={u.id}>
+                    <td style={td}>{u.serialNumber || "-"}</td>
+                    <td style={td}>{u.item?.sku || "-"} — {u.item?.name || ""}</td>
+                    <td style={tdSoft}>{u.barcode || "-"}</td>
+                    <td style={td}>
+                      <Pill variant={u.status === "IN_STOCK" ? "green" : u.status === "SCRAPPED" ? "red" : "grey"}>
+                        {u.status || "-"}
+                      </Pill>
+                    </td>
+                    <td style={tdSoft}>{u.location?.name || "-"}</td>
+                    <td style={tdSoft}>{truck?.plateNumber || "-"}</td>
+                    <td style={td}>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        {u.status === "IN_STOCK" ? (
+                          <Btn
+                            style={{ ...btn, height: 28, padding: "0 10px", fontSize: 11 }}
+                            onClick={() => onAssign(u)}
+                          >
+                            Assign
+                          </Btn>
+                        ) : null}
+                        <Btn
+                          style={{ ...btn, height: 28, padding: "0 10px", fontSize: 11 }}
+                          onClick={() => onBarcode(u)}
+                        >
+                          Barcode
+                        </Btn>
+                        {u.status !== "SCRAPPED" ? (
+                          <Btn
+                            style={{ ...btnDanger, height: 28, padding: "0 10px", fontSize: 11 }}
+                            onClick={() => onScrap(u)}
+                          >
+                            Scrap
+                          </Btn>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
 
 function MovementsTable({ movements, loading }) {
-  const MV_PAGE_SIZE = 10;
-  const [mvPage, setMvPage] = useState(1);
+  if (loading) {
+    return <div style={{ padding: 20, color: BRAND.textMuted }}>Loading...</div>;
+  }
 
-  const btnSmall = {
-    ...btn,
-    height: 38,
-    padding: "0 12px",
-    fontSize: 13,
-  };
-
-  const mvTotalPages = useMemo(() => {
-    return Math.max(1, Math.ceil((movements?.length || 0) / MV_PAGE_SIZE));
-  }, [movements]);
-
-  const mvPageItems = useMemo(() => {
-    const start = (mvPage - 1) * MV_PAGE_SIZE;
-    return (movements || []).slice(start, start + MV_PAGE_SIZE);
-  }, [movements, mvPage]);
-
-  useEffect(() => {
-    setMvPage((p) => Math.min(Math.max(1, p), mvTotalPages));
-  }, [mvTotalPages]);
+  if (movements.length === 0) {
+    return <div style={{ padding: 20, color: BRAND.textMuted }}>No movements found.</div>;
+  }
 
   return (
-    <div style={innerCard}>
-      <div
-        style={{
-          padding: 16,
-          borderBottom: "1px solid rgba(15,23,42,0.06)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 12,
-        }}
-      >
-        <div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: "#0B2A1F" }}>Movements</div>
-          <div style={{ marginTop: 4, color: "#2F6B55", fontWeight: 800, fontSize: 18 }}>Audit trail</div>
-        </div>
-        <Pill variant="grey">{loading ? "Loading…" : `${movements.length} rows`}</Pill>
-      </div>
-
-      <div style={tableWrap}>
-        <table style={{ ...table, minWidth: 1200 }}>
-          <thead>
-            <tr>
-              <th style={th}>Time</th>
-              <th style={th}>Type</th>
-              <th style={th}>Item</th>
-              <th style={th}>Qty</th>
-              <th style={th}>From</th>
-              <th style={th}>To</th>
-              <th style={th}>Unit</th>
-              <th style={th}>Note</th>
-              <th style={th}>Processed By</th>
+    <div style={tableWrap}>
+      <table style={table}>
+        <thead>
+          <tr>
+            <th style={th}>Type</th>
+            <th style={th}>Item</th>
+            <th style={th}>Qty</th>
+            <th style={th}>From</th>
+            <th style={th}>To</th>
+            <th style={th}>Note</th>
+            <th style={th}>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {movements.map((m) => (
+            <tr key={m.id}>
+              <td style={td}>
+                <Pill variant={m.type === "IN" ? "green" : m.type === "OUT" ? "red" : "grey"}>
+                  {m.type || "-"}
+                </Pill>
+              </td>
+              <td style={td}>{m.item?.sku || "-"} — {m.item?.name || ""}</td>
+              <td style={td}>{m.qty ?? "-"}</td>
+              <td style={tdSoft}>{m.fromLocation?.name || "-"}</td>
+              <td style={tdSoft}>{m.toLocation?.name || "-"}</td>
+              <td style={tdSoft}>{m.note || "-"}</td>
+              <td style={tdSoft}>{fmtDate(m.createdAt)}</td>
             </tr>
-          </thead>
-
-          <tbody>
-            {mvPageItems.map((m) => (
-              <tr key={m.id}>
-                <td style={tdSoft}>{fmtDate(m.createdAt)}</td>
-
-                <td style={tdSoft}>
-                  <Pill variant={m.type === "IN" ? "green" : m.type === "OUT" ? "red" : "grey"}>{m.type}</Pill>
-                </td>
-
-                <td style={td}>
-                  <div style={{ fontWeight: 900 }}>{m.item?.name || "-"}</div>
-                  <div style={{ marginTop: 2, fontWeight: 800, color: "#2F6B55", fontSize: 13 }}>{m.item?.sku || ""}</div>
-                </td>
-
-                <td style={td}>{m.qty}</td>
-                <td style={tdSoft}>{m.fromLocation?.name || "—"}</td>
-                <td style={tdSoft}>{m.toLocation?.name || "—"}</td>
-
-                <td style={{ ...tdSoft, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-                  {m.stockUnit?.serialNumber || m.stockUnit?.barcode || "—"}
-                </td>
-
-                <td style={tdSoft}>{m.note || "—"}</td>
-                <td style={tdSoft}>{m.createdBy?.name || m.createdBy?.email || "—"}</td>
-              </tr>
-            ))}
-
-            {movements.length === 0 ? (
-              <tr>
-                <td colSpan={9} style={{ padding: 18, color: "#64748B", fontWeight: 900 }}>
-                  No movements yet.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
-
-      {movements.length > 0 ? (
-        <div
-          style={{
-            padding: 14,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-            borderTop: "1px solid rgba(15,23,42,0.06)",
-          }}
-        >
-          <div style={{ fontSize: 12, color: "#2F6B55", fontWeight: 800 }}>
-            Page {mvPage} of {mvTotalPages} • Showing {(mvPage - 1) * MV_PAGE_SIZE + 1}–
-            {Math.min(mvPage * MV_PAGE_SIZE, movements.length)} of {movements.length}
-          </div>
-
-          <div style={{ display: "flex", gap: 8 }}>
-            <Btn style={btnSmall} onClick={() => setMvPage(1)} disabled={mvPage === 1}>
-              First
-            </Btn>
-            <Btn style={btnSmall} onClick={() => setMvPage((p) => Math.max(1, p - 1))} disabled={mvPage === 1}>
-              Prev
-            </Btn>
-            <Btn style={btnSmall} onClick={() => setMvPage((p) => Math.min(mvTotalPages, p + 1))} disabled={mvPage === mvTotalPages}>
-              Next
-            </Btn>
-            <Btn style={btnSmall} onClick={() => setMvPage(mvTotalPages)} disabled={mvPage === mvTotalPages}>
-              Last
-            </Btn>
-          </div>
-        </div>
-      ) : null}
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

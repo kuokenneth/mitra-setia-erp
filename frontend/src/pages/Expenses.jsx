@@ -1,7 +1,27 @@
-// src/pages/Expenses.jsx
+// src/pages/Expenses.jsx - Corporate Minimalist Design
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
+
+// Corporate Green Color Palette (matching Landing/Dashboard)
+const BRAND = {
+  primary: "#0D7C3D",
+  primaryDark: "#0A6331",
+  primaryLight: "#10A050",
+  secondary: "#F5F9F7",
+  accent: "#D4E8DC",
+  text: "#1A1A1A",
+  textMuted: "#6B7280",
+  white: "#FFFFFF",
+  border: "#E5E7EB",
+  borderLight: "#F3F4F6",
+  danger: "#DC2626",
+  dangerLight: "#FEE2E2",
+  warning: "#F59E0B",
+  warningLight: "#FEF3C7",
+  info: "#3B82F6",
+  infoLight: "#DBEAFE",
+};
 
 export default function Expenses() {
   const { user } = useAuth();
@@ -105,7 +125,6 @@ export default function Expenses() {
   useEffect(() => {
     if (!allowed) return;
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skip, methodFilter]);
 
   useEffect(() => {
@@ -115,7 +134,6 @@ export default function Expenses() {
       load();
     }, 250);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
   async function onSubmit(e) {
@@ -139,6 +157,7 @@ export default function Expenses() {
       resetForm();
       setPage(0);
       load();
+      setShowModal(false);
     } catch (e) {
       setErr(e.message || "Failed to create expense");
     } finally {
@@ -200,16 +219,15 @@ export default function Expenses() {
     }
   }
 
+  const s = useMemo(() => makeStyles(isMobile), [isMobile]);
+
   if (!allowed) {
     return (
       <div style={s.page}>
-        <div style={s.headerRow}>
-          <div>
-            <div style={s.hTitle}>Expenses</div>
-            <div style={s.hSub}>You don’t have permission to view this page.</div>
-          </div>
+        <div style={s.panel}>
+          <h1 style={s.hTitle}>Expenses</h1>
+          <div style={s.hSub}>You don't have permission to view this page.</div>
         </div>
-        <div style={s.alertErr}>Forbidden</div>
       </div>
     );
   }
@@ -217,7 +235,6 @@ export default function Expenses() {
   const pageCount = Math.max(1, Math.ceil(total / take));
   const showBankFields = form.paymentMethod === "BANK_TRANSFER";
 
-  const s = useMemo(() => makeStyles(isMobile), [isMobile]);
   const statusCounts = items.reduce(
     (acc, x) => {
       const st = x.status || "SUBMITTED";
@@ -229,19 +246,21 @@ export default function Expenses() {
 
   return (
     <div style={s.page}>
+      {/* Header */}
       <div style={s.headerRow}>
         <div>
-          <div style={s.hTitle}>Expenses</div>
+          <h1 style={s.hTitle}>Expenses</h1>
           <div style={s.hSub}>Record and track outgoing payments</div>
         </div>
         <div style={s.headerActions}>
-          <div style={s.pill}>{total} total</div>
+          <span style={s.pill}>{total} total</span>
           <button style={s.primaryBtn} onClick={() => setShowModal(true)}>
             + New Expense
           </button>
         </div>
       </div>
 
+      {/* Stats */}
       <div style={s.statsRow}>
         <div style={s.statCard}>
           <div style={s.statLabel}>Submitted</div>
@@ -261,14 +280,16 @@ export default function Expenses() {
         </div>
       </div>
 
-      <div style={s.filtersRow}>
-        <input
-          style={s.searchInput}
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search reason, client, bank..."
-        />
-        <div style={s.selectWrap}>
+      {/* Main Panel */}
+      <div style={s.panel}>
+        {/* Filters */}
+        <div style={s.filtersRow}>
+          <input
+            style={s.searchInput}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search reason, client, bank..."
+          />
           <select
             value={methodFilter}
             onChange={(e) => setMethodFilter(e.target.value)}
@@ -279,135 +300,131 @@ export default function Expenses() {
             <option value="CASH">Cash</option>
             <option value="OTHER">Other</option>
           </select>
-          <span style={s.selectChevron}>▾</span>
         </div>
-      </div>
 
-      {err ? <div style={s.alertErr}>{err}</div> : null}
+        {err ? <div style={s.alertErr}>{err}</div> : null}
 
-      <div style={s.tableWrap}>
-        <table style={s.table}>
-          <thead>
-            <tr>
-              <th style={s.th}>Date</th>
-              <th style={s.th}>Status</th>
-              <th style={s.th}>Method</th>
-              <th style={s.th}>Bank</th>
-              <th style={s.th}>Account</th>
-              <th style={s.th}>Amount</th>
-              <th style={s.th}>Reason</th>
-              <th style={s.th}>Client</th>
-              <th style={s.th}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((x) => (
-              <tr key={x.id} style={s.tr}>
-                <td style={s.td}>{x.createdAt ? new Date(x.createdAt).toLocaleDateString() : "-"}</td>
-                <td style={s.td}>
-                  <span style={{ ...s.statusPill, ...statusVariant(x.status) }}>
-                    {x.status || "SUBMITTED"}
-                  </span>
-                </td>
-                <td style={s.td}>{x.paymentMethod}</td>
-                <td style={s.td}>{x.bankName || "-"}</td>
-                <td style={s.td}>{x.accountName || x.accountNumber || "-"}</td>
-                <td style={s.tdStrong}>
-                  {new Intl.NumberFormat(undefined, {
-                    style: "currency",
-                    currency: x.currency || "IDR",
-                    maximumFractionDigits: 0,
-                  }).format(x.amount || 0)}
-                </td>
-                <td style={s.td}>{x.reason}</td>
-                <td style={s.td}>{x.clientName || "-"}</td>
-                <td style={s.td}>
-                  <div style={s.actionsRow}>
-                    {x.proofUrl ? (
-                      <a href={normalizeProofUrl(x.proofUrl)} target="_blank" rel="noreferrer" style={s.linkBtn}>
-                        View Proof
-                      </a>
-                    ) : null}
-                    {canUploadProof && x.status === "SUBMITTED" && (
-                      <label style={s.linkBtn}>
-                        Upload Proof
-                        <input
-                          type="file"
-                          accept="image/*,application/pdf"
-                          style={{ display: "none" }}
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            try {
-                              await uploadProof(x.id, file);
-                              load();
-                            } catch (err) {
-                              setErr(err.message || "Failed to upload proof");
-                            } finally {
-                              e.target.value = "";
-                            }
-                          }}
-                        />
-                      </label>
-                    )}
-                    {canApprove && x.status === "PAID" && (
-                      <label style={s.approveCheck}>
-                        <input
-                          type="checkbox"
-                          onChange={() => onApprove(x.id)}
-                          style={s.approveInput}
-                        />
-                        <span style={s.approveBox}>✓</span>
-                        <span style={s.approveLabel}>Approve</span>
-                      </label>
-                    )}
-                    <button style={s.linkBtn} onClick={() => onDelete(x.id)}>
-                      Delete
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-
-            {!loading && items.length === 0 ? (
+        {/* Table */}
+        <div style={s.tableWrap}>
+          <table style={s.table}>
+            <thead>
               <tr>
-                <td style={s.empty} colSpan={9}>
-                  No expenses found.
-                </td>
+                <th style={s.th}>Date</th>
+                <th style={s.th}>Status</th>
+                <th style={s.th}>Method</th>
+                <th style={s.th}>Bank</th>
+                <th style={s.th}>Account</th>
+                <th style={s.th}>Amount</th>
+                <th style={s.th}>Reason</th>
+                <th style={s.th}>Client</th>
+                <th style={s.th}>Actions</th>
               </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {items.map((x) => (
+                <tr key={x.id}>
+                  <td style={s.td}>{x.createdAt ? new Date(x.createdAt).toLocaleDateString() : "-"}</td>
+                  <td style={s.td}>
+                    <span style={{ ...s.statusPill, ...statusVariant(x.status) }}>
+                      {x.status || "SUBMITTED"}
+                    </span>
+                  </td>
+                  <td style={s.td}>{x.paymentMethod}</td>
+                  <td style={s.tdSoft}>{x.bankName || "-"}</td>
+                  <td style={s.tdSoft}>{x.accountName || x.accountNumber || "-"}</td>
+                  <td style={s.tdStrong}>
+                    {new Intl.NumberFormat(undefined, {
+                      style: "currency",
+                      currency: x.currency || "IDR",
+                      maximumFractionDigits: 0,
+                    }).format(x.amount || 0)}
+                  </td>
+                  <td style={s.td}>{x.reason}</td>
+                  <td style={s.tdSoft}>{x.clientName || "-"}</td>
+                  <td style={s.td}>
+                    <div style={s.actionsRow}>
+                      {x.proofUrl ? (
+                        <a href={normalizeProofUrl(x.proofUrl)} target="_blank" rel="noreferrer" style={s.linkBtn}>
+                          View Proof
+                        </a>
+                      ) : null}
+                      {canUploadProof && x.status === "SUBMITTED" && (
+                        <label style={s.linkBtn}>
+                          Upload Proof
+                          <input
+                            type="file"
+                            accept="image/*,application/pdf"
+                            style={{ display: "none" }}
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              try {
+                                await uploadProof(x.id, file);
+                                load();
+                              } catch (err) {
+                                setErr(err.message || "Failed to upload proof");
+                              } finally {
+                                e.target.value = "";
+                              }
+                            }}
+                          />
+                        </label>
+                      )}
+                      {canApprove && x.status === "PAID" && (
+                        <button style={s.approveBtn} onClick={() => onApprove(x.id)}>
+                          Approve
+                        </button>
+                      )}
+                      <button style={s.deleteBtn} onClick={() => onDelete(x.id)}>
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
 
-      <div style={s.footer}>
-        <button
-          style={s.secondaryBtn}
-          disabled={loading || page <= 0}
-          onClick={() => setPage((p) => Math.max(0, p - 1))}
-        >
-          Prev
-        </button>
-
-        <div style={s.pageInfo}>
-          Page <b>{page + 1}</b> of <b>{pageCount}</b>
+              {!loading && items.length === 0 ? (
+                <tr>
+                  <td style={s.empty} colSpan={9}>
+                    No expenses found.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
         </div>
 
-        <button
-          style={s.secondaryBtn}
-          disabled={loading || page + 1 >= pageCount}
-          onClick={() => setPage((p) => p + 1)}
-        >
-          Next
-        </button>
+        {/* Pagination */}
+        <div style={s.footer}>
+          <button
+            style={s.secondaryBtn}
+            disabled={loading || page <= 0}
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+          >
+            Prev
+          </button>
+
+          <div style={s.pageInfo}>
+            Page <strong>{page + 1}</strong> of <strong>{pageCount}</strong>
+          </div>
+
+          <button
+            style={s.secondaryBtn}
+            disabled={loading || page + 1 >= pageCount}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Next
+          </button>
+        </div>
       </div>
 
+      {/* Create Modal */}
       {showModal && (
         <div style={s.modalOverlay} onClick={() => setShowModal(false)}>
           <div style={s.modalCard} onClick={(e) => e.stopPropagation()}>
             <div style={s.modalHeader}>
-              <div style={s.formTitle}>New Expense</div>
-              <button style={s.iconBtn} onClick={() => setShowModal(false)} aria-label="Close">
+              <div style={s.modalTitle}>New Expense</div>
+              <button style={s.closeBtn} onClick={() => setShowModal(false)} aria-label="Close">
                 ✕
               </button>
             </div>
@@ -525,277 +542,381 @@ export default function Expenses() {
 
 function makeStyles(isMobile) {
   return {
-    page: { padding: isMobile ? 6 : 12 },
-    headerRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16 },
-    headerActions: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
-  hTitle: { fontWeight: 900, fontSize: 28, color: "#0b1f16" },
-  hSub: { marginTop: 4, fontSize: 14, color: "rgba(6, 78, 59, 0.75)", fontWeight: 700 },
-  pill: {
-    fontSize: 12,
-    fontWeight: 900,
-    padding: "7px 12px",
-    borderRadius: 999,
-    background: "#e1f3e7",
-    border: "1px solid rgba(20,136,58,0.22)",
-    color: "#0f6f2f",
-  },
-  formCard: {
-    borderRadius: 16,
-    background: "#ffffff",
-    boxShadow: "0 12px 28px rgba(10, 58, 30, 0.10)",
-    border: "1px solid rgba(10, 58, 30, 0.10)",
-    padding: 16,
-  },
-  formTitle: { fontWeight: 900, marginBottom: 12 },
-    formGrid: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 },
-  formActions: { marginTop: 12, display: "flex", justifyContent: "flex-end" },
-  label: { fontSize: 12, fontWeight: 800, color: "rgba(6, 78, 59, 0.75)" },
-  input: {
-    width: "100%",
-    borderRadius: 16,
-    border: "1px solid rgba(20,136,58,0.25)",
-    background: "#ffffff",
-    padding: "12px 14px",
-    outline: "none",
-    fontWeight: 700,
-    color: "#0b1f16",
-    boxSizing: "border-box",
-  },
-  searchInput: {
-    width: isMobile ? "100%" : 220,
-    borderRadius: 999,
-    border: "2px solid rgba(20,136,58,0.28)",
-    background: "#ffffff",
-    padding: "12px 16px",
-    outline: "none",
-    fontWeight: 800,
-    fontSize: 14,
-    color: "#0b1f16",
-    boxSizing: "border-box",
-    boxShadow: "0 6px 16px rgba(20,136,58,0.08)",
-  },
-  textarea: {
-    width: "100%",
-    borderRadius: 12,
-    border: "1px solid rgba(10, 58, 30, 0.14)",
-    background: "#ffffff",
-    padding: "10px 12px",
-    outline: "none",
-    fontWeight: 600,
-    color: "#0b1f16",
-    boxSizing: "border-box",
-  },
-  selectWrap: {
-    position: "relative",
-    width: isMobile ? "100%" : 220,
-  },
-  selectPill: {
-    width: "100%",
-    borderRadius: 999,
-    border: "2px solid rgba(20,136,58,0.28)",
-    background: "#ffffff",
-    padding: "12px 42px 12px 16px",
-    outline: "none",
-    fontWeight: 800,
-    fontSize: 14,
-    color: "#0b1f16",
-    boxSizing: "border-box",
-    appearance: "none",
-    WebkitAppearance: "none",
-    MozAppearance: "none",
-    boxShadow: "0 6px 16px rgba(20,136,58,0.10)",
-  },
-  selectChevron: {
-    position: "absolute",
-    right: 16,
-    top: "50%",
-    transform: "translateY(-50%)",
-    color: "#22c55e",
-    fontWeight: 900,
-    pointerEvents: "none",
-  },
-  primaryBtn: {
-    border: "none",
-    borderRadius: 14,
-    padding: "12px 18px",
-    fontWeight: 900,
-    cursor: "pointer",
-    color: "white",
-    background: "linear-gradient(135deg, #178a3c, #0f6f2f)",
-    boxShadow: "0 12px 24px rgba(20,136,58,0.26)",
-  },
-  secondaryBtn: {
-    borderRadius: 12,
-    padding: "9px 12px",
-    fontWeight: 900,
-    cursor: "pointer",
-    color: "#0f6f2f",
-    background: "rgba(20,136,58,0.10)",
-    border: "1px solid rgba(20,136,58,0.22)",
-  },
+    page: {
+      minHeight: "100vh",
+      padding: 24,
+      background: BRAND.secondary,
+      color: BRAND.text,
+    },
+    panel: {
+      background: BRAND.white,
+      borderRadius: 8,
+      border: `1px solid ${BRAND.border}`,
+      padding: 24,
+    },
+    headerRow: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      marginBottom: 20,
+      flexWrap: "wrap",
+    },
+    headerActions: {
+      display: "flex",
+      gap: 10,
+      alignItems: "center",
+      flexWrap: "wrap",
+    },
+    hTitle: {
+      fontSize: 28,
+      fontWeight: 700,
+      margin: 0,
+      color: BRAND.text,
+    },
+    hSub: {
+      marginTop: 4,
+      color: BRAND.textMuted,
+      fontSize: 14,
+    },
+    pill: {
+      display: "inline-flex",
+      alignItems: "center",
+      padding: "6px 12px",
+      borderRadius: 6,
+      border: `1px solid ${BRAND.border}`,
+      background: BRAND.secondary,
+      color: BRAND.text,
+      fontWeight: 500,
+      fontSize: 13,
+    },
+    statsRow: {
+      display: "grid",
+      gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)",
+      gap: 12,
+      marginBottom: 20,
+    },
+    statCard: {
+      background: BRAND.white,
+      borderRadius: 8,
+      border: `1px solid ${BRAND.border}`,
+      padding: 16,
+    },
+    statLabel: {
+      fontSize: 12,
+      fontWeight: 500,
+      color: BRAND.textMuted,
+      textTransform: "uppercase",
+    },
+    statValue: {
+      fontSize: 24,
+      fontWeight: 700,
+      color: BRAND.text,
+      marginTop: 4,
+    },
     filtersRow: {
       display: "flex",
       flexWrap: "wrap",
       gap: 12,
-      marginBottom: 14,
+      marginBottom: 16,
       alignItems: "center",
     },
-    rightNote: { fontSize: 12, fontWeight: 800, color: "rgba(6, 78, 59, 0.75)" },
-    statsRow: {
-      display: "grid",
-      gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, minmax(0, 1fr))",
-      gap: 10,
-      marginBottom: 14,
+    searchInput: {
+      height: 42,
+      width: isMobile ? "100%" : 260,
+      padding: "0 14px",
+      borderRadius: 6,
+      border: `1px solid ${BRAND.border}`,
+      outline: "none",
+      background: BRAND.white,
+      color: BRAND.text,
+      fontWeight: 500,
+      fontSize: 14,
+      boxSizing: "border-box",
     },
-    statCard: {
-      borderRadius: 14,
-      background: "#ffffff",
-      border: "1px solid rgba(20,136,58,0.14)",
+    selectPill: {
+      height: 42,
+      minWidth: 160,
+      padding: "0 36px 0 14px",
+      borderRadius: 6,
+      border: `1px solid ${BRAND.border}`,
+      outline: "none",
+      background: BRAND.white,
+      color: BRAND.text,
+      fontWeight: 500,
+      fontSize: 14,
+      appearance: "none",
+      WebkitAppearance: "none",
+      MozAppearance: "none",
+      backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236B7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+      backgroundPosition: "right 10px center",
+      backgroundSize: "16px",
+      backgroundRepeat: "no-repeat",
+      cursor: "pointer",
+    },
+    alertErr: {
+      marginBottom: 16,
+      padding: 12,
+      borderRadius: 6,
+      background: BRAND.dangerLight,
+      border: `1px solid ${BRAND.danger}30`,
+      color: BRAND.danger,
+      fontWeight: 500,
+      fontSize: 14,
+    },
+    tableWrap: {
+      overflowX: "auto",
+      borderRadius: 8,
+      border: `1px solid ${BRAND.border}`,
+    },
+    table: {
+      width: "100%",
+      borderCollapse: "separate",
+      borderSpacing: 0,
+      minWidth: 1000,
+    },
+    th: {
+      textAlign: "left",
       padding: "12px 14px",
-      boxShadow: "0 8px 18px rgba(10, 58, 30, 0.08)",
+      fontSize: 12,
+      color: BRAND.textMuted,
+      background: BRAND.secondary,
+      borderBottom: `1px solid ${BRAND.border}`,
+      fontWeight: 600,
+      textTransform: "uppercase",
+      letterSpacing: "0.5px",
     },
-    statLabel: { fontSize: 11, fontWeight: 800, color: "rgba(6, 78, 59, 0.75)" },
-    statValue: { fontSize: 18, fontWeight: 900, color: "#0b1f16", marginTop: 2 },
-  tableWrap: {
-    marginTop: 14,
-    overflowX: "auto",
-    borderRadius: 14,
-    border: "1px solid rgba(10, 58, 30, 0.10)",
-    background: "#ffffff",
-  },
-    table: { width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 980 },
-  th: {
-    textAlign: "left",
-    fontSize: 12,
-    letterSpacing: 0.3,
-    fontWeight: 1000,
-    color: "rgba(6, 78, 59, 0.8)",
-    padding: "12px 12px",
-    background: "#eef8f1",
-    borderBottom: "1px solid rgba(10, 58, 30, 0.10)",
-  },
-  tr: { background: "white" },
-  td: {
-    padding: "12px 12px",
-    fontSize: 13,
-    fontWeight: 700,
-    color: "#0b1f16",
-    borderBottom: "1px solid rgba(10, 58, 30, 0.06)",
-    verticalAlign: "middle",
-  },
-  tdStrong: {
-    padding: "12px 12px",
-    fontSize: 13,
-    fontWeight: 800,
-    color: "#0b1f16",
-    borderBottom: "1px solid rgba(10, 58, 30, 0.06)",
-  },
-  empty: { padding: 18, textAlign: "center", color: "rgba(6, 78, 59, 0.75)", fontWeight: 900 },
-  footer: { marginTop: 14, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" },
-  pageInfo: { fontSize: 12, fontWeight: 800, color: "rgba(6, 78, 59, 0.75)" },
-  alertErr: {
-    marginTop: 12,
-    borderRadius: 14,
-    border: "1px solid rgba(239,68,68,0.28)",
-    background: "rgba(239,68,68,0.10)",
-    color: "rgba(153,27,27,0.95)",
-    padding: "10px 12px",
-    fontWeight: 800,
-    fontSize: 12,
-  },
-  linkBtn: {
-    border: "1px solid rgba(20,136,58,0.24)",
-    background: "#f3fbf7",
-    color: "#0b1f16",
-    fontWeight: 800,
-    cursor: "pointer",
-    padding: "6px 10px",
-    borderRadius: 10,
-    fontSize: 12,
-  },
-  actionsRow: {
-    display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
-    alignItems: "center",
-  },
-  statusPill: {
-    display: "inline-block",
-    padding: "4px 10px",
-    borderRadius: 999,
-    fontSize: 12,
-    fontWeight: 900,
-    border: "1px solid rgba(10, 58, 30, 0.10)",
-  },
-  approveCheck: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-    cursor: "pointer",
-    userSelect: "none",
-  },
-  approveInput: {
-    position: "absolute",
-    opacity: 0,
-    pointerEvents: "none",
-  },
-  approveBox: {
-    width: 22,
-    height: 22,
-    borderRadius: 8,
-    display: "grid",
-    placeItems: "center",
-    background: "#e9f7ee",
-    border: "1px solid rgba(20,136,58,0.35)",
-    color: "#0f6f2f",
-    fontWeight: 900,
-    fontSize: 12,
-  },
-  approveLabel: {
-    fontSize: 12,
-    fontWeight: 800,
-    color: "#0b1f16",
-  },
-  modalOverlay: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(2, 6, 23, 0.35)",
-    display: "grid",
-    placeItems: "center",
-    zIndex: 50,
-    padding: 16,
-  },
-  modalCard: {
-    width: "100%",
-    maxWidth: 720,
-    borderRadius: 16,
-    background: "#ffffff",
-    boxShadow: "0 24px 60px rgba(15, 23, 42, 0.18)",
-    border: "1px solid rgba(10, 58, 30, 0.10)",
-    padding: 16,
-  },
-  modalHeader: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  iconBtn: {
-    border: "none",
-    background: "transparent",
-    fontSize: 18,
-    cursor: "pointer",
-    color: "#0b1f16",
-  },
+    td: {
+      padding: "12px 14px",
+      borderBottom: `1px solid ${BRAND.borderLight}`,
+      verticalAlign: "middle",
+      fontWeight: 500,
+      fontSize: 14,
+      color: BRAND.text,
+    },
+    tdSoft: {
+      padding: "12px 14px",
+      borderBottom: `1px solid ${BRAND.borderLight}`,
+      verticalAlign: "middle",
+      fontWeight: 500,
+      fontSize: 14,
+      color: BRAND.textMuted,
+    },
+    tdStrong: {
+      padding: "12px 14px",
+      borderBottom: `1px solid ${BRAND.borderLight}`,
+      verticalAlign: "middle",
+      fontWeight: 600,
+      fontSize: 14,
+      color: BRAND.text,
+    },
+    empty: {
+      padding: 24,
+      textAlign: "center",
+      color: BRAND.textMuted,
+    },
+    statusPill: {
+      display: "inline-block",
+      padding: "4px 10px",
+      borderRadius: 4,
+      fontSize: 12,
+      fontWeight: 500,
+    },
+    actionsRow: {
+      display: "flex",
+      gap: 6,
+      flexWrap: "wrap",
+      alignItems: "center",
+    },
+    linkBtn: {
+      padding: "6px 10px",
+      borderRadius: 4,
+      border: `1px solid ${BRAND.border}`,
+      background: BRAND.white,
+      color: BRAND.text,
+      fontWeight: 500,
+      fontSize: 12,
+      cursor: "pointer",
+      textDecoration: "none",
+      display: "inline-flex",
+      alignItems: "center",
+    },
+    approveBtn: {
+      padding: "6px 10px",
+      borderRadius: 4,
+      border: `1px solid ${BRAND.primary}30`,
+      background: BRAND.accent,
+      color: BRAND.primary,
+      fontWeight: 500,
+      fontSize: 12,
+      cursor: "pointer",
+    },
+    deleteBtn: {
+      padding: "6px 10px",
+      borderRadius: 4,
+      border: `1px solid ${BRAND.danger}30`,
+      background: BRAND.dangerLight,
+      color: BRAND.danger,
+      fontWeight: 500,
+      fontSize: 12,
+      cursor: "pointer",
+    },
+    footer: {
+      marginTop: 16,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      flexWrap: "wrap",
+    },
+    pageInfo: {
+      fontSize: 14,
+      color: BRAND.textMuted,
+    },
+    primaryBtn: {
+      height: 42,
+      padding: "0 16px",
+      borderRadius: 6,
+      border: `1px solid ${BRAND.primary}`,
+      background: BRAND.primary,
+      color: BRAND.white,
+      fontWeight: 500,
+      fontSize: 14,
+      cursor: "pointer",
+      transition: "all 0.2s ease",
+    },
+    secondaryBtn: {
+      height: 42,
+      padding: "0 16px",
+      borderRadius: 6,
+      border: `1px solid ${BRAND.border}`,
+      background: BRAND.white,
+      color: BRAND.text,
+      fontWeight: 500,
+      fontSize: 14,
+      cursor: "pointer",
+      transition: "all 0.2s ease",
+    },
+    modalOverlay: {
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0, 0, 0, 0.5)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 999,
+      padding: 16,
+    },
+    modalCard: {
+      width: "100%",
+      maxWidth: 700,
+      background: BRAND.white,
+      borderRadius: 8,
+      border: `1px solid ${BRAND.border}`,
+      boxShadow: "0 20px 40px rgba(0, 0, 0, 0.15)",
+      overflow: "hidden",
+    },
+    modalHeader: {
+      padding: 16,
+      borderBottom: `1px solid ${BRAND.border}`,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: 600,
+      color: BRAND.text,
+    },
+    closeBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 6,
+      border: `1px solid ${BRAND.border}`,
+      background: BRAND.white,
+      color: BRAND.textMuted,
+      fontSize: 16,
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    formGrid: {
+      padding: 20,
+      display: "grid",
+      gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+      gap: 16,
+    },
+    formActions: {
+      padding: "16px 20px",
+      borderTop: `1px solid ${BRAND.border}`,
+      display: "flex",
+      justifyContent: "flex-end",
+      gap: 10,
+    },
+    label: {
+      display: "block",
+      fontSize: 12,
+      fontWeight: 600,
+      color: BRAND.textMuted,
+      marginBottom: 6,
+    },
+    input: {
+      width: "100%",
+      height: 42,
+      padding: "0 14px",
+      borderRadius: 6,
+      border: `1px solid ${BRAND.border}`,
+      outline: "none",
+      background: BRAND.white,
+      color: BRAND.text,
+      fontWeight: 500,
+      fontSize: 14,
+      boxSizing: "border-box",
+    },
+    select: {
+      width: "100%",
+      height: 42,
+      padding: "0 36px 0 14px",
+      borderRadius: 6,
+      border: `1px solid ${BRAND.border}`,
+      outline: "none",
+      background: BRAND.white,
+      color: BRAND.text,
+      fontWeight: 500,
+      fontSize: 14,
+      boxSizing: "border-box",
+      appearance: "none",
+      WebkitAppearance: "none",
+      MozAppearance: "none",
+      backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236B7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+      backgroundPosition: "right 10px center",
+      backgroundSize: "16px",
+      backgroundRepeat: "no-repeat",
+      cursor: "pointer",
+    },
+    textarea: {
+      width: "100%",
+      padding: 12,
+      borderRadius: 6,
+      border: `1px solid ${BRAND.border}`,
+      outline: "none",
+      background: BRAND.white,
+      color: BRAND.text,
+      fontWeight: 500,
+      fontSize: 14,
+      boxSizing: "border-box",
+      resize: "vertical",
+    },
   };
 }
 
 function statusVariant(status) {
   if (status === "PAID") {
-    return { background: "rgba(59,130,246,0.12)", color: "#1d4ed8", border: "1px solid rgba(59,130,246,0.22)" };
+    return { background: BRAND.infoLight, color: BRAND.info, border: `1px solid ${BRAND.info}30` };
   }
   if (status === "APPROVED") {
-    return { background: "rgba(34,197,94,0.12)", color: "#065f46", border: "1px solid rgba(34,197,94,0.22)" };
+    return { background: BRAND.accent, color: BRAND.primary, border: `1px solid ${BRAND.primary}30` };
   }
-  return { background: "rgba(245,158,11,0.12)", color: "#92400e", border: "1px solid rgba(245,158,11,0.22)" };
+  return { background: BRAND.warningLight, color: "#92400E", border: `1px solid ${BRAND.warning}30` };
 }

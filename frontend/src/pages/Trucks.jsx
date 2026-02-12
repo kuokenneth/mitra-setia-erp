@@ -1,7 +1,40 @@
-// src/pages/Trucks.jsx
+// src/pages/Trucks.jsx - Corporate Minimalist Design
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
+import {
+  FiPlus,
+  FiRefreshCw,
+  FiSearch,
+  FiX,
+  FiChevronLeft,
+  FiChevronRight,
+  FiTruck,
+  FiCalendar,
+  FiAlertTriangle,
+} from "react-icons/fi";
+
+// Corporate Green Color Palette (matching Landing Page)
+const BRAND = {
+  primary: "#0D7C3D",
+  primaryDark: "#0A6331",
+  primaryLight: "#10A050",
+  secondary: "#F5F9F7",
+  accent: "#D4E8DC",
+  text: "#1A1A1A",
+  textLight: "#4A4A4A",
+  textMuted: "#6B7280",
+  white: "#FFFFFF",
+  border: "#E5E7EB",
+  warning: "#F59E0B",
+  warningBg: "#FFFBEB",
+  success: "#10B981",
+  successBg: "#ECFDF5",
+  error: "#EF4444",
+  errorBg: "#FEF2F2",
+  blue: "#3B82F6",
+  blueBg: "#EFF6FF",
+};
 
 export default function Trucks() {
   const { user } = useAuth();
@@ -10,35 +43,23 @@ export default function Trucks() {
 
   const [items, setItems] = useState([]);
   const [drivers, setDrivers] = useState([]);
-
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
-
-  // Modal
   const [showAdd, setShowAdd] = useState(false);
-
-  // ✅ Selected truck for movements
   const [selectedTruck, setSelectedTruck] = useState(null);
-
-  // ✅ Movements state
   const [assignments, setAssignments] = useState([]);
   const [asgLoading, setAsgLoading] = useState(false);
   const [movErr, setMovErr] = useState("");
-
-  // ✅ Movements filters
   const [movQ, setMovQ] = useState("");
   const [movFrom, setMovFrom] = useState("");
   const [movTo, setMovTo] = useState("");
-
   const [monthTotal, setMonthTotal] = useState(0);
   const [monthCurrency, setMonthCurrency] = useState("IDR");
 
-  // ✅ Pagination
   const PAGE_SIZE = 5;
   const [page, setPage] = useState(1);
 
-  // create form
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({
     plateNumber: "",
@@ -54,14 +75,13 @@ export default function Trucks() {
   const driverOptions = useMemo(() => {
     const base = [{ id: "", name: "Unassigned" }];
     const mapped = (drivers || []).map((d) => ({
-      id: d.id, // user.id
+      id: d.id,
       name: d.name || d.email,
       email: d.email,
     }));
     return base.concat(mapped);
   }, [drivers]);
 
-  // Build a set of userIds that are already assigned to trucks
   const assignedDriverIds = useMemo(() => {
     const set = new Set();
     for (const t of items) {
@@ -72,20 +92,14 @@ export default function Trucks() {
 
   function optionsForTruck(truck) {
     const base = [{ id: "", name: "Unassigned" }];
-
     const allowedDrivers = (drivers || []).filter((d) => {
       const id = d.id;
       const isAssignedSomewhere = assignedDriverIds.has(id);
       const isCurrentForThisTruck = truck.driverUser?.id === id;
       return !isAssignedSomewhere || isCurrentForThisTruck;
     });
-
     return base.concat(
-      allowedDrivers.map((d) => ({
-        id: d.id,
-        name: d.name || d.email,
-        email: d.email,
-      }))
+      allowedDrivers.map((d) => ({ id: d.id, name: d.name || d.email, email: d.email }))
     );
   }
 
@@ -105,7 +119,6 @@ export default function Trucks() {
       setItems(truckList);
       setDrivers(d.items || []);
 
-      // ✅ if selected truck got deleted / filtered out, clear selection
       if (selectedTruck?.id) {
         const stillExists = truckList.some((x) => x.id === selectedTruck.id);
         if (!stillExists) {
@@ -114,7 +127,6 @@ export default function Trucks() {
         }
       }
 
-      // ✅ reset to page 1 when searching or when requested
       if (resetPage) setPage(1);
     } catch (e) {
       setErr(e.message || "Failed to load trucks");
@@ -149,10 +161,8 @@ export default function Trucks() {
   useEffect(() => {
     if (!allowed) return;
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Close modal on ESC
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === "Escape") setShowAdd(false);
@@ -229,7 +239,6 @@ export default function Trucks() {
     }
   }
 
-  // ✅ click truck row
   function onPickTruck(truck) {
     setSelectedTruck(truck);
     setAssignments([]);
@@ -237,13 +246,11 @@ export default function Trucks() {
     loadAssignments(truck.id);
   }
 
-  // ✅ Pagination computed values
   const totalPages = useMemo(() => {
     const n = Math.ceil((items.length || 0) / PAGE_SIZE);
     return Math.max(1, n);
   }, [items.length]);
 
-  // If items change (search/filter/delete), ensure current page still valid
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
     if (page < 1) setPage(1);
@@ -256,12 +263,10 @@ export default function Trucks() {
 
   if (!allowed) {
     return (
-      <div style={s.page}>
-        <div style={s.headerRow}>
-          <div>
-            <div style={s.hTitle}>Trucks</div>
-            <div style={s.hSub}>You don’t have permission to view this page.</div>
-          </div>
+      <div data-testid="trucks-page">
+        <div style={s.header}>
+          <h1 style={s.title}>Trucks</h1>
+          <p style={s.subtitle}>You don't have permission to view this page.</p>
         </div>
         <div style={s.card}>
           <div style={s.alertErr}>Forbidden</div>
@@ -271,81 +276,87 @@ export default function Trucks() {
   }
 
   return (
-    <div style={s.page}>
+    <div data-testid="trucks-page">
       {/* Header */}
       <div style={s.headerRow}>
         <div>
-          <div style={s.hTitle}>Trucks</div>
-          <div style={s.hSub}>Manage fleet and assign drivers</div>
+          <h1 style={s.title}>Trucks</h1>
+          <p style={s.subtitle}>Manage fleet and assign drivers</p>
         </div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <button onClick={() => setShowAdd(true)} style={s.primaryBtn}>
-            + Add Truck
+          <button onClick={() => setShowAdd(true)} style={s.primaryBtn} data-testid="add-truck-btn">
+            <FiPlus size={16} />
+            Add Truck
           </button>
-
-          <button onClick={() => load({ resetPage: false })} disabled={loading} style={s.secondaryBtn}>
+          <button onClick={() => load({ resetPage: false })} disabled={loading} style={s.secondaryBtn} data-testid="refresh-btn">
+            <FiRefreshCw size={16} />
             {loading ? "Refreshing…" : "Refresh"}
           </button>
         </div>
       </div>
 
-      {err ? <div style={s.alertErr}>{err}</div> : null}
+      {err && <div style={s.alertErr}>{err}</div>}
 
-      {/* Fleet ONLY */}
+      {/* Fleet Card */}
       <div style={s.card}>
-        <div style={s.listHeader}>
+        <div style={s.cardHeaderRow}>
           <div>
-            <div style={s.cardTitle}>Fleet</div>
-            <div style={s.cardSub}>Click a truck row to see sparepart usage.</div>
+            <h2 style={s.cardTitle}>Fleet</h2>
+            <p style={s.cardSubtitle}>Click a truck row to see sparepart usage.</p>
           </div>
 
           <form onSubmit={onSearch} style={s.searchRow}>
-            <input
-              style={s.inputSmall}
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search plate/brand/model…"
-            />
-            <button disabled={loading} style={{ ...s.primaryBtnSmall, opacity: loading ? 0.7 : 1 }}>
-              {loading ? "…" : "Search"}
+            <div style={s.inputWrap}>
+              <FiSearch size={16} color={BRAND.textMuted} />
+              <input
+                style={s.searchInput}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search plate/brand/model…"
+                data-testid="trucks-search-input"
+              />
+            </div>
+            <button type="submit" disabled={loading} style={s.searchBtn} data-testid="trucks-search-btn">
+              Search
             </button>
           </form>
         </div>
 
-        {/* ✅ Pagination Bar */}
+        {/* Pagination Bar */}
         <div style={s.paginationBar}>
-          <div style={s.paginationText}>
-            Showing <b>{pagedItems.length}</b> of <b>{items.length}</b> trucks
-          </div>
+          <span style={s.paginationText}>
+            Showing <strong>{pagedItems.length}</strong> of <strong>{items.length}</strong> trucks
+          </span>
 
           <div style={s.paginationBtns}>
             <button
-              style={{ ...s.secondaryBtn, padding: "8px 12px", opacity: page <= 1 ? 0.5 : 1 }}
+              style={{ ...s.paginationBtn, opacity: page <= 1 ? 0.5 : 1 }}
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
+              data-testid="trucks-prev-btn"
             >
-              ← Prev
+              <FiChevronLeft size={16} />
+              Prev
             </button>
 
-            <div style={s.pagePill}>
-              Page <b>{page}</b> / <b>{totalPages}</b>
-            </div>
+            <span style={s.pageInfo}>
+              Page <strong>{page}</strong> / <strong>{totalPages}</strong>
+            </span>
 
             <button
-              style={{
-                ...s.secondaryBtn,
-                padding: "8px 12px",
-                opacity: page >= totalPages ? 0.5 : 1,
-              }}
+              style={{ ...s.paginationBtn, opacity: page >= totalPages ? 0.5 : 1 }}
               disabled={page >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              data-testid="trucks-next-btn"
             >
-              Next →
+              Next
+              <FiChevronRight size={16} />
             </button>
           </div>
         </div>
 
+        {/* Table */}
         <div style={s.tableWrap}>
           <table style={s.table}>
             <thead>
@@ -358,91 +369,59 @@ export default function Trucks() {
                 <th style={s.th}>Created</th>
               </tr>
             </thead>
-
             <tbody>
               {pagedItems.map((t) => {
                 const active = selectedTruck?.id === t.id;
-
                 return (
                   <tr
                     key={t.id}
-                    style={{
-                      ...s.tr,
-                      cursor: "pointer",
-                      background: active ? "rgba(34,197,94,0.06)" : "white",
-                    }}
+                    style={{ ...s.tr, background: active ? BRAND.accent : BRAND.white, cursor: "pointer" }}
                     onClick={() => onPickTruck(t)}
-                    title="Click to view sparepart movements"
+                    data-testid={`truck-row-${t.id}`}
                   >
                     <td style={s.tdStrong}>{t.plateNumber}</td>
-
                     <td style={s.td}>
-                      <div style={{ fontWeight: 1000 }}>
+                      <div style={{ fontWeight: 600 }}>
                         {[t.brand, t.model].filter(Boolean).join(" ") || "-"}
                       </div>
                       <div style={s.smallMuted}>{t.vin ? `VIN: ${t.vin}` : "—"}</div>
                     </td>
-
-                    {/* ✅ STATUS IS NOW DISPLAY ONLY (NO DROPDOWN) */}
                     <td style={s.td}>
                       <span style={statusPill(t.status || "READY")}>{t.status || "READY"}</span>
                     </td>
-
-                    {/* ✅ prevent row click when interacting with dropdown */}
-                    <td
-                      style={s.td}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                      }}
-                    >
-                      <div style={s.selectWrap}>
-                        <select
-                          style={{ ...s.selectAssign, opacity: t.status === "INACTIVE" ? 0.55 : 1 }}
-                          disabled={t.status === "INACTIVE"}
-                          value={t.driverUser?.id || ""}
-                          onChange={(e) => onAssign(t.id, e.target.value)}
-                        >
-                          {optionsForTruck(t).map((d) => (
-                            <option key={d.id} value={d.id}>
-                              {d.name}
-                            </option>
-                          ))}
-                        </select>
-                        <div style={s.selectArrow}>▾</div>
-                      </div>
-
+                    <td style={s.td} onClick={(e) => e.stopPropagation()}>
+                      <select
+                        style={{ ...s.driverSelect, opacity: t.status === "INACTIVE" ? 0.55 : 1 }}
+                        disabled={t.status === "INACTIVE"}
+                        value={t.driverUser?.id || ""}
+                        onChange={(e) => onAssign(t.id, e.target.value)}
+                        data-testid={`driver-select-${t.id}`}
+                      >
+                        {optionsForTruck(t).map((d) => (
+                          <option key={d.id} value={d.id}>{d.name}</option>
+                        ))}
+                      </select>
                       <div style={s.smallMuted}>
-                        {t.status === "INACTIVE"
-                          ? "Inactive truck (cannot assign driver)"
-                          : t.driverUser?.email || "No driver assigned"}
+                        {t.status === "INACTIVE" ? "Inactive truck" : t.driverUser?.email || "No driver"}
                       </div>
                     </td>
-
-                    {/* ✅ prevent row click when interacting with date input */}
-                    <td
-                      style={s.td}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                      }}
-                    >
+                    <td style={s.td} onClick={(e) => e.stopPropagation()}>
                       <div style={s.stnkWrap}>
                         <input
                           type="date"
                           value={t.stnkExpiry ? t.stnkExpiry.slice(0, 10) : ""}
                           onChange={(e) => updateStnk(t.id, e.target.value)}
-                          style={{
-                            ...s.stnkInput,
-                            ...stnkInputStyle(t.stnkExpiry),
-                          }}
+                          style={{ ...s.dateInput, ...stnkInputStyle(t.stnkExpiry) }}
+                          data-testid={`stnk-input-${t.id}`}
                         />
-
-                        {/* show ONLY if expired or within 14 days */}
-                        {shouldShowStnkWarning(t.stnkExpiry) ? (
-                          <span style={stnkBadge(t.stnkExpiry)}>{stnkLabel(t.stnkExpiry)}</span>
-                        ) : null}
+                        {shouldShowStnkWarning(t.stnkExpiry) && (
+                          <span style={stnkBadge(t.stnkExpiry)}>
+                            <FiAlertTriangle size={10} />
+                            {stnkLabel(t.stnkExpiry)}
+                          </span>
+                        )}
                       </div>
                     </td>
-
                     <td style={s.td}>
                       {t.createdAt ? new Date(t.createdAt).toLocaleDateString() : "-"}
                     </td>
@@ -450,115 +429,67 @@ export default function Trucks() {
                 );
               })}
 
-              {!loading && pagedItems.length === 0 ? (
+              {!loading && pagedItems.length === 0 && (
                 <tr>
-                  <td style={s.empty} colSpan={6}>
-                    No trucks found.
-                  </td>
+                  <td style={s.empty} colSpan={6}>No trucks found.</td>
                 </tr>
-              ) : null}
+              )}
             </tbody>
           </table>
         </div>
 
-        <div style={s.footerNote}>Only OWNER/ADMIN/STAFF can manage trucks.</div>
+        <p style={s.footerNote}>Only OWNER/ADMIN/STAFF can manage trucks.</p>
       </div>
 
-      {/* ✅ Sparepart Movements Panel */}
+      {/* Sparepart Movements Panel */}
       {selectedTruck && (
-        <div style={{ ...s.card, marginTop: 14 }}>
+        <div style={{ ...s.card, marginTop: 24 }}>
           <div style={s.movHeader}>
             <div>
-              <div style={s.cardTitle}>
-                Sparepart Movements —{" "}
-                <span style={{ fontWeight: 1000 }}>{selectedTruck.plateNumber}</span>
-              </div>
-              <div style={s.cardSub}>Shows spareparts used/recorded for this truck.</div>
+              <h2 style={s.cardTitle}>
+                Sparepart Movements — <strong>{selectedTruck.plateNumber}</strong>
+              </h2>
+              <p style={s.cardSubtitle}>Shows spareparts used/recorded for this truck.</p>
             </div>
 
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              <button
-                style={s.secondaryBtn}
-                onClick={() => {
-                  setSelectedTruck(null);
-                  setAssignments([]);
-                }}
-              >
-                Close
+              <button style={s.secondaryBtn} onClick={() => { setSelectedTruck(null); setAssignments([]); }} data-testid="close-movements-btn">
+                <FiX size={16} /> Close
               </button>
-
-              <button
-                style={s.primaryBtnSmall}
-                disabled={asgLoading}
-                onClick={() => loadAssignments(selectedTruck.id)}
-              >
+              <button style={s.primaryBtnSmall} disabled={asgLoading} onClick={() => loadAssignments(selectedTruck.id)} data-testid="refresh-movements-btn">
                 {asgLoading ? "Loading…" : "Refresh"}
               </button>
             </div>
           </div>
 
           <div style={s.movFilters}>
-            <input
-              style={{ ...s.input, borderRadius: 999 }}
-              value={movQ}
-              onChange={(e) => setMovQ(e.target.value)}
-              placeholder="Search item name / note…"
-            />
+            <div style={s.inputWrap}>
+              <FiSearch size={16} color={BRAND.textMuted} />
+              <input
+                style={s.searchInput}
+                value={movQ}
+                onChange={(e) => setMovQ(e.target.value)}
+                placeholder="Search item name / note…"
+              />
+            </div>
 
             <div style={s.movDates}>
-              <input
-                type="date"
-                style={{ ...s.input, borderRadius: 999 }}
-                value={movFrom}
-                onChange={(e) => setMovFrom(e.target.value)}
-              />
-              <input
-                type="date"
-                style={{ ...s.input, borderRadius: 999 }}
-                value={movTo}
-                onChange={(e) => setMovTo(e.target.value)}
-              />
+              <input type="date" style={s.dateInput} value={movFrom} onChange={(e) => setMovFrom(e.target.value)} />
+              <input type="date" style={s.dateInput} value={movTo} onChange={(e) => setMovTo(e.target.value)} />
             </div>
 
-            <button
-              style={s.primaryBtnSmall}
-              disabled={asgLoading}
-              onClick={() => loadAssignments(selectedTruck.id)}
-            >
-              Apply
-            </button>
+            <button style={s.primaryBtnSmall} disabled={asgLoading} onClick={() => loadAssignments(selectedTruck.id)}>Apply</button>
+            <button style={s.ghostBtn} disabled={asgLoading} onClick={() => { setMovQ(""); setMovFrom(""); setMovTo(""); loadAssignments(selectedTruck.id); }}>Reset</button>
 
-            <button
-              style={s.ghostBtn}
-              disabled={asgLoading}
-              onClick={() => {
-                setMovQ("");
-                setMovFrom("");
-                setMovTo("");
-                loadAssignments(selectedTruck.id);
-              }}
-            >
-              Reset
-            </button>
-            <div style={{
-              padding: "8px 12px",
-              borderRadius: 999,
-              border: "1px solid rgba(6,95,70,0.14)",
-              background: "rgba(34,197,94,0.10)",
-              color: "#065f46",
-              fontWeight: 1000,
-              fontSize: 12,
-              whiteSpace: "nowrap",
-            }}>
+            <span style={s.monthBadge}>
               This month: {fmtMoney(monthTotal, monthCurrency)}
-            </div>
-
+            </span>
           </div>
 
-          {movErr ? <div style={s.alertErr}>{movErr}</div> : null}
+          {movErr && <div style={s.alertErr}>{movErr}</div>}
 
           <div style={s.tableWrap}>
-            <table style={{ ...s.table, minWidth: 980 }}>
+            <table style={{ ...s.table, minWidth: 900 }}>
               <thead>
                 <tr>
                   <th style={s.th}>Installed</th>
@@ -569,51 +500,32 @@ export default function Trucks() {
                   <th style={s.th}>Note</th>
                 </tr>
               </thead>
-
               <tbody>
                 {asgLoading ? (
-                  <tr>
-                    <td style={s.empty} colSpan={6}>
-                      Loading spareparts…
-                    </td>
-                  </tr>
+                  <tr><td style={s.empty} colSpan={6}>Loading spareparts…</td></tr>
                 ) : assignments.length === 0 ? (
-                  <tr>
-                    <td style={s.empty} colSpan={6}>
-                      No spareparts history for this truck.
-                    </td>
-                  </tr>
+                  <tr><td style={s.empty} colSpan={6}>No spareparts history for this truck.</td></tr>
                 ) : (
                   assignments.map((a) => (
                     <tr key={a.id} style={s.tr}>
                       <td style={s.td}>{fmtDateTime(a.installedAt)}</td>
                       <td style={s.td}>{a.removedAt ? fmtDateTime(a.removedAt) : "-"}</td>
-
                       <td style={s.td}>
-                        <div style={{ fontWeight: 1000 }}>{a.stockUnit?.item?.name || "-"}</div>
-                        <div style={s.smallMuted}>
-                          {a.stockUnit?.item?.sku ? `SKU: ${a.stockUnit.item.sku}` : "—"}
-                        </div>
+                        <div style={{ fontWeight: 600 }}>{a.stockUnit?.item?.name || "-"}</div>
+                        <div style={s.smallMuted}>{a.stockUnit?.item?.sku ? `SKU: ${a.stockUnit.item.sku}` : "—"}</div>
                       </td>
-
                       <td style={s.td}>
                         <div>{a.stockUnit?.serialNumber || "-"}</div>
-                        <div style={s.smallMuted}>
-                          {a.stockUnit?.barcode ? `Barcode: ${a.stockUnit.barcode}` : "—"}
-                        </div>
+                        <div style={s.smallMuted}>{a.stockUnit?.barcode ? `Barcode: ${a.stockUnit.barcode}` : "—"}</div>
                       </td>
-
                       <td style={s.td}>
                         <span style={a.removedAt ? statusPill("INACTIVE") : statusPill("READY")}>
                           {a.removedAt ? "REMOVED" : "INSTALLED"}
                         </span>
                       </td>
-
                       <td style={s.td}>
                         <div>{a.note || "-"}</div>
-                        <div style={s.smallMuted}>
-                          {a.maintenance?.title ? `Maint: ${a.maintenance.title}` : "—"}
-                        </div>
+                        <div style={s.smallMuted}>{a.maintenance?.title ? `Maint: ${a.maintenance.title}` : "—"}</div>
                       </td>
                     </tr>
                   ))
@@ -621,134 +533,72 @@ export default function Trucks() {
               </tbody>
             </table>
           </div>
-
-          <div style={s.footerNote}>
-            Data comes from <b>TruckSparePartAssignment</b> (install/remove history). If empty, make sure
-            you create assignments when spareparts are installed to a truck.
-          </div>
         </div>
       )}
 
       {/* Add Truck Modal */}
       {showAdd && (
-        <div style={s.modalOverlay} onClick={() => setShowAdd(false)}>
+        <div style={s.modalOverlay} onClick={() => setShowAdd(false)} data-testid="add-truck-modal">
           <div style={s.modalCard} onClick={(e) => e.stopPropagation()}>
             <div style={s.modalHeader}>
               <div>
-                <div style={s.modalTitle}>Add Truck</div>
-                <div style={s.modalSub}>Add a new vehicle into the company fleet.</div>
+                <h3 style={s.modalTitle}>Add Truck</h3>
+                <p style={s.modalSubtitle}>Add a new vehicle into the company fleet.</p>
               </div>
-
-              <button style={s.modalClose} onClick={() => setShowAdd(false)}>
-                ✕
+              <button style={s.modalClose} onClick={() => setShowAdd(false)} data-testid="close-modal-btn">
+                <FiX size={18} />
               </button>
             </div>
 
             <form onSubmit={onCreate} style={s.form}>
               <Field label="Plate Number *">
-                <input
-                  style={s.input}
-                  value={form.plateNumber}
-                  onChange={(e) => setForm((f) => ({ ...f, plateNumber: e.target.value }))}
-                  placeholder="BK 1234 XX"
-                />
+                <input style={s.input} value={form.plateNumber} onChange={(e) => setForm((f) => ({ ...f, plateNumber: e.target.value }))} placeholder="BK 1234 XX" data-testid="plate-input" />
               </Field>
 
               <div style={s.twoCol}>
                 <Field label="Brand">
-                  <input
-                    style={s.input}
-                    value={form.brand}
-                    onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))}
-                    placeholder="Hino"
-                  />
+                  <input style={s.input} value={form.brand} onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))} placeholder="Hino" />
                 </Field>
-
                 <Field label="Model">
-                  <input
-                    style={s.input}
-                    value={form.model}
-                    onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
-                    placeholder="Tronton"
-                  />
+                  <input style={s.input} value={form.model} onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))} placeholder="Tronton" />
                 </Field>
               </div>
 
               <div style={s.twoCol}>
                 <Field label="Year">
-                  <input
-                    style={s.input}
-                    value={form.year}
-                    onChange={(e) => setForm((f) => ({ ...f, year: e.target.value }))}
-                    placeholder="2020"
-                  />
+                  <input style={s.input} value={form.year} onChange={(e) => setForm((f) => ({ ...f, year: e.target.value }))} placeholder="2020" />
                 </Field>
-
                 <Field label="Status">
-                  <div style={s.selectWrap}>
-                    <select
-                      style={s.selectPill}
-                      value={form.status}
-                      onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-                    >
-                      <option value="READY">READY</option>
-                      <option value="MAINTENANCE">MAINTENANCE</option>
-                      <option value="INACTIVE">INACTIVE</option>
-                    </select>
-                    <div style={s.selectArrow}>▾</div>
-                  </div>
+                  <select style={s.select} value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>
+                    <option value="READY">READY</option>
+                    <option value="MAINTENANCE">MAINTENANCE</option>
+                    <option value="INACTIVE">INACTIVE</option>
+                  </select>
                 </Field>
               </div>
 
               <Field label="VIN (optional)">
-                <input
-                  style={s.input}
-                  value={form.vin}
-                  onChange={(e) => setForm((f) => ({ ...f, vin: e.target.value }))}
-                  placeholder="Vehicle identification number"
-                />
+                <input style={s.input} value={form.vin} onChange={(e) => setForm((f) => ({ ...f, vin: e.target.value }))} placeholder="Vehicle identification number" />
               </Field>
 
               <Field label="STNK Expiry Date">
-                <input
-                  type="date"
-                  style={s.input}
-                  value={form.stnkExpiry || ""}
-                  onChange={(e) => setForm((f) => ({ ...f, stnkExpiry: e.target.value }))}
-                />
+                <input type="date" style={s.input} value={form.stnkExpiry || ""} onChange={(e) => setForm((f) => ({ ...f, stnkExpiry: e.target.value }))} />
               </Field>
 
               <Field label="Assign Driver (optional)">
-                <div style={s.selectWrap}>
-                  <select
-                    style={s.selectPill}
-                    value={form.driverUserId}
-                    onChange={(e) => setForm((f) => ({ ...f, driverUserId: e.target.value }))}
-                  >
-                    {driverOptions.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div style={s.selectArrow}>▾</div>
-                </div>
+                <select style={s.select} value={form.driverUserId} onChange={(e) => setForm((f) => ({ ...f, driverUserId: e.target.value }))}>
+                  {driverOptions.map((d) => (<option key={d.id} value={d.id}>{d.name}</option>))}
+                </select>
               </Field>
 
-              <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
-                <button
-                  disabled={creating}
-                  style={{ ...s.primaryBtn, flex: 1, opacity: creating ? 0.7 : 1 }}
-                >
+              <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+                <button type="submit" disabled={creating} style={{ ...s.primaryBtn, flex: 1, opacity: creating ? 0.7 : 1 }} data-testid="submit-truck-btn">
                   {creating ? "Adding…" : "Add Truck"}
                 </button>
-
-                <button type="button" onClick={() => setShowAdd(false)} style={s.ghostBtn}>
-                  Cancel
-                </button>
+                <button type="button" onClick={() => setShowAdd(false)} style={s.ghostBtn}>Cancel</button>
               </div>
 
-              <div style={s.tip}>Tip: You can assign later from the fleet table.</div>
+              <p style={s.tip}>Tip: You can assign a driver later from the fleet table.</p>
             </form>
           </div>
         </div>
@@ -757,20 +607,19 @@ export default function Trucks() {
   );
 }
 
-/* ---------------- helpers ---------------- */
-
+/* Helpers */
 function Field({ label, children }) {
   return (
     <div>
-      <div style={s.label}>{label}</div>
+      <label style={s.label}>{label}</label>
       {children}
     </div>
   );
 }
 
-function fmtDateTime(s) {
-  if (!s) return "-";
-  const d = new Date(s);
+function fmtDateTime(str) {
+  if (!str) return "-";
+  const d = new Date(str);
   if (Number.isNaN(d.getTime())) return "-";
   return d.toLocaleString();
 }
@@ -783,7 +632,6 @@ function fmtMoney(n, currency = "IDR") {
     return `${currency} ${v.toLocaleString()}`;
   }
 }
-
 
 function normalizeDay(d) {
   const x = new Date(d);
@@ -802,7 +650,7 @@ function stnkLabel(date) {
   const diff = stnkDiffDays(date);
   if (diff === null) return "";
   if (diff < 0) return "Expired";
-  return `Expiring in ${diff}d`;
+  return `${diff}d`;
 }
 
 function shouldShowStnkWarning(date) {
@@ -814,416 +662,381 @@ function shouldShowStnkWarning(date) {
 function stnkInputStyle(date) {
   const diff = stnkDiffDays(date);
   if (diff === null) return {};
-
-  if (diff < 0) {
-    return { borderColor: "rgba(239,68,68,0.40)", color: "#991b1b" };
-  }
-  if (diff <= 14) {
-    return { borderColor: "rgba(245,158,11,0.45)", color: "#92400e" };
-  }
+  if (diff < 0) return { borderColor: `${BRAND.error}60`, color: BRAND.error };
+  if (diff <= 14) return { borderColor: `${BRAND.warning}60`, color: BRAND.warning };
   return {};
 }
 
 function stnkBadge(date) {
   const diff = stnkDiffDays(date);
-
-  if (diff < 0) {
-    return {
-      display: "inline-flex",
-      alignItems: "center",
-      padding: "4px 10px",
-      borderRadius: 999,
-      fontSize: 11,
-      fontWeight: 1000,
-      background: "rgba(239,68,68,0.12)",
-      color: "#991b1b",
-      border: "1px solid rgba(239,68,68,0.25)",
-      whiteSpace: "nowrap",
-    };
-  }
-
-  return {
+  const base = {
     display: "inline-flex",
     alignItems: "center",
-    padding: "4px 10px",
-    borderRadius: 999,
+    gap: 4,
+    padding: "3px 8px",
+    borderRadius: 4,
     fontSize: 11,
-    fontWeight: 1000,
-    background: "rgba(245,158,11,0.14)",
-    color: "#92400e",
-    border: "1px solid rgba(245,158,11,0.26)",
-    whiteSpace: "nowrap",
+    fontWeight: 600,
   };
+  if (diff < 0) return { ...base, background: BRAND.errorBg, color: BRAND.error };
+  return { ...base, background: BRAND.warningBg, color: BRAND.warning };
 }
 
 function statusPill(status) {
   const base = {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "6px 14px",
-    borderRadius: 999,
+    display: "inline-block",
+    padding: "4px 10px",
+    borderRadius: 4,
     fontSize: 12,
-    fontWeight: 1000,
-    letterSpacing: 0.3,
-    border: "1px solid transparent",
-    whiteSpace: "nowrap",
+    fontWeight: 600,
+    textTransform: "uppercase",
+    letterSpacing: "0.3px",
   };
-
-  if (status === "READY") {
-    return {
-      ...base,
-      color: "#065f46",
-      background: "rgba(34,197,94,0.14)",
-      border: "1px solid rgba(34,197,94,0.28)",
-    };
-  }
-
-  if (status === "MAINTENANCE") {
-    return {
-      ...base,
-      color: "#92400e",
-      background: "rgba(245,158,11,0.14)",
-      border: "1px solid rgba(245,158,11,0.28)",
-    };
-  }
-
-  if (status === "DISPATCH") {
-    return {
-      ...base,
-      color: "#1d4ed8",
-      background: "rgba(59,130,246,0.14)",
-      border: "1px solid rgba(59,130,246,0.28)",
-    };
-  }
-
-  return {
-    ...base,
-    color: "#374151",
-    background: "rgba(107,114,128,0.12)",
-    border: "1px solid rgba(107,114,128,0.25)",
-  };
+  if (status === "READY") return { ...base, background: BRAND.successBg, color: BRAND.success };
+  if (status === "MAINTENANCE") return { ...base, background: BRAND.warningBg, color: BRAND.warning };
+  if (status === "DISPATCH") return { ...base, background: BRAND.blueBg, color: BRAND.blue };
+  return { ...base, background: "#F3F4F6", color: BRAND.textMuted };
 }
 
-/* ---------------- styles ---------------- */
-
-const BRAND = {
-  green: "#4BCA74",
-  green2: "#3BB865",
-  greenLight: "#5FD686",
-  greenDark: "#2D9F56",
-  greenSoft: "rgba(75,202,116,0.15)",
-  ink: "#111827",
-  ink2: "#1F2937",
-};
-
+/* Styles */
 const s = {
-  page: { padding: 6 },
-
   headerRow: {
     display: "flex",
-    alignItems: "end",
+    alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
-    marginBottom: 20,
+    gap: 16,
+    marginBottom: 24,
+    flexWrap: "wrap",
   },
-  hTitle: { fontWeight: 800, fontSize: 28, color: BRAND.ink, letterSpacing: "-0.02em" },
-  hSub: { marginTop: 6, fontSize: 15, color: BRAND.ink2, opacity: 0.8 },
+
+  header: { marginBottom: 24 },
+  title: { margin: 0, fontSize: 28, fontWeight: 700, color: BRAND.text },
+  subtitle: { margin: "8px 0 0", fontSize: 14, color: BRAND.textMuted },
 
   card: {
-    borderRadius: 20,
-    background: "rgba(255,255,255,0.85)",
-    backdropFilter: "blur(20px)",
-    WebkitBackdropFilter: "blur(20px)",
-    boxShadow: `0 8px 32px ${BRAND.green}15`,
-    border: `1px solid ${BRAND.greenSoft}`,
+    borderRadius: 8,
+    background: BRAND.white,
+    border: `1px solid ${BRAND.border}`,
     padding: 24,
-    minWidth: 0,
   },
 
-  cardTitle: { fontWeight: 800, fontSize: 18, color: BRAND.ink },
-  cardSub: { marginTop: 6, fontSize: 14, color: BRAND.ink2, opacity: 0.8 },
-
-  form: { marginTop: 16, display: "grid", gap: 14 },
-  twoCol: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
-
-  label: { fontSize: 14, fontWeight: 700, color: BRAND.ink, marginBottom: 8 },
-
-  input: {
-    width: "100%",
-    borderRadius: 12,
-    border: `2px solid ${BRAND.greenSoft}`,
-    background: "white",
-    padding: "12px 16px",
-    outline: "none",
-    fontWeight: 600,
-    fontSize: 15,
-    color: BRAND.ink,
-    boxSizing: "border-box",
-    transition: "all 0.3s ease",
-  },
-
-  inputSmall: {
-    width: 300,
-    borderRadius: 12,
-    border: `2px solid ${BRAND.greenSoft}`,
-    background: "white",
-    padding: "12px 16px",
-    outline: "none",
-    fontWeight: 600,
-    fontSize: 15,
-    color: BRAND.ink,
-    boxSizing: "border-box",
-  },
-
-  selectWrap: { position: "relative", display: "inline-flex", alignItems: "center", width: "100%" },
-  selectPill: {
-    width: "100%",
-    appearance: "none",
-    WebkitAppearance: "none",
-    MozAppearance: "none",
-    borderRadius: 999,
-    border: `2px solid ${BRAND.greenSoft}`,
-    background: "#ffffff",
-    padding: "12px 42px 12px 18px",
-    fontSize: 14,
-    fontWeight: 700,
-    color: BRAND.ink,
-    cursor: "pointer",
-    outline: "none",
-    boxShadow: `0 4px 12px ${BRAND.green}10`,
-  },
-  selectAssign: {
-    width: "100%",
-    appearance: "none",
-    WebkitAppearance: "none",
-    MozAppearance: "none",
-    borderRadius: 999,
-    border: `2px solid ${BRAND.greenSoft}`,
-    background: "#ffffff",
-    padding: "10px 42px 10px 16px",
-    fontSize: 14,
-    fontWeight: 700,
-    color: BRAND.ink,
-    cursor: "pointer",
-    outline: "none",
-  },
-  selectArrow: {
-    position: "absolute",
-    right: 14,
-    top: "50%",
-    transform: "translateY(-50%)",
-    pointerEvents: "none",
-    fontSize: 14,
-    fontWeight: 800,
-    color: BRAND.green,
-  },
-
-  primaryBtn: {
-    border: "none",
-    borderRadius: 12,
-    padding: "12px 20px",
-    fontWeight: 700,
-    fontSize: 15,
-    cursor: "pointer",
-    color: "white",
-    background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
-    boxShadow: `0 8px 20px ${BRAND.green}40`,
-    transition: "all 0.3s ease",
-  },
-  primaryBtnSmall: {
-    border: "none",
-    borderRadius: 12,
-    padding: "10px 18px",
-    fontWeight: 700,
-    fontSize: 14,
-    cursor: "pointer",
-    color: "white",
-    background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
-    boxShadow: `0 8px 20px ${BRAND.green}40`,
-  },
-  secondaryBtn: {
-    borderRadius: 12,
-    padding: "10px 18px",
-    fontWeight: 700,
-    fontSize: 14,
-    cursor: "pointer",
-    color: BRAND.green,
-    background: BRAND.greenSoft,
-    border: `1px solid ${BRAND.green}40`,
-    transition: "all 0.3s ease",
-  },
-
-  ghostBtn: {
-    borderRadius: 12,
-    padding: "10px 18px",
-    fontWeight: 700,
-    fontSize: 14,
-    cursor: "pointer",
-    color: BRAND.ink,
-    background: "rgba(0,0,0,0.05)",
-    border: "1px solid rgba(0,0,0,0.1)",
-  },
-
-  alertErr: {
-    marginBottom: 16,
-    borderRadius: 14,
-    border: "1px solid rgba(239,68,68,0.28)",
-    background: "rgba(239,68,68,0.10)",
-    color: "rgba(153,27,27,0.95)",
-    padding: "12px 16px",
-    fontWeight: 700,
-    fontSize: 14,
-  },
-
-  listHeader: {
+  cardHeaderRow: {
     display: "flex",
     justifyContent: "space-between",
-    gap: 12,
-    flexWrap: "wrap",
-    alignItems: "end",
+    alignItems: "flex-end",
+    gap: 16,
     marginBottom: 16,
+    flexWrap: "wrap",
   },
-  searchRow: { display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" },
 
-  // ✅ Pagination styles
+  cardTitle: { margin: 0, fontSize: 18, fontWeight: 600, color: BRAND.text },
+  cardSubtitle: { margin: "4px 0 0", fontSize: 14, color: BRAND.textMuted },
+
+  searchRow: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
+
+  inputWrap: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "10px 14px",
+    borderRadius: 6,
+    border: `1px solid ${BRAND.border}`,
+    background: BRAND.white,
+  },
+
+  searchInput: {
+    border: "none",
+    outline: "none",
+    fontSize: 14,
+    fontWeight: 500,
+    color: BRAND.text,
+    width: 180,
+    background: "transparent",
+  },
+
+  searchBtn: {
+    padding: "10px 16px",
+    borderRadius: 6,
+    border: "none",
+    background: BRAND.primary,
+    color: BRAND.white,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+
   paginationBar: {
-    marginTop: 16,
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
     flexWrap: "wrap",
     padding: "12px 16px",
-    borderRadius: 14,
-    border: `1px solid ${BRAND.greenSoft}`,
-    background: "none",
-  },
-  paginationText: { fontSize: 14, fontWeight: 700, color: BRAND.ink },
-  paginationBtns: { display: "flex", gap: 12, alignItems: "center" },
-  pagePill: {
-    borderRadius: 999,
-    padding: "8px 16px",
-    fontSize: 13,
-    fontWeight: 700,
-    color: BRAND.green,
-    background: "#ffffff",
-    border: `1px solid ${BRAND.green}40`,
-    whiteSpace: "nowrap",
+    borderRadius: 6,
+    background: BRAND.secondary,
+    marginBottom: 16,
   },
 
-  tableWrap: {
-    marginTop: 16,
-    overflowX: "auto",
-    borderRadius: 16,
-    border: `1px solid ${BRAND.greenSoft}`,
+  paginationText: { fontSize: 14, color: BRAND.textLight },
+  paginationBtns: { display: "flex", gap: 10, alignItems: "center" },
+
+  paginationBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    padding: "8px 12px",
+    borderRadius: 6,
+    border: `1px solid ${BRAND.border}`,
+    background: BRAND.white,
+    fontSize: 13,
+    fontWeight: 500,
+    color: BRAND.textLight,
+    cursor: "pointer",
   },
-  table: { width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 980 },
+
+  pageInfo: { fontSize: 13, color: BRAND.textMuted },
+
+  tableWrap: {
+    overflowX: "auto",
+    borderRadius: 6,
+    border: `1px solid ${BRAND.border}`,
+  },
+
+  table: { width: "100%", borderCollapse: "collapse", minWidth: 900 },
+
   th: {
     textAlign: "left",
-    fontSize: 13,
-    letterSpacing: 0.5,
-    fontWeight: 800,
-    color: BRAND.ink,
-    padding: "14px 16px",
-    background: BRAND.greenSoft,
-    borderBottom: `1px solid ${BRAND.green}30`,
+    fontSize: 12,
+    fontWeight: 600,
+    color: BRAND.textMuted,
+    padding: "12px 16px",
+    background: BRAND.secondary,
+    borderBottom: `1px solid ${BRAND.border}`,
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
   },
-  tr: { background: "white", transition: "all 0.2s ease" },
+
+  tr: { transition: "background 0.2s ease" },
+
   td: {
     padding: "14px 16px",
     fontSize: 14,
-    fontWeight: 600,
-    color: BRAND.ink,
-    borderBottom: `1px solid ${BRAND.greenSoft}`,
+    fontWeight: 500,
+    color: BRAND.text,
+    borderBottom: `1px solid ${BRAND.border}`,
     verticalAlign: "top",
   },
+
   tdStrong: {
     padding: "14px 16px",
     fontSize: 14,
-    fontWeight: 800,
-    color: BRAND.ink,
-    borderBottom: `1px solid ${BRAND.greenSoft}`,
+    fontWeight: 700,
+    color: BRAND.text,
+    borderBottom: `1px solid ${BRAND.border}`,
     verticalAlign: "top",
   },
-  smallMuted: {
-    marginTop: 4,
-    fontSize: 12,
-    fontWeight: 600,
-    color: BRAND.ink2,
-    opacity: 0.7,
-  },
 
-  stnkWrap: { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 },
-  stnkInput: {
-    width: "180px",
-    borderRadius: 999,
-    border: "1px solid rgba(6,95,70,0.18)",
-    padding: "7px 12px",
-    fontSize: 12,
-    fontWeight: 900,
-    background: "linear-gradient(180deg, #ffffff 0%, #f6fffb 100%)",
-    outline: "none",
+  smallMuted: { marginTop: 4, fontSize: 12, color: BRAND.textMuted },
+
+  driverSelect: {
+    width: "100%",
+    padding: "8px 12px",
+    borderRadius: 6,
+    border: `1px solid ${BRAND.border}`,
+    fontSize: 13,
+    fontWeight: 500,
+    color: BRAND.text,
     cursor: "pointer",
+    outline: "none",
+    background: BRAND.white,
   },
 
-  empty: { padding: 18, textAlign: "center", color: "rgba(4,120,87,0.75)", fontWeight: 900 },
+  stnkWrap: { display: "flex", flexDirection: "column", gap: 6 },
 
-  footerNote: { marginTop: 12, fontSize: 11, fontWeight: 800, color: "rgba(4,120,87,0.70)" },
-  tip: { marginTop: 8, fontSize: 11, fontWeight: 800, color: "rgba(4,120,87,0.70)" },
+  dateInput: {
+    padding: "8px 12px",
+    borderRadius: 6,
+    border: `1px solid ${BRAND.border}`,
+    fontSize: 13,
+    fontWeight: 500,
+    color: BRAND.text,
+    outline: "none",
+    background: BRAND.white,
+  },
+
+  empty: { padding: 32, textAlign: "center", color: BRAND.textMuted, fontWeight: 500 },
+  footerNote: { marginTop: 16, fontSize: 12, color: BRAND.textMuted },
 
   movHeader: {
     display: "flex",
-    alignItems: "end",
+    alignItems: "flex-end",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 16,
     flexWrap: "wrap",
-    marginBottom: 10,
+    marginBottom: 16,
   },
+
   movFilters: {
     display: "flex",
     gap: 10,
     alignItems: "center",
     flexWrap: "wrap",
-    marginTop: 10,
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  movDates: { display: "flex", gap: 10, alignItems: "center" },
+
+  movDates: { display: "flex", gap: 8, alignItems: "center" },
+
+  monthBadge: {
+    padding: "8px 14px",
+    borderRadius: 6,
+    background: BRAND.successBg,
+    color: BRAND.success,
+    fontWeight: 600,
+    fontSize: 13,
+  },
+
+  alertErr: {
+    marginBottom: 16,
+    borderRadius: 6,
+    border: `1px solid ${BRAND.error}30`,
+    background: BRAND.errorBg,
+    color: BRAND.error,
+    padding: "12px 16px",
+    fontWeight: 500,
+    fontSize: 14,
+  },
+
+  primaryBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    border: "none",
+    borderRadius: 6,
+    padding: "10px 18px",
+    fontWeight: 600,
+    fontSize: 14,
+    cursor: "pointer",
+    color: BRAND.white,
+    background: BRAND.primary,
+    transition: "all 0.2s ease",
+  },
+
+  primaryBtnSmall: {
+    border: "none",
+    borderRadius: 6,
+    padding: "8px 14px",
+    fontWeight: 600,
+    fontSize: 13,
+    cursor: "pointer",
+    color: BRAND.white,
+    background: BRAND.primary,
+  },
+
+  secondaryBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 6,
+    padding: "10px 16px",
+    fontWeight: 500,
+    fontSize: 14,
+    cursor: "pointer",
+    color: BRAND.textLight,
+    background: BRAND.white,
+    border: `1px solid ${BRAND.border}`,
+  },
+
+  ghostBtn: {
+    borderRadius: 6,
+    padding: "8px 14px",
+    fontWeight: 500,
+    fontSize: 13,
+    cursor: "pointer",
+    color: BRAND.textMuted,
+    background: "transparent",
+    border: `1px solid ${BRAND.border}`,
+  },
 
   modalOverlay: {
     position: "fixed",
     inset: 0,
-    background: "rgba(3, 20, 14, 0.45)",
-    backdropFilter: "blur(6px)",
+    background: "rgba(0,0,0,0.4)",
     display: "grid",
     placeItems: "center",
-    padding: 18,
+    padding: 20,
     zIndex: 9999,
   },
+
   modalCard: {
-    width: "min(720px, 100%)",
-    borderRadius: 20,
-    background: "linear-gradient(180deg, #ffffff 0%, #fbfffd 100%)",
-    border: "1px solid rgba(6,95,70,0.10)",
-    boxShadow: "0 30px 80px rgba(0,0,0,0.22)",
-    padding: 18,
+    width: "min(600px, 100%)",
+    borderRadius: 8,
+    background: BRAND.white,
+    border: `1px solid ${BRAND.border}`,
+    padding: 24,
+    maxHeight: "90vh",
+    overflowY: "auto",
   },
+
   modalHeader: {
     display: "flex",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: 12,
-    marginBottom: 10,
+    gap: 16,
+    marginBottom: 20,
   },
-  modalTitle: { fontWeight: 1000, fontSize: 16, color: "#053a2f" },
-  modalSub: { marginTop: 4, fontSize: 12, fontWeight: 700, color: "rgba(4,120,87,0.78)" },
+
+  modalTitle: { margin: 0, fontSize: 18, fontWeight: 600, color: BRAND.text },
+  modalSubtitle: { margin: "4px 0 0", fontSize: 14, color: BRAND.textMuted },
+
   modalClose: {
-    border: "none",
-    background: "rgba(6,95,70,0.06)",
-    color: "#065f46",
+    border: `1px solid ${BRAND.border}`,
+    background: BRAND.white,
     width: 36,
     height: 36,
-    borderRadius: 12,
+    borderRadius: 6,
     cursor: "pointer",
-    fontWeight: 1000,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: BRAND.textMuted,
   },
+
+  form: { display: "grid", gap: 16 },
+  twoCol: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
+
+  label: {
+    display: "block",
+    fontSize: 14,
+    fontWeight: 500,
+    color: BRAND.text,
+    marginBottom: 8,
+  },
+
+  input: {
+    width: "100%",
+    borderRadius: 6,
+    border: `1px solid ${BRAND.border}`,
+    background: BRAND.white,
+    padding: "12px 14px",
+    outline: "none",
+    fontWeight: 500,
+    fontSize: 14,
+    color: BRAND.text,
+    boxSizing: "border-box",
+  },
+
+  select: {
+    width: "100%",
+    borderRadius: 6,
+    border: `1px solid ${BRAND.border}`,
+    background: BRAND.white,
+    padding: "12px 14px",
+    outline: "none",
+    fontWeight: 500,
+    fontSize: 14,
+    color: BRAND.text,
+    cursor: "pointer",
+  },
+
+  tip: { marginTop: 8, fontSize: 12, color: BRAND.textMuted },
 };

@@ -87,8 +87,8 @@ export default function PublicLayout() {
   };
 
   const logoImg = {
-    width: 44,
-    height: 44,
+    width: 60,
+    height: 60,
     borderRadius: 8,
     objectFit: "contain",
     display: "block",

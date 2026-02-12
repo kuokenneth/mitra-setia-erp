@@ -1,4 +1,4 @@
-// src/layouts/AppLayout.jsx - Modern Design
+// src/layouts/AppLayout.jsx - Corporate Minimalist Design
 import { useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
@@ -11,8 +11,25 @@ import {
   FiTruck,
   FiUser,
   FiUserPlus,
+  FiLogOut,
+  FiMenu,
+  FiX,
 } from "react-icons/fi";
 import { useAuth } from "../AuthContext";
+
+// Corporate Green Color Palette (matching Landing Page)
+const BRAND = {
+  primary: "#0D7C3D",
+  primaryDark: "#0A6331",
+  primaryLight: "#10A050",
+  secondary: "#F5F9F7",
+  accent: "#D4E8DC",
+  text: "#1A1A1A",
+  textLight: "#4A4A4A",
+  textMuted: "#6B7280",
+  white: "#FFFFFF",
+  border: "#E5E7EB",
+};
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
@@ -22,17 +39,6 @@ export default function AppLayout() {
   const [isMobile, setIsMobile] = useState(() =>
     window.matchMedia("(max-width: 900px)").matches
   );
-
-  // Match Landing Page Colors
-  const BRAND = {
-    green: "#4BCA74",
-    green2: "#3BB865",
-    greenLight: "#5FD686",
-    greenDark: "#2D9F56",
-    greenSoft: "rgba(75,202,116,0.15)",
-    ink: "#111827",
-    ink2: "#1F2937",
-  };
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 900px)");
@@ -81,12 +87,13 @@ export default function AppLayout() {
 
   function TopNavLinks({ onNavigate }) {
     return (
-      <nav style={s.topNav} className="app-topnav">
+      <nav style={s.topNav} className="top-nav-scroll" data-testid="app-navigation">
         {menu.map((m) => (
           <NavLink
             key={m.to}
             to={m.to}
             onClick={onNavigate}
+            data-testid={`nav-link-${m.label.toLowerCase().replace(/\s+/g, '-')}`}
             style={({ isActive }) => ({
               ...s.topNavItem,
               ...(isActive ? s.topNavActive : {}),
@@ -105,41 +112,28 @@ export default function AppLayout() {
       minHeight: "100vh",
       display: "flex",
       flexDirection: "column",
-      background: `linear-gradient(135deg, ${BRAND.greenLight}20 0%, #ffffff 50%, ${BRAND.greenSoft} 100%)`,
-      fontFamily: '"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
-      color: BRAND.ink,
-      position: "relative",
-      overflow: "hidden",
-    },
-
-    // Floating particles
-    particles: {
-      position: "fixed",
-      inset: 0,
-      pointerEvents: "none",
-      zIndex: 0,
+      background: BRAND.white,
+      fontFamily: '"Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      color: BRAND.text,
     },
 
     main: {
       minWidth: 0,
       display: "flex",
       flexDirection: "column",
-      position: "relative",
-      zIndex: 1,
+      flex: 1,
     },
 
     // Desktop topbar
     topbar: {
-      padding: "16px 24px",
-      background: "rgba(255,255,255,0.85)",
-      backdropFilter: "blur(20px)",
-      WebkitBackdropFilter: "blur(20px)",
-      borderBottom: `1px solid rgba(75,202,116,0.2)`,
+      padding: "0 32px",
+      height: 72,
+      background: BRAND.white,
+      borderBottom: `1px solid ${BRAND.border}`,
       display: "grid",
       gridTemplateColumns: "minmax(200px, 1fr) minmax(520px, 3fr) minmax(220px, 1fr)",
       alignItems: "center",
       boxSizing: "border-box",
-      boxShadow: `0 4px 20px ${BRAND.greenSoft}`,
       position: "sticky",
       top: 0,
       zIndex: 10,
@@ -161,18 +155,18 @@ export default function AppLayout() {
     brand: { display: "flex", alignItems: "center", gap: 12 },
 
     brandLogo: {
-      width: 48,
-      height: 48,
+      width: 40,
+      height: 40,
       objectFit: "contain",
-      borderRadius: 12,
+      borderRadius: 8,
     },
 
-    brandTitle: { fontWeight: 800, fontSize: 18, color: BRAND.ink },
-    brandSub: { marginTop: 2, fontSize: 13, color: BRAND.ink2, opacity: 0.7 },
+    brandTitle: { fontWeight: 700, fontSize: 16, color: BRAND.text },
+    brandSub: { marginTop: 2, fontSize: 12, color: BRAND.textMuted },
 
     topNav: {
       display: "flex",
-      gap: 8,
+      gap: 4,
       alignItems: "center",
       flexWrap: "nowrap",
       justifyContent: "center",
@@ -183,27 +177,27 @@ export default function AppLayout() {
 
     topNavItem: {
       textDecoration: "none",
-      color: BRAND.ink,
-      fontWeight: 600,
+      color: BRAND.textMuted,
+      fontWeight: 500,
       fontSize: 14,
-      padding: "10px 16px",
-      borderRadius: 12,
+      padding: "8px 14px",
+      borderRadius: 6,
       display: "inline-flex",
       alignItems: "center",
-      gap: 8,
+      gap: 6,
       whiteSpace: "nowrap",
-      transition: "all 0.3s ease",
+      transition: "all 0.2s ease",
     },
 
     topNavActive: {
-      background: `linear-gradient(135deg, ${BRAND.green}, ${BRAND.green2})`,
-      color: "#fff",
-      boxShadow: `0 4px 12px ${BRAND.green}40`,
+      background: BRAND.accent,
+      color: BRAND.primary,
+      fontWeight: 600,
     },
 
     topNavIcon: {
-      width: 18,
-      height: 18,
+      width: 16,
+      height: 16,
       display: "inline-flex",
       alignItems: "center",
       justifyContent: "center",
@@ -212,43 +206,46 @@ export default function AppLayout() {
     topRight: {
       display: "flex",
       alignItems: "center",
-      gap: 12,
+      gap: 16,
       justifyContent: "flex-end",
     },
 
     topRole: {
-      fontSize: 13,
-      fontWeight: 700,
-      padding: "8px 16px",
-      borderRadius: 999,
-      background: BRAND.greenSoft,
-      border: `1px solid ${BRAND.green}30`,
-      color: BRAND.green,
-      whiteSpace: "nowrap",
+      fontSize: 12,
+      fontWeight: 600,
+      padding: "6px 12px",
+      borderRadius: 4,
+      background: BRAND.accent,
+      color: BRAND.primary,
+      textTransform: "uppercase",
+      letterSpacing: "0.5px",
     },
 
     topLogout: {
-      border: "none",
-      color: "#ffffff",
-      fontWeight: 700,
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6,
+      border: `1px solid ${BRAND.border}`,
+      color: BRAND.textLight,
+      fontWeight: 500,
       fontSize: 14,
-      padding: "10px 20px",
-      borderRadius: 12,
+      padding: "8px 16px",
+      borderRadius: 6,
       cursor: "pointer",
-      background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
-      boxShadow: `0 4px 12px ${BRAND.green}40`,
-      transition: "all 0.3s ease",
+      background: BRAND.white,
+      transition: "all 0.2s ease",
     },
 
     contentOuter: {
       width: "100%",
       boxSizing: "border-box",
-      padding: isMobile ? 16 : 24,
-      paddingTop: isMobile ? 16 : 24,
+      padding: isMobile ? 16 : 32,
+      background: BRAND.secondary,
+      flex: 1,
     },
 
     contentInner: {
-      maxWidth: 1200,
+      maxWidth: 1280,
       margin: "0 auto",
       minWidth: 0,
     },
@@ -263,34 +260,31 @@ export default function AppLayout() {
       justifyContent: "space-between",
       gap: 12,
       padding: "12px 16px",
-      background: "rgba(255,255,255,0.85)",
-      backdropFilter: "blur(20px)",
-      WebkitBackdropFilter: "blur(20px)",
-      borderBottom: `1px solid ${BRAND.greenSoft}`,
-      boxShadow: `0 2px 10px ${BRAND.greenSoft}`,
+      height: 60,
+      background: BRAND.white,
+      borderBottom: `1px solid ${BRAND.border}`,
     },
 
     hamburgerBtn: {
-      border: `1px solid ${BRAND.greenSoft}`,
-      background: "#fff",
-      width: 44,
-      height: 44,
-      borderRadius: 12,
-      fontSize: 20,
-      fontWeight: 700,
+      border: `1px solid ${BRAND.border}`,
+      background: BRAND.white,
+      width: 40,
+      height: 40,
+      borderRadius: 6,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
       cursor: "pointer",
-      color: BRAND.green,
+      color: BRAND.text,
     },
 
-    mobileTitle: { fontWeight: 800, fontSize: 16, color: BRAND.ink },
-    mobileSub: { fontSize: 12, color: BRAND.ink2, opacity: 0.7, marginTop: 2 },
+    mobileTitle: { fontWeight: 700, fontSize: 15, color: BRAND.text },
+    mobileSub: { fontSize: 11, color: BRAND.textMuted, marginTop: 2 },
 
     drawerOverlay: {
       position: "fixed",
       inset: 0,
       background: "rgba(0,0,0,0.4)",
-      backdropFilter: "blur(4px)",
-      WebkitBackdropFilter: "blur(4px)",
       zIndex: 100,
       display: "flex",
       justifyContent: "flex-start",
@@ -298,19 +292,17 @@ export default function AppLayout() {
 
     drawer: {
       width: "85%",
-      maxWidth: 360,
+      maxWidth: 320,
       height: "100%",
-      background: "rgba(255,255,255,0.95)",
-      backdropFilter: "blur(20px)",
-      WebkitBackdropFilter: "blur(20px)",
-      boxShadow: `10px 0 30px ${BRAND.green}20`,
+      background: BRAND.white,
       overflowY: "auto",
+      boxShadow: "4px 0 20px rgba(0,0,0,0.1)",
     },
 
     drawerContent: {
       padding: 20,
       display: "grid",
-      gap: 12,
+      gap: 8,
     },
 
     drawerHeader: {
@@ -318,69 +310,53 @@ export default function AppLayout() {
       justifyContent: "space-between",
       alignItems: "center",
       padding: 20,
-      borderBottom: `1px solid ${BRAND.greenSoft}`,
+      borderBottom: `1px solid ${BRAND.border}`,
     },
 
     closeBtn: {
-      border: `1px solid ${BRAND.greenSoft}`,
-      background: "#fff",
-      width: 44,
-      height: 44,
-      borderRadius: 12,
+      border: `1px solid ${BRAND.border}`,
+      background: BRAND.white,
+      width: 40,
+      height: 40,
+      borderRadius: 6,
       cursor: "pointer",
-      fontSize: 18,
-      fontWeight: 700,
-      color: BRAND.green,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: BRAND.text,
     },
 
     logoutBtn: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
       border: "none",
-      color: "#ffffff",
-      fontWeight: 700,
-      fontSize: 15,
+      color: BRAND.white,
+      fontWeight: 600,
+      fontSize: 14,
       padding: "12px 24px",
-      borderRadius: 12,
+      borderRadius: 6,
       cursor: "pointer",
-      background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
-      boxShadow: `0 4px 12px ${BRAND.green}40`,
-      marginTop: 12,
+      background: BRAND.primary,
+      marginTop: 16,
+      transition: "all 0.2s ease",
     },
   };
 
   return (
-    <div style={s.page}>
-      <style>{`.app-topnav::-webkit-scrollbar{display:none;}`}</style>
-
-      {/* Floating Particles */}
-      <div style={s.particles}>
-        {[...Array(isMobile ? 10 : 20)].map((_, i) => (
-          <div
-            key={i}
-            style={{
-              position: "absolute",
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              width: Math.random() * 3 + 2,
-              height: Math.random() * 3 + 2,
-              background: `${BRAND.green}30`,
-              borderRadius: "50%",
-              animation: `float ${Math.random() * 10 + 10}s ease-in-out infinite`,
-              animationDelay: `${Math.random() * 5}s`,
-            }}
-          />
-        ))}
-      </div>
-
+    <div style={s.page} data-testid="app-layout">
       {/* Mobile */}
       {isMobile && (
         <>
-          <header style={s.mobileTop}>
+          <header style={s.mobileTop} data-testid="mobile-header">
             <button
               onClick={() => setMobileOpen(true)}
               style={s.hamburgerBtn}
               aria-label="Open menu"
+              data-testid="mobile-menu-btn"
             >
-              ☰
+              <FiMenu size={20} />
             </button>
 
             <div style={{ minWidth: 0, textAlign: "center", flex: 1 }}>
@@ -398,20 +374,23 @@ export default function AppLayout() {
               role="button"
               tabIndex={0}
               onKeyDown={(e) => e.key === "Escape" && setMobileOpen(false)}
+              data-testid="mobile-drawer-overlay"
             >
               <div
                 style={s.drawer}
                 onClick={(e) => e.stopPropagation()}
                 role="presentation"
+                data-testid="mobile-drawer"
               >
                 <div style={s.drawerHeader}>
-                  <div style={{ fontWeight: 800, color: BRAND.ink, fontSize: 18 }}>Menu</div>
+                  <div style={{ fontWeight: 700, color: BRAND.text, fontSize: 16 }}>Menu</div>
                   <button
                     onClick={() => setMobileOpen(false)}
                     style={s.closeBtn}
                     aria-label="Close menu"
+                    data-testid="mobile-close-btn"
                   >
-                    ✕
+                    <FiX size={18} />
                   </button>
                 </div>
                 <div style={s.drawerContent}>
@@ -422,7 +401,9 @@ export default function AppLayout() {
                       setMobileOpen(false);
                     }}
                     style={s.logoutBtn}
+                    data-testid="mobile-logout-btn"
                   >
+                    <FiLogOut size={16} />
                     Logout
                   </button>
                 </div>
@@ -435,7 +416,7 @@ export default function AppLayout() {
       <main style={s.main}>
         {/* Desktop topbar */}
         {!isMobile && (
-          <header style={s.topbar}>
+          <header style={s.topbar} data-testid="desktop-header">
             <div style={s.topLeft}>
               <div style={s.brand}>
                 <img src="/logo3.png" alt="Mitra Setia" style={s.brandLogo} />
@@ -455,15 +436,17 @@ export default function AppLayout() {
               <button
                 onClick={doLogout}
                 style={s.topLogout}
+                data-testid="logout-btn"
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.boxShadow = `0 6px 20px ${BRAND.green}50`;
+                  e.currentTarget.style.borderColor = BRAND.primary;
+                  e.currentTarget.style.color = BRAND.primary;
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = `0 4px 12px ${BRAND.green}40`;
+                  e.currentTarget.style.borderColor = BRAND.border;
+                  e.currentTarget.style.color = BRAND.textLight;
                 }}
               >
+                <FiLogOut size={16} />
                 Logout
               </button>
             </div>
@@ -477,11 +460,13 @@ export default function AppLayout() {
         </div>
       </main>
 
-      {/* Animations */}
       <style>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-20px); }
+        .top-nav-scroll::-webkit-scrollbar {
+          width: 0;
+          height: 0;
+        }
+        .top-nav-scroll::-webkit-scrollbar-thumb {
+          background: transparent;
         }
       `}</style>
     </div>

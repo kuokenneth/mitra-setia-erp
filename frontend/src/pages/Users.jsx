@@ -1,7 +1,28 @@
-// src/pages/Users.jsx
+// src/pages/Users.jsx - Corporate Minimalist Design
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
+import { FiSearch, FiChevronLeft, FiChevronRight } from "react-icons/fi";
+
+// Corporate Green Color Palette (matching Landing Page)
+const BRAND = {
+  primary: "#0D7C3D",
+  primaryDark: "#0A6331",
+  primaryLight: "#10A050",
+  secondary: "#F5F9F7",
+  accent: "#D4E8DC",
+  text: "#1A1A1A",
+  textLight: "#4A4A4A",
+  textMuted: "#6B7280",
+  white: "#FFFFFF",
+  border: "#E5E7EB",
+  warning: "#F59E0B",
+  warningBg: "#FFFBEB",
+  success: "#10B981",
+  successBg: "#ECFDF5",
+  error: "#EF4444",
+  errorBg: "#FEF2F2",
+};
 
 export default function Users() {
   const { user } = useAuth();
@@ -17,14 +38,10 @@ export default function Users() {
   const [err, setErr] = useState("");
 
   const take = 20;
-  const [page, setPage] = useState(0); // 0-based
-
-  const [hoverSelect, setHoverSelect] = useState(false);
-  const [focusSelect, setFocusSelect] = useState(false);
+  const [page, setPage] = useState(0);
 
   const skip = useMemo(() => page * take, [page]);
 
-  // ✅ responsive flag
   const [isMobile, setIsMobile] = useState(() =>
     window.matchMedia("(max-width: 900px)").matches
   );
@@ -32,18 +49,13 @@ export default function Users() {
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 900px)");
     const onChange = () => setIsMobile(mq.matches);
-
     if (mq.addEventListener) mq.addEventListener("change", onChange);
     else mq.addListener(onChange);
-
     return () => {
       if (mq.removeEventListener) mq.removeEventListener("change", onChange);
       else mq.removeListener(onChange);
     };
   }, []);
-
-  // ✅ styles that depend on isMobile must be inside component
-  const s = useMemo(() => makeStyles(isMobile), [isMobile]);
 
   async function updateStatus(userId, status) {
     try {
@@ -51,7 +63,6 @@ export default function Users() {
         method: "PATCH",
         body: JSON.stringify({ status }),
       });
-
       setItems((prev) => prev.map((u) => (u.id === userId ? { ...u, status } : u)));
     } catch (e) {
       alert("Failed to update status");
@@ -78,7 +89,6 @@ export default function Users() {
       params.set("take", String(take));
 
       if (q.trim()) {
-        // Fetch all pages for a global, case-insensitive search
         const first = await api(`/users?${params.toString()}`);
         const totalCount = first.total || 0;
         const pages = Math.max(1, Math.ceil(totalCount / take));
@@ -113,7 +123,6 @@ export default function Users() {
   useEffect(() => {
     if (!allowed) return;
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skip, roleFilter]);
 
   useEffect(() => {
@@ -123,17 +132,14 @@ export default function Users() {
       load();
     }, 250);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
   if (!allowed) {
     return (
-      <div style={s.page}>
-        <div style={s.headerRow}>
-          <div>
-            <div style={s.hTitle}>Users</div>
-            <div style={s.hSub}>You don’t have permission to view this page.</div>
-          </div>
+      <div data-testid="users-page">
+        <div style={s.header}>
+          <h1 style={s.title}>Users</h1>
+          <p style={s.subtitle}>You don't have permission to view this page.</p>
         </div>
         <div style={s.card}>
           <div style={s.alertErr}>Forbidden</div>
@@ -145,51 +151,43 @@ export default function Users() {
   const pageCount = Math.max(1, Math.ceil(total / take));
 
   return (
-    <div style={s.page}>
+    <div data-testid="users-page">
+      {/* Header */}
       <div style={s.headerRow}>
         <div>
-          <div style={s.hTitle}>Users</div>
-          <div style={s.hSub}>All accounts in the system (excluding owners)</div>
+          <h1 style={s.title}>Users</h1>
+          <p style={s.subtitle}>All accounts in the system (excluding owners)</p>
         </div>
-        <div style={s.pill}>{total} total</div>
+        <span style={s.badge}>{total} total</span>
       </div>
 
+      {/* Main Card */}
       <div style={s.card}>
+        {/* Toolbar */}
         <div style={s.toolbar}>
           <div style={s.searchRow}>
-            <input
-              style={s.input}
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search name…"
-            />
-
-            {/* ✅ prettier dropdown */}
-            <div
-              style={s.selectWrap}
-              onMouseEnter={() => setHoverSelect(true)}
-              onMouseLeave={() => setHoverSelect(false)}
-            >
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                onFocus={() => setFocusSelect(true)}
-                onBlur={() => setFocusSelect(false)}
-                style={{
-                  ...s.select,
-                  ...(hoverSelect ? s.selectHover : {}),
-                  ...(focusSelect ? s.selectFocus : {}),
-                }}
-              >
-                <option value="">All roles</option>
-                <option value="ADMIN">ADMIN</option>
-                <option value="STAFF">STAFF</option>
-                <option value="DRIVER">DRIVER</option>
-              </select>
-
-              <div style={s.selectArrow}>▾</div>
+            <div style={s.inputWrap}>
+              <FiSearch size={16} color={BRAND.textMuted} style={{ marginRight: 8 }} />
+              <input
+                style={s.input}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search name…"
+                data-testid="users-search-input"
+              />
             </div>
 
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              style={s.select}
+              data-testid="users-role-filter"
+            >
+              <option value="">All roles</option>
+              <option value="ADMIN">ADMIN</option>
+              <option value="STAFF">STAFF</option>
+              <option value="DRIVER">DRIVER</option>
+            </select>
           </div>
 
           <div style={s.rightNote}>
@@ -197,8 +195,9 @@ export default function Users() {
           </div>
         </div>
 
-        {err ? <div style={s.alertErr}>{err}</div> : null}
+        {err && <div style={s.alertErr}>{err}</div>}
 
+        {/* Table */}
         <div style={s.tableWrap}>
           <table style={s.table}>
             <thead>
@@ -214,12 +213,12 @@ export default function Users() {
             <tbody>
               {items.map((u) => (
                 <tr key={u.id} style={s.tr}>
-                  <td style={s.tdStrong}>
+                  <td style={s.td}>
                     <div style={s.nameRow}>
                       <div style={s.avatar}>
                         {(u.name || u.email || "U").slice(0, 1).toUpperCase()}
                       </div>
-                      <div style={{ minWidth: 0 }}>
+                      <div>
                         <div style={s.nameText}>{u.name || "-"}</div>
                         <div style={s.idText}>{u.id}</div>
                       </div>
@@ -231,21 +230,16 @@ export default function Users() {
                   </td>
                   <td style={s.td}>{u.phone || "-"}</td>
                   <td style={s.td}>
-                    <div style={s.statusWrap}>
-                      <select
-                        value={u.status}
-                        onChange={(e) => updateStatus(u.id, e.target.value)}
-                        style={{
-                          ...s.statusSelect,
-                          ...statusVariant(u.status),
-                        }}
-                      >
-                        <option value="ACTIVE">ACTIVE</option>
-                        <option value="BREAK">BREAK</option>
-                        <option value="INACTIVE">INACTIVE</option>
-                      </select>
-                      <div style={s.statusArrow}>▾</div>
-                    </div>
+                    <select
+                      value={u.status}
+                      onChange={(e) => updateStatus(u.id, e.target.value)}
+                      style={{ ...s.statusSelect, ...statusVariant(u.status) }}
+                      data-testid={`status-select-${u.id}`}
+                    >
+                      <option value="ACTIVE">ACTIVE</option>
+                      <option value="BREAK">BREAK</option>
+                      <option value="INACTIVE">INACTIVE</option>
+                    </select>
                   </td>
                   <td style={s.td}>
                     {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "-"}
@@ -253,13 +247,13 @@ export default function Users() {
                 </tr>
               ))}
 
-              {!loading && items.length === 0 ? (
+              {!loading && items.length === 0 && (
                 <tr>
                   <td style={s.empty} colSpan={6}>
                     No users found.
                   </td>
                 </tr>
-              ) : null}
+              )}
             </tbody>
           </table>
         </div>
@@ -267,23 +261,27 @@ export default function Users() {
         {/* Pagination */}
         <div style={s.footer}>
           <button
-            style={s.secondaryBtn}
+            style={{ ...s.paginationBtn, opacity: page <= 0 ? 0.5 : 1 }}
             disabled={loading || page <= 0}
             onClick={() => setPage((p) => Math.max(0, p - 1))}
+            data-testid="users-prev-btn"
           >
+            <FiChevronLeft size={16} />
             Prev
           </button>
 
           <div style={s.pageInfo}>
-            Page <b>{page + 1}</b> of <b>{pageCount}</b>
+            Page <strong>{page + 1}</strong> of <strong>{pageCount}</strong>
           </div>
 
           <button
-            style={s.secondaryBtn}
+            style={{ ...s.paginationBtn, opacity: page + 1 >= pageCount ? 0.5 : 1 }}
             disabled={loading || page + 1 >= pageCount}
             onClick={() => setPage((p) => p + 1)}
+            data-testid="users-next-btn"
           >
             Next
+            <FiChevronRight size={16} />
           </button>
         </div>
       </div>
@@ -292,327 +290,216 @@ export default function Users() {
 }
 
 function rolePill(role) {
-  const BRAND = {
-    green: "#4BCA74",
-    greenSoft: "rgba(75,202,116,0.15)",
-  };
-
   const base = {
     display: "inline-block",
-    padding: "6px 12px",
-    borderRadius: 999,
+    padding: "4px 10px",
+    borderRadius: 4,
     fontSize: 12,
-    fontWeight: 800,
-    border: `1px solid ${BRAND.green}40`,
+    fontWeight: 600,
+    textTransform: "uppercase",
+    letterSpacing: "0.3px",
   };
 
   if (role === "ADMIN")
-    return {
-      ...base,
-      background: "rgba(59,130,246,0.12)",
-      color: "#1d4ed8",
-      border: "1px solid rgba(59,130,246,0.3)",
-    };
-
+    return { ...base, background: "#EFF6FF", color: "#1D4ED8" };
   if (role === "STAFF")
-    return {
-      ...base,
-      background: "rgba(245,158,11,0.12)",
-      color: "#92400e",
-      border: "1px solid rgba(245,158,11,0.3)",
-    };
-
-  return {
-    ...base,
-    background: BRAND.greenSoft,
-    color: BRAND.green,
-    border: `1px solid ${BRAND.green}40`,
-  };
+    return { ...base, background: BRAND.warningBg, color: BRAND.warning };
+  return { ...base, background: BRAND.accent, color: BRAND.primary };
 }
 
 function statusVariant(status) {
-  const BRAND = {
-    green: "#4BCA74",
-    greenSoft: "rgba(75,202,116,0.15)",
-  };
-
   if (status === "ACTIVE") {
-    return {
-      background: BRAND.greenSoft,
-      color: BRAND.green,
-      border: `1px solid ${BRAND.green}40`,
-    };
+    return { background: BRAND.successBg, color: BRAND.success, borderColor: `${BRAND.success}40` };
   }
   if (status === "BREAK") {
-    return {
-      background: "rgba(245,158,11,0.12)",
-      color: "#92400e",
-      border: "1px solid rgba(245,158,11,0.35)",
-    };
+    return { background: BRAND.warningBg, color: BRAND.warning, borderColor: `${BRAND.warning}40` };
   }
-  return {
-    background: "rgba(239,68,68,0.10)",
-    color: "rgba(153,27,27,0.95)",
-    border: "1px solid rgba(239,68,68,0.3)",
-  };
+  return { background: BRAND.errorBg, color: BRAND.error, borderColor: `${BRAND.error}40` };
 }
 
-// Modern color palette
-const BRAND = {
-  green: "#4BCA74",
-  green2: "#3BB865",
-  greenLight: "#5FD686",
-  greenDark: "#2D9F56",
-  greenSoft: "rgba(75,202,116,0.15)",
-  ink: "#111827",
-  ink2: "#1F2937",
+const s = {
+  headerRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+    marginBottom: 24,
+    flexWrap: "wrap",
+  },
+
+  header: { marginBottom: 24 },
+  title: { margin: 0, fontSize: 28, fontWeight: 700, color: BRAND.text },
+  subtitle: { margin: "8px 0 0", fontSize: 14, color: BRAND.textMuted },
+
+  badge: {
+    fontSize: 13,
+    fontWeight: 600,
+    padding: "8px 14px",
+    borderRadius: 6,
+    background: BRAND.accent,
+    color: BRAND.primary,
+  },
+
+  card: {
+    borderRadius: 8,
+    background: BRAND.white,
+    border: `1px solid ${BRAND.border}`,
+    padding: 24,
+  },
+
+  toolbar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+    flexWrap: "wrap",
+    marginBottom: 20,
+  },
+
+  searchRow: { display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" },
+
+  inputWrap: {
+    display: "flex",
+    alignItems: "center",
+    padding: "10px 14px",
+    borderRadius: 6,
+    border: `1px solid ${BRAND.border}`,
+    background: BRAND.white,
+  },
+
+  input: {
+    border: "none",
+    outline: "none",
+    fontSize: 14,
+    fontWeight: 500,
+    color: BRAND.text,
+    width: 200,
+    background: "transparent",
+  },
+
+  select: {
+    padding: "10px 14px",
+    borderRadius: 6,
+    border: `1px solid ${BRAND.border}`,
+    background: BRAND.white,
+    fontSize: 14,
+    fontWeight: 500,
+    color: BRAND.text,
+    cursor: "pointer",
+    outline: "none",
+  },
+
+  rightNote: { fontSize: 13, fontWeight: 500, color: BRAND.textMuted },
+
+  alertErr: {
+    marginBottom: 16,
+    borderRadius: 6,
+    border: `1px solid ${BRAND.error}30`,
+    background: BRAND.errorBg,
+    color: BRAND.error,
+    padding: "12px 16px",
+    fontWeight: 500,
+    fontSize: 14,
+  },
+
+  tableWrap: {
+    overflowX: "auto",
+    borderRadius: 6,
+    border: `1px solid ${BRAND.border}`,
+  },
+
+  table: { width: "100%", borderCollapse: "collapse", minWidth: 800 },
+
+  th: {
+    textAlign: "left",
+    fontSize: 12,
+    fontWeight: 600,
+    color: BRAND.textMuted,
+    padding: "12px 16px",
+    background: BRAND.secondary,
+    borderBottom: `1px solid ${BRAND.border}`,
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+  },
+
+  tr: { transition: "background 0.2s ease" },
+
+  td: {
+    padding: "14px 16px",
+    fontSize: 14,
+    fontWeight: 500,
+    color: BRAND.text,
+    borderBottom: `1px solid ${BRAND.border}`,
+    verticalAlign: "middle",
+  },
+
+  nameRow: { display: "flex", alignItems: "center", gap: 12 },
+
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 6,
+    display: "grid",
+    placeItems: "center",
+    fontWeight: 600,
+    fontSize: 14,
+    color: BRAND.white,
+    background: BRAND.primary,
+  },
+
+  nameText: { fontWeight: 600, color: BRAND.text, fontSize: 14 },
+  idText: {
+    marginTop: 2,
+    fontSize: 11,
+    color: BRAND.textMuted,
+    maxWidth: 180,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+
+  statusSelect: {
+    padding: "6px 12px",
+    borderRadius: 4,
+    border: "1px solid",
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
+    outline: "none",
+    textTransform: "uppercase",
+    letterSpacing: "0.3px",
+  },
+
+  empty: {
+    padding: 32,
+    textAlign: "center",
+    color: BRAND.textMuted,
+    fontWeight: 500,
+  },
+
+  footer: {
+    marginTop: 20,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+
+  paginationBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "8px 14px",
+    borderRadius: 6,
+    border: `1px solid ${BRAND.border}`,
+    background: BRAND.white,
+    fontSize: 13,
+    fontWeight: 500,
+    color: BRAND.textLight,
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+  },
+
+  pageInfo: { fontSize: 14, fontWeight: 500, color: BRAND.textLight },
 };
-
-function makeStyles(isMobile) {
-  return {
-    page: {
-      padding: isMobile ? 0 : 8,
-      paddingTop: isMobile ? 0 : 10,
-    },
-
-    headerRow: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
-      marginBottom: isMobile ? 12 : 20,
-    },
-
-    hTitle: { fontWeight: 800, fontSize: 28, color: BRAND.ink, letterSpacing: "-0.02em" },
-    hSub: { marginTop: 6, fontSize: 15, color: BRAND.ink2, opacity: 0.8 },
-
-    pill: {
-      fontSize: 13,
-      fontWeight: 700,
-      padding: "8px 16px",
-      borderRadius: 999,
-      background: BRAND.greenSoft,
-      border: `1px solid ${BRAND.green}40`,
-      color: BRAND.green,
-    },
-
-    card: {
-      borderRadius: 20,
-      background: "rgba(255,255,255,0.85)",
-      backdropFilter: "blur(20px)",
-      WebkitBackdropFilter: "blur(20px)",
-      boxShadow: `0 8px 32px ${BRAND.green}15`,
-      border: `1px solid ${BRAND.greenSoft}`,
-      padding: isMobile ? 16 : 24,
-      minWidth: 0,
-    },
-
-    toolbar: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
-      flexWrap: "wrap",
-    },
-    searchRow: { display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" },
-    rightNote: { fontSize: 13, fontWeight: 700, color: BRAND.ink2, opacity: 0.8 },
-
-    input: {
-      width: isMobile ? "100%" : 300,
-      borderRadius: 12,
-      border: `2px solid ${BRAND.greenSoft}`,
-      background: "#ffffff",
-      padding: "12px 16px",
-      outline: "none",
-      fontWeight: 600,
-      fontSize: 15,
-      color: BRAND.ink,
-      boxSizing: "border-box",
-      transition: "all 0.3s ease",
-    },
-
-    selectWrap: { position: "relative", display: "inline-flex", alignItems: "center" },
-    select: {
-      appearance: "none",
-      WebkitAppearance: "none",
-      MozAppearance: "none",
-      borderRadius: 999,
-      border: `2px solid ${BRAND.greenSoft}`,
-      background: "#ffffff",
-      padding: "10px 40px 10px 16px",
-      fontSize: 14,
-      fontWeight: 700,
-      color: BRAND.ink,
-      cursor: "pointer",
-      outline: "none",
-      boxShadow: `0 4px 12px ${BRAND.green}10`,
-      transition: "all 0.3s ease",
-    },
-    selectHover: {
-      boxShadow: `0 8px 20px ${BRAND.green}20`,
-      border: `2px solid ${BRAND.green}60`,
-      transform: "translateY(-1px)",
-    },
-    selectFocus: {
-      boxShadow: `0 0 0 3px ${BRAND.greenSoft}, 0 8px 20px ${BRAND.green}20`,
-      border: `2px solid ${BRAND.green}`,
-    },
-    selectArrow: {
-      position: "absolute",
-      right: 14,
-      pointerEvents: "none",
-      fontSize: 14,
-      fontWeight: 800,
-      color: BRAND.green,
-    },
-
-    primaryBtn: {
-      border: "none",
-      borderRadius: 12,
-      padding: "12px 20px",
-      fontWeight: 700,
-      fontSize: 15,
-      cursor: "pointer",
-      color: "white",
-      background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
-      boxShadow: `0 8px 20px ${BRAND.green}40`,
-      transition: "all 0.3s ease",
-    },
-
-    secondaryBtn: {
-      borderRadius: 12,
-      padding: "10px 16px",
-      fontWeight: 700,
-      fontSize: 14,
-      cursor: "pointer",
-      color: BRAND.green,
-      background: BRAND.greenSoft,
-      border: `1px solid ${BRAND.green}40`,
-      transition: "all 0.3s ease",
-    },
-
-    alertErr: {
-      marginTop: 16,
-      borderRadius: 14,
-      border: "1px solid rgba(239,68,68,0.28)",
-      background: "rgba(239,68,68,0.10)",
-      color: "rgba(153,27,27,0.95)",
-      padding: "12px 16px",
-      fontWeight: 700,
-      fontSize: 14,
-    },
-
-    tableWrap: {
-      marginTop: 20,
-      overflowX: "auto",
-      borderRadius: 16,
-      border: `1px solid ${BRAND.greenSoft}`,
-    },
-
-    table: { width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 900 },
-
-    th: {
-      textAlign: "left",
-      fontSize: 13,
-      letterSpacing: 0.5,
-      fontWeight: 800,
-      color: BRAND.ink,
-      padding: "14px 16px",
-      background: BRAND.greenSoft,
-      borderBottom: `1px solid ${BRAND.green}30`,
-    },
-
-    tr: { background: "white", transition: "all 0.2s ease" },
-
-    td: {
-      padding: "14px 16px",
-      fontSize: 14,
-      fontWeight: 600,
-      color: BRAND.ink,
-      borderBottom: `1px solid ${BRAND.greenSoft}`,
-      verticalAlign: "middle",
-    },
-
-    tdStrong: {
-      padding: "14px 16px",
-      borderBottom: `1px solid ${BRAND.greenSoft}`,
-      verticalAlign: "middle",
-    },
-
-    nameRow: { display: "flex", alignItems: "center", gap: 12 },
-
-    avatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      display: "grid",
-      placeItems: "center",
-      fontWeight: 800,
-      fontSize: 16,
-      color: "#fff",
-      background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
-      border: "none",
-    },
-
-    nameText: { fontWeight: 700, color: BRAND.ink, fontSize: 15 },
-
-    idText: {
-      marginTop: 4,
-      fontSize: 12,
-      fontWeight: 600,
-      color: BRAND.ink2,
-      opacity: 0.7,
-      maxWidth: 240,
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-      whiteSpace: "nowrap",
-    },
-
-    empty: {
-      padding: 24,
-      textAlign: "center",
-      color: BRAND.ink2,
-      fontWeight: 700,
-      fontSize: 14,
-    },
-
-    footer: {
-      marginTop: 20,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
-      flexWrap: "wrap",
-    },
-
-    pageInfo: { fontSize: 14, fontWeight: 700, color: BRAND.ink },
-
-    statusWrap: { position: "relative", display: "inline-flex", alignItems: "center" },
-
-    statusSelect: {
-      appearance: "none",
-      WebkitAppearance: "none",
-      MozAppearance: "none",
-      borderRadius: 999,
-      border: `2px solid ${BRAND.greenSoft}`,
-      padding: "8px 36px 8px 14px",
-      fontSize: 13,
-      fontWeight: 700,
-      letterSpacing: 0.3,
-      outline: "none",
-      cursor: "pointer",
-      backgroundImage: "none",
-      boxShadow: `0 4px 12px ${BRAND.green}10`,
-      transition: "all 0.2s ease",
-    },
-
-    statusArrow: {
-      position: "absolute",
-      right: 12,
-      pointerEvents: "none",
-      fontSize: 12,
-      fontWeight: 800,
-      color: BRAND.green,
-    },
-  };
-}

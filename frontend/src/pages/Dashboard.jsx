@@ -1,50 +1,35 @@
-// src/pages/Dashboard.jsx - Modern Design
+// src/pages/Dashboard.jsx - Corporate Minimalist Design
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
+import {
+  FiTruck,
+  FiTool,
+  FiPackage,
+  FiCalendar,
+  FiAlertTriangle,
+  FiUser,
+  FiPlus,
+  FiArrowRight,
+  FiActivity,
+} from "react-icons/fi";
 
-// Match Landing Page Colors
+// Corporate Green Color Palette (matching Landing Page)
 const BRAND = {
-  green: "#4BCA74",
-  green2: "#3BB865",
-  greenLight: "#5FD686",
-  greenDark: "#2D9F56",
-  greenSoft: "rgba(75,202,116,0.15)",
-  ink: "#111827",
-  ink2: "#1F2937",
-};
-
-// Modern Styles
-const s = {
-  page: {
-    minHeight: "100vh",
-    color: BRAND.ink,
-  },
-
-  container: { maxWidth: 1200, margin: "0 auto" },
-
-  glassCard: {
-    background: "rgba(255,255,255,0.85)",
-    backdropFilter: "blur(20px)",
-    WebkitBackdropFilter: "blur(20px)",
-    borderRadius: 20,
-    padding: 24,
-    border: `1px solid ${BRAND.greenSoft}`,
-    boxShadow: `0 8px 32px ${BRAND.green}15`,
-  },
-
-  grid: { display: "grid", gap: 20 },
-
-  headerRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 16,
-    flexWrap: "wrap",
-  },
-
-  title: { fontSize: 32, fontWeight: 800, letterSpacing: "-0.02em" },
-  subtitle: { marginTop: 6, color: BRAND.ink2, fontSize: 15, opacity: 0.8 },
+  primary: "#0D7C3D",
+  primaryDark: "#0A6331",
+  primaryLight: "#10A050",
+  secondary: "#F5F9F7",
+  accent: "#D4E8DC",
+  text: "#1A1A1A",
+  textLight: "#4A4A4A",
+  textMuted: "#6B7280",
+  white: "#FFFFFF",
+  border: "#E5E7EB",
+  warning: "#F59E0B",
+  warningBg: "#FFFBEB",
+  success: "#10B981",
+  successBg: "#ECFDF5",
 };
 
 //////////////////////
@@ -102,136 +87,173 @@ function fmtMoney(n, currency = "IDR") {
 //////////////////////
 // UI COMPONENTS
 //////////////////////
-function KpiCard({ label, value, sub, icon }) {
+function KpiCard({ label, value, sub, icon: Icon }) {
   return (
-    <div style={s.glassCard}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+    <div
+      style={{
+        background: BRAND.white,
+        borderRadius: 8,
+        padding: 24,
+        border: `1px solid ${BRAND.border}`,
+        transition: "all 0.2s ease",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+        e.currentTarget.style.transform = "translateY(-2px)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = "none";
+        e.currentTarget.style.transform = "translateY(0)";
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
         <div
           style={{
-            width: 48,
-            height: 48,
-            borderRadius: 14,
-            background: "transparent",
+            width: 44,
+            height: 44,
+            borderRadius: 8,
+            background: BRAND.accent,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 24,
+            color: BRAND.primary,
           }}
         >
-          {icon || "📊"}
+          {Icon ? <Icon size={20} /> : <FiActivity size={20} />}
         </div>
-        <div style={{ fontSize: 14, fontWeight: 700, color: BRAND.ink2, opacity: 0.8 }}>{label}</div>
       </div>
-      <div style={{ fontSize: 36, fontWeight: 800, color: BRAND.green }}>{value ?? 0}</div>
+      <div style={{ fontSize: 32, fontWeight: 700, color: BRAND.text, marginBottom: 4 }}>{value ?? 0}</div>
+      <div style={{ fontSize: 14, fontWeight: 600, color: BRAND.textLight }}>{label}</div>
       {sub && (
-        <div style={{ marginTop: 8, fontSize: 13, color: BRAND.ink2, opacity: 0.7 }}>{sub}</div>
+        <div style={{ marginTop: 8, fontSize: 12, color: BRAND.textMuted }}>{sub}</div>
       )}
     </div>
-  );
-}
-
-function Pill({ children }) {
-  return (
-    <span
-      style={{
-        padding: "8px 16px",
-        borderRadius: 999,
-        background: BRAND.greenSoft,
-        border: `1px solid ${BRAND.green}30`,
-        fontWeight: 700,
-        fontSize: 13,
-        color: BRAND.green,
-        whiteSpace: "nowrap",
-      }}
-    >
-      {children}
-    </span>
-  );
-}
-
-function ActionBtn({ label, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: "10px 16px",
-        borderRadius: 12,
-        border: `1px solid ${BRAND.greenSoft}`,
-        background: "#ffffff",
-        fontWeight: 700,
-        fontSize: 14,
-        cursor: "pointer",
-        transition: "all 0.3s ease",
-        color: BRAND.green,
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = BRAND.greenSoft;
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = "#ffffff";
-      }}
-    >
-      {label}
-    </button>
   );
 }
 
 function StatusBadge({ status }) {
   const s = up(status);
   const map = {
-    READY: { bg: BRAND.greenSoft, fg: BRAND.green, bd: `${BRAND.green}40` },
-    DISPATCH: { bg: BRAND.greenSoft, fg: BRAND.green, bd: `${BRAND.green}40` },
-    MAINTENANCE: { bg: "#fff2e0", fg: "#9a4b0f", bd: "rgba(154,75,15,.3)" },
-    OPEN: { bg: "#fff2e0", fg: "#9a4b0f", bd: "rgba(154,75,15,.3)" },
-    DONE: { bg: "#e2f5ed", fg: "#136f4a", bd: "rgba(19,111,74,.3)" },
-    CANCELLED: { bg: "#f1f5f9", fg: "#475569", bd: "rgba(71,85,105,.3)" },
+    READY: { bg: BRAND.successBg, fg: BRAND.success, label: "Ready" },
+    DISPATCH: { bg: BRAND.accent, fg: BRAND.primary, label: "Dispatch" },
+    MAINTENANCE: { bg: BRAND.warningBg, fg: BRAND.warning, label: "Maintenance" },
+    OPEN: { bg: BRAND.warningBg, fg: BRAND.warning, label: "Open" },
+    DONE: { bg: BRAND.successBg, fg: BRAND.success, label: "Done" },
+    CANCELLED: { bg: "#F3F4F6", fg: BRAND.textMuted, label: "Cancelled" },
   };
-  const c = map[s] || { bg: "#f1f5f9", fg: "#475569", bd: "rgba(71,85,105,.3)" };
+  const c = map[s] || { bg: "#F3F4F6", fg: BRAND.textMuted, label: s || "—" };
 
   return (
     <span
       style={{
-        padding: "6px 12px",
-        borderRadius: 999,
+        padding: "4px 10px",
+        borderRadius: 4,
         background: c.bg,
         color: c.fg,
-        border: `1px solid ${c.bd}`,
-        fontWeight: 800,
+        fontWeight: 600,
         fontSize: 12,
+        textTransform: "uppercase",
+        letterSpacing: "0.3px",
       }}
     >
-      {s || "—"}
+      {c.label}
     </span>
   );
 }
 
 function ProgressRow({ label, value, sub }) {
   return (
-    <div style={{ display: "grid", gap: 8 }}>
+    <div style={{ marginBottom: 16 }}>
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           fontSize: 13,
-          color: BRAND.ink2,
-          fontWeight: 700,
+          color: BRAND.textLight,
+          fontWeight: 500,
+          marginBottom: 8,
         }}
       >
         <span>{label}</span>
-        <span>{value}%</span>
+        <span style={{ fontWeight: 600, color: BRAND.primary }}>{value}%</span>
       </div>
-      <div style={{ height: 10, borderRadius: 999, background: BRAND.greenSoft, overflow: "hidden" }}>
+      <div style={{ height: 8, borderRadius: 4, background: BRAND.secondary, overflow: "hidden" }}>
         <div
           style={{
             height: "100%",
             width: `${value}%`,
-            background: `linear-gradient(90deg, ${BRAND.green}, ${BRAND.green2})`,
-            boxShadow: `0 2px 8px ${BRAND.green}50`,
+            background: BRAND.primary,
+            borderRadius: 4,
             transition: "width 0.5s ease",
           }}
         />
       </div>
-      {sub && <div style={{ fontSize: 12, color: BRAND.ink2, opacity: 0.7 }}>{sub}</div>}
+      {sub && <div style={{ fontSize: 12, color: BRAND.textMuted, marginTop: 6 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function ActionBtn({ label, onClick, icon: Icon }) {
+  return (
+    <button
+      onClick={onClick}
+      data-testid={`action-btn-${label.toLowerCase().replace(/\s+/g, '-')}`}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "10px 16px",
+        borderRadius: 6,
+        border: `1px solid ${BRAND.border}`,
+        background: BRAND.white,
+        fontWeight: 500,
+        fontSize: 13,
+        cursor: "pointer",
+        transition: "all 0.2s ease",
+        color: BRAND.textLight,
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = BRAND.primary;
+        e.currentTarget.style.color = BRAND.primary;
+        e.currentTarget.style.background = BRAND.accent;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = BRAND.border;
+        e.currentTarget.style.color = BRAND.textLight;
+        e.currentTarget.style.background = BRAND.white;
+      }}
+    >
+      {Icon && <Icon size={14} />}
+      {label}
+    </button>
+  );
+}
+
+function Card({ title, children, action }) {
+  return (
+    <div
+      style={{
+        background: BRAND.white,
+        borderRadius: 8,
+        border: `1px solid ${BRAND.border}`,
+        overflow: "hidden",
+      }}
+    >
+      {title && (
+        <div
+          style={{
+            padding: "16px 20px",
+            borderBottom: `1px solid ${BRAND.border}`,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <div style={{ fontSize: 16, fontWeight: 600, color: BRAND.text }}>{title}</div>
+          {action}
+        </div>
+      )}
+      <div style={{ padding: 20 }}>{children}</div>
     </div>
   );
 }
@@ -417,257 +439,299 @@ export default function Dashboard() {
   }, [endpoints]);
 
   return (
-    <div style={s.page}>
-      <div style={s.container}>
-        {/* HEADER */}
-        <div style={{ ...s.glassCard, marginBottom: 20 }}>
-          <div style={s.headerRow}>
-            <div>
-              <div style={s.title}>Welcome back, {user?.name || "User"} 👋</div>
-              <div style={s.subtitle}>Operations overview for today</div>
-            </div>
-
-            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-              <Pill>{new Date().toLocaleDateString()}</Pill>
-              <span
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 999,
-                  background: sysOk ? BRAND.greenSoft : "#fde8e8",
-                  fontWeight: 700,
-                  fontSize: 13,
-                  color: sysOk ? BRAND.green : "#b42318",
-                  border: `1px solid ${sysOk ? `${BRAND.green}40` : "rgba(180,35,24,.3)"}`,
-                }}
-              >
-                System: {sysOk ? "OK ✓" : "ERROR"}
-              </span>
-            </div>
-          </div>
+    <div data-testid="dashboard-page">
+      {/* HEADER */}
+      <div
+        style={{
+          marginBottom: 32,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+          gap: 16,
+        }}
+      >
+        <div>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 28,
+              fontWeight: 700,
+              color: BRAND.text,
+            }}
+            data-testid="dashboard-welcome"
+          >
+            Welcome back, {user?.name || "User"}
+          </h1>
+          <p
+            style={{
+              margin: "8px 0 0",
+              fontSize: 14,
+              color: BRAND.textMuted,
+            }}
+          >
+            Operations overview for today
+          </p>
         </div>
 
-        {/* KPI ROW */}
-        <div
-          style={{
-            ...s.grid,
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-            marginBottom: 20,
-          }}
-        >
-          <KpiCard label="Trips Today" value={stats.tripsToday} sub="Scheduled / In-progress" icon="🚚" />
-          <KpiCard label="Active Trucks" value={stats.activeTrucks} sub="READY + DISPATCH" icon="✅" />
-          <KpiCard label="Pending Maintenance" value={stats.pendingMaintenance} sub="OPEN jobs" icon="🔧" />
-          <KpiCard label="Low Stock Items" value={stats.lowStock} sub="Below reorder point" icon="📦" />
-        </div>
-
-        {/* MAIN GRID */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: window.innerWidth > 900 ? "1fr 340px" : "1fr",
-            gap: 20,
-          }}
-        >
-          {/* LEFT COLUMN */}
-          <div style={s.grid}>
-            {/* TODAY TRIPS */}
-            <div style={s.glassCard}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 16 }}>
-                <div style={{ fontSize: 20, fontWeight: 800 }}>Today's Trips</div>
-                <Pill>{loading ? "Loading..." : `${todayTrips.length} trip(s)`}</Pill>
-              </div>
-
-              <div>
-                {loading ? (
-                  <div style={{ color: BRAND.ink2, opacity: 0.7 }}>Loading trips...</div>
-                ) : todayTrips.length === 0 ? (
-                  <div style={{ color: BRAND.ink2, opacity: 0.7 }}>No trips scheduled for today</div>
-                ) : (
-                  <div style={{ overflowX: "auto" }}>
-                    <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 10px" }}>
-                      <thead>
-                        <tr style={{ textAlign: "left", fontSize: 13, color: BRAND.ink2 }}>
-                          <th style={{ paddingLeft: 10 }}>Trip</th>
-                          <th>Truck</th>
-                          <th>Driver</th>
-                          <th>Route</th>
-                          <th>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {todayTrips.map((t) => (
-                          <tr
-                            key={t.id}
-                            style={{
-                              background: BRAND.greenSoft,
-                              borderRadius: 12,
-                            }}
-                          >
-                            <td style={{ padding: "12px 10px", fontWeight: 700 }}>
-                              {t.code || t.tripNo || t.id?.slice?.(0, 8) || "—"}
-                            </td>
-                            <td style={{ padding: "12px 10px", fontWeight: 700 }}>
-                              {t.truck?.plateNumber || t.truckPlate || "—"}
-                            </td>
-                            <td style={{ padding: "12px 10px", fontWeight: 700 }}>
-                              {t.driver?.name || t.driverName || truckDriverName(t) || "—"}
-                            </td>
-                            <td style={{ padding: "12px 10px", fontSize: 13, color: BRAND.ink2 }}>
-                              {t.fromLocation?.name || t.from || "-"} → {t.toLocation?.name || t.to || "-"}
-                            </td>
-                            <td style={{ padding: "12px 10px" }}>
-                              <StatusBadge status={t.status} />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* TOP SPENDING TRUCKS */}
-            <div style={s.glassCard}>
-              <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 16 }}>
-                Top Spending Trucks (This Month)
-              </div>
-
-              {topSpendLoading ? (
-                <div style={{ color: BRAND.ink2, opacity: 0.7 }}>Calculating...</div>
-              ) : topSpend.length === 0 ? (
-                <div style={{ color: BRAND.ink2, opacity: 0.7 }}>No spending recorded yet.</div>
-              ) : (
-                <div style={{ display: "grid", gap: 12 }}>
-                  {topSpend.map((x, idx) => (
-                    <div
-                      key={x.truckId}
-                      style={{
-                        padding: 16,
-                        borderRadius: 14,
-                        background: BRAND.greenSoft,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 12,
-                      }}
-                    >
-                      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                        <span
-                          style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: 999,
-                            display: "grid",
-                            placeItems: "center",
-                            fontWeight: 800,
-                            background: `linear-gradient(135deg, ${BRAND.green}, ${BRAND.green2})`,
-                            color: "#fff",
-                          }}
-                        >
-                          {idx + 1}
-                        </span>
-
-                        <div>
-                          <div style={{ fontWeight: 800, fontSize: 16 }}>{x.plateNumber}</div>
-                          <div style={{ marginTop: 2, fontSize: 13, color: BRAND.ink2, opacity: 0.7 }}>
-                            Spareparts installed
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={{ fontWeight: 800, color: BRAND.green, fontSize: 18 }}>
-                        {fmtMoney(x.total, x.currency)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* RIGHT RAIL */}
-          <div style={s.grid}>
-            {/* ANALYTICS */}
-            <div style={s.glassCard}>
-              <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>Analytics</div>
-              <div style={{ display: "grid", gap: 16 }}>
-                <ProgressRow
-                  label="Fleet Utilization"
-                  value={pct(trucks.length ? (stats.activeTrucks / trucks.length) * 100 : 0)}
-                  sub={`${stats.activeTrucks} active of ${trucks.length || 0} trucks`}
-                />
-                <ProgressRow
-                  label="Maintenance Load"
-                  value={pct(trucks.length ? (stats.pendingMaintenance / trucks.length) * 100 : 0)}
-                  sub={`${stats.pendingMaintenance} open maintenance jobs`}
-                />
-                <ProgressRow
-                  label="Inventory Health"
-                  value={pct(inventoryCount ? 100 - (stats.lowStock / inventoryCount) * 100 : 100)}
-                  sub={`${stats.lowStock} low stock of ${inventoryCount} items`}
-                />
-              </div>
-            </div>
-
-            {/* QUICK ACTIONS */}
-            <div style={s.glassCard}>
-              <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>Quick Actions</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                <ActionBtn label="+ Create Trip" onClick={() => (window.location.href = "/trips")} />
-                <ActionBtn label="+ Receive Stock" onClick={() => (window.location.href = "/inventory")} />
-                <ActionBtn label="+ Maintenance" onClick={() => (window.location.href = "/maintenance")} />
-                <ActionBtn label="+ Add Truck" onClick={() => (window.location.href = "/trucks")} />
-              </div>
-            </div>
-
-            {/* ALERTS */}
-            <div style={s.glassCard}>
-              <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>Alerts</div>
-              {loading ? (
-                <div style={{ color: BRAND.ink2, opacity: 0.7 }}>Checking...</div>
-              ) : alerts.length === 0 ? (
-                <div style={{ color: BRAND.ink2, opacity: 0.7 }}>No alerts ✓</div>
-              ) : (
-                <div style={{ display: "grid", gap: 12 }}>
-                  {alerts.map((a, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        padding: 14,
-                        borderRadius: 12,
-                        background: "#fff2e0",
-                        border: "1px solid rgba(154,75,15,.3)",
-                      }}
-                    >
-                      <div style={{ fontWeight: 800, color: "#9a4b0f" }}>⚠️ {a.title}</div>
-                      <div style={{ marginTop: 4, fontSize: 13, color: "#9a4b0f", opacity: 0.8 }}>
-                        {a.detail}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* MY ACCOUNT */}
-            <div style={s.glassCard}>
-              <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>My Account</div>
-              <div style={{ fontSize: 14, lineHeight: 1.8 }}>
-                <div>
-                  <strong>Name:</strong> {user?.name || "—"}
-                </div>
-                <div>
-                  <strong>Email:</strong> {user?.email || "—"}
-                </div>
-                <div>
-                  <strong>Role:</strong> {user?.role || "—"}
-                </div>
-              </div>
-            </div>
-          </div>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <span
+            style={{
+              padding: "8px 14px",
+              borderRadius: 6,
+              background: BRAND.white,
+              border: `1px solid ${BRAND.border}`,
+              fontWeight: 500,
+              fontSize: 13,
+              color: BRAND.textLight,
+            }}
+            data-testid="dashboard-date"
+          >
+            {new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+          </span>
+          <span
+            style={{
+              padding: "8px 14px",
+              borderRadius: 6,
+              background: sysOk ? BRAND.successBg : BRAND.warningBg,
+              fontWeight: 600,
+              fontSize: 13,
+              color: sysOk ? BRAND.success : BRAND.warning,
+            }}
+            data-testid="dashboard-system-status"
+          >
+            System: {sysOk ? "OK" : "ERROR"}
+          </span>
         </div>
       </div>
+
+      {/* KPI ROW */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 20,
+          marginBottom: 32,
+        }}
+        data-testid="kpi-cards"
+      >
+        <KpiCard label="Trips Today" value={stats.tripsToday} sub="Scheduled / In-progress" icon={FiCalendar} />
+        <KpiCard label="Active Trucks" value={stats.activeTrucks} sub="READY + DISPATCH" icon={FiTruck} />
+        <KpiCard label="Pending Maintenance" value={stats.pendingMaintenance} sub="OPEN jobs" icon={FiTool} />
+        <KpiCard label="Low Stock Items" value={stats.lowStock} sub="Below reorder point" icon={FiPackage} />
+      </div>
+
+      {/* MAIN GRID */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 360px",
+          gap: 24,
+        }}
+        className="dashboard-main-grid"
+      >
+        {/* LEFT COLUMN */}
+        <div style={{ display: "grid", gap: 24 }}>
+          {/* TODAY TRIPS */}
+          <Card
+            title="Today's Trips"
+            action={
+              <span style={{ fontSize: 13, fontWeight: 600, color: BRAND.primary }}>
+                {loading ? "Loading..." : `${todayTrips.length} trip(s)`}
+              </span>
+            }
+          >
+            {loading ? (
+              <div style={{ color: BRAND.textMuted, fontSize: 14 }}>Loading trips...</div>
+            ) : todayTrips.length === 0 ? (
+              <div style={{ color: BRAND.textMuted, fontSize: 14 }}>No trips scheduled for today</div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }} data-testid="trips-table">
+                  <thead>
+                    <tr style={{ textAlign: "left", color: BRAND.textMuted, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                      <th style={{ padding: "0 12px 12px 0", fontWeight: 600 }}>Trip</th>
+                      <th style={{ padding: "0 12px 12px 0", fontWeight: 600 }}>Truck</th>
+                      <th style={{ padding: "0 12px 12px 0", fontWeight: 600 }}>Driver</th>
+                      <th style={{ padding: "0 12px 12px 0", fontWeight: 600 }}>Route</th>
+                      <th style={{ padding: "0 12px 12px 0", fontWeight: 600 }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {todayTrips.map((t) => (
+                      <tr
+                        key={t.id}
+                        style={{
+                          borderTop: `1px solid ${BRAND.border}`,
+                        }}
+                      >
+                        <td style={{ padding: "14px 12px 14px 0", fontWeight: 600, color: BRAND.text }}>
+                          {t.code || t.tripNo || t.id?.slice?.(0, 8) || "—"}
+                        </td>
+                        <td style={{ padding: "14px 12px 14px 0", fontWeight: 500, color: BRAND.textLight }}>
+                          {t.truck?.plateNumber || t.truckPlate || "—"}
+                        </td>
+                        <td style={{ padding: "14px 12px 14px 0", color: BRAND.textLight }}>
+                          {t.driver?.name || t.driverName || truckDriverName(t) || "—"}
+                        </td>
+                        <td style={{ padding: "14px 12px 14px 0", fontSize: 13, color: BRAND.textMuted }}>
+                          {t.fromLocation?.name || t.from || "-"} → {t.toLocation?.name || t.to || "-"}
+                        </td>
+                        <td style={{ padding: "14px 12px 14px 0" }}>
+                          <StatusBadge status={t.status} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+
+          {/* TOP SPENDING TRUCKS */}
+          <Card title="Top Spending Trucks (This Month)">
+            {topSpendLoading ? (
+              <div style={{ color: BRAND.textMuted, fontSize: 14 }}>Calculating...</div>
+            ) : topSpend.length === 0 ? (
+              <div style={{ color: BRAND.textMuted, fontSize: 14 }}>No spending recorded yet.</div>
+            ) : (
+              <div style={{ display: "grid", gap: 12 }} data-testid="top-spending">
+                {topSpend.map((x, idx) => (
+                  <div
+                    key={x.truckId}
+                    style={{
+                      padding: 14,
+                      borderRadius: 6,
+                      background: BRAND.secondary,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                    }}
+                  >
+                    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                      <span
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: 6,
+                          display: "grid",
+                          placeItems: "center",
+                          fontWeight: 700,
+                          fontSize: 13,
+                          background: BRAND.primary,
+                          color: BRAND.white,
+                        }}
+                      >
+                        {idx + 1}
+                      </span>
+
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: BRAND.text }}>{x.plateNumber}</div>
+                        <div style={{ marginTop: 2, fontSize: 12, color: BRAND.textMuted }}>
+                          Spareparts installed
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ fontWeight: 700, color: BRAND.primary, fontSize: 15 }}>
+                      {fmtMoney(x.total, x.currency)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+
+        {/* RIGHT RAIL */}
+        <div style={{ display: "grid", gap: 24, alignContent: "start" }}>
+          {/* ANALYTICS */}
+          <Card title="Analytics">
+            <ProgressRow
+              label="Fleet Utilization"
+              value={pct(trucks.length ? (stats.activeTrucks / trucks.length) * 100 : 0)}
+              sub={`${stats.activeTrucks} active of ${trucks.length || 0} trucks`}
+            />
+            <ProgressRow
+              label="Maintenance Load"
+              value={pct(trucks.length ? (stats.pendingMaintenance / trucks.length) * 100 : 0)}
+              sub={`${stats.pendingMaintenance} open maintenance jobs`}
+            />
+            <ProgressRow
+              label="Inventory Health"
+              value={pct(inventoryCount ? 100 - (stats.lowStock / inventoryCount) * 100 : 100)}
+              sub={`${stats.lowStock} low stock of ${inventoryCount} items`}
+            />
+          </Card>
+
+          {/* QUICK ACTIONS */}
+          <Card title="Quick Actions">
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+              <ActionBtn label="Create Trip" onClick={() => (window.location.href = "/trips")} icon={FiPlus} />
+              <ActionBtn label="Receive Stock" onClick={() => (window.location.href = "/inventory")} icon={FiPackage} />
+              <ActionBtn label="Maintenance" onClick={() => (window.location.href = "/maintenance")} icon={FiTool} />
+              <ActionBtn label="Add Truck" onClick={() => (window.location.href = "/trucks")} icon={FiTruck} />
+            </div>
+          </Card>
+
+          {/* ALERTS */}
+          <Card title="Alerts">
+            {loading ? (
+              <div style={{ color: BRAND.textMuted, fontSize: 14 }}>Checking...</div>
+            ) : alerts.length === 0 ? (
+              <div style={{ color: BRAND.success, fontSize: 14, fontWeight: 500 }}>No alerts</div>
+            ) : (
+              <div style={{ display: "grid", gap: 10 }} data-testid="alerts-list">
+                {alerts.map((a, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      padding: 12,
+                      borderRadius: 6,
+                      background: BRAND.warningBg,
+                      border: `1px solid ${BRAND.warning}30`,
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600, color: BRAND.warning, fontSize: 13 }}>
+                      <FiAlertTriangle size={14} />
+                      {a.title}
+                    </div>
+                    <div style={{ marginTop: 4, fontSize: 12, color: BRAND.textMuted }}>
+                      {a.detail}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {/* MY ACCOUNT */}
+          <Card title="My Account">
+            <div style={{ fontSize: 14, lineHeight: 2, color: BRAND.textLight }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <FiUser size={14} color={BRAND.textMuted} />
+                <span><strong>Name:</strong> {user?.name || "—"}</span>
+              </div>
+              <div>
+                <strong>Email:</strong> {user?.email || "—"}
+              </div>
+              <div>
+                <strong>Role:</strong> <span style={{ color: BRAND.primary, fontWeight: 600 }}>{user?.role || "—"}</span>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      {/* Responsive CSS */}
+      <style>{`
+        @media (max-width: 1024px) {
+          .dashboard-main-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
