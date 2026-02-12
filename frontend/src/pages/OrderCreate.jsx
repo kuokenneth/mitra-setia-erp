@@ -1,87 +1,126 @@
+// src/pages/OrderCreate.jsx - Corporate Minimalist Design
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
+import { FiArrowLeft, FiSave, FiCheck } from "react-icons/fi";
 
 //////////////////////
-// THEME (same as Maintenance / Orders)
+// THEME - CORPORATE MINIMALIST
 //////////////////////
-const pageBg = {
-  minHeight: "100vh",
-  padding: 22,
-  background: "linear-gradient(180deg, #EAF7F1 0%, #F6FFFB 70%)",
-  color: "#0B2A1F",
+
+const BRAND = {
+  primary: "#0D7C3D",
+  primaryDark: "#0A6331",
+  primaryLight: "#10A050",
+  secondary: "#F5F9F7",
+  accent: "#D4E8DC",
+  text: "#1A1A1A",
+  textLight: "#4A4A4A",
+  textMuted: "#6B7280",
+  white: "#FFFFFF",
+  border: "#E5E7EB",
+  danger: "#EF4444",
+  dangerBg: "#FEF2F2",
 };
 
-const container = { maxWidth: 900, margin: "0 auto" };
+//////////////////////
+// UI COMPONENTS
+//////////////////////
 
-const panel = {
-  background: "#FFFFFF",
-  borderRadius: 22,
-  padding: 22,
-  border: "1px solid rgba(20, 80, 60, 0.10)",
-  boxShadow: "0 18px 55px rgba(10, 40, 30, 0.08)",
-};
+function Button({ variant = "secondary", children, icon: Icon, ...props }) {
+  const styles = {
+    primary: {
+      background: BRAND.primary,
+      color: BRAND.white,
+      border: "none",
+    },
+    secondary: {
+      background: BRAND.white,
+      color: BRAND.textLight,
+      border: `1px solid ${BRAND.border}`,
+    },
+  };
 
-const title = {
-  fontSize: 36,
-  fontWeight: 1000,
-  letterSpacing: -1,
-  margin: 0,
-};
+  const baseStyle = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "10px 16px",
+    borderRadius: 6,
+    fontWeight: 500,
+    fontSize: 14,
+    cursor: props.disabled ? "not-allowed" : "pointer",
+    transition: "all 0.2s ease",
+    opacity: props.disabled ? 0.6 : 1,
+    ...styles[variant],
+  };
 
-const subTitle = {
-  marginTop: 6,
-  color: "#2F6B55",
-  fontWeight: 800,
-  fontSize: 13,
-};
+  return (
+    <button
+      style={baseStyle}
+      onMouseEnter={(e) => {
+        if (!props.disabled) {
+          e.currentTarget.style.transform = "translateY(-1px)";
+          e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";
+        }
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.boxShadow = "none";
+      }}
+      {...props}
+    >
+      {Icon && <Icon size={16} />}
+      {children}
+    </button>
+  );
+}
 
-const formGrid = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: 16,
-  marginTop: 20,
-};
+function Card({ children, style = {} }) {
+  return (
+    <div
+      style={{
+        background: BRAND.white,
+        borderRadius: 8,
+        border: `1px solid ${BRAND.border}`,
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
 
-const fullRow = { gridColumn: "1 / -1" };
-
-const input = {
-  height: 44,
-  padding: "0 14px",
-  borderRadius: 12,
-  border: "1px solid rgba(15, 60, 45, 0.18)",
-  fontWeight: 800,
-  outline: "none",
-};
-
-const textarea = {
-  ...input,
-  height: 90,
-  padding: "10px 14px",
-};
-
-const btnGreen = {
-  height: 46,
-  padding: "0 22px",
-  borderRadius: 999,
-  border: "none",
-  background: "linear-gradient(180deg, #16A34A 0%, #0F8A3B 100%)",
-  color: "#FFF",
-  fontWeight: 1000,
-  cursor: "pointer",
-  boxShadow: "0 16px 28px rgba(22, 163, 74, 0.25)",
-};
-
-const btnGhost = {
-  height: 46,
-  padding: "0 22px",
-  borderRadius: 999,
-  border: "1px solid rgba(15, 60, 45, 0.18)",
-  background: "#FFFFFF",
-  color: "#0B2A1F",
-  fontWeight: 900,
-  cursor: "pointer",
-};
+function Input({ label, ...props }) {
+  return (
+    <div>
+      {label && (
+        <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
+          {label}
+        </label>
+      )}
+      <input
+        style={{
+          width: "100%",
+          height: 44,
+          padding: "0 14px",
+          borderRadius: 6,
+          border: `1px solid ${BRAND.border}`,
+          outline: "none",
+          fontSize: 14,
+          fontWeight: 500,
+          color: BRAND.text,
+          background: BRAND.white,
+          transition: "border-color 0.2s ease",
+          boxSizing: "border-box",
+        }}
+        onFocus={(e) => (e.target.style.borderColor = BRAND.primary)}
+        onBlur={(e) => (e.target.style.borderColor = BRAND.border)}
+        {...props}
+      />
+    </div>
+  );
+}
 
 export default function OrderCreate() {
   const nav = useNavigate();
@@ -140,100 +179,149 @@ export default function OrderCreate() {
   }
 
   return (
-    <div style={pageBg}>
-      <div style={container}>
-        <div style={panel}>
-          <h1 style={title}>New Order</h1>
-          <div style={subTitle}>
-            Create a transport order before assigning trucks and drivers
-          </div>
+    <div data-testid="order-create-page">
+      {/* Header */}
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: BRAND.text }}>New Order</h1>
+        <p style={{ margin: "8px 0 0", fontSize: 14, color: BRAND.textMuted }}>
+          Create a transport order before assigning trucks and drivers
+        </p>
+      </div>
 
+      <Card style={{ maxWidth: 900 }}>
+        <div style={{ padding: 24 }}>
+          {/* Error Alert */}
           {err && (
-            <div style={{ marginTop: 12, color: "#B42318", fontWeight: 900 }}>
+            <div
+              style={{
+                marginBottom: 20,
+                padding: 12,
+                borderRadius: 6,
+                background: BRAND.dangerBg,
+                border: `1px solid ${BRAND.danger}20`,
+                color: BRAND.danger,
+                fontWeight: 500,
+                fontSize: 14,
+              }}
+            >
               {err}
             </div>
           )}
 
-          <div style={formGrid}>
-            <input
-              style={input}
-              placeholder="Customer / Company name"
+          {/* Form Grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Input
+              label="Customer / Company name"
+              placeholder="Company name"
               value={form.customerName}
               onChange={(e) => update("customerName", e.target.value)}
             />
 
-            <input
-              style={input}
-              placeholder="Cargo name"
+            <Input
+              label="Cargo name"
+              placeholder="Product name"
               value={form.cargoName}
               onChange={(e) => update("cargoName", e.target.value)}
             />
 
-            <input
-              style={input}
+            <Input
+              label="Quantity"
               type="number"
-              placeholder="Quantity"
+              placeholder="0"
               value={form.qty}
               onChange={(e) => update("qty", e.target.value)}
             />
 
-            <input
-              style={input}
-              placeholder="Unit (TON, BAG, etc)"
+            <Input
+              label="Unit"
+              placeholder="TON, BAG, etc"
               value={form.unit}
               onChange={(e) => update("unit", e.target.value)}
             />
 
-            <input
-              style={input}
-              placeholder="From location"
+            <Input
+              label="From location"
+              placeholder="Origin"
               value={form.fromText}
               onChange={(e) => update("fromText", e.target.value)}
             />
 
-            <input
-              style={input}
-              placeholder="To destination"
+            <Input
+              label="To destination"
+              placeholder="Destination"
               value={form.toText}
               onChange={(e) => update("toText", e.target.value)}
             />
 
-            <input
-              style={input}
+            <Input
+              label="Planned date"
               type="date"
               value={form.plannedAt}
               onChange={(e) => update("plannedAt", e.target.value)}
             />
 
-            <textarea
-              style={{ ...textarea, ...fullRow }}
-              placeholder="Notes / special instructions"
-              value={form.notes}
-              onChange={(e) => update("notes", e.target.value)}
-            />
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
+                Notes / special instructions
+              </label>
+              <textarea
+                style={{
+                  width: "100%",
+                  minHeight: 90,
+                  padding: 14,
+                  borderRadius: 6,
+                  border: `1px solid ${BRAND.border}`,
+                  outline: "none",
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: BRAND.text,
+                  resize: "none",
+                  fontFamily: "inherit",
+                  boxSizing: "border-box",
+                }}
+                placeholder="Notes..."
+                value={form.notes}
+                onChange={(e) => update("notes", e.target.value)}
+              />
+            </div>
           </div>
 
-          {/* Proof upload (URL-based for now) */}
-          <div style={{ marginTop: 20 }}>
-            <div style={{ fontWeight: 900, marginBottom: 6 }}>
-              Proof of Order (URL)
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <input
-                style={{ ...input, flex: 1 }}
-                placeholder="Paste image / PDF URL"
-                value={proofUrl}
-                onChange={(e) => setProofUrl(e.target.value)}
-              />
-              <button style={btnGhost} onClick={addProof}>
+          {/* Proof Upload */}
+          <div style={{ marginTop: 24 }}>
+            <div style={{ fontWeight: 600, marginBottom: 10, color: BRAND.text }}>Proof of Order (URL)</div>
+            <div style={{ display: "flex", gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <input
+                  style={{
+                    width: "100%",
+                    height: 44,
+                    padding: "0 14px",
+                    borderRadius: 6,
+                    border: `1px solid ${BRAND.border}`,
+                    outline: "none",
+                    fontSize: 14,
+                    fontWeight: 500,
+                    color: BRAND.text,
+                    boxSizing: "border-box",
+                  }}
+                  placeholder="Paste image / PDF URL"
+                  value={proofUrl}
+                  onChange={(e) => setProofUrl(e.target.value)}
+                />
+              </div>
+              <Button variant="secondary" onClick={addProof}>
                 Add
-              </button>
+              </Button>
             </div>
 
             {proofs.length > 0 && (
-              <ul style={{ marginTop: 10, fontSize: 13 }}>
+              <ul style={{ marginTop: 12, paddingLeft: 20, fontSize: 14, color: BRAND.textLight }}>
                 {proofs.map((p, i) => (
-                  <li key={i}>{p.url}</li>
+                  <li key={i} style={{ marginBottom: 4 }}>
+                    <a href={p.url} target="_blank" rel="noreferrer" style={{ color: BRAND.primary }}>
+                      {p.url}
+                    </a>
+                  </li>
                 ))}
               </ul>
             )}
@@ -242,36 +330,30 @@ export default function OrderCreate() {
           {/* Actions */}
           <div
             style={{
-              marginTop: 26,
+              marginTop: 28,
+              paddingTop: 20,
+              borderTop: `1px solid ${BRAND.border}`,
               display: "flex",
               justifyContent: "space-between",
               gap: 12,
             }}
           >
-            <button style={btnGhost} onClick={() => nav("/orders")}>
+            <Button variant="secondary" icon={FiArrowLeft} onClick={() => nav("/orders")}>
               Cancel
-            </button>
+            </Button>
 
-            <div style={{ display: "flex", gap: 10 }}>
-              <button
-                style={btnGhost}
-                disabled={saving}
-                onClick={() => submit("DRAFT")}
-              >
+            <div style={{ display: "flex", gap: 12 }}>
+              <Button variant="secondary" icon={FiSave} disabled={saving} onClick={() => submit("DRAFT")}>
                 Save Draft
-              </button>
+              </Button>
 
-              <button
-                style={btnGreen}
-                disabled={saving}
-                onClick={() => submit("CONFIRMED")}
-              >
+              <Button variant="primary" icon={FiCheck} disabled={saving} onClick={() => submit("CONFIRMED")}>
                 {saving ? "Saving..." : "Confirm Order"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

@@ -126,7 +126,7 @@ export default function Landing() {
       shortTitle: "Pupuk",
       desc: "Pengiriman terjadwal untuk kebun & distributor pupuk dengan SOP yang jelas dan dokumentasi lengkap.",
       details: "Kami menyediakan layanan pengangkutan pupuk dengan armada yang terawat dan driver berpengalaman. Setiap pengiriman dilengkapi dengan dokumentasi lengkap dan tracking real-time.",
-      image: "https://images.unsplash.com/photo-1562811950-41d4a4944a4b?w=800&q=80",
+      image: "/hero-3.jpg",
     },
     {
       id: 1,
@@ -134,7 +134,7 @@ export default function Landing() {
       shortTitle: "Logistik",
       desc: "Pengiriman parts/komponen/barang untuk pabrik & armada dengan koordinasi yang rapi.",
       details: "Layanan logistik terintegrasi untuk kebutuhan operasional perusahaan Anda. Dari spare parts hingga komponen pabrik, kami pastikan pengiriman tepat waktu.",
-      image: "https://images.unsplash.com/photo-1741495515999-0567609a236e?w=800&q=80",
+      image: "/hero-1.jpg",
     },
     {
       id: 2,
@@ -142,7 +142,7 @@ export default function Landing() {
       shortTitle: "Kontrak",
       desc: "Kerjasama jangka panjang untuk pengiriman rutin & kebutuhan operasional dengan harga kompetitif.",
       details: "Program kemitraan jangka panjang dengan benefit eksklusif. Dapatkan prioritas armada, harga khusus, dan dedicated account manager untuk perusahaan Anda.",
-      image: "https://images.unsplash.com/photo-1724556271642-e9acaf03ac23?w=800&q=80",
+      image: "/hero-2.jpg",
     },
   ];
 
@@ -989,7 +989,7 @@ export default function Landing() {
                 }}
               >
                 <img
-                  src="https://images.unsplash.com/photo-1741495515999-0567609a236e?w=800&q=80"
+                  src="/hero-1.jpg"
                   alt="CV. Mitra Setia Fleet"
                   style={{
                     width: "100%",

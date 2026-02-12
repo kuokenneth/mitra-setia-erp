@@ -1,225 +1,35 @@
-// src/pages/Maintenance.jsx
+// src/pages/Maintenance.jsx - Corporate Minimalist Design
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
+import { FiTool, FiClock, FiCheck, FiX, FiPlus, FiRefreshCw } from "react-icons/fi";
 
 //////////////////////
-// THEME - MODERNIZED
+// THEME - CORPORATE MINIMALIST
 //////////////////////
 
 const BRAND = {
-  green: "#4BCA74",
-  green2: "#3BB865",
-  greenLight: "#5FD686",
-  greenDark: "#2D9F56",
-  greenSoft: "rgba(75,202,116,0.15)",
-  ink: "#111827",
-  ink2: "#1F2937",
+  primary: "#0D7C3D",
+  primaryDark: "#0A6331",
+  primaryLight: "#10A050",
+  secondary: "#F5F9F7",
+  accent: "#D4E8DC",
+  text: "#1A1A1A",
+  textLight: "#4A4A4A",
+  textMuted: "#6B7280",
+  white: "#FFFFFF",
+  border: "#E5E7EB",
+  warning: "#F59E0B",
+  warningBg: "#FFFBEB",
+  success: "#10B981",
+  successBg: "#ECFDF5",
+  danger: "#EF4444",
+  dangerBg: "#FEF2F2",
 };
-
-const pageBg = {
-  minHeight: "100vh",
-  padding: 22,
-  color: BRAND.ink,
-};
-
-const container = { maxWidth: 1240, margin: "0 auto" };
-
-const panel = {
-  background: "rgba(255,255,255,0.85)",
-  backdropFilter: "blur(20px)",
-  WebkitBackdropFilter: "blur(20px)",
-  borderRadius: 20,
-  padding: 24,
-  border: `1px solid ${BRAND.greenSoft}`,
-  boxShadow: `0 8px 32px ${BRAND.green}15`,
-};
-
-const headerRow = {
-  display: "flex",
-  alignItems: "flex-end",
-  justifyContent: "space-between",
-  gap: 16,
-  flexWrap: "wrap",
-};
-
-const title = {
-  fontSize: 32,
-  fontWeight: 800,
-  letterSpacing: "-0.02em",
-  margin: 0,
-  lineHeight: 1.1,
-  color: BRAND.ink,
-};
-const sub = { marginTop: 8, color: BRAND.ink2, fontWeight: 600, fontSize: 15, opacity: 0.8 };
 
 //////////////////////
-// Modern pill controls
+// HELPERS
 //////////////////////
-const pillsWrap = {
-  marginTop: 16,
-  display: "flex",
-  gap: 12,
-  flexWrap: "wrap",
-  alignItems: "center",
-};
-
-const pillBase = {
-  borderRadius: 12,
-  padding: "12px 20px",
-  fontWeight: 700,
-  fontSize: 15,
-  border: `1px solid ${BRAND.greenSoft}`,
-  background: "#FFFFFF",
-  color: BRAND.ink,
-  boxShadow: `0 4px 12px ${BRAND.green}10`,
-  cursor: "pointer",
-  transition: "all 0.3s ease",
-  userSelect: "none",
-};
-
-const btn = (variant = "ghost") => {
-  if (variant === "primary") {
-    return {
-      ...pillBase,
-      border: "none",
-      background: `linear-gradient(135deg, ${BRAND.green2}, ${BRAND.green})`,
-      color: "#FFFFFF",
-      boxShadow: `0 8px 20px ${BRAND.green}40`,
-    };
-  }
-  if (variant === "danger") {
-    return {
-      ...pillBase,
-      border: "1px solid rgba(239, 68, 68, 0.30)",
-      background: "rgba(239, 68, 68, 0.10)",
-      color: "#991B1B",
-      boxShadow: "0 4px 12px rgba(239, 68, 68, 0.15)",
-    };
-  }
-  if (variant === "neutral") {
-    return { ...pillBase, background: BRAND.greenSoft, color: BRAND.green };
-  }
-  if (variant === "ghost") {
-    return { ...pillBase, background: "#FFFFFF" };
-  }
-  return pillBase;
-};
-
-const btnSmall = (variant = "ghost") => ({
-  ...btn(variant),
-  padding: "10px 16px",
-  fontSize: 14,
-});
-
-const pillInput = {
-  borderRadius: 12,
-  padding: "12px 18px",
-  fontWeight: 600,
-  fontSize: 15,
-  border: `2px solid ${BRAND.greenSoft}`,
-  background: "#FFFFFF",
-  color: BRAND.ink,
-  outline: "none",
-  boxShadow: `0 4px 12px ${BRAND.green}10`,
-  minWidth: 260,
-  boxSizing: "border-box",
-  transition: "all 0.3s ease",
-};
-
-const pillSelectWrap = {
-  position: "relative",
-  display: "inline-flex",
-  alignItems: "center",
-};
-
-const pillSelect = {
-  appearance: "none",
-  WebkitAppearance: "none",
-  MozAppearance: "none",
-  borderRadius: 999,
-  padding: "12px 42px 12px 18px",
-  fontWeight: 700,
-  fontSize: 14,
-  border: `2px solid ${BRAND.greenSoft}`,
-  background: "#FFFFFF",
-  color: BRAND.ink,
-  boxShadow: `0 4px 12px ${BRAND.green}10`,
-  cursor: "pointer",
-  outline: "none",
-  minWidth: 180,
-  boxSizing: "border-box",
-};
-
-const selectChevron = {
-  position: "absolute",
-  right: 14,
-  pointerEvents: "none",
-  fontSize: 14,
-  fontWeight: 800,
-  color: BRAND.green,
-};
-
-const divider = { height: 1, background: BRAND.greenSoft, marginTop: 16 };
-
-const gridHeader = {
-  marginTop: 16,
-  display: "grid",
-  gridTemplateColumns: "1.4fr 0.5fr 0.5fr 0.4fr",
-  gap: 12,
-  padding: "14px 16px",
-  background: BRAND.greenSoft,
-  color: BRAND.ink,
-  fontWeight: 800,
-  fontSize: 13,
-  letterSpacing: 0.5,
-  borderRadius: 14,
-  borderBottom: `1px solid ${BRAND.green}30`,
-};
-
-const listWrap = { marginTop: 16, display: "flex", flexDirection: "column", gap: 12 };
-
-const cardRow = {
-  background: "rgba(255,255,255,0.9)",
-  backdropFilter: "blur(10px)",
-  WebkitBackdropFilter: "blur(10px)",
-  borderRadius: 16,
-  border: `1px solid ${BRAND.greenSoft}`,
-  boxShadow: `0 4px 16px ${BRAND.green}10`,
-  padding: 16,
-  transition: "all 0.2s ease",
-};
-
-const rowGrid = {
-  display: "grid",
-  gridTemplateColumns: "1.4fr 0.5fr 0.5fr 0.4fr",
-  gap: 12,
-  alignItems: "center",
-};
-
-const badge = (status) => {
-  const map = {
-    OPEN: { bg: "rgba(245,158,11,0.12)", bd: "rgba(245,158,11,0.30)", fg: "#92400e" },
-    DONE: { bg: BRAND.greenSoft, bd: `${BRAND.green}40`, fg: BRAND.green },
-    CANCELLED: { bg: "rgba(239,68,68,0.10)", bd: "rgba(239,68,68,0.30)", fg: "#7F1D1D" },
-    LIVE: { bg: BRAND.greenSoft, bd: `${BRAND.green}40`, fg: BRAND.green },
-    SELECTED: { bg: BRAND.greenSoft, bd: `${BRAND.green}40`, fg: BRAND.green },
-  };
-  const c = map[status] || { bg: "#eee", bd: "rgba(0,0,0,0.12)", fg: BRAND.ink };
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "8px 14px",
-    borderRadius: 999,
-    background: c.bg,
-    border: `1px solid ${c.bd}`,
-    fontWeight: 800,
-    fontSize: 13,
-    color: c.fg,
-    whiteSpace: "nowrap",
-  };
-};
 
 function fmtDuration(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -244,7 +54,6 @@ function fmtMoney(n, currency = "IDR") {
   }
 }
 
-
 function fmtDateTime(d) {
   try {
     return new Date(d).toLocaleString();
@@ -253,28 +62,173 @@ function fmtDateTime(d) {
   }
 }
 
-function pressFx(e) {
-  e.currentTarget.style.transform = "translateY(1px)";
-  e.currentTarget.style.boxShadow = "0 6px 14px rgba(10, 40, 30, 0.08)";
-  setTimeout(() => {
-    if (!e.currentTarget) return;
-    e.currentTarget.style.transform = "translateY(0px)";
-    e.currentTarget.style.boxShadow = "";
-  }, 120);
+//////////////////////
+// UI COMPONENTS
+//////////////////////
+
+function StatusBadge({ status }) {
+  const s = String(status || "").toUpperCase();
+  const map = {
+    OPEN: { bg: BRAND.warningBg, fg: BRAND.warning, label: "Open" },
+    DONE: { bg: BRAND.successBg, fg: BRAND.success, label: "Done" },
+    CANCELLED: { bg: "#F3F4F6", fg: BRAND.textMuted, label: "Cancelled" },
+    LIVE: { bg: BRAND.accent, fg: BRAND.primary, label: "Live" },
+    SELECTED: { bg: BRAND.accent, fg: BRAND.primary, label: "Selected" },
+  };
+  const c = map[s] || { bg: "#F3F4F6", fg: BRAND.textMuted, label: s || "—" };
+
+  return (
+    <span
+      style={{
+        padding: "6px 12px",
+        borderRadius: 4,
+        background: c.bg,
+        color: c.fg,
+        fontWeight: 600,
+        fontSize: 12,
+        textTransform: "uppercase",
+        letterSpacing: "0.3px",
+      }}
+    >
+      {c.label}
+    </span>
+  );
 }
 
-function Modal({ open, titleText, onClose, children, width = 920 }) {
+function Button({ variant = "secondary", children, icon: Icon, ...props }) {
+  const styles = {
+    primary: {
+      background: BRAND.primary,
+      color: BRAND.white,
+      border: "none",
+    },
+    secondary: {
+      background: BRAND.white,
+      color: BRAND.textLight,
+      border: `1px solid ${BRAND.border}`,
+    },
+    danger: {
+      background: BRAND.dangerBg,
+      color: BRAND.danger,
+      border: `1px solid ${BRAND.danger}20`,
+    },
+  };
+
+  const baseStyle = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "10px 16px",
+    borderRadius: 6,
+    fontWeight: 500,
+    fontSize: 14,
+    cursor: props.disabled ? "not-allowed" : "pointer",
+    transition: "all 0.2s ease",
+    opacity: props.disabled ? 0.6 : 1,
+    ...styles[variant],
+  };
+
+  return (
+    <button
+      style={baseStyle}
+      onMouseEnter={(e) => {
+        if (!props.disabled) {
+          e.currentTarget.style.transform = "translateY(-1px)";
+          e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";
+        }
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.boxShadow = "none";
+      }}
+      {...props}
+    >
+      {Icon && <Icon size={16} />}
+      {children}
+    </button>
+  );
+}
+
+function Card({ children, style = {} }) {
+  return (
+    <div
+      style={{
+        background: BRAND.white,
+        borderRadius: 8,
+        border: `1px solid ${BRAND.border}`,
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Input({ ...props }) {
+  return (
+    <input
+      style={{
+        width: "100%",
+        height: 44,
+        padding: "0 14px",
+        borderRadius: 6,
+        border: `1px solid ${BRAND.border}`,
+        outline: "none",
+        fontSize: 14,
+        fontWeight: 500,
+        color: BRAND.text,
+        background: BRAND.white,
+        transition: "border-color 0.2s ease",
+        boxSizing: "border-box",
+      }}
+      onFocus={(e) => (e.target.style.borderColor = BRAND.primary)}
+      onBlur={(e) => (e.target.style.borderColor = BRAND.border)}
+      {...props}
+    />
+  );
+}
+
+function Select({ children, ...props }) {
+  return (
+    <select
+      style={{
+        width: "100%",
+        height: 44,
+        padding: "0 14px",
+        paddingRight: 36,
+        borderRadius: 6,
+        border: `1px solid ${BRAND.border}`,
+        outline: "none",
+        fontSize: 14,
+        fontWeight: 500,
+        color: BRAND.text,
+        background: BRAND.white,
+        appearance: "none",
+        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236B7280' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E")`,
+        backgroundRepeat: "no-repeat",
+        backgroundPosition: "right 12px center",
+        cursor: "pointer",
+        boxSizing: "border-box",
+      }}
+      {...props}
+    >
+      {children}
+    </select>
+  );
+}
+
+function Modal({ open, title, onClose, children, width = 900 }) {
   if (!open) return null;
   return (
     <div
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(10, 20, 15, 0.45)",
+        background: "rgba(0, 0, 0, 0.4)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: 16,
+        padding: 20,
         zIndex: 9999,
       }}
       onMouseDown={onClose}
@@ -283,28 +237,32 @@ function Modal({ open, titleText, onClose, children, width = 920 }) {
         style={{
           width: "100%",
           maxWidth: width,
-          background: "#fff",
-          borderRadius: 26,
-          border: "1px solid rgba(20,80,60,0.12)",
-          boxShadow: "0 22px 80px rgba(10,40,30,0.28)",
+          background: BRAND.white,
+          borderRadius: 12,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
           overflow: "hidden",
         }}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div style={{ padding: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-          <div style={{ fontWeight: 1100, fontSize: 15, letterSpacing: -0.2 }}>{titleText}</div>
-          <button onMouseDown={pressFx} onClick={onClose} style={btn("ghost")}>
-            Close
-          </button>
-        </div>
-
         <div
           style={{
-            padding: 16,
-            borderTop: "1px solid rgba(20,80,60,0.10)",
-            maxHeight: "calc(100vh - 140px)",
+            padding: "16px 20px",
+            borderBottom: `1px solid ${BRAND.border}`,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: BRAND.text }}>{title}</h3>
+          <Button variant="secondary" onClick={onClose}>
+            Close
+          </Button>
+        </div>
+        <div
+          style={{
+            padding: 20,
+            maxHeight: "calc(100vh - 160px)",
             overflow: "auto",
-            boxSizing: "border-box",
           }}
         >
           {children}
@@ -313,6 +271,10 @@ function Modal({ open, titleText, onClose, children, width = 920 }) {
     </div>
   );
 }
+
+//////////////////////
+// MAIN COMPONENT
+//////////////////////
 
 export default function Maintenance() {
   const { user } = useAuth();
@@ -362,7 +324,7 @@ export default function Maintenance() {
   const [assignNote, setAssignNote] = useState("");
   const [assigning, setAssigning] = useState(false);
 
-  // ✅ wheel replacement (installed units on truck)
+  // wheel replacement (installed units on truck)
   const [assignedUnits, setAssignedUnits] = useState([]);
   const [replaceUnitId, setReplaceUnitId] = useState("");
   const [assignedLoading, setAssignedLoading] = useState(false);
@@ -426,7 +388,6 @@ export default function Maintenance() {
       setUnitPick("");
       setAssignNote("");
 
-      // ✅ reset replacement state
       setAssignedUnits([]);
       setReplaceUnitId("");
       setAssignedLoading(false);
@@ -486,7 +447,6 @@ export default function Maintenance() {
     return (trucks || []).find((t) => t.id === createForm.truckId) || null;
   }, [trucks, createForm.truckId]);
 
-  // ✅ Title is: "PLATE - title"
   const fullTitle = useMemo(() => {
     const plate = selectedTruck?.plateNumber ? String(selectedTruck.plateNumber).trim() : "";
     const t = String(createForm.title || "").trim();
@@ -569,15 +529,12 @@ export default function Maintenance() {
         body: JSON.stringify({
           stockUnitId: unitPick,
           note: assignNote || undefined,
-          // ✅ optional replacement unit to be scrapped (backend must handle this)
           replaceStockUnitId: replaceUnitId || undefined,
         }),
       });
 
       setAssignNote("");
       setUnitPick("");
-
-      // ✅ reset replacement dropdown
       setReplaceUnitId("");
 
       await refreshDetail();
@@ -624,141 +581,220 @@ export default function Maintenance() {
   const _ = tick;
 
   return (
-    <div style={pageBg}>
-      <div style={container}>
-        <div style={panel}>
-          <div style={headerRow}>
-            <div>
-              <h1 style={title}>Maintenance</h1>
-              <div style={sub}>Create jobs, track ongoing time, and record spare parts used</div>
+    <div data-testid="maintenance-page">
+      {/* Header */}
+      <div
+        style={{
+          marginBottom: 24,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+          gap: 16,
+        }}
+      >
+        <div>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 28,
+              fontWeight: 700,
+              color: BRAND.text,
+            }}
+            data-testid="maintenance-title"
+          >
+            Maintenance
+          </h1>
+          <p style={{ margin: "8px 0 0", fontSize: 14, color: BRAND.textMuted }}>
+            Create jobs, track ongoing time, and record spare parts used
+          </p>
+        </div>
+
+        {allowed && (
+          <Button variant="primary" icon={FiPlus} onClick={startCreate} data-testid="new-maintenance-btn">
+            New Maintenance
+          </Button>
+        )}
+      </div>
+
+      {/* Error Alert */}
+      {err && (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: 12,
+            borderRadius: 6,
+            background: BRAND.dangerBg,
+            border: `1px solid ${BRAND.danger}20`,
+            color: BRAND.danger,
+            fontWeight: 500,
+            fontSize: 14,
+          }}
+          data-testid="error-alert"
+        >
+          {err}
+        </div>
+      )}
+
+      {/* Filters Card */}
+      <Card style={{ marginBottom: 24 }}>
+        <div style={{ padding: 20 }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              flexWrap: "wrap",
+              alignItems: "flex-end",
+            }}
+          >
+            <div style={{ flex: "1 1 260px", minWidth: 200 }}>
+              <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
+                Search
+              </label>
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search title / truck plate..."
+                data-testid="search-input"
+              />
             </div>
 
-            {allowed && (
-              <button onMouseDown={pressFx} style={btn("primary")} onClick={startCreate}>
-                + New Maintenance
-              </button>
-            )}
-          </div>
-
-          {err ? (
-            <div
-              style={{
-                marginTop: 12,
-                padding: 12,
-                borderRadius: 16,
-                background: "#FFECEC",
-                border: "1px solid rgba(160,0,0,0.15)",
-                fontWeight: 900,
-              }}
-            >
-              {err}
-            </div>
-          ) : null}
-
-          <div style={pillsWrap}>
-            <input
-              style={{ ...pillInput, minWidth: 260 }}
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search title / truck plate..."
-            />
-
-            <div style={pillSelectWrap}>
-              <select style={pillSelect} value={status} onChange={(e) => setStatus(e.target.value)}>
+            <div style={{ flex: "0 0 160px" }}>
+              <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
+                Status
+              </label>
+              <Select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="status-filter">
                 <option value="">All Status</option>
                 <option value="OPEN">OPEN</option>
                 <option value="DONE">DONE</option>
                 <option value="CANCELLED">CANCELLED</option>
-              </select>
-              <span style={selectChevron}>▾</span>
+              </Select>
             </div>
 
-            <input style={{ ...pillInput, minWidth: 170 }} type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-            <input style={{ ...pillInput, minWidth: 170 }} type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            <div style={{ flex: "0 0 150px" }}>
+              <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
+                From Date
+              </label>
+              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} data-testid="from-date" />
+            </div>
 
-            <button onMouseDown={pressFx} style={btn("primary")} onClick={load} disabled={loading}>
+            <div style={{ flex: "0 0 150px" }}>
+              <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
+                To Date
+              </label>
+              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} data-testid="to-date" />
+            </div>
+
+            <Button variant="primary" onClick={load} disabled={loading} data-testid="apply-filter-btn">
               {loading ? "Loading..." : "Apply"}
-            </button>
-          </div>
-
-          <div style={divider} />
-
-          <div style={gridHeader}>
-            <div>Job</div>
-            <div>Status</div>
-            <div>Duration</div>
-            <div style={{ textAlign: "right" }}>Action</div>
-          </div>
-
-          <div style={listWrap}>
-            {(jobs || []).map((j) => {
-              const createdMs = new Date(j.createdAt).getTime();
-              const endMs = j.status === "OPEN" ? Date.now() : j.doneAt ? new Date(j.doneAt).getTime() : Date.now();
-              const dur = Math.max(0, endMs - createdMs);
-
-              return (
-                <div key={j.id} style={cardRow}>
-                  <div style={rowGrid}>
-                    <div>
-                      <div style={{ fontSize: 15, fontWeight: 1100, letterSpacing: -0.2 }}>{j.title}</div>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: "#2F6B55", marginTop: 4 }}>
-                        {j.truck?.plateNumber || "—"} • {fmtDateTime(j.createdAt)}
-                      </div>
-                    </div>
-
-                    <div>
-                      <span style={badge(j.status)}>{j.status}</span>
-                    </div>
-
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 900, color: "#2F6B55" }}>
-                        {j.status === "OPEN" ? <span style={badge("LIVE")}>LIVE</span> : "TOTAL"}
-                      </div>
-                      <div style={{ fontSize: 16, fontWeight: 1100, marginTop: 6 }}>{fmtDuration(dur)}</div>
-                    </div>
-
-                    <div style={{ textAlign: "right" }}>
-                      <button onMouseDown={pressFx} style={btnSmall("ghost")} onClick={() => openDetail(j.id)}>
-                        Open
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-
-            {!loading && (!jobs || jobs.length === 0) ? (
-              <div style={{ padding: 14, color: "#2F6B55", fontWeight: 900 }}>No maintenance jobs found.</div>
-            ) : null}
+            </Button>
           </div>
         </div>
+      </Card>
 
-        {/* CREATE MODAL */}
-        <Modal open={showCreate} titleText="Create Maintenance Job" onClose={() => setShowCreate(false)} width={980}>
-          <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 14 }}>
-            <div
-              style={{
-                border: "1px solid rgba(20,80,60,0.12)",
-                borderRadius: 22,
-                padding: 12,
-                boxSizing: "border-box",
-                minWidth: 0,
-              }}
-            >
-              <div style={{ fontWeight: 1100, marginBottom: 10 }}>Pick Truck (search by plate)</div>
+      {/* Jobs List */}
+      <Card>
+        {/* Table Header */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1.4fr 0.5fr 0.5fr 0.4fr",
+            gap: 12,
+            padding: "14px 20px",
+            background: BRAND.secondary,
+            borderBottom: `1px solid ${BRAND.border}`,
+            fontSize: 12,
+            fontWeight: 600,
+            color: BRAND.textMuted,
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+          }}
+        >
+          <div>Job</div>
+          <div>Status</div>
+          <div>Duration</div>
+          <div style={{ textAlign: "right" }}>Action</div>
+        </div>
 
-              <input
-                style={{ ...pillInput, borderRadius: 16, width: "100%", maxWidth: "100%", minWidth: 0 }}
+        {/* Job Rows */}
+        <div style={{ padding: "8px 12px" }}>
+          {(jobs || []).map((j) => {
+            const createdMs = new Date(j.createdAt).getTime();
+            const endMs = j.status === "OPEN" ? Date.now() : j.doneAt ? new Date(j.doneAt).getTime() : Date.now();
+            const dur = Math.max(0, endMs - createdMs);
+
+            return (
+              <div
+                key={j.id}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1.4fr 0.5fr 0.5fr 0.4fr",
+                  gap: 12,
+                  padding: "16px 8px",
+                  borderBottom: `1px solid ${BRAND.border}`,
+                  alignItems: "center",
+                  transition: "background 0.15s ease",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = BRAND.secondary)}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                data-testid={`job-row-${j.id}`}
+              >
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: BRAND.text }}>{j.title}</div>
+                  <div style={{ fontSize: 13, color: BRAND.textMuted, marginTop: 4 }}>
+                    {j.truck?.plateNumber || "—"} • {fmtDateTime(j.createdAt)}
+                  </div>
+                </div>
+
+                <div>
+                  <StatusBadge status={j.status} />
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: BRAND.textMuted, marginBottom: 4 }}>
+                    {j.status === "OPEN" ? <StatusBadge status="LIVE" /> : "TOTAL"}
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: BRAND.text }}>{fmtDuration(dur)}</div>
+                </div>
+
+                <div style={{ textAlign: "right" }}>
+                  <Button variant="secondary" onClick={() => openDetail(j.id)} data-testid={`open-job-${j.id}`}>
+                    Open
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+
+          {!loading && (!jobs || jobs.length === 0) && (
+            <div style={{ padding: 24, textAlign: "center", color: BRAND.textMuted, fontSize: 14 }}>
+              No maintenance jobs found.
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* CREATE MODAL */}
+      <Modal open={showCreate} title="Create Maintenance Job" onClose={() => setShowCreate(false)} width={960}>
+        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 20 }}>
+          {/* Truck Picker */}
+          <Card>
+            <div style={{ padding: 16 }}>
+              <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Pick Truck</div>
+              <Input
                 value={truckSearch}
                 onChange={(e) => setTruckSearch(e.target.value)}
                 placeholder="Search plate number..."
+                data-testid="truck-search"
               />
 
-              <div style={{ marginTop: 10, maxHeight: 320, overflow: "auto", paddingRight: 2 }}>
-                {trucksLoading ? <div style={{ padding: 10, color: "#2F6B55", fontWeight: 900 }}>Loading trucks...</div> : null}
-                {!trucksLoading && (filteredTrucks || []).length === 0 ? (
-                  <div style={{ padding: 10, color: "#2F6B55", fontWeight: 900 }}>No trucks found.</div>
-                ) : null}
+              <div style={{ marginTop: 12, maxHeight: 300, overflow: "auto" }}>
+                {trucksLoading && (
+                  <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>Loading trucks...</div>
+                )}
+                {!trucksLoading && (filteredTrucks || []).length === 0 && (
+                  <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>No trucks found.</div>
+                )}
 
                 {(filteredTrucks || []).map((t) => {
                   const selected = createForm.truckId === t.id;
@@ -767,129 +803,126 @@ export default function Maintenance() {
                       key={t.id}
                       onClick={() => setCreateForm((f) => ({ ...f, truckId: t.id }))}
                       style={{
-                        padding: 12,
-                        borderRadius: 18,
-                        border: selected ? "1px solid rgba(0,120,80,0.35)" : "1px solid rgba(20,80,60,0.10)",
-                        background: selected ? "linear-gradient(180deg,#E8FBF2 0%,#DDF7EA 100%)" : "#fff",
-                        marginTop: 10,
+                        padding: 14,
+                        borderRadius: 6,
+                        border: `1px solid ${selected ? BRAND.primary : BRAND.border}`,
+                        background: selected ? BRAND.accent : BRAND.white,
+                        marginTop: 8,
                         cursor: "pointer",
-                        fontWeight: 900,
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
-                        gap: 10,
-                        boxSizing: "border-box",
-                        minWidth: 0,
+                        transition: "all 0.15s ease",
                       }}
+                      data-testid={`truck-option-${t.id}`}
                     >
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 16, fontWeight: 1100, letterSpacing: -0.2 }}>{t.plateNumber}</div>
-                        <div style={{ fontSize: 12, fontWeight: 800, color: "#2F6B55", marginTop: 4 }}>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: BRAND.text }}>{t.plateNumber}</div>
+                        <div style={{ fontSize: 13, color: BRAND.textMuted, marginTop: 2 }}>
                           {t.brand || "—"} {t.model || ""} • {t.status}
                         </div>
                       </div>
-                      {selected ? <div style={badge("SELECTED")}>Selected</div> : null}
+                      {selected && <StatusBadge status="SELECTED" />}
                     </div>
                   );
                 })}
               </div>
             </div>
+          </Card>
 
-            <div
-              style={{
-                border: "1px solid rgba(20,80,60,0.12)",
-                borderRadius: 22,
-                padding: 12,
-                boxSizing: "border-box",
-                minWidth: 0,
-              }}
-            >
-              <div style={{ fontWeight: 1100, marginBottom: 10 }}>Job Info</div>
+          {/* Job Info */}
+          <Card>
+            <div style={{ padding: 16 }}>
+              <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Job Info</div>
 
-              <input
-                style={{ ...pillInput, borderRadius: 16, width: "100%", maxWidth: "100%", minWidth: 0, marginBottom: 10 }}
-                value={createForm.title}
-                onChange={(e) => setCreateForm((f) => ({ ...f, title: e.target.value }))}
-                placeholder="Title (e.g. Brake service)"
-              />
+              <div style={{ display: "grid", gap: 12 }}>
+                <Input
+                  value={createForm.title}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, title: e.target.value }))}
+                  placeholder="Title (e.g. Brake service)"
+                  data-testid="job-title-input"
+                />
 
-              <input
-                style={{ ...pillInput, borderRadius: 16, width: "100%", maxWidth: "100%", minWidth: 0, marginBottom: 10 }}
-                value={createForm.odometerKm}
-                onChange={(e) => setCreateForm((f) => ({ ...f, odometerKm: e.target.value }))}
-                placeholder="Odometer (km) optional"
-              />
+                <Input
+                  value={createForm.odometerKm}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, odometerKm: e.target.value }))}
+                  placeholder="Odometer (km) optional"
+                  data-testid="odometer-input"
+                />
 
-              <textarea
-                style={{
-                  width: "100%",
-                  maxWidth: "100%",
-                  boxSizing: "border-box",
-                  borderRadius: 16,
-                  border: "1px solid rgba(0,0,0,0.12)",
-                  padding: 12,
-                  minHeight: 140,
-                  outline: "none",
-                  background: "#fff",
-                  color: "#0B2A1F",
-                  fontWeight: 800,
-                  fontSize: 13,
-                  resize: "none",
-                  boxShadow: "0 8px 18px rgba(10, 40, 30, 0.06)",
-                }}
-                value={createForm.note}
-                onChange={(e) => setCreateForm((f) => ({ ...f, note: e.target.value }))}
-                placeholder="Note (optional)"
-              />
+                <textarea
+                  style={{
+                    width: "100%",
+                    minHeight: 120,
+                    padding: 14,
+                    borderRadius: 6,
+                    border: `1px solid ${BRAND.border}`,
+                    outline: "none",
+                    fontSize: 14,
+                    fontWeight: 500,
+                    color: BRAND.text,
+                    resize: "none",
+                    fontFamily: "inherit",
+                    boxSizing: "border-box",
+                  }}
+                  value={createForm.note}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, note: e.target.value }))}
+                  placeholder="Note (optional)"
+                  data-testid="job-note-input"
+                />
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
-                <button onMouseDown={pressFx} style={btn("ghost")} onClick={() => setShowCreate(false)}>
-                  Cancel
-                </button>
-                <button
-                  onMouseDown={pressFx}
-                  style={btn("primary")}
-                  onClick={createJob}
-                  disabled={creating || !createForm.truckId || !String(createForm.title || "").trim()}
-                >
-                  {creating ? "Creating..." : "Create"}
-                </button>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 }}>
+                  <Button variant="secondary" onClick={() => setShowCreate(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={createJob}
+                    disabled={creating || !createForm.truckId || !String(createForm.title || "").trim()}
+                    data-testid="create-job-btn"
+                  >
+                    {creating ? "Creating..." : "Create"}
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
-        </Modal>
+          </Card>
+        </div>
+      </Modal>
 
-        {/* DETAIL MODAL */}
-        <Modal open={showDetail} titleText="Maintenance Detail" onClose={() => setShowDetail(false)} width={1040}>
-          {detailLoading || !activeJob ? (
-            <div style={{ padding: 14, fontWeight: 900, color: "#2F6B55" }}>Loading...</div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              {/* LEFT */}
-              <div style={{ border: "1px solid rgba(20,80,60,0.12)", borderRadius: 22, padding: 14, minWidth: 0 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 1100, fontSize: 16, letterSpacing: -0.2 }}>{activeJob.title}</div>
-                    <div style={{ fontWeight: 800, color: "#2F6B55", fontSize: 12, marginTop: 4 }}>
+      {/* DETAIL MODAL */}
+      <Modal open={showDetail} title="Maintenance Detail" onClose={() => setShowDetail(false)} width={1020}>
+        {detailLoading || !activeJob ? (
+          <div style={{ padding: 20, color: BRAND.textMuted, fontSize: 14 }}>Loading...</div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            {/* LEFT - Job Info */}
+            <Card>
+              <div style={{ padding: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: BRAND.text }}>{activeJob.title}</div>
+                    <div style={{ fontSize: 13, color: BRAND.textMuted, marginTop: 4 }}>
                       {activeJob.truck?.plateNumber || "—"} • Created: {fmtDateTime(activeJob.createdAt)}
                     </div>
                   </div>
-                  <div style={badge(activeJob.status)}>{activeJob.status}</div>
+                  <StatusBadge status={activeJob.status} />
                 </div>
 
+                {/* Duration Card */}
                 <div
                   style={{
-                    marginTop: 12,
-                    padding: 12,
-                    borderRadius: 18,
-                    border: "1px solid rgba(20,80,60,0.10)",
-                    background: "linear-gradient(180deg,#F7FFFB 0%,#FFFFFF 100%)",
+                    padding: 16,
+                    borderRadius: 6,
+                    background: BRAND.secondary,
+                    border: `1px solid ${BRAND.border}`,
+                    marginBottom: 12,
                   }}
                 >
-                  <div style={{ fontWeight: 900, fontSize: 12, color: "#2F6B55" }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: BRAND.textMuted, marginBottom: 6 }}>
                     {activeJob.status === "OPEN" ? "Live duration (running)" : "Total duration"}
                   </div>
-                  <div style={{ fontWeight: 1200, fontSize: 20, marginTop: 6 }}>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: BRAND.text }}>
                     {fmtDuration(
                       (activeJob.status === "OPEN"
                         ? Date.now()
@@ -900,304 +933,313 @@ export default function Maintenance() {
                   </div>
                 </div>
 
+                {/* Cost Card */}
                 <div
                   style={{
-                    marginTop: 12,
-                    padding: 12,
-                    borderRadius: 18,
-                    border: "1px solid rgba(20,80,60,0.10)",
-                    background: "linear-gradient(180deg,#F7FFFB 0%,#FFFFFF 100%)",
+                    padding: 16,
+                    borderRadius: 6,
+                    background: BRAND.secondary,
+                    border: `1px solid ${BRAND.border}`,
+                    marginBottom: 16,
                   }}
                 >
-                  <div style={{ fontWeight: 900, fontSize: 12, color: "#2F6B55" }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: BRAND.textMuted, marginBottom: 6 }}>
                     Total parts cost (serialized)
                   </div>
-                  <div style={{ fontWeight: 1200, fontSize: 20, marginTop: 6 }}>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: BRAND.primary }}>
                     {fmtMoney(activeJob.totalCost || 0, activeJob.currency || "IDR")}
                   </div>
                 </div>
 
-
-                {allowed ? (
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-                    <button
-                      onMouseDown={pressFx}
-                      style={btn("primary")}
+                {/* Actions */}
+                {allowed && (
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <Button
+                      variant="primary"
+                      icon={FiCheck}
                       onClick={() => setJobStatus("DONE")}
                       disabled={activeJob.status !== "OPEN"}
+                      data-testid="mark-done-btn"
                     >
                       Mark DONE
-                    </button>
-                    <button
-                      onMouseDown={pressFx}
-                      style={btn("ghost")}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      icon={FiX}
                       onClick={() => setJobStatus("CANCELLED")}
                       disabled={activeJob.status !== "OPEN"}
+                      data-testid="cancel-job-btn"
                     >
                       Cancel
-                    </button>
-                    <button onMouseDown={pressFx} style={btn("ghost")} onClick={refreshDetail}>
+                    </Button>
+                    <Button variant="secondary" icon={FiRefreshCw} onClick={refreshDetail} data-testid="refresh-btn">
                       Refresh
-                    </button>
+                    </Button>
                   </div>
-                ) : null}
+                )}
               </div>
+            </Card>
 
-              {/* RIGHT */}
-              <div style={{ border: "1px solid rgba(20,80,60,0.12)", borderRadius: 22, padding: 14, minWidth: 0 }}>
-                <div style={{ fontWeight: 1100, marginBottom: 10 }}>Record Spareparts Used</div>
+            {/* RIGHT - Spare Parts */}
+            <Card>
+              <div style={{ padding: 16 }}>
+                <div style={{ fontWeight: 600, marginBottom: 16, color: BRAND.text }}>Record Spareparts Used</div>
 
                 {/* A) Serialized assign */}
-                <div style={{ border: "1px solid rgba(20,80,60,0.10)", borderRadius: 18, padding: 12 }}>
-                  <div style={{ fontWeight: 1100, fontSize: 13 }}>A) Assign Serialized Unit</div>
-
-                  {/* ✅ 3 dropdowns: item, new unit, replace installed unit */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 10 }}>
-                    {/* 1) item */}
-                    <div style={pillSelectWrap}>
-                      <select
-                        style={{ ...pillSelect, minWidth: 0, width: "100%" }}
-                        value={assignItemId}
-                        onChange={async (e) => {
-                          const v = e.target.value;
-                          setAssignItemId(v);
-
-                          setUnitPick("");
-                          setReplaceUnitId("");
-                          setAvailableUnits([]);
-                          setAssignedUnits([]);
-
-                          if (!v) return;
-
-                          await loadAvailableUnits(v);
-                          await loadAssignedUnits(v);
-                        }}
-                        disabled={!allowed || activeJob.status !== "OPEN"}
-                      >
-                        <option value="">Select serialized item</option>
-                        {serializedItems.map((it) => (
-                          <option key={it.id} value={it.id}>
-                            {it.sku} — {it.name}
-                          </option>
-                        ))}
-                      </select>
-                      <span style={selectChevron}>▾</span>
-                    </div>
-
-                    {/* 2) new unit */}
-                    <div style={pillSelectWrap}>
-                      <select
-                        style={{ ...pillSelect, minWidth: 0, width: "100%" }}
-                        value={unitPick}
-                        onChange={(e) => setUnitPick(e.target.value)}
-                        disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId}
-                      >
-                        <option value="">Pick stock unit</option>
-                        {availableUnits.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {(u.serialNumber || u.barcode || u.id.slice(0, 8))} • {u.location?.name || "No location"}
-                          </option>
-                        ))}
-                      </select>
-                      <span style={selectChevron}>▾</span>
-                    </div>
-
-                    {/* 3) replace installed */}
-                    <div style={pillSelectWrap}>
-                      <select
-                        style={{ ...pillSelect, minWidth: 0, width: "100%" }}
-                        value={replaceUnitId}
-                        onChange={(e) => setReplaceUnitId(e.target.value)}
-                        disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId}
-                      >
-                        <option value="">
-                          {assignedLoading ? "Loading installed..." : "Replace / Scrap installed (optional)"}
-                        </option>
-                        {(assignedUnits || []).map((u) => (
-                          <option key={u.stockUnitId} value={u.stockUnitId}>
-                            {(u.stockUnit?.serialNumber || u.stockUnit?.barcode || u.stockUnitId.slice(0, 8))} • Installed{" "}
-                            {fmtDateTime(u.installedAt)}
-                          </option>
-                        ))}
-                      </select>
-                      <span style={selectChevron}>▾</span>
-                    </div>
+                <div
+                  style={{
+                    padding: 16,
+                    borderRadius: 6,
+                    border: `1px solid ${BRAND.border}`,
+                    marginBottom: 16,
+                  }}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 600, color: BRAND.text, marginBottom: 12 }}>
+                    A) Assign Serialized Unit
                   </div>
 
-                  <input
-                    style={{ ...pillInput, borderRadius: 16, width: "100%", maxWidth: "100%", minWidth: 0, marginTop: 10 }}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+                    <Select
+                      value={assignItemId}
+                      onChange={async (e) => {
+                        const v = e.target.value;
+                        setAssignItemId(v);
+                        setUnitPick("");
+                        setReplaceUnitId("");
+                        setAvailableUnits([]);
+                        setAssignedUnits([]);
+                        if (!v) return;
+                        await loadAvailableUnits(v);
+                        await loadAssignedUnits(v);
+                      }}
+                      disabled={!allowed || activeJob.status !== "OPEN"}
+                      data-testid="serialized-item-select"
+                    >
+                      <option value="">Select serialized item</option>
+                      {serializedItems.map((it) => (
+                        <option key={it.id} value={it.id}>
+                          {it.sku} — {it.name}
+                        </option>
+                      ))}
+                    </Select>
+
+                    <Select
+                      value={unitPick}
+                      onChange={(e) => setUnitPick(e.target.value)}
+                      disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId}
+                      data-testid="stock-unit-select"
+                    >
+                      <option value="">Pick stock unit</option>
+                      {availableUnits.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.serialNumber || u.barcode || u.id.slice(0, 8)} • {u.location?.name || "No location"}
+                        </option>
+                      ))}
+                    </Select>
+
+                    <Select
+                      value={replaceUnitId}
+                      onChange={(e) => setReplaceUnitId(e.target.value)}
+                      disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId}
+                      data-testid="replace-unit-select"
+                    >
+                      <option value="">
+                        {assignedLoading ? "Loading installed..." : "Replace installed (optional)"}
+                      </option>
+                      {(assignedUnits || []).map((u) => (
+                        <option key={u.stockUnitId} value={u.stockUnitId}>
+                          {u.stockUnit?.serialNumber || u.stockUnit?.barcode || u.stockUnitId.slice(0, 8)} • Installed{" "}
+                          {fmtDateTime(u.installedAt)}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+
+                  <Input
                     value={assignNote}
                     onChange={(e) => setAssignNote(e.target.value)}
                     placeholder="Note (optional)"
                     disabled={!allowed || activeJob.status !== "OPEN"}
+                    style={{ marginBottom: 10 }}
+                    data-testid="assign-note-input"
                   />
 
-                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
-                    <button
-                      onMouseDown={pressFx}
-                      style={btn("primary")}
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <Button
+                      variant="primary"
                       onClick={assignUnit}
                       disabled={!allowed || activeJob.status !== "OPEN" || assigning || !unitPick}
+                      data-testid="assign-unit-btn"
                     >
                       {assigning ? "Assigning..." : "Assign Unit"}
-                    </button>
+                    </Button>
                   </div>
                 </div>
 
                 {/* B) Non-serialized use */}
-                <div style={{ border: "1px solid rgba(20,80,60,0.10)", borderRadius: 18, padding: 12, marginTop: 12 }}>
-                  <div style={{ fontWeight: 1100, fontSize: 13 }}>B) Use Non-Serialized Stock (qty)</div>
-
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
-                    <div style={pillSelectWrap}>
-                      <select
-                        style={{ ...pillSelect, minWidth: 0, width: "100%" }}
-                        value={useItemId}
-                        onChange={(e) => setUseItemId(e.target.value)}
-                        disabled={!allowed || activeJob.status !== "OPEN"}
-                      >
-                        <option value="">Select non-serialized item</option>
-                        {nonSerializedItems.map((it) => (
-                          <option key={it.id} value={it.id}>
-                            {it.sku} — {it.name} ({it.unit})
-                          </option>
-                        ))}
-                      </select>
-                      <span style={selectChevron}>▾</span>
-                    </div>
-
-                    <div style={pillSelectWrap}>
-                      <select
-                        style={{ ...pillSelect, minWidth: 0, width: "100%" }}
-                        value={useLocationId}
-                        onChange={(e) => setUseLocationId(e.target.value)}
-                        disabled={!allowed || activeJob.status !== "OPEN"}
-                      >
-                        <option value="">Select location</option>
-                        {locations.map((l) => (
-                          <option key={l.id} value={l.id}>
-                            {l.name}
-                          </option>
-                        ))}
-                      </select>
-                      <span style={selectChevron}>▾</span>
-                    </div>
+                <div
+                  style={{
+                    padding: 16,
+                    borderRadius: 6,
+                    border: `1px solid ${BRAND.border}`,
+                  }}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 600, color: BRAND.text, marginBottom: 12 }}>
+                    B) Use Non-Serialized Stock (qty)
                   </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
-                    <input
-                      style={{ ...pillInput, borderRadius: 16, minWidth: 0, width: "100%" }}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                    <Select
+                      value={useItemId}
+                      onChange={(e) => setUseItemId(e.target.value)}
+                      disabled={!allowed || activeJob.status !== "OPEN"}
+                      data-testid="non-serialized-item-select"
+                    >
+                      <option value="">Select non-serialized item</option>
+                      {nonSerializedItems.map((it) => (
+                        <option key={it.id} value={it.id}>
+                          {it.sku} — {it.name} ({it.unit})
+                        </option>
+                      ))}
+                    </Select>
+
+                    <Select
+                      value={useLocationId}
+                      onChange={(e) => setUseLocationId(e.target.value)}
+                      disabled={!allowed || activeJob.status !== "OPEN"}
+                      data-testid="location-select"
+                    >
+                      <option value="">Select location</option>
+                      {locations.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                    <Input
                       value={useQty}
                       onChange={(e) => setUseQty(e.target.value)}
                       placeholder="Qty"
                       disabled={!allowed || activeJob.status !== "OPEN"}
+                      data-testid="qty-input"
                     />
-                    <input
-                      style={{ ...pillInput, borderRadius: 16, minWidth: 0, width: "100%" }}
+                    <Input
                       value={useNote}
                       onChange={(e) => setUseNote(e.target.value)}
                       placeholder="Note (optional)"
                       disabled={!allowed || activeJob.status !== "OPEN"}
+                      data-testid="use-note-input"
                     />
                   </div>
 
-                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
-                    <button
-                      onMouseDown={pressFx}
-                      style={btn("danger")}
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <Button
+                      variant="danger"
                       onClick={useStock}
                       disabled={!allowed || activeJob.status !== "OPEN" || usingStock}
+                      data-testid="use-stock-btn"
                     >
                       {usingStock ? "Saving..." : "Use Stock"}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
+            </Card>
 
-              {/* FULL WIDTH TABLES */}
-              <div style={{ gridColumn: "1 / -1", border: "1px solid rgba(20,80,60,0.12)", borderRadius: 22, padding: 14 }}>
-                <div style={{ fontWeight: 1100, marginBottom: 10 }}>Spareparts used in this maintenance</div>
+            {/* FULL WIDTH TABLES */}
+            <Card style={{ gridColumn: "1 / -1" }}>
+              <div style={{ padding: 16 }}>
+                <div style={{ fontWeight: 600, marginBottom: 16, color: BRAND.text }}>
+                  Spareparts used in this maintenance
+                </div>
 
-                <div style={{ fontWeight: 1100, color: "#2F6B55", fontSize: 12 }}>Serialized assignments</div>
-                <div style={{ marginTop: 8, overflow: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                {/* Serialized Table */}
+                <div style={{ fontSize: 13, fontWeight: 600, color: BRAND.textMuted, marginBottom: 8 }}>
+                  Serialized assignments
+                </div>
+                <div style={{ overflow: "auto", marginBottom: 20 }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                     <thead>
-                      <tr style={{ textAlign: "left", fontSize: 12, color: "#2F6B55" }}>
-                        <th style={{ padding: 8 }}>Installed At</th>
-                        <th style={{ padding: 8 }}>Item</th>
-                        <th style={{ padding: 8 }}>Unit</th>
-                        <th style={{ padding: 8 }}>From</th>
-                        <th style={{ padding: 8 }}>Note</th>
+                      <tr style={{ textAlign: "left", fontSize: 12, color: BRAND.textMuted, borderBottom: `1px solid ${BRAND.border}` }}>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Installed At</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Item</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Unit</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>From</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Note</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(activeJob.sparePartAssignments || []).map((a) => (
-                        <tr key={a.id} style={{ borderTop: "1px solid rgba(20,80,60,0.10)", fontSize: 13, fontWeight: 800 }}>
-                          <td style={{ padding: 8 }}>{fmtDateTime(a.installedAt)}</td>
-                          <td style={{ padding: 8 }}>
+                        <tr key={a.id} style={{ borderBottom: `1px solid ${BRAND.border}` }}>
+                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{fmtDateTime(a.installedAt)}</td>
+                          <td style={{ padding: "12px 8px", fontWeight: 500, color: BRAND.text }}>
                             {a.stockUnit?.item?.sku} — {a.stockUnit?.item?.name}
                           </td>
-                          <td style={{ padding: 8 }}>
+                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}>
                             {a.stockUnit?.serialNumber || a.stockUnit?.barcode || a.stockUnitId.slice(0, 8)}
                           </td>
-                          <td style={{ padding: 8 }}>{a.stockUnit?.location?.name || "—"}</td>
-                          <td style={{ padding: 8 }}>{a.note || "—"}</td>
+                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{a.stockUnit?.location?.name || "—"}</td>
+                          <td style={{ padding: "12px 8px", color: BRAND.textMuted }}>{a.note || "—"}</td>
                         </tr>
                       ))}
-                      {(activeJob.sparePartAssignments || []).length === 0 ? (
+                      {(activeJob.sparePartAssignments || []).length === 0 && (
                         <tr>
-                          <td style={{ padding: 10, color: "#2F6B55", fontWeight: 800 }} colSpan={5}>
+                          <td colSpan={5} style={{ padding: 16, color: BRAND.textMuted, textAlign: "center" }}>
                             No serialized spareparts assigned yet.
                           </td>
                         </tr>
-                      ) : null}
+                      )}
                     </tbody>
                   </table>
                 </div>
 
-                <div style={{ marginTop: 16, fontWeight: 1100, color: "#2F6B55", fontSize: 12 }}>
+                {/* Movements Table */}
+                <div style={{ fontSize: 13, fontWeight: 600, color: BRAND.textMuted, marginBottom: 8 }}>
                   Stock movements linked to this maintenance (includes qty usage)
                 </div>
-                <div style={{ marginTop: 8, overflow: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <div style={{ overflow: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                     <thead>
-                      <tr style={{ textAlign: "left", fontSize: 12, color: "#2F6B55" }}>
-                        <th style={{ padding: 8 }}>Time</th>
-                        <th style={{ padding: 8 }}>Type</th>
-                        <th style={{ padding: 8 }}>Item</th>
-                        <th style={{ padding: 8 }}>Qty</th>
-                        <th style={{ padding: 8 }}>From</th>
-                        <th style={{ padding: 8 }}>Note</th>
+                      <tr style={{ textAlign: "left", fontSize: 12, color: BRAND.textMuted, borderBottom: `1px solid ${BRAND.border}` }}>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Time</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Type</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Item</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Qty</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>From</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Note</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(activeJob.movements || []).map((m) => (
-                        <tr key={m.id} style={{ borderTop: "1px solid rgba(20,80,60,0.10)", fontSize: 13, fontWeight: 800 }}>
-                          <td style={{ padding: 8 }}>{fmtDateTime(m.createdAt)}</td>
-                          <td style={{ padding: 8 }}>{m.type}</td>
-                          <td style={{ padding: 8 }}>
+                        <tr key={m.id} style={{ borderBottom: `1px solid ${BRAND.border}` }}>
+                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{fmtDateTime(m.createdAt)}</td>
+                          <td style={{ padding: "12px 8px", fontWeight: 500, color: BRAND.text }}>{m.type}</td>
+                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}>
                             {m.item?.sku} — {m.item?.name}
                           </td>
-                          <td style={{ padding: 8 }}>{m.qty}</td>
-                          <td style={{ padding: 8 }}>{m.fromLocation?.name || "—"}</td>
-                          <td style={{ padding: 8 }}>{m.note || "—"}</td>
+                          <td style={{ padding: "12px 8px", fontWeight: 600, color: BRAND.text }}>{m.qty}</td>
+                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{m.fromLocation?.name || "—"}</td>
+                          <td style={{ padding: "12px 8px", color: BRAND.textMuted }}>{m.note || "—"}</td>
                         </tr>
                       ))}
-                      {(activeJob.movements || []).length === 0 ? (
+                      {(activeJob.movements || []).length === 0 && (
                         <tr>
-                          <td style={{ padding: 10, color: "#2F6B55", fontWeight: 800 }} colSpan={6}>
+                          <td colSpan={6} style={{ padding: 16, color: BRAND.textMuted, textAlign: "center" }}>
                             No stock movements recorded yet.
                           </td>
                         </tr>
-                      ) : null}
+                      )}
                     </tbody>
                   </table>
                 </div>
               </div>
-            </div>
-          )}
-        </Modal>
-      </div>
+            </Card>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

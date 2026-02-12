@@ -1,120 +1,38 @@
-// src/pages/OrderDetail.jsx
+// src/pages/OrderDetail.jsx - Corporate Minimalist Design
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
+import { FiArrowLeft, FiPlus, FiCheck, FiX, FiRefreshCw, FiExternalLink, FiFile } from "react-icons/fi";
 
 //////////////////////
-// THEME (match Maintenance / Orders)
+// THEME - CORPORATE MINIMALIST
 //////////////////////
-const pageBg = {
-  minHeight: "100vh",
-  padding: 22,
-  color: "#0B2A1F",
+
+const BRAND = {
+  primary: "#0D7C3D",
+  primaryDark: "#0A6331",
+  primaryLight: "#10A050",
+  secondary: "#F5F9F7",
+  accent: "#D4E8DC",
+  text: "#1A1A1A",
+  textLight: "#4A4A4A",
+  textMuted: "#6B7280",
+  white: "#FFFFFF",
+  border: "#E5E7EB",
+  warning: "#F59E0B",
+  warningBg: "#FFFBEB",
+  success: "#10B981",
+  successBg: "#ECFDF5",
+  danger: "#EF4444",
+  dangerBg: "#FEF2F2",
+  info: "#3B82F6",
+  infoBg: "#EFF6FF",
 };
 
-const container = { maxWidth: 1180, margin: "0 auto" };
-
-const panel = {
-  background: "#FFFFFF",
-  borderRadius: 22,
-  padding: 18,
-  border: "1px solid rgba(20, 80, 60, 0.10)",
-  boxShadow: "0 18px 55px rgba(10, 40, 30, 0.08)",
-};
-
-const headerRow = {
-  display: "flex",
-  alignItems: "flex-start",
-  justifyContent: "space-between",
-  gap: 12,
-  flexWrap: "wrap",
-};
-
-const title = {
-  fontSize: 38,
-  fontWeight: 1000,
-  letterSpacing: -1,
-  margin: 0,
-  lineHeight: 1.05,
-};
-
-const subTitle = {
-  marginTop: 6,
-  fontWeight: 800,
-  color: "#2F6B55",
-  fontSize: 13,
-};
-
-const btnGreen = {
-  height: 44,
-  padding: "0 18px",
-  borderRadius: 999,
-  border: "1px solid rgba(0,0,0,0.08)",
-  background: "linear-gradient(180deg, #16A34A 0%, #0F8A3B 100%)",
-  color: "#FFFFFF",
-  fontWeight: 1000,
-  cursor: "pointer",
-  boxShadow: "0 16px 28px rgba(22, 163, 74, 0.25)",
-};
-
-const btnGhost = {
-  height: 44,
-  padding: "0 16px",
-  borderRadius: 999,
-  border: "1px solid rgba(15, 60, 45, 0.18)",
-  background: "#FFFFFF",
-  color: "#0B2A1F",
-  fontWeight: 900,
-  cursor: "pointer",
-  boxShadow: "0 10px 22px rgba(10, 40, 30, 0.06)",
-};
-
-const btnDanger = {
-  ...btnGhost,
-  border: "1px solid rgba(244,63,94,0.35)",
-  color: "#9F1239",
-};
-
-const divider = {
-  height: 1,
-  background: "rgba(20, 80, 60, 0.10)",
-  marginTop: 14,
-};
-
-const badgeBase = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  height: 34,
-  padding: "0 14px",
-  borderRadius: 999,
-  fontWeight: 1000,
-  fontSize: 12,
-  letterSpacing: 0.6,
-  border: "1px solid rgba(15, 60, 45, 0.16)",
-  background: "#E9FBF1",
-  color: "#0B2A1F",
-  width: "fit-content",
-};
-
-function statusBadgeStyle(status) {
-  const s = String(status || "").toUpperCase();
-  if (s === "COMPLETED") return { ...badgeBase, background: "#DDFBEA", borderColor: "rgba(16,185,129,0.35)" };
-  if (s === "IN_PROGRESS") return { ...badgeBase, background: "#E9FBF1", borderColor: "rgba(34,197,94,0.35)" };
-  if (s === "CONFIRMED") return { ...badgeBase, background: "#EAF7FF", borderColor: "rgba(59,130,246,0.25)" };
-  if (s === "CANCELLED") return { ...badgeBase, background: "#FFF1F2", borderColor: "rgba(244,63,94,0.25)" };
-  return { ...badgeBase, background: "#F1F5F9", borderColor: "rgba(15, 60, 45, 0.12)" };
-}
-
-function tripBadgeStyle(status) {
-  const s = String(status || "").toUpperCase();
-  if (s === "COMPLETED") return { ...badgeBase, background: "#DDFBEA", borderColor: "rgba(16,185,129,0.35)" };
-  if (s === "ARRIVED") return { ...badgeBase, background: "#EAF7FF", borderColor: "rgba(59,130,246,0.25)" };
-  if (s === "DISPATCHED") return { ...badgeBase, background: "#E9FBF1", borderColor: "rgba(34,197,94,0.35)" };
-  if (s === "CANCELLED") return { ...badgeBase, background: "#FFF1F2", borderColor: "rgba(244,63,94,0.25)" };
-  return { ...badgeBase, background: "#F1F5F9", borderColor: "rgba(15, 60, 45, 0.12)" };
-}
+//////////////////////
+// HELPERS
+//////////////////////
 
 function fmtDate(d) {
   if (!d) return "-";
@@ -133,11 +51,17 @@ function fmtDateTime(d) {
   return dt.toLocaleString("id-ID");
 }
 
+function fmtNum(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return "-";
+  return x % 1 === 0 ? String(x) : x.toFixed(2);
+}
+
 async function uploadFiles(fileList) {
   const fd = new FormData();
   for (const f of fileList) fd.append("files", f);
 
-  const res = await fetch(VITE_API_URL + "/api/uploads", {
+  const res = await fetch(import.meta.env.VITE_API_URL + "/api/uploads", {
     method: "POST",
     body: fd,
     credentials: "include",
@@ -148,7 +72,6 @@ async function uploadFiles(fileList) {
   return data?.items || [];
 }
 
-// ✅ small helper (top-level only)
 function useIsNarrow(breakpoint = 980) {
   const [narrow, setNarrow] = useState(() => (typeof window !== "undefined" ? window.innerWidth < breakpoint : false));
   useEffect(() => {
@@ -160,135 +83,227 @@ function useIsNarrow(breakpoint = 980) {
 }
 
 //////////////////////
-// Modal
+// UI COMPONENTS
 //////////////////////
-const modalOverlay = {
-  position: "fixed",
-  inset: 0,
-  background: "rgba(0,0,0,0.35)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: 14,
-  zIndex: 80,
-};
 
-const modalCard = {
-  width: "min(1120px, 100%)",
-  maxHeight: "90vh",
-  background: "#FFFFFF",
-  borderRadius: 24,
-  border: "1px solid rgba(20, 80, 60, 0.14)",
-  boxShadow: "0 28px 90px rgba(0,0,0,0.22)",
-  overflow: "hidden",
-  display: "flex",
-  flexDirection: "column",
-  boxSizing: "border-box",
-};
+function StatusBadge({ status, type = "order" }) {
+  const s = String(status || "").toUpperCase();
+  const orderMap = {
+    COMPLETED: { bg: BRAND.successBg, fg: BRAND.success },
+    IN_PROGRESS: { bg: BRAND.accent, fg: BRAND.primary },
+    CONFIRMED: { bg: BRAND.infoBg, fg: BRAND.info },
+    CANCELLED: { bg: "#F3F4F6", fg: BRAND.textMuted },
+    DRAFT: { bg: BRAND.secondary, fg: BRAND.textLight },
+  };
+  const tripMap = {
+    COMPLETED: { bg: BRAND.successBg, fg: BRAND.success },
+    ARRIVED: { bg: BRAND.infoBg, fg: BRAND.info },
+    DISPATCHED: { bg: BRAND.accent, fg: BRAND.primary },
+    CANCELLED: { bg: "#F3F4F6", fg: BRAND.textMuted },
+  };
+  const map = type === "trip" ? tripMap : orderMap;
+  const c = map[s] || { bg: "#F3F4F6", fg: BRAND.textMuted };
 
-const modalTop = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  padding: "14px 16px",
-  borderBottom: "1px solid rgba(20, 80, 60, 0.10)",
-  background: "#FFFFFF",
-};
-
-const modalHeading = { fontSize: 22, fontWeight: 1000, margin: 0, letterSpacing: -0.4 };
-const modalHint = { marginTop: 4, color: "#2F6B55", fontWeight: 900, fontSize: 12 };
-
-const modalBody = {
-  padding: 14,
-  background: "linear-gradient(180deg, #FFFFFF 0%, #FBFFFD 100%)",
-  overflow: "auto",
-  boxSizing: "border-box",
-};
-
-const innerPanel = {
-  borderRadius: 20,
-  border: "1px solid rgba(20, 80, 60, 0.12)",
-  background: "#FFFFFF",
-  boxShadow: "0 14px 36px rgba(10, 40, 30, 0.08)",
-  padding: 14,
-  display: "flex",
-  flexDirection: "column",
-  minHeight: 0,
-  minWidth: 0,
-  boxSizing: "border-box",
-};
-
-const panelTitle = { fontSize: 18, fontWeight: 1000, margin: 0, letterSpacing: -0.2 };
-const panelSub = { marginTop: 4, color: "#2F6B55", fontWeight: 900, fontSize: 12 };
-
-const pillInput = {
-  height: 46,
-  padding: "0 16px",
-  borderRadius: 999,
-  border: "1px solid rgba(15, 60, 45, 0.16)",
-  outline: "none",
-  fontWeight: 900,
-  fontSize: 13,
-  color: "#0B2A1F",
-  background: "#FFFFFF",
-  boxShadow: "0 10px 22px rgba(10, 40, 30, 0.06)",
-  width: "100%",
-  boxSizing: "border-box",
-};
-
-const pillSelect = { ...pillInput, appearance: "none" };
-
-const truckListWrap = {
-  marginTop: 12,
-  display: "flex",
-  flexDirection: "column",
-  gap: 10,
-  overflow: "auto",
-  paddingRight: 6,
-  minHeight: 0,
-  flex: 1,
-};
-
-const truckCard = (active) => ({
-  borderRadius: 16,
-  border: active ? "2px solid rgba(34,197,94,0.55)" : "1px solid rgba(15, 60, 45, 0.12)",
-  background: active ? "#ECFDF3" : "linear-gradient(180deg, #FFFFFF 0%, #FBFFFD 100%)",
-  boxShadow: "0 10px 20px rgba(10, 40, 30, 0.06)",
-  padding: 12,
-  cursor: "pointer",
-});
-
-const truckPlate = { fontSize: 22, fontWeight: 1000, margin: 0, letterSpacing: -0.4 };
-const truckMeta = { marginTop: 4, color: "#2F6B55", fontWeight: 1000, fontSize: 12 };
-
-const modalFooterRight = {
-  marginTop: 12,
-  display: "flex",
-  justifyContent: "flex-end",
-  gap: 10,
-  flexWrap: "wrap",
-};
-
-const bigBtnGreen = {
-  ...btnGreen,
-  height: 46,
-  padding: "0 18px",
-  fontSize: 14,
-};
-
-const bigBtnGhost = {
-  ...btnGhost,
-  height: 46,
-  padding: "0 16px",
-  fontSize: 14,
-  boxShadow: "0 10px 22px rgba(10, 40, 30, 0.06)",
-};
-
-function fmtNum(n) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return "-";
-  return x % 1 === 0 ? String(x) : x.toFixed(2);
+  return (
+    <span
+      style={{
+        padding: "6px 12px",
+        borderRadius: 4,
+        background: c.bg,
+        color: c.fg,
+        fontWeight: 600,
+        fontSize: 12,
+        textTransform: "uppercase",
+        letterSpacing: "0.3px",
+      }}
+    >
+      {s.replaceAll("_", " ") || "—"}
+    </span>
+  );
 }
+
+function Button({ variant = "secondary", children, icon: Icon, size = "default", ...props }) {
+  const styles = {
+    primary: { background: BRAND.primary, color: BRAND.white, border: "none" },
+    secondary: { background: BRAND.white, color: BRAND.textLight, border: `1px solid ${BRAND.border}` },
+    danger: { background: BRAND.dangerBg, color: BRAND.danger, border: `1px solid ${BRAND.danger}20` },
+  };
+
+  const sizeStyles = {
+    small: { padding: "6px 12px", fontSize: 13 },
+    default: { padding: "10px 16px", fontSize: 14 },
+  };
+
+  const baseStyle = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 6,
+    fontWeight: 500,
+    cursor: props.disabled ? "not-allowed" : "pointer",
+    transition: "all 0.2s ease",
+    opacity: props.disabled ? 0.6 : 1,
+    ...styles[variant],
+    ...sizeStyles[size],
+  };
+
+  return (
+    <button
+      style={baseStyle}
+      onMouseEnter={(e) => {
+        if (!props.disabled) {
+          e.currentTarget.style.transform = "translateY(-1px)";
+          e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";
+        }
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.boxShadow = "none";
+      }}
+      {...props}
+    >
+      {Icon && <Icon size={size === "small" ? 14 : 16} />}
+      {children}
+    </button>
+  );
+}
+
+function Card({ children, style = {} }) {
+  return (
+    <div style={{ background: BRAND.white, borderRadius: 8, border: `1px solid ${BRAND.border}`, ...style }}>
+      {children}
+    </div>
+  );
+}
+
+function Input({ ...props }) {
+  return (
+    <input
+      style={{
+        width: "100%",
+        height: 44,
+        padding: "0 14px",
+        borderRadius: 6,
+        border: `1px solid ${BRAND.border}`,
+        outline: "none",
+        fontSize: 14,
+        fontWeight: 500,
+        color: BRAND.text,
+        background: BRAND.white,
+        boxSizing: "border-box",
+      }}
+      {...props}
+    />
+  );
+}
+
+function Select({ children, ...props }) {
+  return (
+    <select
+      style={{
+        width: "100%",
+        height: 44,
+        padding: "0 14px",
+        paddingRight: 36,
+        borderRadius: 6,
+        border: `1px solid ${BRAND.border}`,
+        outline: "none",
+        fontSize: 14,
+        fontWeight: 500,
+        color: BRAND.text,
+        background: BRAND.white,
+        appearance: "none",
+        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236B7280' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E")`,
+        backgroundRepeat: "no-repeat",
+        backgroundPosition: "right 12px center",
+        cursor: props.disabled ? "not-allowed" : "pointer",
+        boxSizing: "border-box",
+        opacity: props.disabled ? 0.7 : 1,
+      }}
+      {...props}
+    >
+      {children}
+    </select>
+  );
+}
+
+function Modal({ open, title, subtitle, onClose, children, width = 1100 }) {
+  if (!open) return null;
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0, 0, 0, 0.4)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+        zIndex: 9999,
+      }}
+      onMouseDown={onClose}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: width,
+          maxHeight: "90vh",
+          background: BRAND.white,
+          borderRadius: 12,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+        }}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            padding: "16px 20px",
+            borderBottom: `1px solid ${BRAND.border}`,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+          }}
+        >
+          <div>
+            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: BRAND.text }}>{title}</h3>
+            {subtitle && <p style={{ margin: "4px 0 0", fontSize: 13, color: BRAND.textMuted }}>{subtitle}</p>}
+          </div>
+          <Button variant="secondary" onClick={onClose}>
+            Close
+          </Button>
+        </div>
+        <div style={{ padding: 20, overflow: "auto", flex: 1 }}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function TabButton({ active, children, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: "10px 16px",
+        borderRadius: 6,
+        border: `1px solid ${active ? BRAND.primary : BRAND.border}`,
+        background: active ? BRAND.accent : BRAND.white,
+        color: active ? BRAND.primary : BRAND.textLight,
+        fontWeight: 500,
+        fontSize: 14,
+        cursor: "pointer",
+        transition: "all 0.2s ease",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+//////////////////////
+// MAIN COMPONENT
+//////////////////////
 
 export default function OrderDetail() {
   const { id } = useParams();
@@ -299,7 +314,6 @@ export default function OrderDetail() {
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
-
   const [order, setOrder] = useState(null);
 
   // tab
@@ -315,8 +329,6 @@ export default function OrderDetail() {
   const [selectedTruckId, setSelectedTruckId] = useState("");
   const [selectedDriverId, setSelectedDriverId] = useState("");
   const [plannedDepartAt, setPlannedDepartAt] = useState("");
-
-  // ✅ NEW: trip qty planned
   const [tripQty, setTripQty] = useState("");
 
   // proofs upload
@@ -342,7 +354,6 @@ export default function OrderDetail() {
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   async function loadDrivers() {
@@ -383,7 +394,6 @@ export default function OrderDetail() {
 
   const selectedTruck = useMemo(() => trucks.find((t) => t.id === selectedTruckId) || null, [trucks, selectedTruckId]);
 
-  // ✅ remaining calc (client-side)
   const usedPlanned = useMemo(() => {
     return (trips || [])
       .filter((t) => String(t.status || "").toUpperCase() !== "CANCELLED")
@@ -406,12 +416,10 @@ export default function OrderDetail() {
       if (!selectedTruckId) throw new Error("Please select a truck");
       if (!selectedDriverId) throw new Error("Please select a driver");
 
-      // ✅ If truck has assigned driver, enforce match
       if (truck?.driverUserId && selectedDriverId !== truck.driverUserId) {
         throw new Error("This truck already has an assigned driver. Please use the matched driver.");
       }
 
-      // ✅ If order has contract qty, require tripQty
       const needsQty = order?.qty != null;
       const qNum = tripQty ? Number(tripQty) : null;
 
@@ -425,7 +433,7 @@ export default function OrderDetail() {
           truckId: selectedTruckId,
           driverUserId: selectedDriverId,
           plannedDepartAt: plannedDepartAt ? new Date(plannedDepartAt).toISOString() : null,
-          qtyPlanned: needsQty ? qNum : (Number.isFinite(qNum) ? qNum : null),
+          qtyPlanned: needsQty ? qNum : Number.isFinite(qNum) ? qNum : null,
         }),
       });
 
@@ -486,27 +494,23 @@ export default function OrderDetail() {
 
   if (loading && !order) {
     return (
-      <div style={pageBg}>
-        <div style={container}>
-          <div style={panel}>Loading...</div>
-        </div>
+      <div data-testid="order-detail-loading">
+        <Card style={{ padding: 24 }}>
+          <div style={{ color: BRAND.textMuted }}>Loading...</div>
+        </Card>
       </div>
     );
   }
 
   if (err) {
     return (
-      <div style={pageBg}>
-        <div style={container}>
-          <div style={panel}>
-            <div style={{ fontWeight: 1000, color: "#B42318" }}>{err}</div>
-            <div style={{ marginTop: 12 }}>
-              <button style={btnGhost} onClick={() => nav("/orders")}>
-                Back
-              </button>
-            </div>
-          </div>
-        </div>
+      <div data-testid="order-detail-error">
+        <Card style={{ padding: 24 }}>
+          <div style={{ color: BRAND.danger, fontWeight: 600, marginBottom: 16 }}>{err}</div>
+          <Button variant="secondary" icon={FiArrowLeft} onClick={() => nav("/orders")}>
+            Back
+          </Button>
+        </Card>
       </div>
     );
   }
@@ -516,159 +520,147 @@ export default function OrderDetail() {
   const customerName = order.customer?.name || order.customerName || "-";
   const cargo = `${order.cargoName || "-"}${order.qty != null ? ` • ${order.qty} ${order.unit || ""}` : ""}`;
   const route = `${order.fromText || "-"} → ${order.toText || "-"}`;
-
   const linkedBackhauls = order.backhaulOrders || [];
   const backhaulOf = order.backhaulOfOrder;
 
-  const tabBtn = (key, label) => (
-    <button
-      style={{
-        ...btnGhost,
-        height: 40,
-        boxShadow: "none",
-        border: key === tab ? "1px solid rgba(34,197,94,0.45)" : "1px solid rgba(15, 60, 45, 0.18)",
-        background: key === tab ? "#E9FBF1" : "#FFFFFF",
-      }}
-      onClick={() => setTab(key)}
-    >
-      {label}
-    </button>
-  );
-
   return (
-    <div style={pageBg}>
-      <div style={container}>
-        <div style={panel}>
-          {/* Header */}
-          <div style={headerRow}>
-            <div>
-              <h1 style={title}>
-                {order.orderNo} — {customerName}
-              </h1>
+    <div data-testid="order-detail-page">
+      {/* Header */}
+      <div
+        style={{
+          marginBottom: 24,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+          gap: 16,
+        }}
+      >
+        <div>
+          <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: BRAND.text }}>
+            {order.orderNo} — {customerName}
+          </h1>
+          <p style={{ margin: "8px 0 0", fontSize: 14, color: BRAND.textMuted }}>
+            {route} • {cargo} • Planned: {fmtDate(order.plannedAt)}
+            {order.qty != null && (
+              <span style={{ fontWeight: 600, marginLeft: 8 }}>
+                • Remaining: {fmtNum(remaining)} {order.unit || ""}
+              </span>
+            )}
+          </p>
+          <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center" }}>
+            <StatusBadge status={order.status} />
+            {order.orderType && (
+              <span
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 4,
+                  background: BRAND.secondary,
+                  color: BRAND.textLight,
+                  fontWeight: 500,
+                  fontSize: 12,
+                }}
+              >
+                {String(order.orderType).replaceAll("_", " ")}
+              </span>
+            )}
+          </div>
+        </div>
 
-              <div style={subTitle}>
-                {route} • {cargo} • Planned: {fmtDate(order.plannedAt)}
-                {order.qty != null ? (
-                  <span style={{ marginLeft: 10, fontWeight: 1000 }}>
-                    • Remaining: {fmtNum(remaining)} {order.unit || ""}
-                  </span>
-                ) : null}
-              </div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <Button variant="secondary" icon={FiArrowLeft} onClick={() => nav("/orders")}>
+            Back
+          </Button>
 
-              <div style={{ marginTop: 10 }}>
-                <span style={statusBadgeStyle(order.status)}>{String(order.status).replaceAll("_", " ")}</span>
-                {order.orderType ? (
-                  <span style={{ ...badgeBase, marginLeft: 10, background: "#FFFFFF" }}>
-                    {String(order.orderType).replaceAll("_", " ")}
-                  </span>
-                ) : null}
-              </div>
-            </div>
+          {canWrite && (
+            <>
+              <Button variant="primary" icon={FiPlus} onClick={openAssignModal} disabled={order.status === "CANCELLED"}>
+                Assign Trip
+              </Button>
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button style={btnGhost} onClick={() => nav("/orders")}>
-                Back
-              </button>
-
-              {canWrite ? (
-                <>
-                  <button style={btnGreen} onClick={openAssignModal} disabled={order.status === "CANCELLED"}>
-                    + Assign Trip
-                  </button>
-
-                  {order.status === "CANCELLED" ? (
-                    <button style={btnGreen} onClick={() => patchOrderStatus("DRAFT")} title="Reopen order">
-                      Reopen
-                    </button>
-                  ) : (
-                    <>
-                      <button
-                        style={btnGhost}
-                        onClick={() => patchOrderStatus("CONFIRMED")}
-                        disabled={order.status === "CONFIRMED" || order.status === "COMPLETED"}
-                      >
-                        Confirm
-                      </button>
-
-                      <button
-                        style={btnDanger}
-                        onClick={() => patchOrderStatus("CANCELLED")}
-                        disabled={order.status === "COMPLETED"}
-                      >
-                        Cancel
-                      </button>
-                    </>
-                  )}
-                </>
+              {order.status === "CANCELLED" ? (
+                <Button variant="secondary" onClick={() => patchOrderStatus("DRAFT")}>
+                  Reopen
+                </Button>
               ) : (
-                <div style={{ ...badgeBase, background: "#FFFFFF" }}>{role}</div>
+                <>
+                  <Button
+                    variant="secondary"
+                    icon={FiCheck}
+                    onClick={() => patchOrderStatus("CONFIRMED")}
+                    disabled={order.status === "CONFIRMED" || order.status === "COMPLETED"}
+                  >
+                    Confirm
+                  </Button>
+                  <Button
+                    variant="danger"
+                    icon={FiX}
+                    onClick={() => patchOrderStatus("CANCELLED")}
+                    disabled={order.status === "COMPLETED"}
+                  >
+                    Cancel
+                  </Button>
+                </>
               )}
-            </div>
-          </div>
+            </>
+          )}
+        </div>
+      </div>
 
-          <div style={divider} />
+      <Card>
+        {/* Tabs */}
+        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${BRAND.border}`, display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <TabButton active={tab === "INFO"} onClick={() => setTab("INFO")}>
+            Info
+          </TabButton>
+          <TabButton active={tab === "PROOFS"} onClick={() => setTab("PROOFS")}>
+            Proofs ({proofs.length})
+          </TabButton>
+          <TabButton active={tab === "TRIPS"} onClick={() => setTab("TRIPS")}>
+            Trips ({trips.length})
+          </TabButton>
+          <TabButton active={tab === "BACKHAUL"} onClick={() => setTab("BACKHAUL")}>
+            Backhaul
+          </TabButton>
+        </div>
 
-          {/* Tabs */}
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
-            {tabBtn("INFO", "Info")}
-            {tabBtn("PROOFS", `Proofs (${proofs.length})`)}
-            {tabBtn("TRIPS", `Trips (${trips.length})`)}
-            {tabBtn("BACKHAUL", "Backhaul")}
-          </div>
-
-          {/* Content */}
-          <div style={{ marginTop: 14 }}>
-            {tab === "INFO" ? (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div style={{ ...panel, boxShadow: "none", borderRadius: 16 }}>
-                  <div style={{ fontWeight: 1000, marginBottom: 8 }}>Order Information</div>
-                  <div style={{ color: "#2F6B55", fontWeight: 900, fontSize: 13, lineHeight: 1.6 }}>
-                    <div>
-                      <b>Customer:</b> {customerName}
-                    </div>
-                    <div>
-                      <b>Cargo:</b> {cargo}
-                    </div>
-                    <div>
-                      <b>Route:</b> {route}
-                    </div>
-                    <div>
-                      <b>Planned:</b> {fmtDate(order.plannedAt)}
-                    </div>
-                    {order.qty != null ? (
-                      <div>
-                        <b>Remaining:</b> {fmtNum(remaining)} {order.unit || ""}
-                      </div>
-                    ) : null}
-                    <div>
-                      <b>Notes:</b> {order.notes || "-"}
-                    </div>
-                    <div>
-                      <b>Created:</b> {fmtDateTime(order.createdAt)}
-                    </div>
-                  </div>
+        {/* Tab Content */}
+        <div style={{ padding: 20 }}>
+          {tab === "INFO" && (
+            <div style={{ display: "grid", gridTemplateColumns: isNarrow ? "1fr" : "1fr 1fr", gap: 20 }}>
+              <div style={{ padding: 20, background: BRAND.secondary, borderRadius: 6 }}>
+                <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Order Information</div>
+                <div style={{ fontSize: 14, color: BRAND.textLight, lineHeight: 1.8 }}>
+                  <div><strong>Customer:</strong> {customerName}</div>
+                  <div><strong>Cargo:</strong> {cargo}</div>
+                  <div><strong>Route:</strong> {route}</div>
+                  <div><strong>Planned:</strong> {fmtDate(order.plannedAt)}</div>
+                  {order.qty != null && <div><strong>Remaining:</strong> {fmtNum(remaining)} {order.unit || ""}</div>}
+                  <div><strong>Notes:</strong> {order.notes || "-"}</div>
+                  <div><strong>Created:</strong> {fmtDateTime(order.createdAt)}</div>
                 </div>
+              </div>
 
-                <div style={{ ...panel, boxShadow: "none", borderRadius: 16 }}>
-                  <div style={{ fontWeight: 1000, marginBottom: 8 }}>Timeline</div>
-                  <div style={{ color: "#2F6B55", fontWeight: 900, fontSize: 13, lineHeight: 1.8 }}>
-                    <div>• DRAFT → CONFIRMED → IN_PROGRESS → COMPLETED</div>
-                    <div style={{ marginTop: 10, opacity: 0.9 }}>
-                      Current:{" "}
-                      <span style={statusBadgeStyle(order.status)}>{String(order.status).replaceAll("_", " ")}</span>
-                    </div>
-                    <div style={{ marginTop: 10, fontSize: 12, opacity: 0.9 }}>
-                      Trip updates will automatically push the order into IN_PROGRESS and COMPLETED.
-                    </div>
+              <div style={{ padding: 20, background: BRAND.secondary, borderRadius: 6 }}>
+                <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Timeline</div>
+                <div style={{ fontSize: 14, color: BRAND.textLight, lineHeight: 1.8 }}>
+                  <div>• DRAFT → CONFIRMED → IN_PROGRESS → COMPLETED</div>
+                  <div style={{ marginTop: 12 }}>
+                    Current: <StatusBadge status={order.status} />
+                  </div>
+                  <div style={{ marginTop: 12, fontSize: 13, color: BRAND.textMuted }}>
+                    Trip updates will automatically push the order into IN_PROGRESS and COMPLETED.
                   </div>
                 </div>
               </div>
-            ) : null}
+            </div>
+          )}
 
-            {tab === "PROOFS" ? (
-              <div>
-                {canWrite ? (
-                  <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          {tab === "PROOFS" && (
+            <div>
+              {canWrite && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                     <input
                       type="file"
                       multiple
@@ -681,7 +673,6 @@ export default function OrderDetail() {
                           if (!files.length) return;
 
                           setUploadingProofs(true);
-
                           const uploaded = await uploadFiles(files);
 
                           await api(`/orders/${id}/proofs`, {
@@ -707,27 +698,25 @@ export default function OrderDetail() {
                       style={{
                         height: 44,
                         padding: "10px 14px",
-                        borderRadius: 999,
-                        border: "1px solid rgba(15, 60, 45, 0.18)",
-                        fontWeight: 800,
-                        width: 360,
-                        boxShadow: "0 10px 22px rgba(10, 40, 30, 0.06)",
-                        background: "#FFFFFF",
-                        color: "#0B2A1F",
+                        borderRadius: 6,
+                        border: `1px solid ${BRAND.border}`,
+                        fontWeight: 500,
+                        maxWidth: 360,
+                        background: BRAND.white,
                       }}
                     />
-
-                    <div style={{ color: "#2F6B55", fontWeight: 900, fontSize: 12 }}>
+                    <span style={{ fontSize: 13, color: BRAND.textMuted }}>
                       {uploadingProofs ? "Uploading..." : "Select multiple images / PDFs"}
-                    </div>
-
-                    {uploadProofErr ? <div style={{ color: "#B42318", fontWeight: 900 }}>{uploadProofErr}</div> : null}
+                    </span>
                   </div>
-                ) : (
-                  <div style={{ color: "#2F6B55", fontWeight: 900 }}>Driver view: read-only proofs.</div>
-                )}
+                  {uploadProofErr && <div style={{ marginTop: 10, color: BRAND.danger, fontWeight: 500 }}>{uploadProofErr}</div>}
+                </div>
+              )}
 
-                <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+              {proofs.length === 0 ? (
+                <div style={{ color: BRAND.textMuted, fontSize: 14 }}>No proofs yet.</div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
                   {proofs.map((p) => {
                     const isPdf =
                       String(p.mimeType || "").toLowerCase().includes("pdf") ||
@@ -737,368 +726,317 @@ export default function OrderDetail() {
                       <div
                         key={p.id}
                         style={{
-                          borderRadius: 16,
-                          border: "1px solid rgba(15, 60, 45, 0.12)",
-                          background: "linear-gradient(180deg, #FFFFFF 0%, #FBFFFD 100%)",
-                          boxShadow: "0 12px 26px rgba(10, 40, 30, 0.06)",
-                          padding: 10,
+                          padding: 12,
+                          borderRadius: 6,
+                          border: `1px solid ${BRAND.border}`,
+                          background: BRAND.secondary,
                         }}
                       >
-                        <div style={{ fontWeight: 1000, fontSize: 12, color: "#2F6B55" }}>{fmtDateTime(p.createdAt)}</div>
+                        <div style={{ fontSize: 12, color: BRAND.textMuted, marginBottom: 8 }}>{fmtDateTime(p.createdAt)}</div>
 
                         {isPdf ? (
-                          <div style={{ marginTop: 10 }}>
-                            <div style={{ fontWeight: 1000 }}>PDF</div>
-                            <a href={p.url} target="_blank" rel="noreferrer" style={{ fontWeight: 900, color: "#0B2A1F" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <FiFile size={24} color={BRAND.textLight} />
+                            <a href={p.url} target="_blank" rel="noreferrer" style={{ color: BRAND.primary, fontWeight: 500 }}>
                               Open PDF
                             </a>
                           </div>
                         ) : (
                           <a href={p.url} target="_blank" rel="noreferrer">
-                            <img
-                              src={p.url}
-                              alt="proof"
-                              style={{ marginTop: 8, width: "100%", height: 150, objectFit: "cover", borderRadius: 12 }}
-                            />
+                            <img src={p.url} alt="proof" style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: 4 }} />
                           </a>
                         )}
 
-                        <div style={{ marginTop: 8, fontWeight: 900, fontSize: 12, color: "#2F6B55" }}>{p.fileName || ""}</div>
+                        {p.fileName && <div style={{ marginTop: 8, fontSize: 12, color: BRAND.textMuted }}>{p.fileName}</div>}
                       </div>
                     );
                   })}
                 </div>
+              )}
+            </div>
+          )}
 
-                {proofs.length === 0 ? (
-                  <div style={{ marginTop: 12, color: "#2F6B55", fontWeight: 900 }}>No proofs yet.</div>
-                ) : null}
-              </div>
-            ) : null}
-
-            {tab === "TRIPS" ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {trips.length === 0 ? (
-                  <div
-                    style={{
-                      padding: 16,
-                      borderRadius: 16,
-                      border: "1px dashed rgba(15, 60, 45, 0.20)",
-                      color: "#2F6B55",
-                      fontWeight: 900,
-                    }}
-                  >
-                    No trips yet. Click “Assign Trip” to create execution.
-                  </div>
-                ) : null}
-
-                {trips.map((t) => (
+          {tab === "TRIPS" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {trips.length === 0 ? (
+                <div style={{ padding: 20, borderRadius: 6, border: `1px dashed ${BRAND.border}`, color: BRAND.textMuted, textAlign: "center" }}>
+                  No trips yet. Click "Assign Trip" to create execution.
+                </div>
+              ) : (
+                trips.map((t) => (
                   <div
                     key={t.id}
                     style={{
-                      borderRadius: 18,
-                      border: "1px solid rgba(15, 60, 45, 0.12)",
-                      background: "linear-gradient(180deg, #FFFFFF 0%, #FBFFFD 100%)",
-                      boxShadow: "0 12px 26px rgba(10, 40, 30, 0.06)",
-                      padding: 14,
+                      padding: 16,
+                      borderRadius: 6,
+                      border: `1px solid ${BRAND.border}`,
+                      background: BRAND.secondary,
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
-                      gap: 12,
+                      gap: 16,
                       flexWrap: "wrap",
                     }}
                   >
                     <div>
-                      <div style={{ fontWeight: 1000, fontSize: 16 }}>
+                      <div style={{ fontSize: 15, fontWeight: 600, color: BRAND.text }}>
                         {t.truck?.plateNumber || t.plateNumberSnap || "-"} — {t.driverUser?.name || t.driverNameSnap || "-"}
                       </div>
-
-                      <div style={{ marginTop: 6, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                        <span style={tripBadgeStyle(t.status)}>{String(t.status).replaceAll("_", " ")}</span>
-
-                        {t.qtyPlanned != null ? (
-                          <span style={{ color: "#2F6B55", fontWeight: 900, fontSize: 12 }}>
+                      <div style={{ marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                        <StatusBadge status={t.status} type="trip" />
+                        {t.qtyPlanned != null && (
+                          <span style={{ fontSize: 13, color: BRAND.textMuted }}>
                             Qty: {fmtNum(t.qtyPlanned)} {t.unitSnap || order.unit || ""}
                           </span>
-                        ) : null}
-
-                        <span style={{ color: "#2F6B55", fontWeight: 900, fontSize: 12 }}>
-                          Planned: {fmtDateTime(t.plannedDepartAt)}
-                        </span>
-
-                        {t.dispatchedAt ? (
-                          <span style={{ color: "#2F6B55", fontWeight: 900, fontSize: 12 }}>
-                            Dispatched: {fmtDateTime(t.dispatchedAt)}
-                          </span>
-                        ) : null}
+                        )}
+                        <span style={{ fontSize: 13, color: BRAND.textMuted }}>Planned: {fmtDateTime(t.plannedDepartAt)}</span>
+                        {t.dispatchedAt && <span style={{ fontSize: 13, color: BRAND.textMuted }}>Dispatched: {fmtDateTime(t.dispatchedAt)}</span>}
                       </div>
 
                       {t.dispatchLetter?.pdfUrl ? (
-                        <div style={{ marginTop: 8, fontWeight: 900, color: "#0B2A1F", fontSize: 13 }}>
+                        <div style={{ marginTop: 8, fontSize: 13 }}>
                           Dispatch:{" "}
-                          <a href={t.dispatchLetter.pdfUrl} target="_blank" rel="noreferrer">
+                          <a href={t.dispatchLetter.pdfUrl} target="_blank" rel="noreferrer" style={{ color: BRAND.primary, fontWeight: 500 }}>
                             Open PDF
                           </a>{" "}
-                          <span style={{ color: "#2F6B55", fontWeight: 900, fontSize: 12 }}>({t.dispatchLetter.number})</span>
+                          <span style={{ color: BRAND.textMuted }}>({t.dispatchLetter.number})</span>
                         </div>
                       ) : (
-                        <div style={{ marginTop: 8, color: "#2F6B55", fontWeight: 900, fontSize: 12 }}>Dispatch letter not generated.</div>
+                        <div style={{ marginTop: 8, fontSize: 13, color: BRAND.textMuted }}>Dispatch letter not generated.</div>
                       )}
                     </div>
 
-                    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                      <button style={btnGhost} onClick={() => nav(`/trips/${t.id}`)} title="Open trip detail (optional page)">
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <Button variant="secondary" size="small" icon={FiExternalLink} onClick={() => nav(`/trips/${t.id}`)}>
                         Open Trip
-                      </button>
-
-                      {canWrite ? (
-                        <button style={btnGreen} onClick={() => generateDispatch(t.id)}>
-                          {t.dispatchLetter ? "Regenerate Dispatch" : "Generate Dispatch"}
-                        </button>
-                      ) : null}
+                      </Button>
+                      {canWrite && (
+                        <Button variant="primary" size="small" onClick={() => generateDispatch(t.id)}>
+                          {t.dispatchLetter ? "Regenerate" : "Generate"} Dispatch
+                        </Button>
+                      )}
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : null}
+                ))
+              )}
+            </div>
+          )}
 
-            {tab === "BACKHAUL" ? (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div style={{ ...panel, boxShadow: "none", borderRadius: 16 }}>
-                  <div style={{ fontWeight: 1000, marginBottom: 8 }}>Return / Backhaul</div>
-                  <div style={{ color: "#2F6B55", fontWeight: 900, fontSize: 13, lineHeight: 1.6 }}>
-                    <div>Use this when the truck returns with load from destination back to warehouse.</div>
-                    <div style={{ marginTop: 10 }}>
-                      <b>Current order type:</b> {order.orderType ? String(order.orderType) : "-"}
-                    </div>
-
-                    {backhaulOf ? (
-                      <div style={{ marginTop: 10 }}>
-                        <b>This order is a backhaul of:</b>{" "}
-                        <button
-                          style={{ ...btnGhost, height: 36, padding: "0 12px", boxShadow: "none" }}
-                          onClick={() => nav(`/orders/${backhaulOf.id}`)}
-                        >
-                          {backhaulOf.orderNo || "Open"}
-                        </button>
-                      </div>
-                    ) : null}
-
-                    {canWrite && !backhaulOf ? (
-                      <div style={{ marginTop: 14 }}>
-                        <button style={btnGreen} onClick={createBackhaul}>
-                          Create Return Order
-                        </button>
-                      </div>
-                    ) : null}
+          {tab === "BACKHAUL" && (
+            <div style={{ display: "grid", gridTemplateColumns: isNarrow ? "1fr" : "1fr 1fr", gap: 20 }}>
+              <div style={{ padding: 20, background: BRAND.secondary, borderRadius: 6 }}>
+                <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Return / Backhaul</div>
+                <div style={{ fontSize: 14, color: BRAND.textLight, lineHeight: 1.8 }}>
+                  <div>Use this when the truck returns with load from destination back to warehouse.</div>
+                  <div style={{ marginTop: 12 }}>
+                    <strong>Current order type:</strong> {order.orderType ? String(order.orderType) : "-"}
                   </div>
-                </div>
 
-                <div style={{ ...panel, boxShadow: "none", borderRadius: 16 }}>
-                  <div style={{ fontWeight: 1000, marginBottom: 8 }}>Linked Return Orders</div>
-                  {linkedBackhauls.length === 0 ? (
-                    <div style={{ color: "#2F6B55", fontWeight: 900, fontSize: 13 }}>No linked return orders yet.</div>
-                  ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {linkedBackhauls.map((b) => (
-                        <div
-                          key={b.id}
-                          style={{
-                            borderRadius: 16,
-                            border: "1px solid rgba(15, 60, 45, 0.12)",
-                            padding: 12,
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            gap: 10,
-                          }}
-                        >
-                          <div>
-                            <div style={{ fontWeight: 1000 }}>{b.orderNo}</div>
-                            <div style={{ color: "#2F6B55", fontWeight: 900, fontSize: 12 }}>
-                              {b.fromText || "-"} → {b.toText || "-"} • Planned {fmtDate(b.plannedAt)}
-                            </div>
-                          </div>
-                          <button style={btnGhost} onClick={() => nav(`/orders/${b.id}`)}>
-                            Open
-                          </button>
-                        </div>
-                      ))}
+                  {backhaulOf && (
+                    <div style={{ marginTop: 12 }}>
+                      <strong>This order is a backhaul of:</strong>{" "}
+                      <Button variant="secondary" size="small" onClick={() => nav(`/orders/${backhaulOf.id}`)}>
+                        {backhaulOf.orderNo || "Open"}
+                      </Button>
+                    </div>
+                  )}
+
+                  {canWrite && !backhaulOf && (
+                    <div style={{ marginTop: 16 }}>
+                      <Button variant="primary" icon={FiPlus} onClick={createBackhaul}>
+                        Create Return Order
+                      </Button>
                     </div>
                   )}
                 </div>
               </div>
-            ) : null}
-          </div>
-        </div>
-      </div>
 
-      {/* Assign Trip Modal */}
-      {showAssign ? (
-        <div style={modalOverlay} onMouseDown={() => setShowAssign(false)}>
-          <div style={modalCard} onMouseDown={(e) => e.stopPropagation()}>
-            <div style={modalTop}>
-              <div>
-                <h3 style={modalHeading}>Assign Truck & Driver</h3>
-                <div style={modalHint}>Truck must be READY. Driver must be ACTIVE and not on another active trip.</div>
-              </div>
-              <button style={btnGhost} onClick={() => setShowAssign(false)}>
-                Close
-              </button>
-            </div>
-
-            <div style={modalBody}>
-              {assignErr ? (
-                <div style={{ marginBottom: 10, color: "#B42318", fontWeight: 1000, fontSize: 13 }}>{assignErr}</div>
-              ) : null}
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: isNarrow ? "1fr" : "1.15fr 0.85fr",
-                  gap: 14,
-                  alignItems: "stretch",
-                  minWidth: 0,
-                }}
-              >
-                {/* LEFT */}
-                <div style={{ ...innerPanel, height: isNarrow ? "auto" : "62vh" }}>
-                  <div>
-                    <h4 style={panelTitle}>Pick Truck (search by plate)</h4>
-                    <div style={panelSub}>Only READY trucks can be selected</div>
-                  </div>
-
-                  <div style={{ marginTop: 10 }}>
-                    <input
-                      style={pillInput}
-                      placeholder="Search plate number..."
-                      value={truckQ}
-                      onChange={(e) => setTruckQ(e.target.value)}
-                    />
-                  </div>
-
-                  <div style={truckListWrap}>
-                    {filteredTrucks.map((t) => {
-                      const active = selectedTruckId === t.id;
-                      return (
-                        <div
-                          key={t.id}
-                          style={truckCard(active)}
-                          onClick={() => {
-                            setSelectedTruckId(t.id);
-
-                            // ✅ if truck already paired to a driver, force that driver
-                            if (t.driverUserId) setSelectedDriverId(t.driverUserId);
-                          }}
-                        >
-                          <p style={truckPlate}>{t.plateNumber}</p>
-                          <div style={truckMeta}>
-                            {t.brand || "-"} {t.model ? `• ${t.model}` : ""} • {t.status}
+              <div style={{ padding: 20, background: BRAND.secondary, borderRadius: 6 }}>
+                <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Linked Return Orders</div>
+                {linkedBackhauls.length === 0 ? (
+                  <div style={{ fontSize: 14, color: BRAND.textMuted }}>No linked return orders yet.</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {linkedBackhauls.map((b) => (
+                      <div
+                        key={b.id}
+                        style={{
+                          padding: 12,
+                          borderRadius: 6,
+                          border: `1px solid ${BRAND.border}`,
+                          background: BRAND.white,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 600, color: BRAND.text }}>{b.orderNo}</div>
+                          <div style={{ fontSize: 13, color: BRAND.textMuted }}>
+                            {b.fromText || "-"} → {b.toText || "-"} • Planned {fmtDate(b.plannedAt)}
                           </div>
                         </div>
-                      );
-                    })}
-
-                    {filteredTrucks.length === 0 ? (
-                      <div style={{ color: "#2F6B55", fontWeight: 900, padding: 8, fontSize: 13 }}>No READY trucks found.</div>
-                    ) : null}
-                  </div>
-                </div>
-
-                {/* RIGHT */}
-                <div style={{ ...innerPanel, height: isNarrow ? "auto" : "62vh" }}>
-                  <div>
-                    <h4 style={panelTitle}>Trip Info</h4>
-                    <div style={panelSub}>
-                      {order?.qty != null
-                        ? `Trip Qty is required. Remaining: ${fmtNum(remaining)} ${order.unit || ""}`
-                        : "Choose driver, trip qty (optional), and depart time (optional)"}
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-                    {/* ✅ NEW: Trip qty */}
-                    <input
-                      style={pillInput}
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder={`Trip Qty (${order.unit || "QTY"})`}
-                      value={tripQty}
-                      onChange={(e) => setTripQty(e.target.value)}
-                    />
-
-                    <select
-                      style={{
-                        ...pillSelect,
-                        opacity: selectedTruck?.driverUserId ? 0.75 : 1,
-                        cursor: selectedTruck?.driverUserId ? "not-allowed" : "pointer",
-                      }}
-                      value={selectedDriverId}
-                      onChange={(e) => setSelectedDriverId(e.target.value)}
-                      disabled={!!selectedTruck?.driverUserId}
-                    >
-                      <option value="">
-                        {selectedTruck?.driverUserId ? "Driver locked to truck" : "Select Driver (ACTIVE)"}
-                      </option>
-                      {drivers.map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.name || d.email}
-                        </option>
-                      ))}
-                    </select>
-
-                    {selectedTruck?.driverUserId ? (
-                      <div style={{ color: "#2F6B55", fontWeight: 900, fontSize: 12 }}>
-                        This truck is assigned to:{" "}
-                        <span style={{ color: "#0B2A1F" }}>
-                          {drivers.find((x) => x.id === selectedTruck.driverUserId)?.name || "Assigned driver"}
-                        </span>
+                        <Button variant="secondary" size="small" onClick={() => nav(`/orders/${b.id}`)}>
+                          Open
+                        </Button>
                       </div>
-                    ) : null}
-
-                    <input
-                      style={pillInput}
-                      type="datetime-local"
-                      value={plannedDepartAt}
-                      onChange={(e) => setPlannedDepartAt(e.target.value)}
-                    />
-
-                    {selectedTruckId ? (
-                      <div style={{ marginTop: 4, color: "#2F6B55", fontWeight: 900, fontSize: 12 }}>
-                        Selected truck:{" "}
-                        <span style={{ color: "#0B2A1F" }}>
-                          {trucks.find((x) => x.id === selectedTruckId)?.plateNumber || "-"}
-                        </span>
-                      </div>
-                    ) : null}
+                    ))}
                   </div>
-
-                  <div style={{ flex: 1 }} />
-
-                  <div style={modalFooterRight}>
-                    <button style={bigBtnGhost} onClick={() => setShowAssign(false)} disabled={assigning}>
-                      Cancel
-                    </button>
-
-                    <button
-                      style={bigBtnGreen}
-                      onClick={createTrip}
-                      disabled={
-                        assigning ||
-                        !selectedTruckId ||
-                        !selectedDriverId ||
-                        (order?.qty != null && !(Number.isFinite(Number(tripQty)) && Number(tripQty) > 0))
-                      }
-                    >
-                      {assigning ? "Creating..." : "Create Trip"}
-                    </button>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
-          </div>
+          )}
         </div>
-      ) : null}
+      </Card>
+
+      {/* Assign Trip Modal */}
+      <Modal
+        open={showAssign}
+        title="Assign Truck & Driver"
+        subtitle="Truck must be READY. Driver must be ACTIVE and not on another active trip."
+        onClose={() => setShowAssign(false)}
+      >
+        {assignErr && (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: 12,
+              borderRadius: 6,
+              background: BRAND.dangerBg,
+              color: BRAND.danger,
+              fontWeight: 500,
+              fontSize: 14,
+            }}
+          >
+            {assignErr}
+          </div>
+        )}
+
+        <div style={{ display: "grid", gridTemplateColumns: isNarrow ? "1fr" : "1.15fr 0.85fr", gap: 20 }}>
+          {/* LEFT - Truck Picker */}
+          <Card>
+            <div style={{ padding: 16 }}>
+              <div style={{ fontWeight: 600, marginBottom: 8, color: BRAND.text }}>Pick Truck</div>
+              <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>Only READY trucks can be selected</div>
+
+              <Input placeholder="Search plate number..." value={truckQ} onChange={(e) => setTruckQ(e.target.value)} />
+
+              <div style={{ marginTop: 12, maxHeight: isNarrow ? 200 : 350, overflow: "auto" }}>
+                {filteredTrucks.map((t) => {
+                  const active = selectedTruckId === t.id;
+                  return (
+                    <div
+                      key={t.id}
+                      style={{
+                        padding: 14,
+                        borderRadius: 6,
+                        border: `1px solid ${active ? BRAND.primary : BRAND.border}`,
+                        background: active ? BRAND.accent : BRAND.white,
+                        marginTop: 8,
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                      }}
+                      onClick={() => {
+                        setSelectedTruckId(t.id);
+                        if (t.driverUserId) setSelectedDriverId(t.driverUserId);
+                      }}
+                    >
+                      <div style={{ fontSize: 16, fontWeight: 600, color: BRAND.text }}>{t.plateNumber}</div>
+                      <div style={{ fontSize: 13, color: BRAND.textMuted, marginTop: 4 }}>
+                        {t.brand || "-"} {t.model ? `• ${t.model}` : ""} • {t.status}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {filteredTrucks.length === 0 && (
+                  <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>No READY trucks found.</div>
+                )}
+              </div>
+            </div>
+          </Card>
+
+          {/* RIGHT - Trip Info */}
+          <Card>
+            <div style={{ padding: 16 }}>
+              <div style={{ fontWeight: 600, marginBottom: 8, color: BRAND.text }}>Trip Info</div>
+              <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>
+                {order?.qty != null
+                  ? `Trip Qty is required. Remaining: ${fmtNum(remaining)} ${order.unit || ""}`
+                  : "Choose driver, trip qty (optional), and depart time (optional)"}
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder={`Trip Qty (${order.unit || "QTY"})`}
+                  value={tripQty}
+                  onChange={(e) => setTripQty(e.target.value)}
+                />
+
+                <Select
+                  value={selectedDriverId}
+                  onChange={(e) => setSelectedDriverId(e.target.value)}
+                  disabled={!!selectedTruck?.driverUserId}
+                >
+                  <option value="">
+                    {selectedTruck?.driverUserId ? "Driver locked to truck" : "Select Driver (ACTIVE)"}
+                  </option>
+                  {drivers.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name || d.email}
+                    </option>
+                  ))}
+                </Select>
+
+                {selectedTruck?.driverUserId && (
+                  <div style={{ fontSize: 13, color: BRAND.textMuted }}>
+                    This truck is assigned to:{" "}
+                    <span style={{ color: BRAND.text, fontWeight: 500 }}>
+                      {drivers.find((x) => x.id === selectedTruck.driverUserId)?.name || "Assigned driver"}
+                    </span>
+                  </div>
+                )}
+
+                <Input
+                  type="datetime-local"
+                  value={plannedDepartAt}
+                  onChange={(e) => setPlannedDepartAt(e.target.value)}
+                />
+
+                {selectedTruckId && (
+                  <div style={{ fontSize: 13, color: BRAND.textMuted }}>
+                    Selected truck:{" "}
+                    <span style={{ color: BRAND.text, fontWeight: 500 }}>
+                      {trucks.find((x) => x.id === selectedTruckId)?.plateNumber || "-"}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end", gap: 12 }}>
+                <Button variant="secondary" onClick={() => setShowAssign(false)} disabled={assigning}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={createTrip}
+                  disabled={
+                    assigning ||
+                    !selectedTruckId ||
+                    !selectedDriverId ||
+                    (order?.qty != null && !(Number.isFinite(Number(tripQty)) && Number(tripQty) > 0))
+                  }
+                >
+                  {assigning ? "Creating..." : "Create Trip"}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </Modal>
     </div>
   );
 }
