@@ -6,6 +6,7 @@ const router = express.Router();
 
 const allowedRoles = ["OWNER", "ADMIN", "STAFF"];
 const proofRoles = ["OWNER", "ADMIN", "STAFF"];
+const TRIP_EXPENSE_LIMIT = Number(process.env.TRIP_EXPENSE_LIMIT || 0);
 
 function ensureRole(req, res) {
   const role = req.user?.role;
@@ -57,14 +58,191 @@ router.get("/", authRequired, async (req, res) => {
       skip,
       take,
       include: {
+        trip: {
+          include: {
+            truck: true,
+            driverUser: true,
+            order: {
+              select: {
+                id: true,
+                orderNo: true,
+                customerName: true,
+                fromText: true,
+                toText: true,
+                status: true,
+              },
+            },
+          },
+        },
         createdBy: { select: { id: true, name: true, email: true } },
+        proofUploadedBy: { select: { id: true, name: true, email: true } },
         approvedBy: { select: { id: true, name: true, email: true } },
       },
     }),
     prisma.expense.count({ where }),
   ]);
 
-  res.json({ items, total, skip, take });
+  // duplicate detection: same tripId + same driver
+  const withDup = await Promise.all(
+    items.map(async (x) => {
+      const tripId = x.trip?.id || x.tripId;
+      const driverId = x.trip?.driverUserId || null;
+      if (!tripId || !driverId) return { ...x, duplicateFlag: false, duplicateCount: 0, duplicates: [] };
+
+      const duplicates = await prisma.expense.findMany({
+        where: { tripId, trip: { is: { driverUserId: driverId } } },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          createdAt: true,
+          amount: true,
+          currency: true,
+          reason: true,
+          status: true,
+          accountName: true,
+          accountNumber: true,
+          bankName: true,
+        },
+      });
+
+      return {
+        ...x,
+        duplicateFlag: duplicates.length > 1,
+        duplicateCount: duplicates.length,
+        duplicates,
+      };
+    })
+  );
+
+  res.json({ items: withDup, total, skip, take });
+});
+
+// Monthly report (HTML)
+// GET /expenses/report?month=YYYY-MM
+router.get("/report", authRequired, async (req, res) => {
+  if (!ensureRole(req, res)) return;
+
+  const month = cleanStr(req.query.month);
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+    return res.status(400).send("Invalid month format. Use YYYY-MM.");
+  }
+
+  const [yearStr, monthStr] = month.split("-");
+  const year = Number(yearStr);
+  const mon = Number(monthStr);
+  if (!Number.isFinite(year) || !Number.isFinite(mon) || mon < 1 || mon > 12) {
+    return res.status(400).send("Invalid month value.");
+  }
+
+  const start = new Date(year, mon - 1, 1, 0, 0, 0, 0);
+  const end = new Date(year, mon, 1, 0, 0, 0, 0);
+
+  const items = await prisma.expense.findMany({
+    where: { createdAt: { gte: start, lt: end } },
+    orderBy: { createdAt: "asc" },
+    include: {
+      trip: {
+        include: {
+          truck: true,
+          driverUser: true,
+          order: {
+            select: {
+              id: true,
+              orderNo: true,
+              customerName: true,
+              fromText: true,
+              toText: true,
+              status: true,
+            },
+          },
+        },
+      },
+      createdBy: { select: { id: true, name: true, email: true } },
+      proofUploadedBy: { select: { id: true, name: true, email: true } },
+      approvedBy: { select: { id: true, name: true, email: true } },
+    },
+  });
+
+  const total = items.reduce((sum, x) => sum + (x.amount || 0), 0);
+
+  const fmt = (v) =>
+    new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      maximumFractionDigits: 0,
+    }).format(v || 0);
+
+  const html = `
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Monthly Expense रिपोर्ट - ${month}</title>
+    <style>
+      body { font-family: Arial, sans-serif; color: #111; margin: 24px; }
+      h1 { margin: 0 0 8px; font-size: 22px; }
+      .sub { color: #555; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; font-size: 12px; }
+      th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
+      th { background: #f5f5f5; text-transform: uppercase; font-size: 11px; letter-spacing: .4px; }
+      .right { text-align: right; white-space: nowrap; }
+      .muted { color: #666; }
+      .footer { margin-top: 16px; font-weight: 700; }
+      @media print { body { margin: 10mm; } }
+    </style>
+  </head>
+  <body>
+    <h1>Expense Report</h1>
+    <div class="sub">Month: ${month}</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Trip</th>
+          <th>Driver</th>
+          <th>Truck</th>
+          <th>From → To</th>
+          <th>Reason</th>
+          <th>Method</th>
+          <th>Amount</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${
+          items.length
+            ? items
+                .map((x) => {
+                  const t = x.trip || {};
+                  const driver = t.driverUser?.name || t.driverNameSnap || "-";
+                  const truck = t.truck?.plateNumber || t.plateNumberSnap || "-";
+                  const from = t.order?.fromText || t.fromText || "-";
+                  const to = t.order?.toText || t.toText || "-";
+                  return `
+          <tr>
+            <td>${x.createdAt ? new Date(x.createdAt).toLocaleDateString() : "-"}</td>
+            <td class="muted">${t.id || "-"}</td>
+            <td>${driver}</td>
+            <td>${truck}</td>
+            <td>${from} → ${to}</td>
+            <td>${x.reason || "-"}</td>
+            <td>${x.paymentMethod || "-"}</td>
+            <td class="right">${fmt(x.amount)}</td>
+            <td>${x.status || "SUBMITTED"}</td>
+          </tr>`;
+                })
+                .join("")
+            : `<tr><td colspan="9">No expenses found for this month.</td></tr>`
+        }
+      </tbody>
+    </table>
+    <div class="footer">Total: ${fmt(total)}</div>
+  </body>
+</html>
+  `;
+
+  res.setHeader("Content-Type", "text/html");
+  res.send(html);
 });
 
 // Create expense
@@ -80,6 +258,7 @@ router.post("/", authRequired, async (req, res) => {
   const accountName = cleanStr(req.body.accountName);
   const accountNumber = cleanStr(req.body.accountNumber);
   const notes = cleanStr(req.body.notes);
+  const tripId = cleanStr(req.body.tripId);
 
   const allowedMethods = ["BANK_TRANSFER", "CASH", "OTHER"];
   if (!allowedMethods.includes(paymentMethod)) {
@@ -90,6 +269,16 @@ router.post("/", authRequired, async (req, res) => {
   }
   if (!reason) {
     return res.status(400).json({ error: "Reason is required" });
+  }
+  let trip = null;
+  if (tripId) {
+    trip = await prisma.trip.findUnique({
+      where: { id: tripId },
+      select: { id: true, driverUserId: true },
+    });
+    if (!trip) {
+      return res.status(404).json({ error: "Trip not found" });
+    }
   }
 
   const created = await prisma.expense.create({
@@ -104,15 +293,32 @@ router.post("/", authRequired, async (req, res) => {
       reason,
       clientName,
       notes,
+      tripId: tripId || null,
       createdById: req.user?.id,
     },
     include: {
+      trip: {
+        include: {
+          truck: true,
+          driverUser: true,
+          order: { select: { id: true, orderNo: true, customerName: true, fromText: true, toText: true, status: true } },
+        },
+      },
       createdBy: { select: { id: true, name: true, email: true } },
+      proofUploadedBy: { select: { id: true, name: true, email: true } },
       approvedBy: { select: { id: true, name: true, email: true } },
     },
   });
 
-  res.status(201).json(created);
+  let duplicateFlag = false;
+  if (trip?.id && trip?.driverUserId) {
+    const dupCount = await prisma.expense.count({
+      where: { tripId: trip.id, trip: { is: { driverUserId: trip.driverUserId } } },
+    });
+    duplicateFlag = dupCount > 1;
+  }
+
+  res.status(201).json({ ...created, duplicateFlag });
 });
 
 // Update expense
@@ -155,7 +361,15 @@ router.patch("/:id", authRequired, async (req, res) => {
       ...(notes !== undefined && { notes }),
     },
     include: {
+      trip: {
+        include: {
+          truck: true,
+          driverUser: true,
+          order: { select: { id: true, orderNo: true, customerName: true, fromText: true, toText: true, status: true } },
+        },
+      },
       createdBy: { select: { id: true, name: true, email: true } },
+      proofUploadedBy: { select: { id: true, name: true, email: true } },
       approvedBy: { select: { id: true, name: true, email: true } },
     },
   });
@@ -180,6 +394,18 @@ router.post("/:id/proof", authRequired, async (req, res) => {
     return res.status(400).json({ error: "proofUrl is required" });
   }
 
+  const existing = await prisma.expense.findUnique({
+    where: { id },
+    select: { id: true, status: true, createdById: true },
+  });
+  if (!existing) return res.status(404).json({ error: "Not found" });
+  if (existing.status !== "SUBMITTED") {
+    return res.status(400).json({ error: "Only SUBMITTED expenses can be marked as PAID" });
+  }
+  if (existing.createdById && existing.createdById === req.user?.id) {
+    return res.status(403).json({ error: "Maker-checker: uploader cannot be the creator" });
+  }
+
   const updated = await prisma.expense.update({
     where: { id },
     data: {
@@ -189,9 +415,18 @@ router.post("/:id/proof", authRequired, async (req, res) => {
       ...(Number.isFinite(proofSize) ? { proofSize: proofSize } : {}),
       status: "PAID",
       paidAt: new Date(),
+      proofUploadedById: req.user?.id,
     },
     include: {
+      trip: {
+        include: {
+          truck: true,
+          driverUser: true,
+          order: { select: { id: true, orderNo: true, customerName: true, fromText: true, toText: true, status: true } },
+        },
+      },
       createdBy: { select: { id: true, name: true, email: true } },
+      proofUploadedBy: { select: { id: true, name: true, email: true } },
       approvedBy: { select: { id: true, name: true, email: true } },
     },
   });
@@ -221,7 +456,15 @@ router.post("/:id/approve", authRequired, async (req, res) => {
       approvedById: req.user?.id,
     },
     include: {
+      trip: {
+        include: {
+          truck: true,
+          driverUser: true,
+          order: { select: { id: true, orderNo: true, customerName: true, fromText: true, toText: true, status: true } },
+        },
+      },
       createdBy: { select: { id: true, name: true, email: true } },
+      proofUploadedBy: { select: { id: true, name: true, email: true } },
       approvedBy: { select: { id: true, name: true, email: true } },
     },
   });

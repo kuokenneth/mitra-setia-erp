@@ -106,6 +106,7 @@ model User {
   sparePartAssignmentsCreated TruckSparePartAssignment[] @relation("SparePartAssignmentCreatedBy")
   expensesCreated             Expense[]                 @relation("ExpenseCreatedBy")
   expensesApproved            Expense[]                 @relation("ExpenseApprovedBy")
+  expensesProofed             Expense[]                 @relation("ExpenseProofBy")
 }
 
 model Driver {
@@ -210,6 +211,8 @@ model Trip {
   toText          String?
 
   dispatchLetter DispatchLetter?
+
+  expenses Expense[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -449,11 +452,17 @@ model Expense {
   clientName String?
   notes      String?
 
+  tripId String?
+  trip   Trip?  @relation(fields: [tripId], references: [id])
+
   proofUrl      String?
   proofFileName String?
   proofMimeType String?
   proofSize     Int?
   paidAt        DateTime?
+
+  proofUploadedById String?
+  proofUploadedBy   User? @relation("ExpenseProofBy", fields: [proofUploadedById], references: [id])
 
   createdById String?
   createdBy   User? @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
@@ -470,6 +479,8 @@ model Expense {
   @@index([accountName])
   @@index([accountNumber])
   @@index([clientName])
+  @@index([tripId])
+  @@index([proofUploadedById])
   @@index([createdById])
   @@index([approvedById])
   @@index([createdAt])

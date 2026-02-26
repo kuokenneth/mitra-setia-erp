@@ -444,7 +444,7 @@ router.post("/:id/trips", authRequired, async (req, res) => {
       }
 
       return createdTrip;
-    });
+    }, { maxWait: 5000, timeout: 15000 });
 
     const full = await prisma.trip.findUnique({
       where: { id: trip.id },

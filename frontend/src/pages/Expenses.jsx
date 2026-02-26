@@ -34,6 +34,9 @@ export default function Expenses() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+  const [trips, setTrips] = useState([]);
+  const [tripSearch, setTripSearch] = useState("");
+  const [tripLoading, setTripLoading] = useState(false);
 
   const [q, setQ] = useState("");
   const [methodFilter, setMethodFilter] = useState("");
@@ -58,6 +61,7 @@ export default function Expenses() {
   }, []);
 
   const [form, setForm] = useState({
+    tripId: "",
     paymentMethod: "BANK_TRANSFER",
     bankName: "",
     accountName: "",
@@ -71,11 +75,19 @@ export default function Expenses() {
 
   const [submitting, setSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailItem, setDetailItem] = useState(null);
+  const [reportMonth, setReportMonth] = useState(() => {
+    const d = new Date();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    return `${d.getFullYear()}-${m}`;
+  });
 
   const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/$/, "");
 
   function resetForm() {
     setForm({
+      tripId: "",
       paymentMethod: "BANK_TRANSFER",
       bankName: "",
       accountName: "",
@@ -122,6 +134,20 @@ export default function Expenses() {
     }
   }
 
+  async function loadTrips(search = "") {
+    setTripLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (search.trim()) params.set("q", search.trim());
+      const data = await api(`/trips?${params.toString()}`);
+      setTrips(data.items || []);
+    } catch (e) {
+      setErr(e.message || "Failed to load trips");
+    } finally {
+      setTripLoading(false);
+    }
+  }
+
   useEffect(() => {
     if (!allowed) return;
     load();
@@ -136,6 +162,14 @@ export default function Expenses() {
     return () => clearTimeout(t);
   }, [q]);
 
+  useEffect(() => {
+    if (!allowed) return;
+    const t = setTimeout(() => {
+      loadTrips(tripSearch);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [tripSearch]);
+
   async function onSubmit(e) {
     e.preventDefault();
     setSubmitting(true);
@@ -143,6 +177,7 @@ export default function Expenses() {
       await api("/expenses", {
         method: "POST",
         body: JSON.stringify({
+          tripId: form.tripId || undefined,
           paymentMethod: form.paymentMethod,
           bankName: form.bankName,
           accountName: form.accountName,
@@ -219,6 +254,43 @@ export default function Expenses() {
     }
   }
 
+  function openDetail(item) {
+    setDetailItem(item);
+    setDetailOpen(true);
+  }
+
+  async function openMonthlyReport(openInSameTab = false) {
+    if (!reportMonth) {
+      setErr("Select a month first");
+      return;
+    }
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/expenses/report?month=${reportMonth}`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+      });
+      const html = await res.text();
+      if (!res.ok) throw new Error(html || "Failed to generate report");
+      if (openInSameTab) {
+        document.open();
+        document.write(html);
+        document.close();
+        return;
+      }
+      const w = window.open("", "_blank");
+      if (!w) throw new Error("Popup blocked");
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+    } catch (e) {
+      setErr(e.message || "Failed to open report");
+    }
+  }
+
   const s = useMemo(() => makeStyles(isMobile), [isMobile]);
 
   if (!allowed) {
@@ -254,6 +326,17 @@ export default function Expenses() {
         </div>
         <div style={s.headerActions}>
           <span style={s.pill}>{total} total</span>
+          <div style={s.reportActions}>
+            <input
+              type="month"
+              value={reportMonth}
+              onChange={(e) => setReportMonth(e.target.value)}
+              style={s.monthInput}
+            />
+            <button style={s.secondaryBtn} onClick={() => openMonthlyReport(false)}>
+              Print Monthly
+            </button>
+          </div>
           <button style={s.primaryBtn} onClick={() => setShowModal(true)}>
             + New Expense
           </button>
@@ -322,12 +405,19 @@ export default function Expenses() {
             </thead>
             <tbody>
               {items.map((x) => (
-                <tr key={x.id}>
+                <tr key={x.id} style={s.rowClickable} onClick={() => openDetail(x)}>
                   <td style={s.td}>{x.createdAt ? new Date(x.createdAt).toLocaleDateString() : "-"}</td>
                   <td style={s.td}>
-                    <span style={{ ...s.statusPill, ...statusVariant(x.status) }}>
-                      {x.status || "SUBMITTED"}
-                    </span>
+                    <div style={s.statusStack}>
+                      <span style={{ ...s.statusPill, ...statusVariant(x.status) }}>
+                        {x.status || "SUBMITTED"}
+                      </span>
+                      {x.duplicateFlag ? (
+                        <span style={{ ...s.statusPill, ...s.dupPill }}>
+                          Duplicate{typeof x.duplicateCount === "number" ? ` (${x.duplicateCount})` : ""}
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
                   <td style={s.td}>{x.paymentMethod}</td>
                   <td style={s.tdSoft}>{x.bankName || "-"}</td>
@@ -344,12 +434,18 @@ export default function Expenses() {
                   <td style={s.td}>
                     <div style={s.actionsRow}>
                       {x.proofUrl ? (
-                        <a href={normalizeProofUrl(x.proofUrl)} target="_blank" rel="noreferrer" style={s.linkBtn}>
+                        <a
+                          href={normalizeProofUrl(x.proofUrl)}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={s.linkBtn}
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           View Proof
                         </a>
                       ) : null}
                       {canUploadProof && x.status === "SUBMITTED" && (
-                        <label style={s.linkBtn}>
+                        <label style={s.linkBtn} onClick={(e) => e.stopPropagation()}>
                           Upload Proof
                           <input
                             type="file"
@@ -371,11 +467,23 @@ export default function Expenses() {
                         </label>
                       )}
                       {canApprove && x.status === "PAID" && (
-                        <button style={s.approveBtn} onClick={() => onApprove(x.id)}>
+                        <button
+                          style={s.approveBtn}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onApprove(x.id);
+                          }}
+                        >
                           Approve
                         </button>
                       )}
-                      <button style={s.deleteBtn} onClick={() => onDelete(x.id)}>
+                      <button
+                        style={s.deleteBtn}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDelete(x.id);
+                        }}
+                      >
                         Delete
                       </button>
                     </div>
@@ -430,6 +538,36 @@ export default function Expenses() {
             </div>
             <form onSubmit={onSubmit}>
               <div style={s.formGrid}>
+                <div>
+                  <label style={s.label}>Trip (optional)</label>
+                  <input
+                    style={s.input}
+                    value={tripSearch}
+                    onChange={(e) => setTripSearch(e.target.value)}
+                    placeholder="Search trip by plate, driver, destination..."
+                  />
+                  <select
+                    value={form.tripId}
+                    onChange={(e) => onChangeForm("tripId", e.target.value)}
+                    style={{ ...s.select, marginTop: 8 }}
+                  >
+                    <option value="">
+                      {tripLoading ? "Loading trips..." : "Select a trip"}
+                    </option>
+                    {trips.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {(t.driverName || t.driverUser?.name || "Driver") +
+                          " • " +
+                          (t.truckPlate || t.truck?.plateNumber || "Truck") +
+                          " • " +
+                          (t.order?.fromText || t.fromText || "-") +
+                          " → " +
+                          (t.order?.toText || t.toText || "-")}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div>
                   <label style={s.label}>Payment Method</label>
                   <select
@@ -536,6 +674,117 @@ export default function Expenses() {
           </div>
         </div>
       )}
+
+      {detailOpen && detailItem && (
+        <div style={s.modalOverlay} onClick={() => setDetailOpen(false)}>
+          <div style={s.modalCard} onClick={(e) => e.stopPropagation()}>
+            <div style={s.modalHeader}>
+              <div style={s.modalTitle}>Expense Detail</div>
+              <button style={s.closeBtn} onClick={() => setDetailOpen(false)} aria-label="Close">
+                ✕
+              </button>
+            </div>
+            <div style={s.detailGrid}>
+              <div>
+                <div style={s.detailLabel}>Trip</div>
+                <div style={s.detailValue}>{detailItem.trip?.id || "-"}</div>
+              </div>
+              <div>
+                <div style={s.detailLabel}>Duplicate Flag</div>
+                <div style={s.detailValue}>{detailItem.duplicateFlag ? "Yes" : "No"}</div>
+              </div>
+              <div>
+                <div style={s.detailLabel}>Route</div>
+                <div style={s.detailValue}>
+                  {(detailItem.trip?.order?.fromText || detailItem.trip?.fromText || "-") +
+                    " → " +
+                    (detailItem.trip?.order?.toText || detailItem.trip?.toText || "-")}
+                </div>
+              </div>
+              <div>
+                <div style={s.detailLabel}>Driver</div>
+                <div style={s.detailValue}>
+                  {detailItem.trip?.driverUser?.name || detailItem.trip?.driverNameSnap || "-"}
+                </div>
+              </div>
+              <div>
+                <div style={s.detailLabel}>Truck</div>
+                <div style={s.detailValue}>
+                  {detailItem.trip?.truck?.plateNumber || detailItem.trip?.plateNumberSnap || "-"}
+                </div>
+              </div>
+              <div>
+                <div style={s.detailLabel}>Reason</div>
+                <div style={s.detailValue}>{detailItem.reason || "-"}</div>
+              </div>
+              <div>
+                <div style={s.detailLabel}>Amount</div>
+                <div style={s.detailValue}>
+                  {new Intl.NumberFormat(undefined, {
+                    style: "currency",
+                    currency: detailItem.currency || "IDR",
+                    maximumFractionDigits: 0,
+                  }).format(detailItem.amount || 0)}
+                </div>
+              </div>
+              <div>
+                <div style={s.detailLabel}>Status</div>
+                <div style={s.detailValue}>{detailItem.status || "SUBMITTED"}</div>
+              </div>
+              <div>
+                <div style={s.detailLabel}>Payment Method</div>
+                <div style={s.detailValue}>{detailItem.paymentMethod || "-"}</div>
+              </div>
+              <div>
+                <div style={s.detailLabel}>Bank</div>
+                <div style={s.detailValue}>{detailItem.bankName || "-"}</div>
+              </div>
+              <div>
+                <div style={s.detailLabel}>Account</div>
+                <div style={s.detailValue}>
+                  {detailItem.accountName || detailItem.accountNumber || "-"}
+                </div>
+              </div>
+              <div>
+                <div style={s.detailLabel}>Client</div>
+                <div style={s.detailValue}>{detailItem.clientName || "-"}</div>
+              </div>
+              <div>
+                <div style={s.detailLabel}>Notes</div>
+                <div style={s.detailValue}>{detailItem.notes || "-"}</div>
+              </div>
+              {detailItem.duplicateFlag && Array.isArray(detailItem.duplicates) ? (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <div style={s.detailLabel}>Duplicate With</div>
+                  <div style={s.dupList}>
+                    {detailItem.duplicates.map((d) => (
+                      <div key={d.id} style={s.dupItem}>
+                        <div style={s.dupRow}>
+                          <span style={s.dupId}>{d.id.slice(0, 8)}</span>
+                          <span style={s.dupAmount}>
+                            {new Intl.NumberFormat(undefined, {
+                              style: "currency",
+                              currency: d.currency || "IDR",
+                              maximumFractionDigits: 0,
+                            }).format(d.amount || 0)}
+                          </span>
+                        </div>
+                        <div style={s.dupMeta}>
+                          {d.createdAt ? new Date(d.createdAt).toLocaleDateString() : "-"} •{" "}
+                          {d.reason || "-"} • {d.status || "SUBMITTED"}
+                        </div>
+                        <div style={s.dupMeta}>
+                          {(d.bankName || "-") + " / " + (d.accountName || d.accountNumber || "-")}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -567,6 +816,21 @@ function makeStyles(isMobile) {
       gap: 10,
       alignItems: "center",
       flexWrap: "wrap",
+    },
+    reportActions: {
+      display: "flex",
+      gap: 8,
+      alignItems: "center",
+      flexWrap: "wrap",
+    },
+    monthInput: {
+      height: 38,
+      padding: "0 10px",
+      borderRadius: 6,
+      border: `1px solid ${BRAND.border}`,
+      background: BRAND.white,
+      color: BRAND.text,
+      fontSize: 13,
     },
     hTitle: {
       fontSize: 28,
@@ -673,7 +937,10 @@ function makeStyles(isMobile) {
       width: "100%",
       borderCollapse: "separate",
       borderSpacing: 0,
-      minWidth: 1000,
+      minWidth: 860,
+    },
+    rowClickable: {
+      cursor: "pointer",
     },
     th: {
       textAlign: "left",
@@ -721,6 +988,17 @@ function makeStyles(isMobile) {
       borderRadius: 4,
       fontSize: 12,
       fontWeight: 500,
+    },
+    statusStack: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      flexWrap: "wrap",
+    },
+    dupPill: {
+      border: "1px solid rgba(245, 158, 11, 0.4)",
+      background: "rgba(245, 158, 11, 0.15)",
+      color: "#92400E",
     },
     actionsRow: {
       display: "flex",
@@ -827,6 +1105,58 @@ function makeStyles(isMobile) {
       fontSize: 18,
       fontWeight: 600,
       color: BRAND.text,
+    },
+    detailGrid: {
+      display: "grid",
+      gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+      gap: 16,
+      padding: 16,
+    },
+    detailLabel: {
+      fontSize: 12,
+      color: BRAND.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: "0.4px",
+      marginBottom: 4,
+    },
+    detailValue: {
+      fontSize: 14,
+      color: BRAND.text,
+      fontWeight: 600,
+      lineHeight: 1.4,
+      wordBreak: "break-word",
+    },
+    dupList: {
+      display: "grid",
+      gap: 10,
+      marginTop: 6,
+    },
+    dupItem: {
+      border: `1px solid ${BRAND.border}`,
+      borderRadius: 6,
+      padding: 10,
+      background: BRAND.secondary,
+    },
+    dupRow: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+    },
+    dupId: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: BRAND.textMuted,
+    },
+    dupAmount: {
+      fontSize: 13,
+      fontWeight: 700,
+      color: BRAND.text,
+    },
+    dupMeta: {
+      marginTop: 4,
+      fontSize: 12,
+      color: BRAND.textMuted,
     },
     closeBtn: {
       width: 32,
