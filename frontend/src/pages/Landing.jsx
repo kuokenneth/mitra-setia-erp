@@ -1788,7 +1788,7 @@ export default function Landing() {
                 />
                 <div>
                   <div style={{ fontSize: 18, fontWeight: 700 }}>CV. Mitra Setia</div>
-                  <div style={{ fontSize: 12, opacity: 0.7 }}>Transport & Logistics</div>
+                  <div style={{ fontSize: 12, opacity: 0.7 }}>Transportasi & Logistik</div>
                 </div>
               </div>
               <p style={{ fontSize: 14, lineHeight: 1.8, opacity: 0.8, maxWidth: 350 }}>

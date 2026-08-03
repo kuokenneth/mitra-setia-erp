@@ -1,8 +1,8 @@
 export default function DriverJobs() {
   return (
     <div style={card}>
-      <h2 style={h2}>My Jobs</h2>
-      <p style={p}>List of delivery jobs assigned to you (coming next).</p>
+      <h2 style={h2}>Tugas Saya</h2>
+      <p style={p}>Daftar tugas pengiriman yang diberikan kepada Anda akan tampil di sini.</p>
     </div>
   );
 }

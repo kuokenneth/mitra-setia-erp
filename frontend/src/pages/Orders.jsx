@@ -306,7 +306,7 @@ export default function Orders() {
       const data = await api(`/orders${buildQuery()}`);
       setItems(data?.items || []);
     } catch (e) {
-      setErr(e?.message || "Failed to load orders");
+      setErr(e?.message || "Gagal memuat orders");
     } finally {
       setLoading(false);
     }
@@ -359,7 +359,7 @@ export default function Orders() {
     });
 
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.error || data?.message || "Upload failed");
+    if (!res.ok) throw new Error(data?.error || data?.message || "Gagal mengunggah");
     return data?.items || [];
   }
 
@@ -391,7 +391,7 @@ export default function Orders() {
       await load();
       nav(`/orders/${order.id}`);
     } catch (e) {
-      setCreateErr(e?.message || "Failed to create order");
+      setCreateErr(e?.message || "Gagal membuat order");
     } finally {
       setCreating(false);
     }
@@ -429,10 +429,10 @@ export default function Orders() {
             }}
             data-testid="new-order-btn"
           >
-            New Order
+            Pesanan Baru
           </Button>
         ) : (
-          <span style={{ fontSize: 13, color: BRAND.textMuted, fontWeight: 500 }}>Read-only access</span>
+          <span style={{ fontSize: 13, color: BRAND.textMuted, fontWeight: 500 }}>Akses hanya-baca</span>
         )}
       </div>
 
@@ -465,7 +465,7 @@ export default function Orders() {
               <Input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Search order no / destination / cargo..."
+                placeholder="Cari nomor pesanan / tujuan / muatan..."
                 data-testid="search-input"
               />
             </div>
@@ -475,7 +475,7 @@ export default function Orders() {
                 Status
               </label>
               <Select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="status-filter">
-                <option value="">All Status</option>
+                <option value="">Semua Status</option>
                 {statusOptions
                   .filter((x) => x)
                   .map((s) => (
@@ -508,7 +508,7 @@ export default function Orders() {
             </div>
 
             <Button variant="primary" onClick={load} disabled={loading} data-testid="apply-btn">
-              {loading ? "Loading..." : "Apply"}
+              {loading ? "Memuat..." : "Apply"}
             </Button>
 
             <Button
@@ -547,18 +547,18 @@ export default function Orders() {
             letterSpacing: "0.5px",
           }}
         >
-          <div>Order</div>
-          <div>Route</div>
-          <div>Cargo</div>
-          <div>Planned</div>
-          <div style={{ textAlign: "right" }}>Action</div>
+          <div>Pesanan</div>
+          <div>Rute</div>
+          <div>Muatan</div>
+          <div>Rencana</div>
+          <div style={{ textAlign: "right" }}>Tindakan</div>
         </div>
 
         {/* Order Rows */}
         <div style={{ padding: "8px 12px" }}>
           {items.length === 0 && !loading && (
             <div style={{ padding: 24, textAlign: "center", color: BRAND.textMuted, fontSize: 14 }}>
-              No orders found. Try changing filters.
+              Tidak ada orders ditemukan. Try changing filters.
             </div>
           )}
 
@@ -636,8 +636,8 @@ export default function Orders() {
       {/* Create Order Modal */}
       <Modal
         open={showCreate}
-        title="Create New Order"
-        subtitle="Fill the request, then you can assign trucks & generate dispatch letters."
+        title="Create Pesanan Baru"
+        subtitle="Isi permintaan, lalu tetapkan kendaraan dan buat surat jalan."
         onClose={() => !creating && setShowCreate(false)}
       >
         {createErr && (
@@ -767,7 +767,7 @@ export default function Orders() {
 
                   e.target.value = "";
                 } catch (err) {
-                  setUploadErr(err?.message || "Upload failed");
+                  setUploadErr(err?.message || "Gagal mengunggah");
                 } finally {
                   setUploading(false);
                 }
@@ -840,7 +840,7 @@ export default function Orders() {
           )}
 
           {proofs.length === 0 && (
-            <div style={{ marginTop: 10, fontSize: 13, color: BRAND.textMuted }}>No proofs uploaded yet.</div>
+            <div style={{ marginTop: 10, fontSize: 13, color: BRAND.textMuted }}>Belum ada bukti yang diunggah.</div>
           )}
         </div>
 
@@ -850,10 +850,10 @@ export default function Orders() {
             Cancel
           </Button>
           <Button variant="secondary" onClick={() => createOrder("DRAFT")} disabled={creating}>
-            {creating ? "Saving..." : "Save Draft"}
+            {creating ? "Menyimpan..." : "Save Draft"}
           </Button>
           <Button variant="primary" onClick={() => createOrder("CONFIRMED")} disabled={creating}>
-            {creating ? "Saving..." : "Confirm Order"}
+            {creating ? "Menyimpan..." : "Confirm Order"}
           </Button>
         </div>
       </Modal>

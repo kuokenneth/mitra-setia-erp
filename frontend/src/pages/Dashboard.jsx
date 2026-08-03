@@ -537,23 +537,23 @@ export default function Dashboard() {
             title="Today's Trips"
             action={
               <span style={{ fontSize: 13, fontWeight: 600, color: BRAND.primary }}>
-                {loading ? "Loading..." : `${todayTrips.length} trip(s)`}
+                {loading ? "Memuat..." : `${todayTrips.length} trip(s)`}
               </span>
             }
           >
             {loading ? (
-              <div style={{ color: BRAND.textMuted, fontSize: 14 }}>Loading trips...</div>
+              <div style={{ color: BRAND.textMuted, fontSize: 14 }}>Memuat perjalanan...</div>
             ) : todayTrips.length === 0 ? (
-              <div style={{ color: BRAND.textMuted, fontSize: 14 }}>No trips scheduled for today</div>
+              <div style={{ color: BRAND.textMuted, fontSize: 14 }}>Belum ada perjalanan terjadwal hari ini</div>
             ) : (
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }} data-testid="trips-table">
                   <thead>
                     <tr style={{ textAlign: "left", color: BRAND.textMuted, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                      <th style={{ padding: "0 12px 12px 0", fontWeight: 600 }}>Trip</th>
-                      <th style={{ padding: "0 12px 12px 0", fontWeight: 600 }}>Truck</th>
-                      <th style={{ padding: "0 12px 12px 0", fontWeight: 600 }}>Driver</th>
-                      <th style={{ padding: "0 12px 12px 0", fontWeight: 600 }}>Route</th>
+                      <th style={{ padding: "0 12px 12px 0", fontWeight: 600 }}>Perjalanan</th>
+                      <th style={{ padding: "0 12px 12px 0", fontWeight: 600 }}>Kendaraan</th>
+                      <th style={{ padding: "0 12px 12px 0", fontWeight: 600 }}>Pengemudi</th>
+                      <th style={{ padding: "0 12px 12px 0", fontWeight: 600 }}>Rute</th>
                       <th style={{ padding: "0 12px 12px 0", fontWeight: 600 }}>Status</th>
                     </tr>
                   </thead>
@@ -591,9 +591,9 @@ export default function Dashboard() {
           {/* TOP SPENDING TRUCKS */}
           <Card title="Top Spending Trucks (This Month)">
             {topSpendLoading ? (
-              <div style={{ color: BRAND.textMuted, fontSize: 14 }}>Calculating...</div>
+              <div style={{ color: BRAND.textMuted, fontSize: 14 }}>Menghitung...</div>
             ) : topSpend.length === 0 ? (
-              <div style={{ color: BRAND.textMuted, fontSize: 14 }}>No spending recorded yet.</div>
+              <div style={{ color: BRAND.textMuted, fontSize: 14 }}>Belum ada pengeluaran tercatat.</div>
             ) : (
               <div style={{ display: "grid", gap: 12 }} data-testid="top-spending">
                 {topSpend.map((x, idx) => (
@@ -651,7 +651,7 @@ export default function Dashboard() {
             <ProgressRow
               label="Fleet Utilization"
               value={pct(trucks.length ? (stats.activeTrucks / trucks.length) * 100 : 0)}
-              sub={`${stats.activeTrucks} active of ${trucks.length || 0} trucks`}
+              sub={`${stats.activeTrucks} active of ${trucks.length || 0} kendaraan`}
             />
             <ProgressRow
               label="Maintenance Load"
@@ -668,19 +668,19 @@ export default function Dashboard() {
           {/* QUICK ACTIONS */}
           <Card title="Quick Actions">
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-              <ActionBtn label="Create Trip" onClick={() => (window.location.href = "/trips")} icon={FiPlus} />
+              <ActionBtn label="Buat Perjalanan" onClick={() => (window.location.href = "/trips")} icon={FiPlus} />
               <ActionBtn label="Receive Stock" onClick={() => (window.location.href = "/inventory")} icon={FiPackage} />
               <ActionBtn label="Maintenance" onClick={() => (window.location.href = "/maintenance")} icon={FiTool} />
-              <ActionBtn label="Add Truck" onClick={() => (window.location.href = "/trucks")} icon={FiTruck} />
+              <ActionBtn label="Tambah Kendaraan" onClick={() => (window.location.href = "/trucks")} icon={FiTruck} />
             </div>
           </Card>
 
           {/* ALERTS */}
           <Card title="Alerts">
             {loading ? (
-              <div style={{ color: BRAND.textMuted, fontSize: 14 }}>Checking...</div>
+              <div style={{ color: BRAND.textMuted, fontSize: 14 }}>Memeriksa...</div>
             ) : alerts.length === 0 ? (
-              <div style={{ color: BRAND.success, fontSize: 14, fontWeight: 500 }}>No alerts</div>
+              <div style={{ color: BRAND.success, fontSize: 14, fontWeight: 500 }}>Tidak ada peringatan</div>
             ) : (
               <div style={{ display: "grid", gap: 10 }} data-testid="alerts-list">
                 {alerts.map((a, idx) => (
@@ -707,7 +707,7 @@ export default function Dashboard() {
           </Card>
 
           {/* MY ACCOUNT */}
-          <Card title="My Account">
+          <Card title="Akun Saya">
             <div style={{ fontSize: 14, lineHeight: 2, color: BRAND.textLight }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <FiUser size={14} color={BRAND.textMuted} />

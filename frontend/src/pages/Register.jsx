@@ -198,7 +198,7 @@ export default function Register() {
               />
               <div style={{ color: BRAND.white }}>
                 <div style={{ fontSize: 14, fontWeight: 700 }}>CV. Mitra Setia</div>
-                <div style={{ fontSize: 10, opacity: 0.8 }}>Transport & Logistics</div>
+                <div style={{ fontSize: 10, opacity: 0.8 }}>Transportasi & Logistik</div>
               </div>
             </div>
 
@@ -309,7 +309,7 @@ export default function Register() {
               />
               <div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: BRAND.text }}>CV. Mitra Setia</div>
-                <div style={{ fontSize: 11, color: BRAND.textMuted }}>Transport & Logistics</div>
+                <div style={{ fontSize: 11, color: BRAND.textMuted }}>Transportasi & Logistik</div>
               </div>
             </div>
           )}

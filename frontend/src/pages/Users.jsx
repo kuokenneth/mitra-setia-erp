@@ -65,7 +65,7 @@ export default function Users() {
       });
       setItems((prev) => prev.map((u) => (u.id === userId ? { ...u, status } : u)));
     } catch (e) {
-      alert("Failed to update status");
+      alert("Gagal memperbarui status");
     }
   }
 
@@ -114,7 +114,7 @@ export default function Users() {
         setTotal(data.total || rawItems.length);
       }
     } catch (e) {
-      setErr(e.message || "Failed to load users");
+      setErr(e.message || "Gagal memuat users");
     } finally {
       setLoading(false);
     }
@@ -138,11 +138,11 @@ export default function Users() {
     return (
       <div data-testid="users-page">
         <div style={s.header}>
-          <h1 style={s.title}>Users</h1>
-          <p style={s.subtitle}>You don't have permission to view this page.</p>
+          <h1 style={s.title}>Pengguna</h1>
+          <p style={s.subtitle}>Anda tidak memiliki izin untuk melihat halaman ini.</p>
         </div>
         <div style={s.card}>
-          <div style={s.alertErr}>Forbidden</div>
+          <div style={s.alertErr}>Akses Ditolak</div>
         </div>
       </div>
     );
@@ -155,8 +155,8 @@ export default function Users() {
       {/* Header */}
       <div style={s.headerRow}>
         <div>
-          <h1 style={s.title}>Users</h1>
-          <p style={s.subtitle}>All accounts in the system (excluding owners)</p>
+          <h1 style={s.title}>Pengguna</h1>
+          <p style={s.subtitle}>Seluruh akun dalam sistem (kecuali pemilik)</p>
         </div>
         <span style={s.badge}>{total} total</span>
       </div>
@@ -183,10 +183,10 @@ export default function Users() {
               style={s.select}
               data-testid="users-role-filter"
             >
-              <option value="">All roles</option>
-              <option value="ADMIN">ADMIN</option>
-              <option value="STAFF">STAFF</option>
-              <option value="DRIVER">DRIVER</option>
+              <option value="">Semua peran</option>
+              <option value="ADMIN">Admin</option>
+              <option value="STAFF">Staf</option>
+              <option value="DRIVER">Pengemudi</option>
             </select>
           </div>
 
@@ -202,12 +202,12 @@ export default function Users() {
           <table style={s.table}>
             <thead>
               <tr>
-                <th style={s.th}>Name</th>
+                <th style={s.th}>Nama</th>
                 <th style={s.th}>Email</th>
-                <th style={s.th}>Role</th>
-                <th style={s.th}>Phone</th>
+                <th style={s.th}>Peran</th>
+                <th style={s.th}>Telepon</th>
                 <th style={s.th}>Status</th>
-                <th style={s.th}>Created</th>
+                <th style={s.th}>Dibuat</th>
               </tr>
             </thead>
             <tbody>
@@ -236,9 +236,9 @@ export default function Users() {
                       style={{ ...s.statusSelect, ...statusVariant(u.status) }}
                       data-testid={`status-select-${u.id}`}
                     >
-                      <option value="ACTIVE">ACTIVE</option>
-                      <option value="BREAK">BREAK</option>
-                      <option value="INACTIVE">INACTIVE</option>
+                      <option value="ACTIVE">Aktif</option>
+                      <option value="BREAK">Istirahat</option>
+                      <option value="INACTIVE">Tidak Aktif</option>
                     </select>
                   </td>
                   <td style={s.td}>
@@ -250,7 +250,7 @@ export default function Users() {
               {!loading && items.length === 0 && (
                 <tr>
                   <td style={s.empty} colSpan={6}>
-                    No users found.
+                    Tidak ada users ditemukan.
                   </td>
                 </tr>
               )}
@@ -271,7 +271,7 @@ export default function Users() {
           </button>
 
           <div style={s.pageInfo}>
-            Page <strong>{page + 1}</strong> of <strong>{pageCount}</strong>
+            Halaman <strong>{page + 1}</strong> dari <strong>{pageCount}</strong>
           </div>
 
           <button

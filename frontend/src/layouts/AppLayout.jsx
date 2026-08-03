@@ -1,5 +1,5 @@
 // src/layouts/AppLayout.jsx - Corporate Minimalist Design
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   FiBarChart2,
@@ -13,6 +13,7 @@ import {
   FiUserPlus,
   FiLogOut,
   FiMenu,
+  FiShoppingCart,
   FiX,
 } from "react-icons/fi";
 import { useAuth } from "../AuthContext";
@@ -31,9 +32,54 @@ const BRAND = {
   border: "#E5E7EB",
 };
 
+function TopNavLinks({ menu, styles, navRef, onNavigate }) {
+  function keepMenuPosition() {
+    const element = navRef.current;
+    const scrollLeft = element?.scrollLeft || 0;
+
+    onNavigate?.();
+
+    if (element) {
+      requestAnimationFrame(() => {
+        element.scrollLeft = scrollLeft;
+        requestAnimationFrame(() => {
+          element.scrollLeft = scrollLeft;
+        });
+      });
+    }
+  }
+
+  return (
+    <nav
+      ref={navRef}
+      style={styles.topNav}
+      className="top-nav-scroll"
+      data-testid="app-navigation"
+    >
+      {menu.map((m) => (
+        <NavLink
+          key={m.to}
+          to={m.to}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={keepMenuPosition}
+          data-testid={`nav-link-${m.label.toLowerCase().replace(/\s+/g, '-')}`}
+          style={({ isActive }) => ({
+            ...styles.topNavItem,
+            ...(isActive ? styles.topNavActive : {}),
+          })}
+        >
+          <span style={styles.topNavIcon}>{m.icon ? <m.icon /> : "--"}</span>
+          <span>{m.label}</span>
+        </NavLink>
+      ))}
+    </nav>
+  );
+}
+
 export default function AppLayout() {
   const { user, logout } = useAuth();
   const nav = useNavigate();
+  const navScrollRef = useRef(null);
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() =>
@@ -64,47 +110,26 @@ export default function AppLayout() {
   const isDriver = role === "DRIVER";
 
   const menu = useMemo(() => {
-    if (isDriver) return [{ to: "/driver/jobs", label: "My Jobs", icon: FiClipboard }];
+    if (isDriver) return [{ to: "/driver/jobs", label: "Tugas Saya", icon: FiClipboard }];
 
     return [
       { to: "/dashboard", label: "Dashboard", icon: FiBarChart2 },
-      ...(isOwnerAdmin ? [{ to: "/users", label: "Users", icon: FiUser }] : []),
+      ...(isOwnerAdmin ? [{ to: "/users", label: "Pengguna", icon: FiUser }] : []),
       ...(canManageDrivers
-        ? [{ to: "/drivers/new", label: "Create Driver", icon: FiUserPlus }]
+        ? [{ to: "/drivers/new", label: "Tambah Pengemudi", icon: FiUserPlus }]
         : []),
-      { to: "/trucks", label: "Trucks", icon: FiTruck },
+      { to: "/trucks", label: "Armada", icon: FiTruck },
       { to: "/inventory", label: "Inventory", icon: FiBox },
-      { to: "/maintenance", label: "Maintenance", icon: FiTool },
-      { to: "/expenses", label: "Expenses", icon: FiDollarSign },
-      { to: "/orders", label: "Orders", icon: FiFileText },
+      { to: "/purchasing", label: "Pembelian", icon: FiShoppingCart },
+      { to: "/maintenance", label: "Servis", icon: FiTool },
+      { to: "/expenses", label: "Pengeluaran", icon: FiDollarSign },
+      { to: "/orders", label: "Pesanan", icon: FiFileText },
     ];
   }, [isDriver, isOwnerAdmin, canManageDrivers]);
 
   async function doLogout() {
     await logout();
     nav("/", { replace: true });
-  }
-
-  function TopNavLinks({ onNavigate }) {
-    return (
-      <nav style={s.topNav} className="top-nav-scroll" data-testid="app-navigation">
-        {menu.map((m) => (
-          <NavLink
-            key={m.to}
-            to={m.to}
-            onClick={onNavigate}
-            data-testid={`nav-link-${m.label.toLowerCase().replace(/\s+/g, '-')}`}
-            style={({ isActive }) => ({
-              ...s.topNavItem,
-              ...(isActive ? s.topNavActive : {}),
-            })}
-          >
-            <span style={s.topNavIcon}>{m.icon ? <m.icon /> : "--"}</span>
-            <span>{m.label}</span>
-          </NavLink>
-        ))}
-      </nav>
-    );
   }
 
   const s = {
@@ -148,8 +173,9 @@ export default function AppLayout() {
 
     topCenter: {
       display: "flex",
-      justifyContent: "center",
+      justifyContent: "flex-start",
       minWidth: 0,
+      overflow: "hidden",
     },
 
     brand: { display: "flex", alignItems: "center", gap: 12 },
@@ -166,11 +192,15 @@ export default function AppLayout() {
 
     topNav: {
       display: "flex",
+      width: "100%",
       gap: 4,
       alignItems: "center",
       flexWrap: "nowrap",
-      justifyContent: "center",
+      justifyContent: "flex-start",
       overflowX: "auto",
+      overflowAnchor: "none",
+      scrollBehavior: "auto",
+      WebkitOverflowScrolling: "touch",
       scrollbarWidth: "none",
       msOverflowStyle: "none",
     },
@@ -361,7 +391,7 @@ export default function AppLayout() {
 
             <div style={{ minWidth: 0, textAlign: "center", flex: 1 }}>
               <div style={s.mobileTitle}>Mitra Setia ERP</div>
-              <div style={s.mobileSub}>Operations Dashboard</div>
+              <div style={s.mobileSub}>Dasbor Operasional</div>
             </div>
 
             <span style={s.topRole}>{role}</span>
@@ -394,7 +424,12 @@ export default function AppLayout() {
                   </button>
                 </div>
                 <div style={s.drawerContent}>
-                  <TopNavLinks onNavigate={() => setMobileOpen(false)} />
+                  <TopNavLinks
+                    menu={menu}
+                    styles={s}
+                    navRef={navScrollRef}
+                    onNavigate={() => setMobileOpen(false)}
+                  />
                   <button
                     onClick={async () => {
                       await doLogout();
@@ -422,13 +457,13 @@ export default function AppLayout() {
                 <img src="/logo3.png" alt="Mitra Setia" style={s.brandLogo} />
                 <div style={{ minWidth: 0 }}>
                   <div style={s.brandTitle}>Mitra Setia ERP</div>
-                  <div style={s.brandSub}>Operations Management</div>
+                  <div style={s.brandSub}>Manajemen Operasional</div>
                 </div>
               </div>
             </div>
 
             <div style={s.topCenter}>
-              <TopNavLinks />
+              <TopNavLinks menu={menu} styles={s} navRef={navScrollRef} />
             </div>
 
             <div style={s.topRight}>

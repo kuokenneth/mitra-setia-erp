@@ -84,6 +84,28 @@ enum ExpenseStatus {
   APPROVED
 }
 
+enum PurchaseRequestStatus {
+  DRAFT
+  WAITING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  APPROVED
+  SENT_TO_SUPPLIER
+  PARTIALLY_RECEIVED
+  FULLY_RECEIVED
+}
+
+enum PurchasePaymentStatus {
+  UNPAID
+  WAITING_PAYMENT_APPROVAL
+  PARTIALLY_PAID
+  PAID
+}
+
 ////////////////////////////////////////////////////
 // MODELS
 ////////////////////////////////////////////////////
@@ -104,9 +126,141 @@ model User {
   trips          Trip[]
 
   sparePartAssignmentsCreated TruckSparePartAssignment[] @relation("SparePartAssignmentCreatedBy")
-  expensesCreated             Expense[]                 @relation("ExpenseCreatedBy")
-  expensesApproved            Expense[]                 @relation("ExpenseApprovedBy")
-  expensesProofed             Expense[]                 @relation("ExpenseProofBy")
+  expensesCreated             Expense[]                  @relation("ExpenseCreatedBy")
+  expensesApproved            Expense[]                  @relation("ExpenseApprovedBy")
+  expensesProofed             Expense[]                  @relation("ExpenseProofBy")
+  purchaseRequests            PurchaseRequest[]          @relation("PurchaseRequestCreatedBy")
+  purchaseRequestsApproved    PurchaseRequest[]          @relation("PurchaseRequestApprovedBy")
+  purchaseOrdersCreated       PurchaseOrder[]            @relation("PurchaseOrderCreatedBy")
+  goodsReceiptsCreated        GoodsReceipt[]             @relation("GoodsReceiptCreatedBy")
+  purchasePaymentsCreated     PurchasePayment[]          @relation("PurchasePaymentCreatedBy")
+  purchasePaymentsApproved    PurchasePayment[]          @relation("PurchasePaymentApprovedBy")
+}
+
+model Supplier {
+  id             String          @id @default(cuid())
+  name           String
+  phone          String?
+  email          String?
+  address        String?
+  bankName       String?
+  bankAccount    String?
+  createdAt      DateTime        @default(now())
+  purchaseOrders PurchaseOrder[]
+}
+
+model PurchaseRequest {
+  id             String                @id @default(cuid())
+  number         String                @unique
+  status         PurchaseRequestStatus @default(DRAFT)
+  urgency        String                @default("NORMAL")
+  purpose        String?
+  truckId        String?
+  reason         String
+  notes          String?
+  createdById    String
+  createdBy      User                  @relation("PurchaseRequestCreatedBy", fields: [createdById], references: [id])
+  approvedById   String?
+  approvedBy     User?                 @relation("PurchaseRequestApprovedBy", fields: [approvedById], references: [id])
+  approvedAt     DateTime?
+  approvalNotes  String?
+  items          PurchaseRequestItem[]
+  purchaseOrders PurchaseOrder[]
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@index([status])
+}
+
+model PurchaseRequestItem {
+  id          String          @id @default(cuid())
+  requestId   String
+  request     PurchaseRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  itemId      String
+  item        Item            @relation(fields: [itemId], references: [id])
+  originalQty Float
+  approvedQty Float?
+  notes       String?
+}
+
+model PurchaseOrder {
+  id               String              @id @default(cuid())
+  number           String              @unique
+  requestId        String
+  request          PurchaseRequest     @relation(fields: [requestId], references: [id])
+  supplierId       String
+  supplier         Supplier            @relation(fields: [supplierId], references: [id])
+  status           PurchaseOrderStatus @default(DRAFT)
+  tax              Int                 @default(0)
+  shippingCost     Int                 @default(0)
+  discount         Int                 @default(0)
+  paymentTerms     String?
+  deliveryAddress  String?
+  estimatedArrival DateTime?
+  createdById      String
+  createdBy        User                @relation("PurchaseOrderCreatedBy", fields: [createdById], references: [id])
+  items            PurchaseOrderItem[]
+  receipts         GoodsReceipt[]
+  payments         PurchasePayment[]
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([status])
+}
+
+model PurchaseOrderItem {
+  id              String             @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  itemId          String
+  item            Item               @relation(fields: [itemId], references: [id])
+  qty             Float
+  unitPrice       Int
+  receivedQty     Float              @default(0)
+  receiptItems    GoodsReceiptItem[]
+}
+
+model GoodsReceipt {
+  id              String             @id @default(cuid())
+  number          String             @unique
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id])
+  locationId      String
+  location        InventoryLocation  @relation(fields: [locationId], references: [id])
+  deliveryNote    String?
+  notes           String?
+  receivedAt      DateTime           @default(now())
+  createdById     String
+  createdBy       User               @relation("GoodsReceiptCreatedBy", fields: [createdById], references: [id])
+  items           GoodsReceiptItem[]
+}
+
+model GoodsReceiptItem {
+  id                  String            @id @default(cuid())
+  receiptId           String
+  receipt             GoodsReceipt      @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  purchaseOrderItemId String
+  purchaseOrderItem   PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id])
+  qty                 Float
+  condition           String            @default("GOOD")
+}
+
+model PurchasePayment {
+  id              String                @id @default(cuid())
+  number          String                @unique
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder         @relation(fields: [purchaseOrderId], references: [id])
+  amount          Int
+  method          String
+  reference       String?
+  status          PurchasePaymentStatus @default(WAITING_PAYMENT_APPROVAL)
+  paidAt          DateTime?
+  createdById     String
+  createdBy       User                  @relation("PurchasePaymentCreatedBy", fields: [createdById], references: [id])
+  approvedById    String?
+  approvedBy      User?                 @relation("PurchasePaymentApprovedBy", fields: [approvedById], references: [id])
+  approvedAt      DateTime?
+  createdAt       DateTime              @default(now())
 }
 
 model Driver {
@@ -374,9 +528,11 @@ model Item {
   isSerialized Boolean  @default(false)
   createdAt    DateTime @default(now())
 
-  stocks     InventoryStock[]
-  movements  StockMovement[]
-  stockUnits StockUnit[]
+  stocks               InventoryStock[]
+  movements            StockMovement[]
+  stockUnits           StockUnit[]
+  purchaseRequestItems PurchaseRequestItem[]
+  purchaseOrderItems   PurchaseOrderItem[]
 }
 
 model InventoryLocation {
@@ -388,7 +544,8 @@ model InventoryLocation {
   fromMoves StockMovement[]  @relation("FromLocation")
   toMoves   StockMovement[]  @relation("ToLocation")
 
-  stockUnits StockUnit[]
+  stockUnits    StockUnit[]
+  goodsReceipts GoodsReceipt[]
 }
 
 model InventoryStock {
@@ -439,7 +596,7 @@ model StockMovement {
 model Expense {
   id String @id @default(cuid())
 
-  status ExpenseStatus @default(SUBMITTED)
+  status        ExpenseStatus        @default(SUBMITTED)
   paymentMethod ExpensePaymentMethod @default(BANK_TRANSFER)
   bankName      String?
   accountName   String?
@@ -453,7 +610,7 @@ model Expense {
   notes      String?
 
   tripId String?
-  trip   Trip?  @relation(fields: [tripId], references: [id])
+  trip   Trip?   @relation(fields: [tripId], references: [id])
 
   proofUrl      String?
   proofFileName String?
@@ -462,13 +619,13 @@ model Expense {
   paidAt        DateTime?
 
   proofUploadedById String?
-  proofUploadedBy   User? @relation("ExpenseProofBy", fields: [proofUploadedById], references: [id])
+  proofUploadedBy   User?   @relation("ExpenseProofBy", fields: [proofUploadedById], references: [id])
 
   createdById String?
-  createdBy   User? @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+  createdBy   User?   @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
 
   approvedById String?
-  approvedBy   User? @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
+  approvedBy   User?     @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
   approvedAt   DateTime?
 
   createdAt DateTime @default(now())

@@ -129,7 +129,7 @@ export default function Trucks() {
 
       if (resetPage) setPage(1);
     } catch (e) {
-      setErr(e.message || "Failed to load trucks");
+      setErr(e.message || "Gagal memuat kendaraan");
     } finally {
       setLoading(false);
     }
@@ -151,7 +151,7 @@ export default function Trucks() {
       setMonthTotal(Number(r.monthTotalCost || 0));
       setMonthCurrency(r.monthCurrency || "IDR");
     } catch (e) {
-      setMovErr(e.message || "Failed to load spareparts");
+      setMovErr(e.message || "Gagal memuat spareparts");
       setAssignments([]);
     } finally {
       setAsgLoading(false);
@@ -209,7 +209,7 @@ export default function Trucks() {
       setShowAdd(false);
       await load({ resetPage: false });
     } catch (e) {
-      setErr(e.message || "Failed to create truck");
+      setErr(e.message || "Gagal membuat truck");
     } finally {
       setCreating(false);
     }
@@ -235,7 +235,7 @@ export default function Trucks() {
       });
       await load({ resetPage: false });
     } catch (e) {
-      alert(e.message || "Failed to update STNK expiry");
+      alert(e.message || "Gagal memperbarui STNK expiry");
     }
   }
 
@@ -265,11 +265,11 @@ export default function Trucks() {
     return (
       <div data-testid="trucks-page">
         <div style={s.header}>
-          <h1 style={s.title}>Trucks</h1>
-          <p style={s.subtitle}>You don't have permission to view this page.</p>
+          <h1 style={s.title}>Armada</h1>
+          <p style={s.subtitle}>Anda tidak memiliki izin untuk melihat halaman ini.</p>
         </div>
         <div style={s.card}>
-          <div style={s.alertErr}>Forbidden</div>
+          <div style={s.alertErr}>Akses Ditolak</div>
         </div>
       </div>
     );
@@ -280,14 +280,14 @@ export default function Trucks() {
       {/* Header */}
       <div style={s.headerRow}>
         <div>
-          <h1 style={s.title}>Trucks</h1>
-          <p style={s.subtitle}>Manage fleet and assign drivers</p>
+          <h1 style={s.title}>Armada</h1>
+          <p style={s.subtitle}>Kelola armada dan penugasan pengemudi</p>
         </div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <button onClick={() => setShowAdd(true)} style={s.primaryBtn} data-testid="add-truck-btn">
             <FiPlus size={16} />
-            Add Truck
+            Tambah Kendaraan
           </button>
           <button onClick={() => load({ resetPage: false })} disabled={loading} style={s.secondaryBtn} data-testid="refresh-btn">
             <FiRefreshCw size={16} />
@@ -302,8 +302,8 @@ export default function Trucks() {
       <div style={s.card}>
         <div style={s.cardHeaderRow}>
           <div>
-            <h2 style={s.cardTitle}>Fleet</h2>
-            <p style={s.cardSubtitle}>Click a truck row to see sparepart usage.</p>
+            <h2 style={s.cardTitle}>Daftar Armada</h2>
+            <p style={s.cardSubtitle}>Klik baris kendaraan untuk melihat pemakaian suku cadang.</p>
           </div>
 
           <form onSubmit={onSearch} style={s.searchRow}>
@@ -326,7 +326,7 @@ export default function Trucks() {
         {/* Pagination Bar */}
         <div style={s.paginationBar}>
           <span style={s.paginationText}>
-            Showing <strong>{pagedItems.length}</strong> of <strong>{items.length}</strong> trucks
+            Menampilkan <strong>{pagedItems.length}</strong> dari <strong>{items.length}</strong> kendaraan
           </span>
 
           <div style={s.paginationBtns}>
@@ -341,7 +341,7 @@ export default function Trucks() {
             </button>
 
             <span style={s.pageInfo}>
-              Page <strong>{page}</strong> / <strong>{totalPages}</strong>
+              Halaman <strong>{page}</strong> / <strong>{totalPages}</strong>
             </span>
 
             <button
@@ -361,12 +361,12 @@ export default function Trucks() {
           <table style={s.table}>
             <thead>
               <tr>
-                <th style={s.th}>Plate</th>
-                <th style={s.th}>Vehicle</th>
+                <th style={s.th}>Nomor Polisi</th>
+                <th style={s.th}>Kendaraan</th>
                 <th style={s.th}>Status</th>
-                <th style={s.th}>Assigned Driver</th>
-                <th style={s.th}>STNK Expiry</th>
-                <th style={s.th}>Created</th>
+                <th style={s.th}>Pengemudi Bertugas</th>
+                <th style={s.th}>Masa Berlaku STNK</th>
+                <th style={s.th}>Dibuat</th>
               </tr>
             </thead>
             <tbody>
@@ -431,14 +431,14 @@ export default function Trucks() {
 
               {!loading && pagedItems.length === 0 && (
                 <tr>
-                  <td style={s.empty} colSpan={6}>No trucks found.</td>
+                  <td style={s.empty} colSpan={6}>Tidak ada kendaraan ditemukan.</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
 
-        <p style={s.footerNote}>Only OWNER/ADMIN/STAFF can manage trucks.</p>
+        <p style={s.footerNote}>Only OWNER/ADMIN/STAFF can mengelola armada.</p>
       </div>
 
       {/* Sparepart Movements Panel */}
@@ -449,7 +449,7 @@ export default function Trucks() {
               <h2 style={s.cardTitle}>
                 Sparepart Movements — <strong>{selectedTruck.plateNumber}</strong>
               </h2>
-              <p style={s.cardSubtitle}>Shows spareparts used/recorded for this truck.</p>
+              <p style={s.cardSubtitle}>Menampilkan riwayat suku cadang kendaraan ini.</p>
             </div>
 
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -478,8 +478,8 @@ export default function Trucks() {
               <input type="date" style={s.dateInput} value={movTo} onChange={(e) => setMovTo(e.target.value)} />
             </div>
 
-            <button style={s.primaryBtnSmall} disabled={asgLoading} onClick={() => loadAssignments(selectedTruck.id)}>Apply</button>
-            <button style={s.ghostBtn} disabled={asgLoading} onClick={() => { setMovQ(""); setMovFrom(""); setMovTo(""); loadAssignments(selectedTruck.id); }}>Reset</button>
+            <button style={s.primaryBtnSmall} disabled={asgLoading} onClick={() => loadAssignments(selectedTruck.id)}>Terapkan</button>
+            <button style={s.ghostBtn} disabled={asgLoading} onClick={() => { setMovQ(""); setMovFrom(""); setMovTo(""); loadAssignments(selectedTruck.id); }}>Atur Ulang</button>
 
             <span style={s.monthBadge}>
               This month: {fmtMoney(monthTotal, monthCurrency)}
@@ -492,19 +492,19 @@ export default function Trucks() {
             <table style={{ ...s.table, minWidth: 900 }}>
               <thead>
                 <tr>
-                  <th style={s.th}>Installed</th>
-                  <th style={s.th}>Removed</th>
-                  <th style={s.th}>Item</th>
+                  <th style={s.th}>Dipasang</th>
+                  <th style={s.th}>Dilepas</th>
+                  <th style={s.th}>Barang</th>
                   <th style={s.th}>Serial / Barcode</th>
                   <th style={s.th}>Status</th>
-                  <th style={s.th}>Note</th>
+                  <th style={s.th}>Catatan</th>
                 </tr>
               </thead>
               <tbody>
                 {asgLoading ? (
                   <tr><td style={s.empty} colSpan={6}>Loading spareparts…</td></tr>
                 ) : assignments.length === 0 ? (
-                  <tr><td style={s.empty} colSpan={6}>No spareparts history for this truck.</td></tr>
+                  <tr><td style={s.empty} colSpan={6}>Belum ada riwayat suku cadang kendaraan ini.</td></tr>
                 ) : (
                   assignments.map((a) => (
                     <tr key={a.id} style={s.tr}>
@@ -536,14 +536,14 @@ export default function Trucks() {
         </div>
       )}
 
-      {/* Add Truck Modal */}
+      {/* Tambah Kendaraan Modal */}
       {showAdd && (
         <div style={s.modalOverlay} onClick={() => setShowAdd(false)} data-testid="add-truck-modal">
           <div style={s.modalCard} onClick={(e) => e.stopPropagation()}>
             <div style={s.modalHeader}>
               <div>
-                <h3 style={s.modalTitle}>Add Truck</h3>
-                <p style={s.modalSubtitle}>Add a new vehicle into the company fleet.</p>
+                <h3 style={s.modalTitle}>Tambah Kendaraan</h3>
+                <p style={s.modalSubtitle}>Tambahkan kendaraan baru ke armada perusahaan.</p>
               </div>
               <button style={s.modalClose} onClick={() => setShowAdd(false)} data-testid="close-modal-btn">
                 <FiX size={18} />
@@ -570,9 +570,9 @@ export default function Trucks() {
                 </Field>
                 <Field label="Status">
                   <select style={s.select} value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>
-                    <option value="READY">READY</option>
-                    <option value="MAINTENANCE">MAINTENANCE</option>
-                    <option value="INACTIVE">INACTIVE</option>
+                    <option value="READY">Siap</option>
+                    <option value="MAINTENANCE">Perawatan</option>
+                    <option value="INACTIVE">Tidak Aktif</option>
                   </select>
                 </Field>
               </div>
@@ -581,7 +581,7 @@ export default function Trucks() {
                 <input style={s.input} value={form.vin} onChange={(e) => setForm((f) => ({ ...f, vin: e.target.value }))} placeholder="Vehicle identification number" />
               </Field>
 
-              <Field label="STNK Expiry Date">
+              <Field label="Masa Berlaku STNK Date">
                 <input type="date" style={s.input} value={form.stnkExpiry || ""} onChange={(e) => setForm((f) => ({ ...f, stnkExpiry: e.target.value }))} />
               </Field>
 
@@ -593,9 +593,9 @@ export default function Trucks() {
 
               <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
                 <button type="submit" disabled={creating} style={{ ...s.primaryBtn, flex: 1, opacity: creating ? 0.7 : 1 }} data-testid="submit-truck-btn">
-                  {creating ? "Adding…" : "Add Truck"}
+                  {creating ? "Adding…" : "Tambah Kendaraan"}
                 </button>
-                <button type="button" onClick={() => setShowAdd(false)} style={s.ghostBtn}>Cancel</button>
+                <button type="button" onClick={() => setShowAdd(false)} style={s.ghostBtn}>Batal</button>
               </div>
 
               <p style={s.tip}>Tip: You can assign a driver later from the fleet table.</p>

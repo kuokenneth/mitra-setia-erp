@@ -68,7 +68,7 @@ async function uploadFiles(fileList) {
   });
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || data?.message || "Upload failed");
+  if (!res.ok) throw new Error(data?.error || data?.message || "Gagal mengunggah");
   return data?.items || [];
 }
 
@@ -346,7 +346,7 @@ export default function OrderDetail() {
       const data = await api(`/orders/${id}`);
       setOrder(data);
     } catch (e) {
-      setErr(e?.message || "Failed to load order");
+      setErr(e?.message || "Gagal memuat order");
     } finally {
       setLoading(false);
     }
@@ -382,7 +382,7 @@ export default function OrderDetail() {
     try {
       await Promise.all([loadDrivers(), loadTrucks("")]);
     } catch (e) {
-      setAssignErr(e?.message || "Failed to load drivers/trucks");
+      setAssignErr(e?.message || "Gagal memuat drivers/trucks");
     }
   }
 
@@ -440,7 +440,7 @@ export default function OrderDetail() {
       setShowAssign(false);
       await load();
     } catch (e) {
-      setAssignErr(e?.message || "Failed to create trip");
+      setAssignErr(e?.message || "Gagal membuat trip");
     } finally {
       setAssigning(false);
     }
@@ -476,7 +476,7 @@ export default function OrderDetail() {
 
       nav(`/orders/${data.id}`);
     } catch (e) {
-      alert(e?.message || "Failed to create backhaul order");
+      alert(e?.message || "Gagal membuat backhaul order");
     }
   }
 
@@ -488,7 +488,7 @@ export default function OrderDetail() {
       });
       await load();
     } catch (e) {
-      alert(e?.message || "Failed to update order");
+      alert(e?.message || "Gagal memperbarui order");
     }
   }
 
@@ -496,7 +496,7 @@ export default function OrderDetail() {
     return (
       <div data-testid="order-detail-loading">
         <Card style={{ padding: 24 }}>
-          <div style={{ color: BRAND.textMuted }}>Loading...</div>
+          <div style={{ color: BRAND.textMuted }}>Memuat...</div>
         </Card>
       </div>
     );
@@ -629,7 +629,7 @@ export default function OrderDetail() {
           {tab === "INFO" && (
             <div style={{ display: "grid", gridTemplateColumns: isNarrow ? "1fr" : "1fr 1fr", gap: 20 }}>
               <div style={{ padding: 20, background: BRAND.secondary, borderRadius: 6 }}>
-                <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Order Information</div>
+                <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Informasi Pesanan</div>
                 <div style={{ fontSize: 14, color: BRAND.textLight, lineHeight: 1.8 }}>
                   <div><strong>Customer:</strong> {customerName}</div>
                   <div><strong>Cargo:</strong> {cargo}</div>
@@ -642,7 +642,7 @@ export default function OrderDetail() {
               </div>
 
               <div style={{ padding: 20, background: BRAND.secondary, borderRadius: 6 }}>
-                <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Timeline</div>
+                <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Linimasa</div>
                 <div style={{ fontSize: 14, color: BRAND.textLight, lineHeight: 1.8 }}>
                   <div>• DRAFT → CONFIRMED → IN_PROGRESS → COMPLETED</div>
                   <div style={{ marginTop: 12 }}>
@@ -690,7 +690,7 @@ export default function OrderDetail() {
                           e.target.value = "";
                           await load();
                         } catch (err) {
-                          setUploadProofErr(err?.message || "Upload failed");
+                          setUploadProofErr(err?.message || "Gagal mengunggah");
                         } finally {
                           setUploadingProofs(false);
                         }
@@ -714,7 +714,7 @@ export default function OrderDetail() {
               )}
 
               {proofs.length === 0 ? (
-                <div style={{ color: BRAND.textMuted, fontSize: 14 }}>No proofs yet.</div>
+                <div style={{ color: BRAND.textMuted, fontSize: 14 }}>Belum ada bukti.</div>
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
                   {proofs.map((p) => {
@@ -760,7 +760,7 @@ export default function OrderDetail() {
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {trips.length === 0 ? (
                 <div style={{ padding: 20, borderRadius: 6, border: `1px dashed ${BRAND.border}`, color: BRAND.textMuted, textAlign: "center" }}>
-                  No trips yet. Click "Assign Trip" to create execution.
+                  Belum ada perjalanan. Klik "Tetapkan Perjalanan" untuk membuatnya.
                 </div>
               ) : (
                 trips.map((t) => (
@@ -802,7 +802,7 @@ export default function OrderDetail() {
                           <span style={{ color: BRAND.textMuted }}>({t.dispatchLetter.number})</span>
                         </div>
                       ) : (
-                        <div style={{ marginTop: 8, fontSize: 13, color: BRAND.textMuted }}>Dispatch letter not generated.</div>
+                        <div style={{ marginTop: 8, fontSize: 13, color: BRAND.textMuted }}>Surat jalan belum dibuat.</div>
                       )}
                     </div>
 
@@ -812,7 +812,7 @@ export default function OrderDetail() {
                       </Button>
                       {canWrite && (
                         <Button variant="primary" size="small" onClick={() => generateDispatch(t.id)}>
-                          {t.dispatchLetter ? "Regenerate" : "Generate"} Dispatch
+                          {t.dispatchLetter ? "Buat Ulang" : "Generate"} Dispatch
                         </Button>
                       )}
                     </div>
@@ -825,9 +825,9 @@ export default function OrderDetail() {
           {tab === "BACKHAUL" && (
             <div style={{ display: "grid", gridTemplateColumns: isNarrow ? "1fr" : "1fr 1fr", gap: 20 }}>
               <div style={{ padding: 20, background: BRAND.secondary, borderRadius: 6 }}>
-                <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Return / Backhaul</div>
+                <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Muatan Balik</div>
                 <div style={{ fontSize: 14, color: BRAND.textLight, lineHeight: 1.8 }}>
-                  <div>Use this when the truck returns with load from destination back to warehouse.</div>
+                  <div>Gunakan saat kendaraan membawa muatan dari tujuan kembali ke gudang.</div>
                   <div style={{ marginTop: 12 }}>
                     <strong>Current order type:</strong> {order.orderType ? String(order.orderType) : "-"}
                   </div>
@@ -852,9 +852,9 @@ export default function OrderDetail() {
               </div>
 
               <div style={{ padding: 20, background: BRAND.secondary, borderRadius: 6 }}>
-                <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Linked Return Orders</div>
+                <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Pesanan Kembali Terkait</div>
                 {linkedBackhauls.length === 0 ? (
-                  <div style={{ fontSize: 14, color: BRAND.textMuted }}>No linked return orders yet.</div>
+                  <div style={{ fontSize: 14, color: BRAND.textMuted }}>Belum ada pesanan kembali terkait.</div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {linkedBackhauls.map((b) => (
@@ -916,10 +916,10 @@ export default function OrderDetail() {
           {/* LEFT - Truck Picker */}
           <Card>
             <div style={{ padding: 16 }}>
-              <div style={{ fontWeight: 600, marginBottom: 8, color: BRAND.text }}>Pick Truck</div>
-              <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>Only READY trucks can be selected</div>
+              <div style={{ fontWeight: 600, marginBottom: 8, color: BRAND.text }}>Pilih Kendaraan</div>
+              <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>Hanya kendaraan berstatus siap pakai yang dapat dipilih</div>
 
-              <Input placeholder="Search plate number..." value={truckQ} onChange={(e) => setTruckQ(e.target.value)} />
+              <Input placeholder="Cari nomor polisi..." value={truckQ} onChange={(e) => setTruckQ(e.target.value)} />
 
               <div style={{ marginTop: 12, maxHeight: isNarrow ? 200 : 350, overflow: "auto" }}>
                 {filteredTrucks.map((t) => {
@@ -950,16 +950,16 @@ export default function OrderDetail() {
                 })}
 
                 {filteredTrucks.length === 0 && (
-                  <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>No READY trucks found.</div>
+                  <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>Tidak ada kendaraan siap pakai yang ditemukan.</div>
                 )}
               </div>
             </div>
           </Card>
 
-          {/* RIGHT - Trip Info */}
+          {/* RIGHT - Informasi Perjalanan */}
           <Card>
             <div style={{ padding: 16 }}>
-              <div style={{ fontWeight: 600, marginBottom: 8, color: BRAND.text }}>Trip Info</div>
+              <div style={{ fontWeight: 600, marginBottom: 8, color: BRAND.text }}>Informasi Perjalanan</div>
               <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>
                 {order?.qty != null
                   ? `Trip Qty is required. Remaining: ${fmtNum(remaining)} ${order.unit || ""}`
@@ -982,7 +982,7 @@ export default function OrderDetail() {
                   disabled={!!selectedTruck?.driverUserId}
                 >
                   <option value="">
-                    {selectedTruck?.driverUserId ? "Driver locked to truck" : "Select Driver (ACTIVE)"}
+                    {selectedTruck?.driverUserId ? "Pengemudi mengikuti kendaraan" : "Pilih Pengemudi (Aktif)"}
                   </option>
                   {drivers.map((d) => (
                     <option key={d.id} value={d.id}>
@@ -995,7 +995,7 @@ export default function OrderDetail() {
                   <div style={{ fontSize: 13, color: BRAND.textMuted }}>
                     This truck is assigned to:{" "}
                     <span style={{ color: BRAND.text, fontWeight: 500 }}>
-                      {drivers.find((x) => x.id === selectedTruck.driverUserId)?.name || "Assigned driver"}
+                      {drivers.find((x) => x.id === selectedTruck.driverUserId)?.name || "Pengemudi yang ditugaskan"}
                     </span>
                   </div>
                 )}
@@ -1030,7 +1030,7 @@ export default function OrderDetail() {
                     (order?.qty != null && !(Number.isFinite(Number(tripQty)) && Number(tripQty) > 0))
                   }
                 >
-                  {assigning ? "Creating..." : "Create Trip"}
+                  {assigning ? "Membuat..." : "Buat Perjalanan"}
                 </Button>
               </div>
             </div>

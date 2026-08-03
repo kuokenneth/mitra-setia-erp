@@ -128,7 +128,7 @@ export default function Expenses() {
       setItems(data.items || []);
       setTotal(data.total || 0);
     } catch (e) {
-      setErr(e.message || "Failed to load expenses");
+      setErr(e.message || "Gagal memuat expenses");
     } finally {
       setLoading(false);
     }
@@ -142,7 +142,7 @@ export default function Expenses() {
       const data = await api(`/trips?${params.toString()}`);
       setTrips(data.items || []);
     } catch (e) {
-      setErr(e.message || "Failed to load trips");
+      setErr(e.message || "Gagal memuat trips");
     } finally {
       setTripLoading(false);
     }
@@ -194,7 +194,7 @@ export default function Expenses() {
       load();
       setShowModal(false);
     } catch (e) {
-      setErr(e.message || "Failed to create expense");
+      setErr(e.message || "Gagal membuat expense");
     } finally {
       setSubmitting(false);
     }
@@ -206,7 +206,7 @@ export default function Expenses() {
       await api(`/expenses/${id}`, { method: "DELETE" });
       load();
     } catch (e) {
-      setErr(e.message || "Failed to delete expense");
+      setErr(e.message || "Gagal menghapus expense");
     }
   }
 
@@ -230,9 +230,9 @@ export default function Expenses() {
       },
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data?.error || data?.message || "Upload failed");
+    if (!res.ok) throw new Error(data?.error || data?.message || "Gagal mengunggah");
     const item = data.items?.[0];
-    if (!item?.url) throw new Error("Upload failed");
+    if (!item?.url) throw new Error("Gagal mengunggah");
 
     await api(`/expenses/${expenseId}/proof`, {
       method: "POST",
@@ -297,8 +297,8 @@ export default function Expenses() {
     return (
       <div style={s.page}>
         <div style={s.panel}>
-          <h1 style={s.hTitle}>Expenses</h1>
-          <div style={s.hSub}>You don't have permission to view this page.</div>
+          <h1 style={s.hTitle}>Pengeluaran</h1>
+          <div style={s.hSub}>Anda tidak memiliki izin untuk melihat halaman ini.</div>
         </div>
       </div>
     );
@@ -321,8 +321,8 @@ export default function Expenses() {
       {/* Header */}
       <div style={s.headerRow}>
         <div>
-          <h1 style={s.hTitle}>Expenses</h1>
-          <div style={s.hSub}>Record and track outgoing payments</div>
+          <h1 style={s.hTitle}>Pengeluaran</h1>
+          <div style={s.hSub}>Catat dan pantau seluruh pengeluaran</div>
         </div>
         <div style={s.headerActions}>
           <span style={s.pill}>{total} total</span>
@@ -338,7 +338,7 @@ export default function Expenses() {
             </button>
           </div>
           <button style={s.primaryBtn} onClick={() => setShowModal(true)}>
-            + New Expense
+            + Pengeluaran Baru
           </button>
         </div>
       </div>
@@ -346,19 +346,19 @@ export default function Expenses() {
       {/* Stats */}
       <div style={s.statsRow}>
         <div style={s.statCard}>
-          <div style={s.statLabel}>Submitted</div>
+          <div style={s.statLabel}>Diajukan</div>
           <div style={s.statValue}>{statusCounts.SUBMITTED}</div>
         </div>
         <div style={s.statCard}>
-          <div style={s.statLabel}>Paid</div>
+          <div style={s.statLabel}>Dibayar</div>
           <div style={s.statValue}>{statusCounts.PAID}</div>
         </div>
         <div style={s.statCard}>
-          <div style={s.statLabel}>Approved</div>
+          <div style={s.statLabel}>Disetujui</div>
           <div style={s.statValue}>{statusCounts.APPROVED}</div>
         </div>
         <div style={s.statCard}>
-          <div style={s.statLabel}>Showing</div>
+          <div style={s.statLabel}>Ditampilkan</div>
           <div style={s.statValue}>{items.length}</div>
         </div>
       </div>
@@ -371,17 +371,17 @@ export default function Expenses() {
             style={s.searchInput}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search reason, client, bank..."
+            placeholder="Cari alasan, klien, atau bank..."
           />
           <select
             value={methodFilter}
             onChange={(e) => setMethodFilter(e.target.value)}
             style={s.selectPill}
           >
-            <option value="">All methods</option>
-            <option value="BANK_TRANSFER">Bank Transfer</option>
-            <option value="CASH">Cash</option>
-            <option value="OTHER">Other</option>
+            <option value="">Semua metode</option>
+            <option value="BANK_TRANSFER">Transfer Bank</option>
+            <option value="CASH">Tunai</option>
+            <option value="OTHER">Lainnya</option>
           </select>
         </div>
 
@@ -392,15 +392,15 @@ export default function Expenses() {
           <table style={s.table}>
             <thead>
               <tr>
-                <th style={s.th}>Date</th>
+                <th style={s.th}>Tanggal</th>
                 <th style={s.th}>Status</th>
-                <th style={s.th}>Method</th>
+                <th style={s.th}>Metode</th>
                 <th style={s.th}>Bank</th>
-                <th style={s.th}>Account</th>
-                <th style={s.th}>Amount</th>
-                <th style={s.th}>Reason</th>
-                <th style={s.th}>Client</th>
-                <th style={s.th}>Actions</th>
+                <th style={s.th}>Rekening</th>
+                <th style={s.th}>Jumlah</th>
+                <th style={s.th}>Alasan</th>
+                <th style={s.th}>Klien</th>
+                <th style={s.th}>Tindakan</th>
               </tr>
             </thead>
             <tbody>
@@ -458,7 +458,7 @@ export default function Expenses() {
                                 await uploadProof(x.id, file);
                                 load();
                               } catch (err) {
-                                setErr(err.message || "Failed to upload proof");
+                                setErr(err.message || "Gagal mengunggah proof");
                               } finally {
                                 e.target.value = "";
                               }
@@ -494,7 +494,7 @@ export default function Expenses() {
               {!loading && items.length === 0 ? (
                 <tr>
                   <td style={s.empty} colSpan={9}>
-                    No expenses found.
+                    Tidak ada expenses ditemukan.
                   </td>
                 </tr>
               ) : null}
@@ -513,7 +513,7 @@ export default function Expenses() {
           </button>
 
           <div style={s.pageInfo}>
-            Page <strong>{page + 1}</strong> of <strong>{pageCount}</strong>
+            Halaman <strong>{page + 1}</strong> dari <strong>{pageCount}</strong>
           </div>
 
           <button
@@ -531,7 +531,7 @@ export default function Expenses() {
         <div style={s.modalOverlay} onClick={() => setShowModal(false)}>
           <div style={s.modalCard} onClick={(e) => e.stopPropagation()}>
             <div style={s.modalHeader}>
-              <div style={s.modalTitle}>New Expense</div>
+              <div style={s.modalTitle}>Pengeluaran Baru</div>
               <button style={s.closeBtn} onClick={() => setShowModal(false)} aria-label="Close">
                 ✕
               </button>
@@ -539,12 +539,12 @@ export default function Expenses() {
             <form onSubmit={onSubmit}>
               <div style={s.formGrid}>
                 <div>
-                  <label style={s.label}>Trip (optional)</label>
+                  <label style={s.label}>Perjalanan (opsional)</label>
                   <input
                     style={s.input}
                     value={tripSearch}
                     onChange={(e) => setTripSearch(e.target.value)}
-                    placeholder="Search trip by plate, driver, destination..."
+                    placeholder="Cari perjalanan berdasarkan kendaraan, pengemudi, atau tujuan..."
                   />
                   <select
                     value={form.tripId}
@@ -552,7 +552,7 @@ export default function Expenses() {
                     style={{ ...s.select, marginTop: 8 }}
                   >
                     <option value="">
-                      {tripLoading ? "Loading trips..." : "Select a trip"}
+                      {tripLoading ? "Memuat perjalanan..." : "Pilih perjalanan"}
                     </option>
                     {trips.map((t) => (
                       <option key={t.id} value={t.id}>
@@ -569,15 +569,15 @@ export default function Expenses() {
                 </div>
 
                 <div>
-                  <label style={s.label}>Payment Method</label>
+                  <label style={s.label}>Metode Pembayaran</label>
                   <select
                     value={form.paymentMethod}
                     onChange={(e) => onChangeForm("paymentMethod", e.target.value)}
                     style={s.select}
                   >
-                    <option value="BANK_TRANSFER">Bank Transfer</option>
-                    <option value="CASH">Cash</option>
-                    <option value="OTHER">Other</option>
+                    <option value="BANK_TRANSFER">Transfer Bank</option>
+                    <option value="CASH">Tunai</option>
+                    <option value="OTHER">Lainnya</option>
                   </select>
                 </div>
 
@@ -589,20 +589,20 @@ export default function Expenses() {
                         style={s.input}
                         value={form.bankName}
                         onChange={(e) => onChangeForm("bankName", e.target.value)}
-                        placeholder="Bank name"
+                        placeholder="Nama bank"
                       />
                     </div>
                     <div>
-                      <label style={s.label}>Account Name</label>
+                      <label style={s.label}>Nama Pemilik Rekening</label>
                       <input
                         style={s.input}
                         value={form.accountName}
                         onChange={(e) => onChangeForm("accountName", e.target.value)}
-                        placeholder="Account holder"
+                        placeholder="Nama pemilik rekening"
                       />
                     </div>
                     <div>
-                      <label style={s.label}>Account Number</label>
+                      <label style={s.label}>Nomor Rekening</label>
                       <input
                         style={s.input}
                         value={form.accountNumber}
@@ -614,7 +614,7 @@ export default function Expenses() {
                 )}
 
                 <div>
-                  <label style={s.label}>Amount</label>
+                  <label style={s.label}>Jumlah</label>
                   <input
                     style={s.input}
                     type="number"
@@ -625,7 +625,7 @@ export default function Expenses() {
                   />
                 </div>
                 <div>
-                  <label style={s.label}>Currency</label>
+                  <label style={s.label}>Mata Uang</label>
                   <input
                     style={s.input}
                     value={form.currency}
@@ -634,31 +634,31 @@ export default function Expenses() {
                   />
                 </div>
                 <div>
-                  <label style={s.label}>Reason / Use</label>
+                  <label style={s.label}>Alasan / Keperluan</label>
                   <input
                     style={s.input}
                     value={form.reason}
                     onChange={(e) => onChangeForm("reason", e.target.value)}
-                    placeholder="Electricity, spareparts, etc."
+                    placeholder="Listrik, suku cadang, dan lainnya"
                   />
                 </div>
                 <div>
-                  <label style={s.label}>Client / Reference</label>
+                  <label style={s.label}>Klien / Referensi</label>
                   <input
                     style={s.input}
                     value={form.clientName}
                     onChange={(e) => onChangeForm("clientName", e.target.value)}
-                    placeholder="Client name (optional)"
+                    placeholder="Nama klien (opsional)"
                   />
                 </div>
                 <div style={{ gridColumn: "1 / -1" }}>
-                  <label style={s.label}>Notes</label>
+                  <label style={s.label}>Catatan</label>
                   <textarea
                     style={s.textarea}
                     rows={3}
                     value={form.notes}
                     onChange={(e) => onChangeForm("notes", e.target.value)}
-                    placeholder="Additional notes"
+                    placeholder="Catatan tambahan"
                   />
                 </div>
               </div>
@@ -667,7 +667,7 @@ export default function Expenses() {
                   Cancel
                 </button>
                 <button style={s.primaryBtn} disabled={submitting}>
-                  {submitting ? "Saving..." : "Save Expense"}
+                  {submitting ? "Menyimpan..." : "Simpan Pengeluaran"}
                 </button>
               </div>
             </form>
@@ -679,22 +679,22 @@ export default function Expenses() {
         <div style={s.modalOverlay} onClick={() => setDetailOpen(false)}>
           <div style={s.modalCard} onClick={(e) => e.stopPropagation()}>
             <div style={s.modalHeader}>
-              <div style={s.modalTitle}>Expense Detail</div>
+              <div style={s.modalTitle}>Detail Pengeluaran</div>
               <button style={s.closeBtn} onClick={() => setDetailOpen(false)} aria-label="Close">
                 ✕
               </button>
             </div>
             <div style={s.detailGrid}>
               <div>
-                <div style={s.detailLabel}>Trip</div>
+                <div style={s.detailLabel}>Perjalanan</div>
                 <div style={s.detailValue}>{detailItem.trip?.id || "-"}</div>
               </div>
               <div>
-                <div style={s.detailLabel}>Duplicate Flag</div>
+                <div style={s.detailLabel}>Indikasi Duplikat</div>
                 <div style={s.detailValue}>{detailItem.duplicateFlag ? "Yes" : "No"}</div>
               </div>
               <div>
-                <div style={s.detailLabel}>Route</div>
+                <div style={s.detailLabel}>Rute</div>
                 <div style={s.detailValue}>
                   {(detailItem.trip?.order?.fromText || detailItem.trip?.fromText || "-") +
                     " → " +
@@ -702,23 +702,23 @@ export default function Expenses() {
                 </div>
               </div>
               <div>
-                <div style={s.detailLabel}>Driver</div>
+                <div style={s.detailLabel}>Pengemudi</div>
                 <div style={s.detailValue}>
                   {detailItem.trip?.driverUser?.name || detailItem.trip?.driverNameSnap || "-"}
                 </div>
               </div>
               <div>
-                <div style={s.detailLabel}>Truck</div>
+                <div style={s.detailLabel}>Kendaraan</div>
                 <div style={s.detailValue}>
                   {detailItem.trip?.truck?.plateNumber || detailItem.trip?.plateNumberSnap || "-"}
                 </div>
               </div>
               <div>
-                <div style={s.detailLabel}>Reason</div>
+                <div style={s.detailLabel}>Alasan</div>
                 <div style={s.detailValue}>{detailItem.reason || "-"}</div>
               </div>
               <div>
-                <div style={s.detailLabel}>Amount</div>
+                <div style={s.detailLabel}>Jumlah</div>
                 <div style={s.detailValue}>
                   {new Intl.NumberFormat(undefined, {
                     style: "currency",
@@ -732,7 +732,7 @@ export default function Expenses() {
                 <div style={s.detailValue}>{detailItem.status || "SUBMITTED"}</div>
               </div>
               <div>
-                <div style={s.detailLabel}>Payment Method</div>
+                <div style={s.detailLabel}>Metode Pembayaran</div>
                 <div style={s.detailValue}>{detailItem.paymentMethod || "-"}</div>
               </div>
               <div>
@@ -740,22 +740,22 @@ export default function Expenses() {
                 <div style={s.detailValue}>{detailItem.bankName || "-"}</div>
               </div>
               <div>
-                <div style={s.detailLabel}>Account</div>
+                <div style={s.detailLabel}>Rekening</div>
                 <div style={s.detailValue}>
                   {detailItem.accountName || detailItem.accountNumber || "-"}
                 </div>
               </div>
               <div>
-                <div style={s.detailLabel}>Client</div>
+                <div style={s.detailLabel}>Klien</div>
                 <div style={s.detailValue}>{detailItem.clientName || "-"}</div>
               </div>
               <div>
-                <div style={s.detailLabel}>Notes</div>
+                <div style={s.detailLabel}>Catatan</div>
                 <div style={s.detailValue}>{detailItem.notes || "-"}</div>
               </div>
               {detailItem.duplicateFlag && Array.isArray(detailItem.duplicates) ? (
                 <div style={{ gridColumn: "1 / -1" }}>
-                  <div style={s.detailLabel}>Duplicate With</div>
+                  <div style={s.detailLabel}>Duplikat Dengan</div>
                   <div style={s.dupList}>
                     {detailItem.duplicates.map((d) => (
                       <div key={d.id} style={s.dupItem}>

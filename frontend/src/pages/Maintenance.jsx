@@ -351,7 +351,7 @@ export default function Maintenance() {
       const data = await api("/maintenance?" + params.toString());
       setJobs(data.jobs || []);
     } catch (e) {
-      setErr(e.message || "Failed to load");
+      setErr(e.message || "Gagal memuat");
     } finally {
       setLoading(false);
     }
@@ -397,7 +397,7 @@ export default function Maintenance() {
       setUseQty("");
       setUseNote("");
     } catch (e) {
-      setErr(e.message || "Failed to load detail");
+      setErr(e.message || "Gagal memuat detail");
     } finally {
       setDetailLoading(false);
     }
@@ -423,7 +423,7 @@ export default function Maintenance() {
 
   useEffect(() => {
     if (!showCreate) return;
-    loadTrucks("").catch((e) => setErr(e.message || "Failed to load trucks"));
+    loadTrucks("").catch((e) => setErr(e.message || "Gagal memuat kendaraan"));
   }, [showCreate]);
 
   useEffect(() => {
@@ -483,7 +483,7 @@ export default function Maintenance() {
       await load();
       if (data?.job?.id) openDetail(data.job.id);
     } catch (e) {
-      setErr(e.message || "Failed to create");
+      setErr(e.message || "Gagal membuat");
     } finally {
       setCreating(false);
     }
@@ -496,7 +496,7 @@ export default function Maintenance() {
       await refreshDetail();
       await load();
     } catch (e) {
-      setErr(e.message || "Failed to update status");
+      setErr(e.message || "Gagal memperbarui status");
     }
   }
 
@@ -654,7 +654,7 @@ export default function Maintenance() {
               <Input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Search title / truck plate..."
+                placeholder="Cari judul / nomor polisi..."
                 data-testid="search-input"
               />
             </div>
@@ -664,7 +664,7 @@ export default function Maintenance() {
                 Status
               </label>
               <Select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="status-filter">
-                <option value="">All Status</option>
+                <option value="">Semua Status</option>
                 <option value="OPEN">OPEN</option>
                 <option value="DONE">DONE</option>
                 <option value="CANCELLED">CANCELLED</option>
@@ -686,7 +686,7 @@ export default function Maintenance() {
             </div>
 
             <Button variant="primary" onClick={load} disabled={loading} data-testid="apply-filter-btn">
-              {loading ? "Loading..." : "Apply"}
+              {loading ? "Memuat..." : "Apply"}
             </Button>
           </div>
         </div>
@@ -713,7 +713,7 @@ export default function Maintenance() {
           <div>Job</div>
           <div>Status</div>
           <div>Duration</div>
-          <div style={{ textAlign: "right" }}>Action</div>
+          <div style={{ textAlign: "right" }}>Tindakan</div>
         </div>
 
         {/* Job Rows */}
@@ -768,7 +768,7 @@ export default function Maintenance() {
 
           {!loading && (!jobs || jobs.length === 0) && (
             <div style={{ padding: 24, textAlign: "center", color: BRAND.textMuted, fontSize: 14 }}>
-              No maintenance jobs found.
+              Tidak ada maintenance jobs ditemukan.
             </div>
           )}
         </div>
@@ -780,20 +780,20 @@ export default function Maintenance() {
           {/* Truck Picker */}
           <Card>
             <div style={{ padding: 16 }}>
-              <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Pick Truck</div>
+              <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Pilih Kendaraan</div>
               <Input
                 value={truckSearch}
                 onChange={(e) => setTruckSearch(e.target.value)}
-                placeholder="Search plate number..."
+                placeholder="Cari nomor polisi..."
                 data-testid="truck-search"
               />
 
               <div style={{ marginTop: 12, maxHeight: 300, overflow: "auto" }}>
                 {trucksLoading && (
-                  <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>Loading trucks...</div>
+                  <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>Memuat kendaraan...</div>
                 )}
                 {!trucksLoading && (filteredTrucks || []).length === 0 && (
-                  <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>No trucks found.</div>
+                  <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>Tidak ada kendaraan ditemukan.</div>
                 )}
 
                 {(filteredTrucks || []).map((t) => {
@@ -881,7 +881,7 @@ export default function Maintenance() {
                     disabled={creating || !createForm.truckId || !String(createForm.title || "").trim()}
                     data-testid="create-job-btn"
                   >
-                    {creating ? "Creating..." : "Create"}
+                    {creating ? "Membuat..." : "Create"}
                   </Button>
                 </div>
               </div>
@@ -893,7 +893,7 @@ export default function Maintenance() {
       {/* DETAIL MODAL */}
       <Modal open={showDetail} title="Maintenance Detail" onClose={() => setShowDetail(false)} width={1020}>
         {detailLoading || !activeJob ? (
-          <div style={{ padding: 20, color: BRAND.textMuted, fontSize: 14 }}>Loading...</div>
+          <div style={{ padding: 20, color: BRAND.textMuted, fontSize: 14 }}>Memuat...</div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
             {/* LEFT - Job Info */}
@@ -1142,7 +1142,7 @@ export default function Maintenance() {
                       disabled={!allowed || activeJob.status !== "OPEN" || usingStock}
                       data-testid="use-stock-btn"
                     >
-                      {usingStock ? "Saving..." : "Use Stock"}
+                      {usingStock ? "Menyimpan..." : "Use Stock"}
                     </Button>
                   </div>
                 </div>
@@ -1164,11 +1164,11 @@ export default function Maintenance() {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                     <thead>
                       <tr style={{ textAlign: "left", fontSize: 12, color: BRAND.textMuted, borderBottom: `1px solid ${BRAND.border}` }}>
-                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Installed At</th>
-                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Item</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Tanggal Pemasangan</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Barang</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Unit</th>
-                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>From</th>
-                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Note</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Dari</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Catatan</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1204,12 +1204,12 @@ export default function Maintenance() {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                     <thead>
                       <tr style={{ textAlign: "left", fontSize: 12, color: BRAND.textMuted, borderBottom: `1px solid ${BRAND.border}` }}>
-                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Time</th>
-                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Type</th>
-                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Item</th>
-                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Qty</th>
-                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>From</th>
-                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Note</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Waktu</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Jenis</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Barang</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Jumlah</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Dari</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Catatan</th>
                       </tr>
                     </thead>
                     <tbody>

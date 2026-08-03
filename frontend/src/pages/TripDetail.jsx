@@ -137,7 +137,7 @@ export default function TripDetail() {
       const data = await api(`/trips/${id}`);
       setTrip(data);
     } catch (e) {
-      setErr(e?.message || "Failed to load trip");
+      setErr(e?.message || "Gagal memuat trip");
     } finally {
       setLoading(false);
     }
@@ -190,7 +190,7 @@ export default function TripDetail() {
       });
       await load();
     } catch (e) {
-      setSaveErr(e?.message || "Failed to update status");
+      setSaveErr(e?.message || "Gagal memperbarui status");
     } finally {
       setSaving(false);
     }
@@ -200,7 +200,7 @@ export default function TripDetail() {
     return (
       <div style={pageBg}>
         <div style={container}>
-          <div style={panel}>Loading...</div>
+          <div style={panel}>Memuat...</div>
         </div>
       </div>
     );
@@ -272,7 +272,7 @@ export default function TripDetail() {
                   {/* Primary “next step” button for drivers */}
                   {isDriver && allowedNextStatuses.length === 1 ? (
                     <button style={btnGreen} onClick={() => setStatus(allowedNextStatuses[0])} disabled={saving}>
-                      {saving ? "Saving..." : `Mark ${allowedNextStatuses[0]}`}
+                      {saving ? "Menyimpan..." : `Mark ${allowedNextStatuses[0]}`}
                     </button>
                   ) : null}
 
@@ -311,7 +311,7 @@ export default function TripDetail() {
           <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             {/* Trip info */}
             <div style={{ ...panel, boxShadow: "none", borderRadius: 16 }}>
-              <div style={{ fontWeight: 1000, marginBottom: 8 }}>Trip Information</div>
+              <div style={{ fontWeight: 1000, marginBottom: 8 }}>Informasi Perjalanan</div>
               <div style={{ color: "#2F6B55", fontWeight: 900, fontSize: 13, lineHeight: 1.7 }}>
                 <div>
                   <b>Status:</b> <span style={tripBadgeStyle(trip.status)}>{String(trip.status).replaceAll("_", " ")}</span>
@@ -336,7 +336,7 @@ export default function TripDetail() {
 
             {/* Truck/Driver/Order */}
             <div style={{ ...panel, boxShadow: "none", borderRadius: 16 }}>
-              <div style={{ fontWeight: 1000, marginBottom: 8 }}>Assignment</div>
+              <div style={{ fontWeight: 1000, marginBottom: 8 }}>Penugasan</div>
               <div style={{ color: "#2F6B55", fontWeight: 900, fontSize: 13, lineHeight: 1.7 }}>
                 <div>
                   <b>Truck:</b> {truck?.plateNumber || trip.plateNumberSnap || "-"}{" "}
@@ -366,7 +366,7 @@ export default function TripDetail() {
                     <span style={{ fontSize: 12, opacity: 0.9 }}>({trip.dispatchLetter.number})</span>
                   </div>
                 ) : (
-                  <div style={{ marginTop: 10, opacity: 0.9 }}>Dispatch letter not generated.</div>
+                  <div style={{ marginTop: 10, opacity: 0.9 }}>Surat jalan belum dibuat.</div>
                 )}
               </div>
             </div>
@@ -374,10 +374,10 @@ export default function TripDetail() {
 
           {/* Proofs quick view (from order.proofs included in GET /trips/:id) */}
           <div style={{ marginTop: 14 }}>
-            <div style={{ fontWeight: 1000, marginBottom: 8 }}>Order Proofs</div>
+            <div style={{ fontWeight: 1000, marginBottom: 8 }}>Bukti Pesanan</div>
 
             {(order?.proofs || []).length === 0 ? (
-              <div style={{ color: "#2F6B55", fontWeight: 900 }}>No proofs yet.</div>
+              <div style={{ color: "#2F6B55", fontWeight: 900 }}>Belum ada bukti.</div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
                 {(order?.proofs || []).slice(0, 8).map((p) => {

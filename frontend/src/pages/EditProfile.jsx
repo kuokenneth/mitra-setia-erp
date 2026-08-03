@@ -27,7 +27,7 @@ export default function EditProfile() {
         setName(me?.name || "");
         setPhone(me?.phone || "");
       } catch (e) {
-        setErr(e.message || "Failed to load profile.");
+        setErr(e.message || "Gagal memuat profile.");
       } finally {
         setPageLoading(false);
       }
@@ -49,7 +49,7 @@ export default function EditProfile() {
       setUser(updated);
       setMsg("Profile updated successfully.");
     } catch (e) {
-      setErr(e.message || "Failed to update profile.");
+      setErr(e.message || "Gagal memperbarui profile.");
     } finally {
       setLoading(false);
     }
@@ -66,8 +66,8 @@ export default function EditProfile() {
     <div style={s.page}>
       <div style={s.headerRow}>
         <div>
-          <div style={s.hTitle}>My Account</div>
-          <div style={s.hSub}>Update your profile details</div>
+          <div style={s.hTitle}>Akun Saya</div>
+          <div style={s.hSub}>Perbarui informasi profil Anda</div>
         </div>
 
         <div style={s.rolePill}>{user?.role || "UNKNOWN"}</div>
@@ -79,7 +79,7 @@ export default function EditProfile() {
         <div style={s.grid}>
           {/* LEFT: FORM */}
           <div style={s.card}>
-            <div style={s.cardTitle}>Profile</div>
+            <div style={s.cardTitle}>Profil</div>
             <div style={s.cardSub}>
               Keep your name and contact details up to date.
             </div>
@@ -89,7 +89,7 @@ export default function EditProfile() {
 
             <form onSubmit={onSave} style={{ marginTop: 14 }}>
               <div style={s.fieldRow}>
-                <div style={s.label}>Name</div>
+                <div style={s.label}>Nama</div>
                 <input
                   style={s.input}
                   value={name}
@@ -99,12 +99,12 @@ export default function EditProfile() {
               </div>
 
               <div style={s.fieldRow}>
-                <div style={s.label}>Email (read only)</div>
+                <div style={s.label}>Email (hanya-baca)</div>
                 <input style={s.inputDisabled} value={user?.email || ""} readOnly />
               </div>
 
               <div style={s.fieldRow}>
-                <div style={s.label}>Phone (optional)</div>
+                <div style={s.label}>Telepon (opsional)</div>
                 <input
                   style={s.input}
                   value={phone}
@@ -155,12 +155,12 @@ export default function EditProfile() {
               <div style={s.divider} />
 
               <div style={s.kv}>
-                <div style={s.k}>Role</div>
+                <div style={s.k}>Peran</div>
                 <div style={s.v}>{user?.role || "-"}</div>
               </div>
 
               <div style={s.kv}>
-                <div style={s.k}>Phone</div>
+                <div style={s.k}>Telepon</div>
                 <div style={s.v}>{user?.phone || "-"}</div>
               </div>
 
@@ -171,7 +171,7 @@ export default function EditProfile() {
             </div>
 
             <div style={s.miniCard}>
-              <div style={s.miniTitle}>Security</div>
+              <div style={s.miniTitle}>Keamanan</div>
               <div style={s.miniText}>
                 Next step: add “Change Password” here.
               </div>

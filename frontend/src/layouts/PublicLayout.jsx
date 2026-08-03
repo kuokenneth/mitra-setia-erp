@@ -203,7 +203,7 @@ export default function PublicLayout() {
                 {!isMobile && (
                   <div>
                     <p style={brandTitle}>CV. Mitra Setia</p>
-                    <p style={brandSub}>Transport & Logistics</p>
+                    <p style={brandSub}>Transportasi & Logistik</p>
                   </div>
                 )}
               </Link>

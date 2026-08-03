@@ -26,6 +26,7 @@ import CreateDriver from "./pages/CreateDriver";
 import OrderCreate from "./pages/OrderCreate";
 import OrderDetail from "./pages/OrderDetail";
 import TripDetail from "./pages/TripDetail";
+import Purchasing from "./pages/Purchasing";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -53,6 +54,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             <Route path="/users" element={<Users />} />
             <Route path="/trucks" element={<Trucks />} />
             <Route path="/inventory" element={<Inventory />} />
+            <Route path="/purchasing" element={<Purchasing />} />
             <Route path="/maintenance" element={<Maintenance />} />
             <Route path="/expenses" element={<Expenses />} />
             <Route path="/orders" element={<Orders />} />

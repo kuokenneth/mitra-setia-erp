@@ -63,7 +63,7 @@ export default function CreateDriver() {
       setOk("Driver created successfully.");
       setForm({ name: "", email: "", password: "", phone: "" });
     } catch (e) {
-      setErr(e.message || "Failed to create driver");
+      setErr(e.message || "Gagal membuat driver");
     } finally {
       setLoading(false);
     }
@@ -73,11 +73,11 @@ export default function CreateDriver() {
     return (
       <div data-testid="create-driver-page">
         <div style={s.header}>
-          <h1 style={s.title}>Create Driver</h1>
-          <p style={s.subtitle}>You don't have permission to access this page.</p>
+          <h1 style={s.title}>Tambah Pengemudi</h1>
+          <p style={s.subtitle}>Anda tidak memiliki izin untuk mengakses halaman ini.</p>
         </div>
         <div style={s.card}>
-          <div style={s.alertErr}>Forbidden</div>
+          <div style={s.alertErr}>Akses Ditolak</div>
           <button onClick={() => nav(-1)} style={s.secondaryBtn} data-testid="back-btn">
             <FiArrowLeft size={16} />
             Back
@@ -92,18 +92,18 @@ export default function CreateDriver() {
       {/* Header */}
       <div style={s.headerRow}>
         <div>
-          <h1 style={s.title}>Create Driver</h1>
-          <p style={s.subtitle}>Add a new driver account for operations.</p>
+          <h1 style={s.title}>Tambah Pengemudi</h1>
+          <p style={s.subtitle}>Tambahkan akun pengemudi baru untuk kebutuhan operasional.</p>
         </div>
-        <span style={s.badge}>STAFF TOOL</span>
+        <span style={s.badge}>ALAT STAF</span>
       </div>
 
       <div style={s.grid}>
         {/* Form Card */}
         <div style={s.card}>
           <div style={s.cardHeader}>
-            <h2 style={s.cardTitle}>Driver Details</h2>
-            <p style={s.cardSubtitle}>Create a driver login. They can sign in and see driver pages.</p>
+            <h2 style={s.cardTitle}>Detail Pengemudi</h2>
+            <p style={s.cardSubtitle}>Buat akun masuk untuk pengemudi agar dapat melihat halaman tugasnya.</p>
           </div>
 
           {err && <div style={s.alertErr}>{err}</div>}
@@ -152,13 +152,13 @@ export default function CreateDriver() {
                 placeholder="Set an initial password"
                 data-testid="driver-password-input"
               />
-              <p style={s.help}>Driver should change it later.</p>
+              <p style={s.help}>Pengemudi sebaiknya menggantinya setelah masuk.</p>
             </div>
 
             <div style={s.fieldRow}>
               <label style={s.label}>
                 <FiPhone size={14} color={BRAND.textMuted} />
-                Phone (optional)
+                Telepon (opsional)
               </label>
               <input
                 style={s.input}
@@ -176,7 +176,7 @@ export default function CreateDriver() {
                 style={{ ...s.primaryBtn, opacity: loading ? 0.7 : 1 }}
                 data-testid="create-driver-btn"
               >
-                {loading ? "Creating…" : "Create Driver"}
+                {loading ? "Creating…" : "Tambah Pengemudi"}
               </button>
 
               <button
@@ -202,25 +202,25 @@ export default function CreateDriver() {
           <div style={s.sideCard}>
             <h3 style={s.sideTitle}>What happens next?</h3>
             <ul style={s.sideList}>
-              <li>A new user is created with role <strong>DRIVER</strong></li>
-              <li>They can login and access <strong>Driver Home</strong> + <strong>My Jobs</strong></li>
+              <li>A new user is created with role <strong>Pengemudi</strong></li>
+              <li>Mereka dapat masuk dan mengakses <strong>Beranda Pengemudi</strong> + <strong>Tugas Saya</strong></li>
               <li>Later we can add: SIM/license, assigned truck, password reset</li>
             </ul>
 
             <div style={s.divider} />
 
             <div style={s.kvRow}>
-              <span style={s.kvLabel}>Creator</span>
+              <span style={s.kvLabel}>Dibuat Oleh</span>
               <span style={s.kvValue}>{user?.name || "-"}</span>
             </div>
             <div style={s.kvRow}>
-              <span style={s.kvLabel}>Your Role</span>
+              <span style={s.kvLabel}>Peran Anda</span>
               <span style={s.kvValue}>{role}</span>
             </div>
           </div>
 
           <div style={s.sideCard}>
-            <h3 style={s.sideTitle}>Next upgrade</h3>
+            <h3 style={s.sideTitle}>Pengembangan Berikutnya</h3>
             <p style={s.sideText}>
               Add driver profile fields: SIM number, expiry, address, assigned truck.
             </p>

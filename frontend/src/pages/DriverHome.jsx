@@ -1,8 +1,8 @@
 export default function DriverHome() {
   return (
     <div style={card}>
-      <h2 style={h2}>Driver Home</h2>
-      <p style={p}>Welcome driver. Here you’ll see assigned trips.</p>
+      <h2 style={h2}>Beranda Pengemudi</h2>
+      <p style={p}>Selamat datang. Perjalanan yang ditugaskan kepada Anda akan tampil di sini.</p>
     </div>
   );
 }

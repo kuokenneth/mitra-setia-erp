@@ -172,7 +172,7 @@ export default function OrderCreate() {
 
       nav(`/orders/${order.id}`);
     } catch (e) {
-      setErr(e.message || "Failed to create order");
+      setErr(e.message || "Gagal membuat order");
     } finally {
       setSaving(false);
     }
@@ -182,9 +182,9 @@ export default function OrderCreate() {
     <div data-testid="order-create-page">
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: BRAND.text }}>New Order</h1>
+        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: BRAND.text }}>Pesanan Baru</h1>
         <p style={{ margin: "8px 0 0", fontSize: 14, color: BRAND.textMuted }}>
-          Create a transport order before assigning trucks and drivers
+          Buat pesanan transportasi sebelum menetapkan kendaraan dan pengemudi
         </p>
       </div>
 
@@ -288,7 +288,7 @@ export default function OrderCreate() {
 
           {/* Proof Upload */}
           <div style={{ marginTop: 24 }}>
-            <div style={{ fontWeight: 600, marginBottom: 10, color: BRAND.text }}>Proof of Order (URL)</div>
+            <div style={{ fontWeight: 600, marginBottom: 10, color: BRAND.text }}>Bukti Pesanan (URL)</div>
             <div style={{ display: "flex", gap: 12 }}>
               <div style={{ flex: 1 }}>
                 <input
@@ -348,7 +348,7 @@ export default function OrderCreate() {
               </Button>
 
               <Button variant="primary" icon={FiCheck} disabled={saving} onClick={() => submit("CONFIRMED")}>
-                {saving ? "Saving..." : "Confirm Order"}
+                {saving ? "Menyimpan..." : "Confirm Order"}
               </Button>
             </div>
           </div>

@@ -75,7 +75,7 @@ const controlRow = {
 const leftControls = { display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" };
 const rightControls = { display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" };
 
-function TruckSearchSelect({ trucks, value, onChange, placeholder = "Search plate number..." }) {
+function TruckSearchSelect({ trucks, value, onChange, placeholder = "Cari nomor polisi..." }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
@@ -130,7 +130,7 @@ function TruckSearchSelect({ trucks, value, onChange, placeholder = "Search plat
           }}
         >
           {filtered.length === 0 ? (
-            <div style={{ padding: 12, fontWeight: 500, color: BRAND.textMuted }}>No trucks found</div>
+            <div style={{ padding: 12, fontWeight: 500, color: BRAND.textMuted }}>Kendaraan tidak ditemukan</div>
           ) : (
             filtered.map((t) => (
               <button
@@ -748,7 +748,7 @@ export default function Inventory() {
     setErr("");
     try {
       if (!assignForm.unitId) throw new Error("Missing unitId");
-      if (!assignForm.truckId) throw new Error("Select a truck");
+      if (!assignForm.truckId) throw new Error("Pilih kendaraan");
 
       await api(`/inventory/units/${assignForm.unitId}/assign`, {
         method: "POST",
@@ -831,8 +831,8 @@ export default function Inventory() {
       <div style={pageBg}>
         <div style={container}>
           <div style={wrapCard}>
-            <h1 style={headerTitle}>Inventory</h1>
-            <div style={headerSub}>You don't have access to this page.</div>
+            <h1 style={headerTitle}>Persediaan</h1>
+            <div style={headerSub}>Anda tidak memiliki akses ke halaman ini.</div>
           </div>
         </div>
       </div>
@@ -847,8 +847,8 @@ export default function Inventory() {
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <div>
-            <h1 style={headerTitle}>Inventory</h1>
-            <div style={headerSub}>Manage spare parts, stock, units, and movements</div>
+            <h1 style={headerTitle}>Persediaan</h1>
+            <div style={headerSub}>Kelola suku cadang, stok, unit, dan mutasi</div>
           </div>
 
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
@@ -912,7 +912,7 @@ export default function Inventory() {
                 style={{ ...inputPill, minWidth: 320 }}
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Search by name / SKU / barcode..."
+                placeholder="Cari berdasarkan nama / SKU / barcode..."
                 onKeyDown={(e) => {
                   if (e.key === "Enter") refresh();
                 }}
@@ -998,7 +998,7 @@ export default function Inventory() {
                 style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 value={barcodeForm.barcode}
                 onChange={(e) => setBarcodeForm((p) => ({ ...p, barcode: e.target.value }))}
-                placeholder="Scan / type barcode..."
+                placeholder="Pindai / ketik barcode..."
               />
             </div>
           </div>
@@ -1058,7 +1058,7 @@ export default function Inventory() {
             </div>
 
             <div style={{ gridColumn: "1 / -1" }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Name</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Nama</div>
               <input
                 style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 value={createItemForm.name}
@@ -1089,7 +1089,7 @@ export default function Inventory() {
         <Modal open={openReceive} title="Receive Stock (IN)" onClose={() => setOpenReceive(false)}>
           {locations.length === 0 ? (
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontWeight: 600, color: BRAND.text }}>No location found</div>
+              <div style={{ fontWeight: 600, color: BRAND.text }}>Lokasi tidak ditemukan</div>
               <div style={{ marginTop: 6, color: BRAND.textMuted }}>
                 Create at least one location (e.g. Main Warehouse) before receiving stock.
               </div>
@@ -1104,13 +1104,13 @@ export default function Inventory() {
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Item</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Barang</div>
               <select
                 style={{ ...selectPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 value={receiveForm.itemId}
                 onChange={(e) => setReceiveForm((p) => ({ ...p, itemId: e.target.value }))}
               >
-                <option value="">Select item...</option>
+                <option value="">Pilih barang...</option>
                 {items.map((it) => (
                   <option key={it.id} value={it.id}>
                     {it.sku} — {it.name} {it.isSerialized ? "(serialized)" : ""}
@@ -1139,10 +1139,10 @@ export default function Inventory() {
                 disabled={locations.length === 0}
               >
                 {locations.length === 0 ? (
-                  <option value="">No locations yet</option>
+                  <option value="">Belum ada lokasi</option>
                 ) : (
                   <>
-                    <option value="">Select location...</option>
+                    <option value="">Pilih lokasi...</option>
                     {locations.map((l) => (
                       <option key={l.id} value={l.id}>
                         {l.name}
@@ -1154,7 +1154,7 @@ export default function Inventory() {
             </div>
 
             <div style={{ gridColumn: "1 / -1" }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Note</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Catatan</div>
               <input
                 style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 value={receiveForm.note}
@@ -1163,7 +1163,7 @@ export default function Inventory() {
             </div>
 
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Qty</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Jumlah</div>
               <input
                 style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 type="number"
@@ -1247,7 +1247,7 @@ export default function Inventory() {
         <Modal open={openConsume} title="Use Stock (Consume / OUT)" onClose={() => setOpenConsume(false)}>
           {locations.length === 0 ? (
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontWeight: 600, color: BRAND.text }}>No location found</div>
+              <div style={{ fontWeight: 600, color: BRAND.text }}>Lokasi tidak ditemukan</div>
               <div style={{ marginTop: 6, color: BRAND.textMuted }}>
                 Create at least one location before using stock.
               </div>
@@ -1277,7 +1277,7 @@ export default function Inventory() {
                   }));
                 }}
               >
-                <option value="">Select item...</option>
+                <option value="">Pilih barang...</option>
                 {nonSerializedItems.map((it) => (
                   <option key={it.id} value={it.id}>
                     {it.sku} — {it.name} ({it.unit || "UNIT"})
@@ -1303,7 +1303,7 @@ export default function Inventory() {
                 onChange={(e) => setConsumeForm((p) => ({ ...p, locationId: e.target.value }))}
                 disabled={locations.length === 0}
               >
-                <option value="">Select location...</option>
+                <option value="">Pilih lokasi...</option>
                 {locations.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.name}
@@ -1313,7 +1313,7 @@ export default function Inventory() {
             </div>
 
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Qty to use</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Jumlah yang digunakan</div>
               <input
                 style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 type="number"
@@ -1324,12 +1324,12 @@ export default function Inventory() {
             </div>
 
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Note</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Catatan</div>
               <input
                 style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 value={consumeForm.note}
                 onChange={(e) => setConsumeForm((p) => ({ ...p, note: e.target.value }))}
-                placeholder="Optional reason"
+                placeholder="Alasan (opsional)"
               />
             </div>
           </div>
@@ -1377,12 +1377,12 @@ export default function Inventory() {
                 trucks={trucks}
                 value={assignForm.truckId}
                 onChange={(val) => setAssignForm((p) => ({ ...p, truckId: val }))}
-                placeholder="Search plate number..."
+                placeholder="Cari nomor polisi..."
               />
             </div>
 
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Installed At</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Tanggal Pemasangan</div>
               <input
                 style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 value={assignForm.installedAt}
@@ -1392,12 +1392,12 @@ export default function Inventory() {
             </div>
 
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Note</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Catatan</div>
               <input
                 style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 value={assignForm.note}
                 onChange={(e) => setAssignForm((p) => ({ ...p, note: e.target.value }))}
-                placeholder="Optional note"
+                placeholder="Catatan (opsional)"
               />
             </div>
 
@@ -1421,11 +1421,11 @@ export default function Inventory() {
 //////////////////////
 function ItemsTable({ items, loading, onUse }) {
   if (loading) {
-    return <div style={{ padding: 20, color: BRAND.textMuted }}>Loading...</div>;
+    return <div style={{ padding: 20, color: BRAND.textMuted }}>Memuat...</div>;
   }
 
   if (items.length === 0) {
-    return <div style={{ padding: 20, color: BRAND.textMuted }}>No items found.</div>;
+    return <div style={{ padding: 20, color: BRAND.textMuted }}>Barang tidak ditemukan.</div>;
   }
 
   return (
@@ -1434,11 +1434,11 @@ function ItemsTable({ items, loading, onUse }) {
         <thead>
           <tr>
             <th style={th}>SKU</th>
-            <th style={th}>Name</th>
+            <th style={th}>Nama</th>
             <th style={th}>Unit</th>
             <th style={th}>Serialized</th>
-            <th style={th}>Total Stock</th>
-            <th style={th}>Actions</th>
+            <th style={th}>Total Stok</th>
+            <th style={th}>Tindakan</th>
           </tr>
         </thead>
         <tbody>
@@ -1494,7 +1494,7 @@ function UnitsTable({
           value={unitStatus}
           onChange={(e) => setUnitStatus(e.target.value)}
         >
-          <option value="">All Status</option>
+          <option value="">Semua Status</option>
           <option value="IN_STOCK">IN_STOCK</option>
           <option value="ASSIGNED">ASSIGNED</option>
           <option value="SCRAPPED">SCRAPPED</option>
@@ -1532,21 +1532,21 @@ function UnitsTable({
       </div>
 
       {loading ? (
-        <div style={{ padding: 20, color: BRAND.textMuted }}>Loading...</div>
+        <div style={{ padding: 20, color: BRAND.textMuted }}>Memuat...</div>
       ) : units.length === 0 ? (
-        <div style={{ padding: 20, color: BRAND.textMuted }}>No units found.</div>
+        <div style={{ padding: 20, color: BRAND.textMuted }}>Unit tidak ditemukan.</div>
       ) : (
         <div style={tableWrap}>
           <table style={table}>
             <thead>
               <tr>
                 <th style={th}>Serial</th>
-                <th style={th}>Item</th>
+                <th style={th}>Barang</th>
                 <th style={th}>Barcode</th>
                 <th style={th}>Status</th>
                 <th style={th}>Location</th>
-                <th style={th}>Truck</th>
-                <th style={th}>Actions</th>
+                <th style={th}>Kendaraan</th>
+                <th style={th}>Tindakan</th>
               </tr>
             </thead>
             <tbody>
@@ -1604,11 +1604,11 @@ function UnitsTable({
 
 function MovementsTable({ movements, loading }) {
   if (loading) {
-    return <div style={{ padding: 20, color: BRAND.textMuted }}>Loading...</div>;
+    return <div style={{ padding: 20, color: BRAND.textMuted }}>Memuat...</div>;
   }
 
   if (movements.length === 0) {
-    return <div style={{ padding: 20, color: BRAND.textMuted }}>No movements found.</div>;
+    return <div style={{ padding: 20, color: BRAND.textMuted }}>Mutasi stok tidak ditemukan.</div>;
   }
 
   return (
@@ -1616,13 +1616,13 @@ function MovementsTable({ movements, loading }) {
       <table style={table}>
         <thead>
           <tr>
-            <th style={th}>Type</th>
-            <th style={th}>Item</th>
-            <th style={th}>Qty</th>
-            <th style={th}>From</th>
-            <th style={th}>To</th>
-            <th style={th}>Note</th>
-            <th style={th}>Date</th>
+            <th style={th}>Jenis</th>
+            <th style={th}>Barang</th>
+            <th style={th}>Jumlah</th>
+            <th style={th}>Dari</th>
+            <th style={th}>Ke</th>
+            <th style={th}>Catatan</th>
+            <th style={th}>Tanggal</th>
           </tr>
         </thead>
         <tbody>
