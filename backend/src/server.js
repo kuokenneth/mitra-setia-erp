@@ -20,6 +20,8 @@ const uploadsRoutes = require("./routes/uploads"); // <-- keep for POST upload A
 const tripsRouter = require("./routes/trips");
 const dispatchRouter = require("./routes/dispatch");
 const purchasingRoutes = require("./routes/purchasing");
+const receivablesRoutes = require("./routes/receivables");
+const accountingRoutes = require("./routes/accounting");
 
 const app = express();
 
@@ -84,6 +86,8 @@ app.use("/maintenance", maintenanceRoutes);
 app.use("/orders", ordersRoutes);
 app.use("/expenses", expensesRoutes);
 app.use("/purchasing", purchasingRoutes);
+app.use("/receivables", receivablesRoutes);
+app.use("/accounting", accountingRoutes);
 
 /**
  * ✅ Upload API should NOT be /uploads (conflicts with static).

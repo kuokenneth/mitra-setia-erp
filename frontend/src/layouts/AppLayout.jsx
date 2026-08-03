@@ -14,6 +14,8 @@ import {
   FiLogOut,
   FiMenu,
   FiShoppingCart,
+  FiCreditCard,
+  FiBookOpen,
   FiX,
 } from "react-icons/fi";
 import { useAuth } from "../AuthContext";
@@ -120,10 +122,12 @@ export default function AppLayout() {
         : []),
       { to: "/trucks", label: "Armada", icon: FiTruck },
       { to: "/inventory", label: "Inventory", icon: FiBox },
-      { to: "/purchasing", label: "Pembelian", icon: FiShoppingCart },
       { to: "/maintenance", label: "Servis", icon: FiTool },
+      { to: "/purchasing", label: "Pembelian", icon: FiShoppingCart },
       { to: "/expenses", label: "Pengeluaran", icon: FiDollarSign },
       { to: "/orders", label: "Pesanan", icon: FiFileText },
+      { to: "/receivables", label: "Piutang", icon: FiCreditCard },
+      ...(isOwnerAdmin ? [{ to: "/accounting", label: "Accounting", icon: FiBookOpen }] : []),
     ];
   }, [isDriver, isOwnerAdmin, canManageDrivers]);
 

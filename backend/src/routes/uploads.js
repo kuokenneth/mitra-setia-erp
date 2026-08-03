@@ -1,11 +1,10 @@
 // backend/src/routes/uploads.js
 const express = require("express");
 const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
 const { v2: cloudinary } = require("cloudinary");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const { authRequired } = require("../middleware/authRequired");
+const { prisma } = require("../prisma");
 
 const router = express.Router();
 
@@ -22,21 +21,6 @@ if (cloudinaryEnabled) {
   });
 }
 
-// Local storage fallback
-const uploadsDir = path.join(__dirname, "..", "..", "uploads");
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-
-const localStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadsDir),
-  filename: (req, file, cb) => {
-    const safeBase = path
-      .basename(file.originalname || "file")
-      .replace(/\s+/g, "-")
-      .replace(/[^\w.-]/g, "");
-    cb(null, `${Date.now()}-${safeBase}`);
-  },
-});
-
 // Cloudinary storage
 const cloudStorage = new CloudinaryStorage({
   cloudinary,
@@ -51,27 +35,37 @@ const cloudStorage = new CloudinaryStorage({
 });
 
 const upload = multer({
-  storage: cloudinaryEnabled ? cloudStorage : localStorage,
+  // Database fallback is persistent across Render restarts.
+  storage: cloudinaryEnabled ? cloudStorage : multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024 },
+});
+
+// Public read endpoint. IDs are unguessable CUIDs and the response is inline so
+// image/PDF proofs can be opened directly from a new browser tab.
+router.get("/:id", async (req, res) => {
+  try {
+    const file = await prisma.storedFile.findUnique({ where: { id: req.params.id } });
+    if (!file) return res.status(404).send("Bukti tidak ditemukan");
+    const safeName = String(file.fileName || "bukti").replace(/[\r\n"\\]/g, "_");
+    res.setHeader("Content-Type", file.mimeType || "application/octet-stream");
+    res.setHeader("Content-Length", String(file.size));
+    res.setHeader("Content-Disposition", `inline; filename="${safeName}"`);
+    res.setHeader("Cache-Control", "private, max-age=86400");
+    res.send(Buffer.from(file.data));
+  } catch (e) {
+    res.status(400).send(e.message || "Gagal membuka bukti");
+  }
 });
 
 router.post("/", authRequired, upload.array("files", 10), async (req, res) => {
   try {
     const files = req.files || [];
-    const out = files.map((f) => {
-      const isLocal = !cloudinaryEnabled;
-      const url = isLocal
-        ? `/uploads/${path.basename(f.path)}`
-        : f.path; // Cloudinary URL
-
-      return {
-        url,
-        fileName: f.originalname,
-        mimeType: f.mimetype,
-        size: f.size,
-      };
-    });
-    res.json({ items: out, storage: cloudinaryEnabled ? "cloudinary" : "local" });
+    const out = await Promise.all(files.map(async (f) => {
+      if (cloudinaryEnabled) return { url: f.path, fileName: f.originalname, mimeType: f.mimetype, size: f.size };
+      const stored = await prisma.storedFile.create({ data: { fileName: f.originalname || "bukti", mimeType: f.mimetype || "application/octet-stream", size: f.size, data: f.buffer } });
+      return { url: `/api/uploads/${stored.id}`, fileName: stored.fileName, mimeType: stored.mimeType, size: stored.size };
+    }));
+    res.json({ items: out, storage: cloudinaryEnabled ? "cloudinary" : "database" });
   } catch (e) {
     console.error(e);
     res.status(400).json({ error: e.message || "Upload failed" });

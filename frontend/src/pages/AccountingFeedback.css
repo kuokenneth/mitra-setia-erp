@@ -1,0 +1,36 @@
+.acct-head button.syncing { background: #eef8f2; cursor: wait; }
+.acct-spin { animation: acctSpin .8s linear infinite; }
+@keyframes acctSpin { to { transform: rotate(360deg); } }
+.acct-sync-progress,
+.acct-success {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 11px 13px;
+  border: 1px solid #b9dcc7;
+  border-radius: 8px;
+  background: #f0faf4;
+  color: #176b3a;
+  font-size: 12px;
+}
+.acct-sync-progress div { display: grid; gap: 2px; }
+.acct-sync-progress small { color: #5f7568; }
+.acct-progress-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #0d7c3d;
+  box-shadow: 0 0 0 0 #0d7c3d66;
+  animation: acctPulse 1.2s ease-out infinite;
+}
+@keyframes acctPulse { to { box-shadow: 0 0 0 8px #0d7c3d00; } }
+.acct-success button {
+  margin-left: auto;
+  padding: 2px 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 18px;
+}

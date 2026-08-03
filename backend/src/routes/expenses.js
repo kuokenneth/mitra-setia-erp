@@ -1,6 +1,7 @@
 const express = require("express");
 const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
+const { SYSTEM_ACCOUNTS, cashCode, postJournal } = require("../services/accounting");
 
 const router = express.Router();
 
@@ -274,10 +275,15 @@ router.post("/", authRequired, async (req, res) => {
   if (tripId) {
     trip = await prisma.trip.findUnique({
       where: { id: tripId },
-      select: { id: true, driverUserId: true },
+      select: { id: true, driverUserId: true, status: true },
     });
     if (!trip) {
       return res.status(404).json({ error: "Trip not found" });
+    }
+    if (trip.status !== "PLANNED") {
+      return res.status(400).json({
+        error: "Pengeluaran perjalanan hanya dapat dibuat sebelum kendaraan berangkat",
+      });
     }
   }
 
@@ -406,32 +412,59 @@ router.post("/:id/proof", authRequired, async (req, res) => {
     return res.status(403).json({ error: "Maker-checker: uploader cannot be the creator" });
   }
 
-  const updated = await prisma.expense.update({
-    where: { id },
-    data: {
-      proofUrl,
-      proofFileName,
-      proofMimeType,
-      ...(Number.isFinite(proofSize) ? { proofSize: proofSize } : {}),
-      status: "PAID",
-      paidAt: new Date(),
-      proofUploadedById: req.user?.id,
-    },
-    include: {
-      trip: {
-        include: {
-          truck: true,
-          driverUser: true,
-          order: { select: { id: true, orderNo: true, customerName: true, fromText: true, toText: true, status: true } },
-        },
+  const updated = await prisma.$transaction(async tx => {
+    const paid = await tx.expense.update({
+      where: { id },
+      data: {
+        proofUrl,
+        proofFileName,
+        proofMimeType,
+        ...(Number.isFinite(proofSize) ? { proofSize: proofSize } : {}),
+        status: "PAID",
+        paidAt: new Date(),
+        proofUploadedById: req.user?.id,
       },
-      createdBy: { select: { id: true, name: true, email: true } },
-      proofUploadedBy: { select: { id: true, name: true, email: true } },
-      approvedBy: { select: { id: true, name: true, email: true } },
-    },
+      include: {
+        trip: {
+          include: {
+            truck: true,
+            driverUser: true,
+            order: { select: { id: true, orderNo: true, customerName: true, fromText: true, toText: true, status: true } },
+          },
+        },
+        createdBy: { select: { id: true, name: true, email: true } },
+        proofUploadedBy: { select: { id: true, name: true, email: true } },
+        approvedBy: { select: { id: true, name: true, email: true } },
+      },
+    });
+    await postJournal(tx, { date: paid.paidAt, description: paid.reason, sourceType: "EXPENSE_PAYMENT", sourceId: paid.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.EXPENSE, debit: paid.amount }, { code: cashCode(paid.paymentMethod), credit: paid.amount }] });
+    return paid;
   });
 
   res.json(updated);
+});
+
+// Replace an incorrect proof before owner approval. Financial values/status and
+// the accounting journal remain unchanged.
+router.patch("/:id/proof", authRequired, async (req, res) => {
+  if (!proofRoles.includes(req.user?.role)) return res.status(403).json({ error: "Forbidden" });
+  const proofUrl = cleanStr(req.body.proofUrl);
+  if (!proofUrl) return res.status(400).json({ error: "Bukti pembayaran wajib diisi" });
+  const existing = await prisma.expense.findUnique({ where: { id: req.params.id }, select: { id: true, status: true } });
+  if (!existing) return res.status(404).json({ error: "Pengeluaran tidak ditemukan" });
+  if (existing.status !== "PAID") return res.status(400).json({ error: existing.status === "APPROVED" ? "Bukti pengeluaran yang sudah disetujui tidak dapat diganti" : "Bukti hanya dapat diganti setelah pembayaran" });
+  const proofSize = req.body.proofSize !== undefined ? Number(req.body.proofSize) : undefined;
+  const updated = await prisma.expense.update({
+    where: { id: existing.id },
+    data: {
+      proofUrl,
+      proofFileName: cleanStr(req.body.proofFileName),
+      proofMimeType: cleanStr(req.body.proofMimeType),
+      ...(Number.isFinite(proofSize) ? { proofSize } : {}),
+      proofUploadedById: req.user.id,
+    },
+  });
+  res.json({ ok: true, expense: updated });
 });
 
 // Approve expense (OWNER only)
@@ -477,6 +510,9 @@ router.delete("/:id", authRequired, async (req, res) => {
   if (!ensureRole(req, res)) return;
 
   const { id } = req.params;
+  const existing = await prisma.expense.findUnique({ where: { id } });
+  if (!existing) return res.status(404).json({ error: "Pengeluaran tidak ditemukan" });
+  if (existing.status !== "SUBMITTED") return res.status(400).json({ error: "Pengeluaran yang sudah dibayar tidak dapat dihapus" });
   await prisma.expense.delete({ where: { id } });
   res.json({ ok: true });
 });

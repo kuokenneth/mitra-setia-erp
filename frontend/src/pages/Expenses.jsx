@@ -139,8 +139,10 @@ export default function Expenses() {
     try {
       const params = new URLSearchParams();
       if (search.trim()) params.set("q", search.trim());
+      params.set("status", "PLANNED");
       const data = await api(`/trips?${params.toString()}`);
-      setTrips(data.items || []);
+      // Pertahanan tambahan: uang jalan hanya dibuat sebelum kendaraan berangkat.
+      setTrips((data.items || []).filter((trip) => trip.status === "PLANNED"));
     } catch (e) {
       setErr(e.message || "Gagal memuat trips");
     } finally {
@@ -216,7 +218,7 @@ export default function Expenses() {
     return `${API_BASE}${url.startsWith("/") ? "" : "/"}${url}`;
   }
 
-  async function uploadProof(expenseId, file) {
+  async function uploadProof(expenseId, file, replace = false) {
     const formData = new FormData();
     formData.append("files", file);
 
@@ -235,7 +237,7 @@ export default function Expenses() {
     if (!item?.url) throw new Error("Gagal mengunggah");
 
     await api(`/expenses/${expenseId}/proof`, {
-      method: "POST",
+      method: replace ? "PATCH" : "POST",
       body: JSON.stringify({
         proofUrl: item.url,
         proofFileName: item.fileName,
@@ -441,12 +443,12 @@ export default function Expenses() {
                           style={s.linkBtn}
                           onClick={(e) => e.stopPropagation()}
                         >
-                          View Proof
+                          Lihat Bukti
                         </a>
                       ) : null}
                       {canUploadProof && x.status === "SUBMITTED" && (
                         <label style={s.linkBtn} onClick={(e) => e.stopPropagation()}>
-                          Upload Proof
+                          Unggah Bukti
                           <input
                             type="file"
                             accept="image/*,application/pdf"
@@ -466,6 +468,32 @@ export default function Expenses() {
                           />
                         </label>
                       )}
+                      {canUploadProof && x.status === "PAID" && (
+                        <label style={s.linkBtn} onClick={(e) => e.stopPropagation()}>
+                          Ganti Bukti
+                          <input
+                            type="file"
+                            accept="image/*,application/pdf"
+                            style={{ display: "none" }}
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              if (!window.confirm("Ganti bukti pembayaran dengan file ini?")) {
+                                e.target.value = "";
+                                return;
+                              }
+                              try {
+                                await uploadProof(x.id, file, true);
+                                load();
+                              } catch (err) {
+                                setErr(err.message || "Gagal mengganti bukti");
+                              } finally {
+                                e.target.value = "";
+                              }
+                            }}
+                          />
+                        </label>
+                      )}
                       {canApprove && x.status === "PAID" && (
                         <button
                           style={s.approveBtn}
@@ -474,18 +502,18 @@ export default function Expenses() {
                             onApprove(x.id);
                           }}
                         >
-                          Approve
+                          Setujui
                         </button>
                       )}
-                      <button
+                      {x.status === "SUBMITTED" && <button
                         style={s.deleteBtn}
                         onClick={(e) => {
                           e.stopPropagation();
                           onDelete(x.id);
                         }}
                       >
-                        Delete
-                      </button>
+                        Hapus
+                      </button>}
                     </div>
                   </td>
                 </tr>

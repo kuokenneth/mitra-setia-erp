@@ -106,6 +106,33 @@ enum PurchasePaymentStatus {
   PAID
 }
 
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIALLY_PAID
+  PAID
+  VOID
+}
+
+enum ReceivablePaymentMethod {
+  BANK_TRANSFER
+  CASH
+  OTHER
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum JournalStatus {
+  POSTED
+  VOID
+}
+
 ////////////////////////////////////////////////////
 // MODELS
 ////////////////////////////////////////////////////
@@ -135,6 +162,9 @@ model User {
   goodsReceiptsCreated        GoodsReceipt[]             @relation("GoodsReceiptCreatedBy")
   purchasePaymentsCreated     PurchasePayment[]          @relation("PurchasePaymentCreatedBy")
   purchasePaymentsApproved    PurchasePayment[]          @relation("PurchasePaymentApprovedBy")
+  invoicesCreated             Invoice[]                  @relation("InvoiceCreatedBy")
+  receivablePaymentsCreated   ReceivablePayment[]        @relation("ReceivablePaymentCreatedBy")
+  journalEntriesCreated       JournalEntry[]             @relation("JournalEntryCreatedBy")
 }
 
 model Supplier {
@@ -280,7 +310,8 @@ model Customer {
   address   String?
   createdAt DateTime @default(now())
 
-  orders Order[]
+  orders   Order[]
+  invoices Invoice[]
 }
 
 ////////////////////////////////////////////////////
@@ -318,8 +349,9 @@ model Order {
   backhaulOrders    Order[] @relation("BackhaulLink")
 
   // relations
-  trips  Trip[]
-  proofs OrderProof[]
+  trips   Trip[]
+  proofs  OrderProof[]
+  invoice Invoice?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -330,6 +362,58 @@ model Order {
   @@index([customerName])
   @@index([toText])
   @@index([backhaulOfOrderId])
+}
+
+////////////////////////////////////////////////////
+// INVOICE + RECEIVABLE
+////////////////////////////////////////////////////
+model Invoice {
+  id             String              @id @default(cuid())
+  number         String              @unique
+  orderId        String              @unique
+  order          Order               @relation(fields: [orderId], references: [id])
+  customerId     String?
+  customer       Customer?           @relation(fields: [customerId], references: [id])
+  customerName   String
+  customerPhone  String?
+  billingAddress String?
+  status         InvoiceStatus       @default(DRAFT)
+  issuedAt       DateTime            @default(now())
+  dueAt          DateTime
+  subtotal       Int
+  tax            Int                 @default(0)
+  discount       Int                 @default(0)
+  total          Int
+  notes          String?
+  sentAt         DateTime?
+  paidAt         DateTime?
+  createdById    String
+  createdBy      User                @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+  payments       ReceivablePayment[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([status])
+  @@index([dueAt])
+  @@index([customerId])
+}
+
+model ReceivablePayment {
+  id          String                  @id @default(cuid())
+  number      String                  @unique
+  invoiceId   String
+  invoice     Invoice                 @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amount      Int
+  method      ReceivablePaymentMethod @default(BANK_TRANSFER)
+  reference   String?
+  notes       String?
+  receivedAt  DateTime                @default(now())
+  createdById String
+  createdBy   User                    @relation("ReceivablePaymentCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime                @default(now())
+
+  @@index([invoiceId])
+  @@index([receivedAt])
 }
 
 model Trip {
@@ -640,5 +724,64 @@ model Expense {
   @@index([proofUploadedById])
   @@index([createdById])
   @@index([approvedById])
+  @@index([createdAt])
+}
+
+////////////////////////////////////////////////////
+// ACCOUNTING
+////////////////////////////////////////////////////
+model Account {
+  id        String        @id @default(cuid())
+  code      String        @unique
+  name      String
+  type      AccountType
+  isActive  Boolean       @default(true)
+  isSystem  Boolean       @default(false)
+  createdAt DateTime      @default(now())
+  lines     JournalLine[]
+
+  @@index([type])
+}
+
+model JournalEntry {
+  id          String        @id @default(cuid())
+  number      String        @unique
+  date        DateTime      @default(now())
+  description String
+  sourceType  String?
+  sourceId    String?
+  status      JournalStatus @default(POSTED)
+  createdById String?
+  createdBy   User?         @relation("JournalEntryCreatedBy", fields: [createdById], references: [id])
+  lines       JournalLine[]
+  createdAt   DateTime      @default(now())
+
+  @@unique([sourceType, sourceId])
+  @@index([date])
+  @@index([status])
+}
+
+model JournalLine {
+  id          String       @id @default(cuid())
+  entryId     String
+  entry       JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  accountId   String
+  account     Account      @relation(fields: [accountId], references: [id])
+  description String?
+  debit       Int          @default(0)
+  credit      Int          @default(0)
+
+  @@index([entryId])
+  @@index([accountId])
+}
+
+model StoredFile {
+  id        String   @id @default(cuid())
+  fileName  String
+  mimeType  String
+  size      Int
+  data      Bytes
+  createdAt DateTime @default(now())
+
   @@index([createdAt])
 }

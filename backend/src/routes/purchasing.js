@@ -2,6 +2,7 @@ const express = require("express");
 const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { requireRole } = require("../middleware/requireRole");
+const { SYSTEM_ACCOUNTS, cashCode, postJournal } = require("../services/accounting");
 const router = express.Router();
 
 const seq = (prefix) => `${prefix}-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
@@ -68,7 +69,13 @@ router.post("/receipts", async (req, res) => {
     }
     const rec = await tx.goodsReceipt.create({ data: { number: seq("GR"), purchaseOrderId, locationId, deliveryNote, notes, createdById: req.user.id, items: { create: items.map(i => ({ purchaseOrderItemId: i.purchaseOrderItemId, qty: Number(i.qty), condition: i.condition || "GOOD" })) } } });
     const all = await tx.purchaseOrderItem.findMany({ where: { purchaseOrderId } });
-    await tx.purchaseOrder.update({ where: { id: purchaseOrderId }, data: { status: all.every(i => i.receivedQty >= i.qty) ? "FULLY_RECEIVED" : "PARTIALLY_RECEIVED" } }); return rec;
+    const fullyReceived = all.every(i => i.receivedQty >= i.qty);
+    const receiptValue = items.reduce((sum, row) => {
+      const poi = po.items.find(i => i.id === row.purchaseOrderItemId);
+      return sum + Number(row.qty) * Number(poi?.unitPrice || 0);
+    }, 0) + (fullyReceived ? Number(po.tax) + Number(po.shippingCost) - Number(po.discount) : 0);
+    if (receiptValue > 0) await postJournal(tx, { date: rec.receivedAt, description: `Penerimaan barang ${rec.number}`, sourceType: "GOODS_RECEIPT", sourceId: rec.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.INVENTORY, debit: receiptValue }, { code: SYSTEM_ACCOUNTS.AP, credit: receiptValue }] });
+    await tx.purchaseOrder.update({ where: { id: purchaseOrderId }, data: { status: fullyReceived ? "FULLY_RECEIVED" : "PARTIALLY_RECEIVED" } }); return rec;
   }); res.json({ ok: true, receipt });
 });
 router.post("/payments", async (req, res) => {
@@ -80,5 +87,12 @@ router.post("/payments", async (req, res) => {
   if (!amount || amount <= 0 || amount > total - committed) return res.status(400).json({ error: "Jumlah pembayaran melebihi sisa tagihan" });
   const payment = await prisma.purchasePayment.create({ data: { number: seq("PAY"), purchaseOrderId: req.body.purchaseOrderId, amount, method: req.body.method, reference: req.body.reference, createdById: req.user.id } }); res.json({ ok: true, payment });
 });
-router.patch("/payments/:id/approve", requireRole("OWNER", "ADMIN"), async (req, res) => { const payment = await prisma.purchasePayment.update({ where: { id: req.params.id }, data: { status: "PAID", paidAt: new Date(), approvedAt: new Date(), approvedById: req.user.id } }); res.json({ ok: true, payment }); });
+router.patch("/payments/:id/approve", requireRole("OWNER", "ADMIN"), async (req, res) => {
+  const payment = await prisma.$transaction(async tx => {
+    const updated = await tx.purchasePayment.update({ where: { id: req.params.id }, data: { status: "PAID", paidAt: new Date(), approvedAt: new Date(), approvedById: req.user.id } });
+    await postJournal(tx, { date: updated.paidAt, description: `Pembayaran supplier ${updated.number}`, sourceType: "SUPPLIER_PAYMENT", sourceId: updated.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.AP, debit: updated.amount }, { code: cashCode(updated.method), credit: updated.amount }] });
+    return updated;
+  });
+  res.json({ ok: true, payment });
+});
 module.exports = router;
