@@ -49,6 +49,74 @@ function desiredTruckStatusForTripStatus(tripStatus) {
   return null;
 }
 
+function sameLocation(a, b) {
+  const normalize = (v) => String(v || "").trim().toLocaleLowerCase("id-ID");
+  return Boolean(normalize(a) && normalize(a) === normalize(b));
+}
+
+async function updateTruckOperationalState(tx, trip, nextStatus, timestamp) {
+  if (!trip?.truckId) return;
+
+  const truck = await tx.truck.findUnique({ where: { id: trip.truckId } });
+  if (!truck || ["MAINTENANCE", "INACTIVE"].includes(truck.status)) return;
+
+  const origin = str(trip.fromText);
+  const destination = str(trip.toText);
+  const baseLocation = truck.baseLocation || origin || truck.currentLocation;
+
+  if (nextStatus === "DISPATCHED") {
+    await tx.truck.update({
+      where: { id: truck.id },
+      data: {
+        status: "DISPATCH",
+        baseLocation: truck.baseLocation || origin || undefined,
+        currentLocation: origin || truck.currentLocation,
+        locationUpdatedAt: timestamp,
+        availableForBackhaul: false,
+        idleSince: null,
+      },
+    });
+    return;
+  }
+
+  if (nextStatus === "ARRIVED") {
+    await tx.truck.update({
+      where: { id: truck.id },
+      data: {
+        status: "DISPATCH",
+        baseLocation: truck.baseLocation || origin || undefined,
+        currentLocation: destination || truck.currentLocation,
+        locationUpdatedAt: timestamp,
+      },
+    });
+    return;
+  }
+
+  if (nextStatus === "COMPLETED") {
+    const finalLocation = destination || truck.currentLocation;
+    const awayFromBase = Boolean(baseLocation && finalLocation && !sameLocation(baseLocation, finalLocation));
+    await tx.truck.update({
+      where: { id: truck.id },
+      data: {
+        status: awayFromBase ? "WAITING_BACKHAUL" : "READY",
+        baseLocation: truck.baseLocation || origin || undefined,
+        currentLocation: finalLocation,
+        locationUpdatedAt: timestamp,
+        availableForBackhaul: awayFromBase,
+        idleSince: awayFromBase ? timestamp : null,
+      },
+    });
+    return;
+  }
+
+  if (nextStatus === "CANCELLED") {
+    await tx.truck.update({
+      where: { id: truck.id },
+      data: { status: "READY", availableForBackhaul: false, idleSince: null },
+    });
+  }
+}
+
 async function safeUpdateTruckStatus(tx, truckId, nextTruckStatus) {
   if (!truckId || !nextTruckStatus) return;
 
@@ -62,7 +130,7 @@ async function safeUpdateTruckStatus(tx, truckId, nextTruckStatus) {
   if (["MAINTENANCE", "INACTIVE"].includes(t.status)) return;
 
   // Only auto-manage normal operational statuses
-  if (!["READY", "DISPATCH"].includes(t.status)) return;
+  if (!["READY", "DISPATCH", "WAITING_BACKHAUL", "RETURNING_EMPTY"].includes(t.status)) return;
 
   if (t.status === nextTruckStatus) return;
 
@@ -78,7 +146,7 @@ async function safeUpdateTruckStatus(tx, truckId, nextTruckStatus) {
 async function recomputeOrderStatus(tx, orderId) {
   const order = await tx.order.findUnique({
     where: { id: orderId },
-    select: { id: true, status: true },
+    select: { id: true, status: true, qty: true },
   });
   if (!order) return;
 
@@ -86,7 +154,7 @@ async function recomputeOrderStatus(tx, orderId) {
 
   const trips = await tx.trip.findMany({
     where: { orderId },
-    select: { status: true },
+    select: { status: true, qtyPlanned: true, qtyActual: true },
   });
 
   if (!trips.length) return;
@@ -94,9 +162,21 @@ async function recomputeOrderStatus(tx, orderId) {
   const allDone = trips.every((t) => t.status === "COMPLETED" || t.status === "CANCELLED");
   if (allDone) {
     const anyCompleted = trips.some((t) => t.status === "COMPLETED");
+    const completedQty = trips
+      .filter((t) => t.status === "COMPLETED")
+      .reduce((sum, t) => sum + Number(t.qtyActual ?? t.qtyPlanned ?? 0), 0);
+    const orderedQty = order.qty == null ? null : Number(order.qty);
+    const quantityFulfilled = orderedQty == null || completedQty + 1e-9 >= orderedQty;
+
     await tx.order.update({
       where: { id: orderId },
-      data: { status: anyCompleted ? "COMPLETED" : "CANCELLED" },
+      data: {
+        status: !anyCompleted
+          ? "CANCELLED"
+          : quantityFulfilled
+            ? "COMPLETED"
+            : "IN_PROGRESS",
+      },
     });
     return;
   }
@@ -283,7 +363,7 @@ router.patch("/:id/status", authRequired, async (req, res) => {
         where: { id },
         include: {
           order: { select: { id: true } },
-          truck: { select: { id: true, plateNumber: true } },
+          truck: { select: { id: true, plateNumber: true, currentLocation: true } },
           driverUser: { select: { id: true, name: true } },
         },
       });
@@ -315,6 +395,13 @@ router.patch("/:id/status", authRequired, async (req, res) => {
       if (isBecomingActive) {
         if (!trip.truckId) throw new Error("Trip must have a truck before becoming active");
         if (!trip.driverUserId) throw new Error("Trip must have a driver before becoming active");
+      }
+
+
+      if (nextStatus === "DISPATCHED" && !sameLocation(trip.truck?.currentLocation, trip.fromText)) {
+        throw new Error(
+          `Truk berada di ${trip.truck?.currentLocation || "lokasi yang belum diatur"}, bukan di lokasi asal ${trip.fromText || "yang belum diatur"}`
+        );
       }
 
       // double-book guard for becoming active
@@ -356,9 +443,8 @@ router.patch("/:id/status", authRequired, async (req, res) => {
         data,
       });
 
-      // update truck status based on trip status
-      const nextTruckStatus = desiredTruckStatusForTripStatus(nextStatus);
-      await safeUpdateTruckStatus(tx, trip.truckId, nextTruckStatus);
+      // Keep the physical location and backhaul availability in sync with the trip.
+      await updateTruckOperationalState(tx, trip, nextStatus, ts);
 
       await recomputeOrderStatus(tx, trip.orderId);
 
@@ -415,7 +501,14 @@ router.patch("/:id", authRequired, async (req, res) => {
       if (body.truckId && body.truckId !== trip.truckId) {
         const t = await tx.truck.findUnique({ where: { id: body.truckId } });
         if (!t) throw new Error("Truck not found");
-        if (t.status !== "READY") throw new Error("Truck must be READY");
+        if (!["READY", "WAITING_BACKHAUL"].includes(t.status)) {
+          throw new Error("Truck must be READY or WAITING_BACKHAUL");
+        }
+        if (!sameLocation(t.currentLocation, trip.fromText || trip.order?.fromText)) {
+          throw new Error(
+            `Truk berada di ${t.currentLocation || "lokasi yang belum diatur"}, bukan di lokasi asal ${trip.fromText || trip.order?.fromText || "yang belum diatur"}`
+          );
+        }
       }
 
       // driver ACTIVE+DRIVER check if changing driver

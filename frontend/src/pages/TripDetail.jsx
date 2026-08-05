@@ -1,26 +1,36 @@
 // src/pages/TripDetail.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api } from "../api";
+import { api, apiAssetUrl } from "../api";
 import { useAuth } from "../AuthContext";
+import {
+  FiArrowLeft,
+  FiCheck,
+  FiClock,
+  FiFileText,
+  FiFlag,
+  FiMapPin,
+  FiTruck,
+  FiUser,
+  FiX,
+} from "react-icons/fi";
 
 //////////////////////
 // THEME (match Orders / Maintenance)
 //////////////////////
 const pageBg = {
   minHeight: "100vh",
-  padding: 22,
-  color: "#0B2A1F",
+  color: "#17211C",
 };
 
 const container = { maxWidth: 1180, margin: "0 auto" };
 
 const panel = {
   background: "#FFFFFF",
-  borderRadius: 22,
-  padding: 18,
-  border: "1px solid rgba(20, 80, 60, 0.10)",
-  boxShadow: "0 18px 55px rgba(10, 40, 30, 0.08)",
+  borderRadius: 14,
+  padding: 24,
+  border: "1px solid #E2EAE5",
+  boxShadow: "0 8px 30px rgba(18, 56, 39, 0.06)",
 };
 
 const headerRow = {
@@ -32,40 +42,28 @@ const headerRow = {
 };
 
 const title = {
-  fontSize: 38,
-  fontWeight: 1000,
-  letterSpacing: -1,
+  fontSize: 30,
+  fontWeight: 700,
+  letterSpacing: -0.6,
   margin: 0,
   lineHeight: 1.05,
 };
 
 const subTitle = {
-  marginTop: 6,
-  fontWeight: 800,
-  color: "#2F6B55",
-  fontSize: 13,
-};
-
-const btnGreen = {
-  height: 44,
-  padding: "0 18px",
-  borderRadius: 999,
-  border: "1px solid rgba(0,0,0,0.08)",
-  background: "linear-gradient(180deg, #16A34A 0%, #0F8A3B 100%)",
-  color: "#FFFFFF",
-  fontWeight: 1000,
-  cursor: "pointer",
-  boxShadow: "0 16px 28px rgba(22, 163, 74, 0.25)",
+  marginTop: 10,
+  fontWeight: 400,
+  color: "#68756E",
+  fontSize: 14,
 };
 
 const btnGhost = {
-  height: 44,
+  height: 40,
   padding: "0 16px",
   borderRadius: 999,
   border: "1px solid rgba(15, 60, 45, 0.18)",
   background: "#FFFFFF",
   color: "#0B2A1F",
-  fontWeight: 900,
+  fontWeight: 600,
   cursor: "pointer",
   boxShadow: "0 10px 22px rgba(10, 40, 30, 0.06)",
 };
@@ -86,12 +84,12 @@ const badgeBase = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  height: 34,
-  padding: "0 14px",
-  borderRadius: 999,
-  fontWeight: 1000,
-  fontSize: 12,
-  letterSpacing: 0.6,
+  height: 30,
+  padding: "0 12px",
+  borderRadius: 8,
+  fontWeight: 600,
+  fontSize: 11,
+  letterSpacing: 0.4,
   border: "1px solid rgba(15, 60, 45, 0.16)",
   background: "#E9FBF1",
   color: "#0B2A1F",
@@ -105,6 +103,77 @@ function tripBadgeStyle(status) {
   if (s === "DISPATCHED") return { ...badgeBase, background: "#E9FBF1", borderColor: "rgba(34,197,94,0.35)" };
   if (s === "CANCELLED") return { ...badgeBase, background: "#FFF1F2", borderColor: "rgba(244,63,94,0.25)" };
   return { ...badgeBase, background: "#F1F5F9", borderColor: "rgba(15, 60, 45, 0.12)" };
+}
+
+const STATUS_STEPS = [
+  { value: "PLANNED", label: "Direncanakan", icon: FiClock },
+  { value: "DISPATCHED", label: "Berangkat", icon: FiTruck },
+  { value: "ARRIVED", label: "Tiba", icon: FiMapPin },
+  { value: "COMPLETED", label: "Selesai", icon: FiFlag },
+];
+
+function InfoRow({ label, value, icon: Icon }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "28px minmax(105px, .7fr) 1.4fr", gap: 8, alignItems: "center", minHeight: 38, borderBottom: "1px solid #F0F3F1" }}>
+      <span style={{ color: "#88A095", display: "inline-flex" }}>{Icon ? <Icon size={15} /> : null}</span>
+      <span style={{ color: "#718078", fontSize: 13 }}>{label}</span>
+      <span style={{ color: "#213A2F", fontSize: 13, fontWeight: 500 }}>{value || "—"}</span>
+    </div>
+  );
+}
+
+function StatusStep({ step, index, currentIndex, currentStatus, enabled, saving, onClick }) {
+  const Icon = step.icon;
+  const done = currentStatus !== "CANCELLED" && index < currentIndex;
+  const active = currentStatus !== "CANCELLED" && index === currentIndex;
+  const actionable = enabled && !active && !saving;
+  const color = done || active ? "#0D7C3D" : "#8C9A93";
+  const background = active ? "#EAF6EF" : done ? "#F5FBF7" : "#FFFFFF";
+
+  return (
+    <button
+      type="button"
+      disabled={!actionable}
+      onClick={() => onClick(step.value)}
+      style={{
+        position: "relative",
+        zIndex: 1,
+        flex: "1 1 150px",
+        minWidth: 135,
+        border: `1px solid ${active ? "#8AC6A3" : "#DCE5E0"}`,
+        borderRadius: 12,
+        background,
+        padding: "13px 14px",
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        textAlign: "left",
+        color,
+        cursor: actionable ? "pointer" : "default",
+        opacity: saving && !active ? 0.62 : 1,
+        transition: "transform .16s ease, box-shadow .16s ease, border-color .16s ease",
+      }}
+      onMouseEnter={(e) => {
+        if (!actionable) return;
+        e.currentTarget.style.transform = "translateY(-2px)";
+        e.currentTarget.style.boxShadow = "0 8px 20px rgba(13,124,61,.12)";
+        e.currentTarget.style.borderColor = "#78BA94";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.boxShadow = "none";
+        e.currentTarget.style.borderColor = active ? "#8AC6A3" : "#DCE5E0";
+      }}
+    >
+      <span style={{ width: 32, height: 32, borderRadius: 9, display: "inline-flex", alignItems: "center", justifyContent: "center", background: done || active ? "#DCEFE4" : "#F2F5F3" }}>
+        {done ? <FiCheck size={16} /> : <Icon size={16} />}
+      </span>
+      <span>
+        <span style={{ display: "block", fontSize: 11, color: "#849189", marginBottom: 2 }}>Tahap {index + 1}</span>
+        <span style={{ display: "block", fontSize: 13, fontWeight: active ? 650 : 550 }}>{saving && enabled ? "Memproses…" : step.label}</span>
+      </span>
+    </button>
+  );
 }
 
 function fmtDateTime(d) {
@@ -164,21 +233,18 @@ export default function TripDetail() {
     return `${plate} — ${drv}`;
   }, [truck?.plateNumber, trip?.plateNumberSnap, driver?.name, trip?.driverNameSnap]);
 
-  // Driver legal transitions (mirrors backend strict map)
-  const driverNextMap = {
-    PLANNED: ["DISPATCHED"],
-    DISPATCHED: ["ARRIVED"],
-    ARRIVED: ["COMPLETED"],
-    COMPLETED: [],
-    CANCELLED: [],
-  };
-
   const allowedNextStatuses = useMemo(() => {
     const cur = String(trip?.status || "PLANNED").toUpperCase();
     if (canWrite) return ["PLANNED", "DISPATCHED", "ARRIVED", "COMPLETED", "CANCELLED"];
-    if (isDriver) return driverNextMap[cur] || [];
+    if (isDriver) {
+      const next = { PLANNED: "DISPATCHED", DISPATCHED: "ARRIVED", ARRIVED: "COMPLETED" }[cur];
+      return next ? [next] : [];
+    }
     return [];
   }, [trip?.status, canWrite, isDriver]);
+
+  const currentStatus = String(trip?.status || "PLANNED").toUpperCase();
+  const currentStepIndex = Math.max(0, STATUS_STEPS.findIndex((step) => step.value === currentStatus));
 
   async function setStatus(next) {
     try {
@@ -231,8 +297,9 @@ export default function TripDetail() {
         <div style={panel}>
           {/* Header */}
           <div style={headerRow}>
-            <div>
-              <h1 style={title}>Trip — {headline}</h1>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ color: "#0D7C3D", fontSize: 12, fontWeight: 650, letterSpacing: 1, marginBottom: 7 }}>DETAIL PERJALANAN</div>
+              <h1 style={title}>{headline}</h1>
 
               <div style={subTitle}>
                 Order:{" "}
@@ -250,7 +317,7 @@ export default function TripDetail() {
                 • {routeText} • Planned: {fmtDateTime(trip.plannedDepartAt)}
               </div>
 
-              <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+              <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 <span style={tripBadgeStyle(trip.status)}>{String(trip.status).replaceAll("_", " ")}</span>
                 <span style={{ ...badgeBase, background: "#FFFFFF" }}>{role}</span>
 
@@ -262,122 +329,92 @@ export default function TripDetail() {
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button style={btnGhost} onClick={() => nav(-1)}>
-                Back
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button style={{ ...btnGhost, display: "inline-flex", alignItems: "center", gap: 7 }} onClick={() => nav(-1)}>
+                <FiArrowLeft size={15} /> Kembali
               </button>
-
-              {canWrite || isDriver ? (
-                <>
-                  {/* Primary “next step” button for drivers */}
-                  {isDriver && allowedNextStatuses.length === 1 ? (
-                    <button style={btnGreen} onClick={() => setStatus(allowedNextStatuses[0])} disabled={saving}>
-                      {saving ? "Menyimpan..." : `Mark ${allowedNextStatuses[0]}`}
-                    </button>
-                  ) : null}
-
-                  {/* Admin quick actions */}
-                  {canWrite ? (
-                    <>
-                      <button style={btnGhost} onClick={() => setStatus("PLANNED")} disabled={saving}>
-                        Set PLANNED
-                      </button>
-                      <button style={btnGhost} onClick={() => setStatus("DISPATCHED")} disabled={saving}>
-                        Set DISPATCHED
-                      </button>
-                      <button style={btnGhost} onClick={() => setStatus("ARRIVED")} disabled={saving}>
-                        Set ARRIVED
-                      </button>
-                      <button style={btnGhost} onClick={() => setStatus("COMPLETED")} disabled={saving}>
-                        Set COMPLETED
-                      </button>
-                      <button style={btnDanger} onClick={() => setStatus("CANCELLED")} disabled={saving}>
-                        Cancel Trip
-                      </button>
-                    </>
-                  ) : null}
-                </>
-              ) : null}
             </div>
           </div>
 
           <div style={divider} />
 
           {saveErr ? (
-            <div style={{ marginTop: 12, color: "#B42318", fontWeight: 1000, fontSize: 13 }}>{saveErr}</div>
+            <div style={{ marginTop: 14, padding: "11px 13px", borderRadius: 9, background: "#FFF1F2", color: "#B42318", fontWeight: 500, fontSize: 13 }}>{saveErr}</div>
+          ) : null}
+
+          {(canWrite || isDriver) && currentStatus !== "CANCELLED" ? (
+            <section style={{ marginTop: 20, padding: 18, background: "#F8FBF9", border: "1px solid #E2EAE5", borderRadius: 13 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 13, flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 650, color: "#243A30" }}>Progress perjalanan</div>
+                  <div style={{ fontSize: 12, color: "#7A8780", marginTop: 3 }}>Pilih tahap untuk memperbarui status dan waktu perjalanan.</div>
+                </div>
+                {canWrite ? (
+                  <button
+                    style={{ ...btnDanger, height: 36, display: "inline-flex", alignItems: "center", gap: 7, boxShadow: "none", fontSize: 12 }}
+                    onClick={() => window.confirm("Batalkan trip ini?") && setStatus("CANCELLED")}
+                    disabled={saving}
+                  >
+                    <FiX size={14} /> Batalkan trip
+                  </button>
+                ) : null}
+              </div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {STATUS_STEPS.map((step, index) => (
+                  <StatusStep
+                    key={step.value}
+                    step={step}
+                    index={index}
+                    currentIndex={currentStepIndex}
+                    currentStatus={currentStatus}
+                    enabled={allowedNextStatuses.includes(step.value)}
+                    saving={saving}
+                    onClick={setStatus}
+                  />
+                ))}
+              </div>
+            </section>
           ) : null}
 
           {/* Content grid */}
-          <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(310px, 1fr))", gap: 14 }}>
             {/* Trip info */}
-            <div style={{ ...panel, boxShadow: "none", borderRadius: 16 }}>
-              <div style={{ fontWeight: 1000, marginBottom: 8 }}>Informasi Perjalanan</div>
-              <div style={{ color: "#2F6B55", fontWeight: 900, fontSize: 13, lineHeight: 1.7 }}>
-                <div>
-                  <b>Status:</b> <span style={tripBadgeStyle(trip.status)}>{String(trip.status).replaceAll("_", " ")}</span>
-                </div>
-                <div>
-                  <b>Planned depart:</b> {fmtDateTime(trip.plannedDepartAt)}
-                </div>
-                <div>
-                  <b>Dispatched at:</b> {fmtDateTime(trip.dispatchedAt)}
-                </div>
-                <div>
-                  <b>Arrived at:</b> {fmtDateTime(trip.arrivedAt)}
-                </div>
-                <div>
-                  <b>Completed at:</b> {fmtDateTime(trip.completedAt)}
-                </div>
-                <div>
-                  <b>Created:</b> {fmtDateTime(trip.createdAt)}
-                </div>
-              </div>
+            <div style={{ ...panel, boxShadow: "none", borderRadius: 13, padding: 20 }}>
+              <div style={{ fontWeight: 650, marginBottom: 10, fontSize: 16 }}>Informasi Perjalanan</div>
+              <InfoRow label="Status" icon={FiFlag} value={<span style={tripBadgeStyle(trip.status)}>{String(trip.status).replaceAll("_", " ")}</span>} />
+              <InfoRow label="Direncanakan" icon={FiClock} value={fmtDateTime(trip.plannedDepartAt)} />
+              <InfoRow label="Berangkat" icon={FiTruck} value={fmtDateTime(trip.dispatchedAt)} />
+              <InfoRow label="Tiba" icon={FiMapPin} value={fmtDateTime(trip.arrivedAt)} />
+              <InfoRow label="Selesai" icon={FiCheck} value={fmtDateTime(trip.completedAt)} />
+              <InfoRow label="Dibuat" icon={FiClock} value={fmtDateTime(trip.createdAt)} />
             </div>
 
             {/* Truck/Driver/Order */}
-            <div style={{ ...panel, boxShadow: "none", borderRadius: 16 }}>
-              <div style={{ fontWeight: 1000, marginBottom: 8 }}>Penugasan</div>
-              <div style={{ color: "#2F6B55", fontWeight: 900, fontSize: 13, lineHeight: 1.7 }}>
-                <div>
-                  <b>Truck:</b> {truck?.plateNumber || trip.plateNumberSnap || "-"}{" "}
-                  <span style={{ opacity: 0.9 }}>
-                    {truck?.brand ? `• ${truck.brand}` : ""} {truck?.model ? `• ${truck.model}` : ""}
-                  </span>
-                </div>
-                <div>
-                  <b>Driver:</b> {driver?.name || trip.driverNameSnap || "-"}
-                </div>
-                <div style={{ marginTop: 10 }}>
-                  <b>Order:</b> {order?.orderNo || "-"}
-                </div>
-                <div>
-                  <b>Customer:</b> {order?.customer?.name || order?.customerName || "-"}
-                </div>
-                <div>
-                  <b>Route:</b> {routeText}
-                </div>
-
-                {trip.dispatchLetter?.pdfUrl ? (
-                  <div style={{ marginTop: 10 }}>
-                    <b>Dispatch letter:</b>{" "}
-                    <a href={trip.dispatchLetter.pdfUrl} target="_blank" rel="noreferrer" style={{ fontWeight: 1000, color: "#0B2A1F" }}>
-                      Open PDF
-                    </a>{" "}
-                    <span style={{ fontSize: 12, opacity: 0.9 }}>({trip.dispatchLetter.number})</span>
-                  </div>
-                ) : (
-                  <div style={{ marginTop: 10, opacity: 0.9 }}>Surat jalan belum dibuat.</div>
-                )}
-              </div>
+            <div style={{ ...panel, boxShadow: "none", borderRadius: 13, padding: 20 }}>
+              <div style={{ fontWeight: 650, marginBottom: 10, fontSize: 16 }}>Penugasan</div>
+              <InfoRow label="Kendaraan" icon={FiTruck} value={`${truck?.plateNumber || trip.plateNumberSnap || "-"}${truck?.brand ? ` · ${truck.brand}` : ""}${truck?.model ? ` · ${truck.model}` : ""}`} />
+              <InfoRow label="Pengemudi" icon={FiUser} value={driver?.name || trip.driverNameSnap || "-"} />
+              <InfoRow label="Order" icon={FiFileText} value={order?.orderNo || "-"} />
+              <InfoRow label="Pelanggan" icon={FiUser} value={order?.customer?.name || order?.customerName || "-"} />
+              <InfoRow label="Rute" icon={FiMapPin} value={routeText} />
+              <InfoRow
+                label="Surat jalan"
+                icon={FiFileText}
+                value={trip.dispatchLetter?.pdfUrl ? (
+                  <a href={trip.dispatchLetter.pdfUrl} target="_blank" rel="noreferrer" style={{ fontWeight: 600, color: "#0D7C3D", textDecoration: "none" }}>
+                    {trip.dispatchLetter.number || "Buka PDF"}
+                  </a>
+                ) : "Belum dibuat"}
+              />
             </div>
           </div>
 
           {/* Proofs quick view (from order.proofs included in GET /trips/:id) */}
           <div style={{ marginTop: 14 }}>
-            <div style={{ fontWeight: 1000, marginBottom: 8 }}>Bukti Pesanan</div>
+            <div style={{ fontWeight: 650, marginBottom: 8, fontSize: 16 }}>Bukti Pesanan</div>
 
             {(order?.proofs || []).length === 0 ? (
-              <div style={{ color: "#2F6B55", fontWeight: 900 }}>Belum ada bukti.</div>
+              <div style={{ color: "#7A8780", fontWeight: 400, fontSize: 13, padding: "12px 0" }}>Belum ada bukti pesanan yang diunggah.</div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
                 {(order?.proofs || []).slice(0, 8).map((p) => {
@@ -401,15 +438,15 @@ export default function TripDetail() {
                       {isPdf ? (
                         <div style={{ marginTop: 10 }}>
                           <div style={{ fontWeight: 1000 }}>PDF</div>
-                          <a href={p.url} target="_blank" rel="noreferrer" style={{ fontWeight: 900, color: "#0B2A1F" }}>
-                            Open PDF
+                          <a href={apiAssetUrl(p.url)} target="_blank" rel="noreferrer" style={{ fontWeight: 600, color: "#0B2A1F" }}>
+                            Buka PDF
                           </a>
                         </div>
                       ) : (
-                        <a href={p.url} target="_blank" rel="noreferrer">
+                        <a href={apiAssetUrl(p.url)} target="_blank" rel="noreferrer">
                           <img
-                            src={p.url}
-                            alt="proof"
+                            src={apiAssetUrl(p.url)}
+                            alt="Bukti pesanan"
                             style={{ marginTop: 8, width: "100%", height: 150, objectFit: "cover", borderRadius: 12 }}
                           />
                         </a>
@@ -425,7 +462,7 @@ export default function TripDetail() {
             {(order?.proofs || []).length > 8 ? (
               <div style={{ marginTop: 10 }}>
                 <button style={btnGhost} onClick={() => nav(`/orders/${order.id}`)}>
-                  View all proofs in Order
+                  Lihat semua bukti di pesanan
                 </button>
               </div>
             ) : null}

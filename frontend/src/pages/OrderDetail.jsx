@@ -1,9 +1,22 @@
 // src/pages/OrderDetail.jsx - Corporate Minimalist Design
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api } from "../api";
+import { api, apiAssetUrl, uploadFiles } from "../api";
 import { useAuth } from "../AuthContext";
-import { FiArrowLeft, FiPlus, FiCheck, FiX, FiRefreshCw, FiExternalLink, FiFile } from "react-icons/fi";
+import {
+  FiActivity,
+  FiArrowLeft,
+  FiCalendar,
+  FiCheck,
+  FiClock,
+  FiExternalLink,
+  FiFile,
+  FiMapPin,
+  FiPackage,
+  FiPlus,
+  FiUser,
+  FiX,
+} from "react-icons/fi";
 
 //////////////////////
 // THEME - CORPORATE MINIMALIST
@@ -55,21 +68,6 @@ function fmtNum(n) {
   const x = Number(n);
   if (!Number.isFinite(x)) return "-";
   return x % 1 === 0 ? String(x) : x.toFixed(2);
-}
-
-async function uploadFiles(fileList) {
-  const fd = new FormData();
-  for (const f of fileList) fd.append("files", f);
-
-  const res = await fetch(import.meta.env.VITE_API_URL + "/api/uploads", {
-    method: "POST",
-    body: fd,
-    credentials: "include",
-  });
-
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || data?.message || "Gagal mengunggah");
-  return data?.items || [];
 }
 
 function useIsNarrow(breakpoint = 980) {
@@ -172,6 +170,22 @@ function Card({ children, style = {} }) {
   return (
     <div style={{ background: BRAND.white, borderRadius: 8, border: `1px solid ${BRAND.border}`, ...style }}>
       {children}
+    </div>
+  );
+}
+
+function InfoTile({ icon, label, value, sub }) {
+  const TileIcon = icon;
+  return (
+    <div style={{ border: `1px solid ${BRAND.border}`, borderRadius: 10, padding: 16, background: BRAND.white, minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, color: BRAND.textMuted, fontSize: 12, marginBottom: 9 }}>
+        <span style={{ width: 28, height: 28, borderRadius: 8, display: "inline-flex", alignItems: "center", justifyContent: "center", color: BRAND.primary, background: BRAND.secondary }}>
+          <TileIcon size={14} />
+        </span>
+        {label}
+      </div>
+      <div style={{ color: BRAND.text, fontSize: 15, fontWeight: 600, overflowWrap: "anywhere" }}>{value || "—"}</div>
+      {sub ? <div style={{ color: BRAND.textMuted, fontSize: 12, marginTop: 5 }}>{sub}</div> : null}
     </div>
   );
 }
@@ -366,8 +380,14 @@ export default function OrderDetail() {
   async function loadTrucks(q) {
     const data = await api(`/trucks${q ? `?q=${encodeURIComponent(q)}` : ""}`);
     const items = data?.items || data || [];
-    const ready = items.filter((t) => t.status === "READY");
-    setTrucks(ready);
+    const origin = String(order?.fromText || "").trim().toLowerCase();
+    const available = items
+      .filter((t) =>
+        ["READY", "WAITING_BACKHAUL"].includes(t.status)
+        && origin
+        && String(t.currentLocation || "").trim().toLowerCase() === origin
+      );
+    setTrucks(available);
   }
 
   async function openAssignModal() {
@@ -464,22 +484,6 @@ export default function OrderDetail() {
     }
   }
 
-  async function createBackhaul() {
-    try {
-      const toText = prompt("Backhaul destination (warehouse). Example: Gudang Cemara");
-      if (!toText) return;
-
-      const data = await api(`/orders/${id}/backhaul`, {
-        method: "POST",
-        body: JSON.stringify({ toText }),
-      });
-
-      nav(`/orders/${data.id}`);
-    } catch (e) {
-      alert(e?.message || "Gagal membuat backhaul order");
-    }
-  }
-
   async function patchOrderStatus(nextStatus) {
     try {
       await api(`/orders/${id}`, {
@@ -520,8 +524,12 @@ export default function OrderDetail() {
   const customerName = order.customer?.name || order.customerName || "-";
   const cargo = `${order.cargoName || "-"}${order.qty != null ? ` • ${order.qty} ${order.unit || ""}` : ""}`;
   const route = `${order.fromText || "-"} → ${order.toText || "-"}`;
-  const linkedBackhauls = order.backhaulOrders || [];
-  const backhaulOf = order.backhaulOfOrder;
+  const completedQty = trips
+    .filter((t) => String(t.status || "").toUpperCase() === "COMPLETED")
+    .reduce((sum, t) => sum + Number(t.qtyActual ?? t.qtyPlanned ?? 0), 0);
+  const completionPct = order.qty
+    ? Math.max(0, Math.min(100, Math.round((completedQty / Number(order.qty)) * 100)))
+    : order.status === "COMPLETED" ? 100 : 0;
 
   return (
     <div data-testid="order-detail-page">
@@ -614,44 +622,56 @@ export default function OrderDetail() {
             Info
           </TabButton>
           <TabButton active={tab === "PROOFS"} onClick={() => setTab("PROOFS")}>
-            Proofs ({proofs.length})
+            Bukti ({proofs.length})
           </TabButton>
           <TabButton active={tab === "TRIPS"} onClick={() => setTab("TRIPS")}>
             Trips ({trips.length})
-          </TabButton>
-          <TabButton active={tab === "BACKHAUL"} onClick={() => setTab("BACKHAUL")}>
-            Backhaul
           </TabButton>
         </div>
 
         {/* Tab Content */}
         <div style={{ padding: 20 }}>
           {tab === "INFO" && (
-            <div style={{ display: "grid", gridTemplateColumns: isNarrow ? "1fr" : "1fr 1fr", gap: 20 }}>
-              <div style={{ padding: 20, background: BRAND.secondary, borderRadius: 6 }}>
-                <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Informasi Pesanan</div>
-                <div style={{ fontSize: 14, color: BRAND.textLight, lineHeight: 1.8 }}>
-                  <div><strong>Customer:</strong> {customerName}</div>
-                  <div><strong>Cargo:</strong> {cargo}</div>
-                  <div><strong>Route:</strong> {route}</div>
-                  <div><strong>Planned:</strong> {fmtDate(order.plannedAt)}</div>
-                  {order.qty != null && <div><strong>Remaining:</strong> {fmtNum(remaining)} {order.unit || ""}</div>}
-                  <div><strong>Notes:</strong> {order.notes || "-"}</div>
-                  <div><strong>Created:</strong> {fmtDateTime(order.createdAt)}</div>
+            <div>
+              <div style={{ padding: isNarrow ? 18 : 22, borderRadius: 12, background: "linear-gradient(135deg, #F5FAF7 0%, #EDF6F1 100%)", border: "1px solid #DFEBE4" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+                  <div>
+                    <div style={{ color: BRAND.primary, fontSize: 11, fontWeight: 700, letterSpacing: 1 }}>RINGKASAN PESANAN</div>
+                    <div style={{ color: BRAND.text, fontSize: 20, fontWeight: 650, marginTop: 7 }}>{order.cargoName || "Muatan belum diisi"}</div>
+                    <div style={{ color: BRAND.textMuted, fontSize: 13, marginTop: 5 }}>{route}</div>
+                  </div>
+                  <StatusBadge status={order.status} />
                 </div>
+
+                {order.qty != null ? (
+                  <div style={{ marginTop: 22 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12, color: BRAND.textMuted, marginBottom: 8 }}>
+                      <span>Realisasi muatan</span>
+                      <span><strong style={{ color: BRAND.text }}>{fmtNum(completedQty)} / {fmtNum(order.qty)} {order.unit || ""}</strong> · {completionPct}%</span>
+                    </div>
+                    <div style={{ height: 9, background: "#DCE9E1", borderRadius: 999, overflow: "hidden" }}>
+                      <div style={{ width: `${completionPct}%`, height: "100%", borderRadius: 999, background: completionPct >= 100 ? BRAND.success : BRAND.primary, transition: "width .3s ease" }} />
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 8, fontSize: 12, color: BRAND.textMuted }}>
+                      <span>Dialokasikan: {fmtNum(usedPlanned)} {order.unit || ""}</span>
+                      <span>Sisa: {fmtNum(remaining)} {order.unit || ""}</span>
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
-              <div style={{ padding: 20, background: BRAND.secondary, borderRadius: 6 }}>
-                <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Linimasa</div>
-                <div style={{ fontSize: 14, color: BRAND.textLight, lineHeight: 1.8 }}>
-                  <div>• DRAFT → CONFIRMED → IN_PROGRESS → COMPLETED</div>
-                  <div style={{ marginTop: 12 }}>
-                    Current: <StatusBadge status={order.status} />
-                  </div>
-                  <div style={{ marginTop: 12, fontSize: 13, color: BRAND.textMuted }}>
-                    Trip updates will automatically push the order into IN_PROGRESS and COMPLETED.
-                  </div>
-                </div>
+              <div style={{ display: "grid", gridTemplateColumns: isNarrow ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: 12, marginTop: 14 }}>
+                <InfoTile icon={FiUser} label="Pelanggan" value={customerName} sub={order.customer?.phone || undefined} />
+                <InfoTile icon={FiPackage} label="Muatan" value={cargo} sub={order.orderType ? String(order.orderType).replaceAll("_", " ") : undefined} />
+                <InfoTile icon={FiMapPin} label="Rute" value={route} sub="Lokasi asal dan tujuan" />
+                <InfoTile icon={FiCalendar} label="Jadwal" value={fmtDate(order.plannedAt)} sub="Deadline selesai pengiriman" />
+                <InfoTile icon={FiActivity} label="Perjalanan" value={`${trips.length} trip`} sub={`${fmtNum(completedQty)} ${order.unit || ""} selesai diangkut`} />
+                <InfoTile icon={FiClock} label="Dibuat" value={fmtDateTime(order.createdAt)} sub="Waktu pesanan dicatat" />
+              </div>
+
+              <div style={{ marginTop: 14, padding: 16, border: `1px solid ${BRAND.border}`, borderRadius: 10, background: BRAND.white }}>
+                <div style={{ color: BRAND.textMuted, fontSize: 12, marginBottom: 7 }}>Catatan</div>
+                <div style={{ color: BRAND.textLight, fontSize: 14, lineHeight: 1.6 }}>{order.notes || "Tidak ada catatan tambahan."}</div>
               </div>
             </div>
           )}
@@ -706,7 +726,7 @@ export default function OrderDetail() {
                       }}
                     />
                     <span style={{ fontSize: 13, color: BRAND.textMuted }}>
-                      {uploadingProofs ? "Uploading..." : "Select multiple images / PDFs"}
+                      {uploadingProofs ? "Sedang mengunggah..." : "Pilih beberapa gambar atau PDF · maks. 15 MB per file"}
                     </span>
                   </div>
                   {uploadProofErr && <div style={{ marginTop: 10, color: BRAND.danger, fontWeight: 500 }}>{uploadProofErr}</div>}
@@ -714,7 +734,7 @@ export default function OrderDetail() {
               )}
 
               {proofs.length === 0 ? (
-                <div style={{ color: BRAND.textMuted, fontSize: 14 }}>Belum ada bukti.</div>
+                <div style={{ color: BRAND.textMuted, fontSize: 14 }}>Belum ada bukti pesanan.</div>
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
                   {proofs.map((p) => {
@@ -737,13 +757,13 @@ export default function OrderDetail() {
                         {isPdf ? (
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <FiFile size={24} color={BRAND.textLight} />
-                            <a href={p.url} target="_blank" rel="noreferrer" style={{ color: BRAND.primary, fontWeight: 500 }}>
-                              Open PDF
+                            <a href={apiAssetUrl(p.url)} target="_blank" rel="noreferrer" style={{ color: BRAND.primary, fontWeight: 500 }}>
+                              Buka PDF
                             </a>
                           </div>
                         ) : (
-                          <a href={p.url} target="_blank" rel="noreferrer">
-                            <img src={p.url} alt="proof" style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: 4 }} />
+                          <a href={apiAssetUrl(p.url)} target="_blank" rel="noreferrer">
+                            <img src={apiAssetUrl(p.url)} alt="Bukti pesanan" style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: 4 }} />
                           </a>
                         )}
 
@@ -822,70 +842,6 @@ export default function OrderDetail() {
             </div>
           )}
 
-          {tab === "BACKHAUL" && (
-            <div style={{ display: "grid", gridTemplateColumns: isNarrow ? "1fr" : "1fr 1fr", gap: 20 }}>
-              <div style={{ padding: 20, background: BRAND.secondary, borderRadius: 6 }}>
-                <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Muatan Balik</div>
-                <div style={{ fontSize: 14, color: BRAND.textLight, lineHeight: 1.8 }}>
-                  <div>Gunakan saat kendaraan membawa muatan dari tujuan kembali ke gudang.</div>
-                  <div style={{ marginTop: 12 }}>
-                    <strong>Current order type:</strong> {order.orderType ? String(order.orderType) : "-"}
-                  </div>
-
-                  {backhaulOf && (
-                    <div style={{ marginTop: 12 }}>
-                      <strong>This order is a backhaul of:</strong>{" "}
-                      <Button variant="secondary" size="small" onClick={() => nav(`/orders/${backhaulOf.id}`)}>
-                        {backhaulOf.orderNo || "Open"}
-                      </Button>
-                    </div>
-                  )}
-
-                  {canWrite && !backhaulOf && (
-                    <div style={{ marginTop: 16 }}>
-                      <Button variant="primary" icon={FiPlus} onClick={createBackhaul}>
-                        Create Return Order
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div style={{ padding: 20, background: BRAND.secondary, borderRadius: 6 }}>
-                <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Pesanan Kembali Terkait</div>
-                {linkedBackhauls.length === 0 ? (
-                  <div style={{ fontSize: 14, color: BRAND.textMuted }}>Belum ada pesanan kembali terkait.</div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {linkedBackhauls.map((b) => (
-                      <div
-                        key={b.id}
-                        style={{
-                          padding: 12,
-                          borderRadius: 6,
-                          border: `1px solid ${BRAND.border}`,
-                          background: BRAND.white,
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontWeight: 600, color: BRAND.text }}>{b.orderNo}</div>
-                          <div style={{ fontSize: 13, color: BRAND.textMuted }}>
-                            {b.fromText || "-"} → {b.toText || "-"} • Planned {fmtDate(b.plannedAt)}
-                          </div>
-                        </div>
-                        <Button variant="secondary" size="small" onClick={() => nav(`/orders/${b.id}`)}>
-                          Open
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
         </div>
       </Card>
 
@@ -917,7 +873,7 @@ export default function OrderDetail() {
           <Card>
             <div style={{ padding: 16 }}>
               <div style={{ fontWeight: 600, marginBottom: 8, color: BRAND.text }}>Pilih Kendaraan</div>
-              <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>Hanya kendaraan berstatus siap pakai yang dapat dipilih</div>
+              <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>Hanya kendaraan yang berada di lokasi asal <strong>{order?.fromText || "—"}</strong> yang dapat dipilih.</div>
 
               <Input placeholder="Cari nomor polisi..." value={truckQ} onChange={(e) => setTruckQ(e.target.value)} />
 
@@ -945,12 +901,15 @@ export default function OrderDetail() {
                       <div style={{ fontSize: 13, color: BRAND.textMuted, marginTop: 4 }}>
                         {t.brand || "-"} {t.model ? `• ${t.model}` : ""} • {t.status}
                       </div>
+                      <div style={{ fontSize: 12, color: BRAND.primary, marginTop: 4, fontWeight: 600 }}>
+                        Lokasi: {t.currentLocation || "Belum diatur"}
+                      </div>
                     </div>
                   );
                 })}
 
                 {filteredTrucks.length === 0 && (
-                  <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>Tidak ada kendaraan siap pakai yang ditemukan.</div>
+                  <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>Tidak ada kendaraan siap pakai di {order?.fromText || "lokasi asal"}.</div>
                 )}
               </div>
             </div>

@@ -38,6 +38,10 @@ const upload = multer({
   // Database fallback is persistent across Render restarts.
   storage: cloudinaryEnabled ? cloudStorage : multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = file.mimetype === "application/pdf" || String(file.mimetype || "").startsWith("image/");
+    cb(allowed ? null : new Error("Hanya file PDF dan gambar yang diperbolehkan"), allowed);
+  },
 });
 
 // Public read endpoint. IDs are unguessable CUIDs and the response is inline so
@@ -57,9 +61,20 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-router.post("/", authRequired, upload.array("files", 10), async (req, res) => {
+router.post("/", authRequired, (req, res, next) => {
+  upload.array("files", 10)(req, res, (error) => {
+    if (!error) return next();
+    const message = error.code === "LIMIT_FILE_SIZE"
+      ? "Ukuran setiap file maksimal 15 MB"
+      : error.code === "LIMIT_FILE_COUNT" || error.code === "LIMIT_UNEXPECTED_FILE"
+        ? "Maksimal 10 file dalam sekali upload"
+        : error.message || "Upload gagal";
+    return res.status(400).json({ error: message });
+  });
+}, async (req, res) => {
   try {
     const files = req.files || [];
+    if (!files.length) return res.status(400).json({ error: "Pilih minimal satu file PDF atau gambar" });
     const out = await Promise.all(files.map(async (f) => {
       if (cloudinaryEnabled) return { url: f.path, fileName: f.originalname, mimeType: f.mimetype, size: f.size };
       const stored = await prisma.storedFile.create({ data: { fileName: f.originalname || "bukti", mimeType: f.mimetype || "application/octet-stream", size: f.size, data: f.buffer } });

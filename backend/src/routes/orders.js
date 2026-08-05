@@ -18,6 +18,11 @@ function str(v) {
   return s.length ? s : null;
 }
 
+function sameLocation(a, b) {
+  const normalize = (v) => String(v || "").trim().toLocaleLowerCase("id-ID");
+  return Boolean(normalize(a) && normalize(a) === normalize(b));
+}
+
 function num(v, d = null) {
   const n = Number(v);
   return Number.isFinite(n) ? n : d;
@@ -337,7 +342,7 @@ router.post("/:id/proofs", authRequired, async (req, res) => {
  * POST /orders/:id/trips
  * Assign truck + driver => create a Trip
  * Rules:
- *  - Truck must be READY
+ *  - Truck must be READY or waiting for a backhaul
  *  - Driver must be ACTIVE and role DRIVER
  *  - Driver cannot be assigned to another active trip
  *  - Truck cannot be assigned to another active trip
@@ -394,7 +399,15 @@ router.post("/:id/trips", authRequired, async (req, res) => {
 
       const truck = await tx.truck.findUnique({ where: { id: truckId } });
       if (!truck) throw new Error("Truck not found");
-      if (truck.status !== "READY") throw new Error("Truck must be READY");
+      if (!["READY", "WAITING_BACKHAUL"].includes(truck.status)) {
+        throw new Error("Truck must be READY or WAITING_BACKHAUL");
+      }
+      if (!order.fromText) throw new Error("Lokasi asal order wajib diisi sebelum memilih truk");
+      if (!sameLocation(truck.currentLocation, order.fromText)) {
+        throw new Error(
+          `Truk ${truck.plateNumber} berada di ${truck.currentLocation || "lokasi yang belum diatur"}, bukan di lokasi asal ${order.fromText}`
+        );
+      }
 
       const driver = await tx.user.findUnique({ where: { id: driverUserId } });
       if (!driver) throw new Error("Driver not found");

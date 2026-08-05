@@ -12,6 +12,8 @@ import {
   FiTruck,
   FiCalendar,
   FiAlertTriangle,
+  FiMapPin,
+  FiEdit2,
 } from "react-icons/fi";
 
 // Corporate Green Color Palette (matching Landing Page)
@@ -56,6 +58,8 @@ export default function Trucks() {
   const [movTo, setMovTo] = useState("");
   const [monthTotal, setMonthTotal] = useState(0);
   const [monthCurrency, setMonthCurrency] = useState("IDR");
+  const [locationEdit, setLocationEdit] = useState(null);
+  const [locationSaving, setLocationSaving] = useState(false);
 
   const PAGE_SIZE = 5;
   const [page, setPage] = useState(1);
@@ -70,6 +74,8 @@ export default function Trucks() {
     stnkExpiry: "",
     status: "READY",
     driverUserId: "",
+    baseLocation: "Medan",
+    currentLocation: "Medan",
   });
 
   const driverOptions = useMemo(() => {
@@ -191,6 +197,8 @@ export default function Trucks() {
         stnkExpiry: form.stnkExpiry || null,
         status: form.status,
         driverUserId: form.driverUserId || null,
+        baseLocation: form.baseLocation || null,
+        currentLocation: form.currentLocation || form.baseLocation || null,
       };
 
       await api("/trucks", { method: "POST", body: JSON.stringify(payload) });
@@ -204,6 +212,8 @@ export default function Trucks() {
         stnkExpiry: "",
         status: "READY",
         driverUserId: "",
+        baseLocation: "Medan",
+        currentLocation: "Medan",
       });
 
       setShowAdd(false);
@@ -236,6 +246,28 @@ export default function Trucks() {
       await load({ resetPage: false });
     } catch (e) {
       alert(e.message || "Gagal memperbarui STNK expiry");
+    }
+  }
+
+  async function saveLocation(e) {
+    e.preventDefault();
+    if (!locationEdit) return;
+    setLocationSaving(true);
+    try {
+      await api(`/trucks/${locationEdit.id}/location`, {
+        method: "PUT",
+        body: JSON.stringify({
+          currentLocation: locationEdit.currentLocation,
+          baseLocation: locationEdit.baseLocation,
+          availableForBackhaul: locationEdit.availableForBackhaul,
+        }),
+      });
+      setLocationEdit(null);
+      await load({ resetPage: false });
+    } catch (e) {
+      alert(e.message || "Gagal memperbarui lokasi truk");
+    } finally {
+      setLocationSaving(false);
     }
   }
 
@@ -364,6 +396,7 @@ export default function Trucks() {
                 <th style={s.th}>Nomor Polisi</th>
                 <th style={s.th}>Kendaraan</th>
                 <th style={s.th}>Status</th>
+                <th style={s.th}>Lokasi Armada</th>
                 <th style={s.th}>Pengemudi Bertugas</th>
                 <th style={s.th}>Masa Berlaku STNK</th>
                 <th style={s.th}>Dibuat</th>
@@ -388,6 +421,36 @@ export default function Trucks() {
                     </td>
                     <td style={s.td}>
                       <span style={statusPill(t.status || "READY")}>{t.status || "READY"}</span>
+                    </td>
+                    <td style={s.td} onClick={(e) => e.stopPropagation()}>
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                        <FiMapPin size={15} color={BRAND.primary} style={{ marginTop: 2, flexShrink: 0 }} />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 600 }}>{t.currentLocation || "Belum diatur"}</div>
+                          <div style={s.smallMuted}>
+                            {t.availableForBackhaul
+                              ? `Menunggu ${formatIdle(t.idleSince)}`
+                              : t.baseLocation
+                                ? `Base: ${t.baseLocation}`
+                                : "Base belum diatur"}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          style={s.iconBtn}
+                          title="Ubah lokasi"
+                          disabled={t.status === "DISPATCH"}
+                          onClick={() => setLocationEdit({
+                            id: t.id,
+                            plateNumber: t.plateNumber,
+                            currentLocation: t.currentLocation || "",
+                            baseLocation: t.baseLocation || "",
+                            availableForBackhaul: Boolean(t.availableForBackhaul),
+                          })}
+                        >
+                          <FiEdit2 size={13} />
+                        </button>
+                      </div>
                     </td>
                     <td style={s.td} onClick={(e) => e.stopPropagation()}>
                       <select
@@ -431,7 +494,7 @@ export default function Trucks() {
 
               {!loading && pagedItems.length === 0 && (
                 <tr>
-                  <td style={s.empty} colSpan={6}>Tidak ada kendaraan ditemukan.</td>
+                  <td style={s.empty} colSpan={7}>Tidak ada kendaraan ditemukan.</td>
                 </tr>
               )}
             </tbody>
@@ -585,6 +648,15 @@ export default function Trucks() {
                 <input type="date" style={s.input} value={form.stnkExpiry || ""} onChange={(e) => setForm((f) => ({ ...f, stnkExpiry: e.target.value }))} />
               </Field>
 
+              <div style={s.twoCol}>
+                <Field label="Base / Pool Utama">
+                  <input style={s.input} value={form.baseLocation} onChange={(e) => setForm((f) => ({ ...f, baseLocation: e.target.value }))} placeholder="Medan" />
+                </Field>
+                <Field label="Lokasi Saat Ini">
+                  <input style={s.input} value={form.currentLocation} onChange={(e) => setForm((f) => ({ ...f, currentLocation: e.target.value }))} placeholder="Medan" />
+                </Field>
+              </div>
+
               <Field label="Assign Driver (optional)">
                 <select style={s.select} value={form.driverUserId} onChange={(e) => setForm((f) => ({ ...f, driverUserId: e.target.value }))}>
                   {driverOptions.map((d) => (<option key={d.id} value={d.id}>{d.name}</option>))}
@@ -601,6 +673,36 @@ export default function Trucks() {
               <p style={s.tip}>Tip: You can assign a driver later from the fleet table.</p>
             </form>
           </div>
+        </div>
+      )}
+
+      {locationEdit && (
+        <div style={s.modalOverlay} onClick={() => setLocationEdit(null)}>
+          <form style={{ ...s.modalCard, maxWidth: 480 }} onSubmit={saveLocation} onClick={(e) => e.stopPropagation()}>
+            <div style={s.modalHeader}>
+              <div>
+                <h3 style={s.modalTitle}>Lokasi {locationEdit.plateNumber}</h3>
+                <p style={s.modalSubtitle}>Koreksi posisi armada atau tandai sedang menunggu muatan balik.</p>
+              </div>
+              <button type="button" style={s.modalClose} onClick={() => setLocationEdit(null)}><FiX size={18} /></button>
+            </div>
+            <div style={s.form}>
+              <Field label="Base / Pool Utama">
+                <input style={s.input} required value={locationEdit.baseLocation} onChange={(e) => setLocationEdit((v) => ({ ...v, baseLocation: e.target.value }))} placeholder="Medan" />
+              </Field>
+              <Field label="Lokasi Saat Ini">
+                <input style={s.input} required value={locationEdit.currentLocation} onChange={(e) => setLocationEdit((v) => ({ ...v, currentLocation: e.target.value }))} placeholder="Banda Aceh" />
+              </Field>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: BRAND.text }}>
+                <input type="checkbox" checked={locationEdit.availableForBackhaul} onChange={(e) => setLocationEdit((v) => ({ ...v, availableForBackhaul: e.target.checked }))} />
+                Tersedia dan sedang menunggu muatan balik
+              </label>
+              <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+                <button style={{ ...s.primaryBtn, flex: 1 }} disabled={locationSaving}>{locationSaving ? "Menyimpan…" : "Simpan Lokasi"}</button>
+                <button type="button" style={s.ghostBtn} onClick={() => setLocationEdit(null)}>Batal</button>
+              </div>
+            </div>
+          </form>
         </div>
       )}
     </div>
@@ -631,6 +733,14 @@ function fmtMoney(n, currency = "IDR") {
   } catch {
     return `${currency} ${v.toLocaleString()}`;
   }
+}
+
+function formatIdle(value) {
+  if (!value) return "muatan balik";
+  const hours = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 3600000));
+  if (hours < 24) return `${hours} jam`;
+  const days = Math.floor(hours / 24);
+  return `${days} hari`;
 }
 
 function normalizeDay(d) {
@@ -695,6 +805,8 @@ function statusPill(status) {
   if (status === "READY") return { ...base, background: BRAND.successBg, color: BRAND.success };
   if (status === "MAINTENANCE") return { ...base, background: BRAND.warningBg, color: BRAND.warning };
   if (status === "DISPATCH") return { ...base, background: BRAND.blueBg, color: BRAND.blue };
+  if (status === "WAITING_BACKHAUL") return { ...base, background: "#FFF7ED", color: "#C2410C" };
+  if (status === "RETURNING_EMPTY") return { ...base, background: "#F5F3FF", color: "#7C3AED" };
   return { ...base, background: "#F3F4F6", color: BRAND.textMuted };
 }
 
@@ -712,6 +824,19 @@ const s = {
   header: { marginBottom: 24 },
   title: { margin: 0, fontSize: 28, fontWeight: 700, color: BRAND.text },
   subtitle: { margin: "8px 0 0", fontSize: 14, color: BRAND.textMuted },
+  iconBtn: {
+    border: `1px solid ${BRAND.border}`,
+    background: BRAND.white,
+    color: BRAND.textMuted,
+    borderRadius: 5,
+    width: 28,
+    height: 28,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    flexShrink: 0,
+  },
 
   card: {
     borderRadius: 8,

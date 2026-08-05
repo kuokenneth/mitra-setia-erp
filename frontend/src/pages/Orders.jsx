@@ -1,6 +1,6 @@
 // src/pages/Orders.jsx - Corporate Minimalist Design
 import { useEffect, useMemo, useState } from "react";
-import { api } from "../api";
+import { api, apiAssetUrl, uploadFiles } from "../api";
 import { useAuth } from "../AuthContext";
 import { useNavigate } from "react-router-dom";
 import { FiPlus, FiSearch, FiX } from "react-icons/fi";
@@ -348,21 +348,6 @@ export default function Orders() {
     setProofs((p) => p.filter((_, i) => i !== idx));
   }
 
-  async function uploadFiles(fileList) {
-    const fd = new FormData();
-    for (const f of fileList) fd.append("files", f);
-
-    const res = await fetch(import.meta.env.VITE_API_URL + "/api/uploads", {
-      method: "POST",
-      body: fd,
-      credentials: "include",
-    });
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.error || data?.message || "Gagal mengunggah");
-    return data?.items || [];
-  }
-
   async function createOrder(statusToSave) {
     try {
       setCreateErr("");
@@ -600,7 +585,7 @@ export default function Orders() {
                     <StatusBadge status={o.status} />
                     {o?._count && (
                       <span style={{ fontSize: 12, color: BRAND.textMuted }}>
-                        • Trips: {o._count.trips ?? 0} • Proofs: {o._count.proofs ?? 0}
+                        • Trip: {o._count.trips ?? 0} • Bukti: {o._count.proofs ?? 0}
                       </span>
                     )}
                   </div>
@@ -732,9 +717,9 @@ export default function Orders() {
           </div>
         </div>
 
-        {/* Proofs Upload */}
+        {/* Bukti Upload */}
         <div style={{ marginTop: 20 }}>
-          <div style={{ fontWeight: 600, marginBottom: 10, color: BRAND.text }}>Proof Upload — Image / PDF</div>
+          <div style={{ fontWeight: 600, marginBottom: 10, color: BRAND.text }}>Upload Bukti — Gambar / PDF</div>
 
           {uploadErr && (
             <div style={{ marginBottom: 10, color: BRAND.danger, fontWeight: 500, fontSize: 14 }}>{uploadErr}</div>
@@ -784,7 +769,7 @@ export default function Orders() {
             />
 
             <span style={{ fontSize: 13, color: BRAND.textMuted }}>
-              {uploading ? "Uploading..." : "You can select multiple files"}
+              {uploading ? "Sedang mengunggah..." : "Bisa memilih beberapa file · maks. 15 MB per file"}
             </span>
           </div>
 
@@ -813,25 +798,25 @@ export default function Orders() {
                         <div style={{ fontWeight: 600, color: BRAND.textLight }}>PDF</div>
                       ) : (
                         <img
-                          src={p.url}
-                          alt="proof"
+                          src={apiAssetUrl(p.url)}
+                          alt="Bukti pesanan"
                           style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 4 }}
                         />
                       )}
                       <div>
-                        <div style={{ fontWeight: 500, color: BRAND.text }}>{p.fileName || "Proof"}</div>
+                        <div style={{ fontWeight: 500, color: BRAND.text }}>{p.fileName || "Bukti"}</div>
                         <a
-                          href={p.url}
+                          href={apiAssetUrl(p.url)}
                           target="_blank"
                           rel="noreferrer"
                           style={{ fontSize: 13, color: BRAND.primary, fontWeight: 500 }}
                         >
-                          Open
+                          Buka
                         </a>
                       </div>
                     </div>
                     <Button variant="secondary" onClick={() => removeProof(idx)} disabled={creating || uploading}>
-                      Remove
+                      Hapus
                     </Button>
                   </div>
                 );
