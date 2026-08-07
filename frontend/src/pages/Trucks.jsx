@@ -61,8 +61,13 @@ export default function Trucks() {
   const [monthCurrency, setMonthCurrency] = useState("IDR");
   const [locationEdit, setLocationEdit] = useState(null);
   const [locationSaving, setLocationSaving] = useState(false);
+  const [stnkRenewal, setStnkRenewal] = useState(null);
+  const [stnkSaving, setStnkSaving] = useState(false);
 
-  const PAGE_SIZE = 5;
+  const [pageSize, setPageSize] = useState(() => {
+    const saved = Number(window.localStorage.getItem("armada-page-size"));
+    return [10, 25, 50].includes(saved) ? saved : 10;
+  });
   const [page, setPage] = useState(1);
 
   const [creating, setCreating] = useState(false);
@@ -239,15 +244,44 @@ export default function Trucks() {
     }
   }
 
-  async function updateStnk(truckId, date) {
+  function openStnkRenewal(truck, date) {
+    if (!date) return;
+    setStnkRenewal({
+      truckId: truck.id,
+      plateNumber: truck.plateNumber,
+      stnkExpiry: date,
+      amount: "",
+      paymentMethod: "BANK_TRANSFER",
+      bankName: "",
+      accountName: "",
+      accountNumber: "",
+      notes: "",
+    });
+  }
+
+  async function saveStnkRenewal(e) {
+    e.preventDefault();
+    if (!stnkRenewal) return;
+    setStnkSaving(true);
     try {
-      await api(`/trucks/${truckId}/stnk`, {
-        method: "PUT",
-        body: JSON.stringify({ stnkExpiry: date || null }),
+      await api(`/trucks/${stnkRenewal.truckId}/stnk-renewal`, {
+        method: "POST",
+        body: JSON.stringify({
+          stnkExpiry: stnkRenewal.stnkExpiry,
+          amount: Number(stnkRenewal.amount || 0),
+          paymentMethod: stnkRenewal.paymentMethod,
+          bankName: stnkRenewal.bankName,
+          accountName: stnkRenewal.accountName,
+          accountNumber: stnkRenewal.accountNumber,
+          notes: stnkRenewal.notes,
+        }),
       });
+      setStnkRenewal(null);
       await load({ resetPage: false });
     } catch (e) {
-      alert(e.message || "Gagal memperbarui STNK expiry");
+      alert(e.message || "Gagal mencatat perpanjangan STNK");
+    } finally {
+      setStnkSaving(false);
     }
   }
 
@@ -303,9 +337,9 @@ export default function Trucks() {
   }
 
   const totalPages = useMemo(() => {
-    const n = Math.ceil((items.length || 0) / PAGE_SIZE);
+    const n = Math.ceil((items.length || 0) / pageSize);
     return Math.max(1, n);
-  }, [items.length]);
+  }, [items.length, pageSize]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -313,9 +347,16 @@ export default function Trucks() {
   }, [page, totalPages]);
 
   const pagedItems = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return (items || []).slice(start, start + PAGE_SIZE);
-  }, [items, page]);
+    const start = (page - 1) * pageSize;
+    return (items || []).slice(start, start + pageSize);
+  }, [items, page, pageSize]);
+
+  function changePageSize(value) {
+    const nextSize = Number(value);
+    setPageSize(nextSize);
+    setPage(1);
+    window.localStorage.setItem("armada-page-size", String(nextSize));
+  }
 
   if (!allowed) {
     return (
@@ -359,7 +400,7 @@ export default function Trucks() {
         <div style={s.cardHeaderRow}>
           <div>
             <h2 style={s.cardTitle}>Daftar Armada</h2>
-            <p style={s.cardSubtitle}>Klik baris kendaraan untuk melihat pemakaian suku cadang.</p>
+            <p style={s.cardSubtitle}>Tekan baris kendaraan untuk melihat riwayat suku cadang.</p>
           </div>
 
           <form onSubmit={onSearch} style={s.searchRow}>
@@ -381,9 +422,19 @@ export default function Trucks() {
 
         {/* Pagination Bar */}
         <div style={s.paginationBar}>
-          <span style={s.paginationText}>
-            Menampilkan <strong>{pagedItems.length}</strong> dari <strong>{items.length}</strong> kendaraan
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <span style={s.paginationText}>
+              Menampilkan <strong>{pagedItems.length}</strong> dari <strong>{items.length}</strong> kendaraan
+            </span>
+            <label style={{ ...s.paginationText, display: "inline-flex", alignItems: "center", gap: 7 }}>
+              Per halaman
+              <select value={pageSize} onChange={(e) => changePageSize(e.target.value)} style={{ ...s.dateInput, width: 72, padding: "7px 9px" }} aria-label="Jumlah armada per halaman">
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+              </select>
+            </label>
+          </div>
 
           <div style={s.paginationBtns}>
             <button
@@ -429,11 +480,10 @@ export default function Trucks() {
             </thead>
             <tbody>
               {pagedItems.map((t) => {
-                const active = selectedTruck?.id === t.id;
                 return (
                   <tr
                     key={t.id}
-                    style={{ ...s.tr, background: active ? BRAND.accent : BRAND.white, cursor: "pointer" }}
+                    style={{ ...s.tr, background: BRAND.white, cursor: "pointer" }}
                     onClick={() => onPickTruck(t)}
                     data-testid={`truck-row-${t.id}`}
                   >
@@ -515,7 +565,7 @@ export default function Trucks() {
                         <input
                           type="date"
                           value={t.stnkExpiry ? t.stnkExpiry.slice(0, 10) : ""}
-                          onChange={(e) => updateStnk(t.id, e.target.value)}
+                          onChange={(e) => openStnkRenewal(t, e.target.value)}
                           style={{ ...s.dateInput, ...stnkInputStyle(t.stnkExpiry) }}
                           data-testid={`stnk-input-${t.id}`}
                         />
@@ -546,35 +596,43 @@ export default function Trucks() {
         <p style={s.footerNote}>Only OWNER/ADMIN/STAFF can mengelola armada.</p>
       </div>
 
-      {/* Sparepart Movements Panel */}
+      {/* Modal Riwayat Pergerakan Suku Cadang */}
       {selectedTruck && (
-        <div style={{ ...s.card, marginTop: 24 }}>
-          <div style={s.movHeader}>
+        <div
+          style={s.modalOverlay}
+          onClick={() => { setSelectedTruck(null); setAssignments([]); }}
+          data-testid="sparepart-movements-modal"
+        >
+          <div
+            style={{ ...s.modalCard, width: "min(1080px, calc(100vw - 32px))", maxWidth: 1080, maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+          <div style={{ ...s.movHeader, padding: "20px 22px", borderBottom: `1px solid ${BRAND.border}` }}>
             <div>
               <h2 style={s.cardTitle}>
-                Sparepart Movements — <strong>{selectedTruck.plateNumber}</strong>
+                Pergerakan Suku Cadang — <strong>{selectedTruck.plateNumber}</strong>
               </h2>
               <p style={s.cardSubtitle}>Menampilkan riwayat suku cadang kendaraan ini.</p>
             </div>
 
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <button style={s.secondaryBtn} onClick={() => { setSelectedTruck(null); setAssignments([]); }} data-testid="close-movements-btn">
-                <FiX size={16} /> Close
+                <FiX size={16} /> Tutup
               </button>
               <button style={s.primaryBtnSmall} disabled={asgLoading} onClick={() => loadAssignments(selectedTruck.id)} data-testid="refresh-movements-btn">
-                {asgLoading ? "Loading…" : "Refresh"}
+                {asgLoading ? "Memuat…" : "Muat Ulang"}
               </button>
             </div>
           </div>
 
-          <div style={s.movFilters}>
+          <div style={{ ...s.movFilters, padding: "18px 22px" }}>
             <div style={s.inputWrap}>
               <FiSearch size={16} color={BRAND.textMuted} />
               <input
                 style={s.searchInput}
                 value={movQ}
                 onChange={(e) => setMovQ(e.target.value)}
-                placeholder="Search item name / note…"
+                placeholder="Cari nama barang atau catatan…"
               />
             </div>
 
@@ -587,13 +645,13 @@ export default function Trucks() {
             <button style={s.ghostBtn} disabled={asgLoading} onClick={() => { setMovQ(""); setMovFrom(""); setMovTo(""); loadAssignments(selectedTruck.id); }}>Atur Ulang</button>
 
             <span style={s.monthBadge}>
-              This month: {fmtMoney(monthTotal, monthCurrency)}
+              Bulan ini: {fmtMoney(monthTotal, monthCurrency)}
             </span>
           </div>
 
           {movErr && <div style={s.alertErr}>{movErr}</div>}
 
-          <div style={s.tableWrap}>
+          <div style={{ ...s.tableWrap, margin: "0 22px 22px" }}>
             <table style={{ ...s.table, minWidth: 900 }}>
               <thead>
                 <tr>
@@ -607,7 +665,7 @@ export default function Trucks() {
               </thead>
               <tbody>
                 {asgLoading ? (
-                  <tr><td style={s.empty} colSpan={6}>Loading spareparts…</td></tr>
+                  <tr><td style={s.empty} colSpan={6}>Memuat suku cadang…</td></tr>
                 ) : assignments.length === 0 ? (
                   <tr><td style={s.empty} colSpan={6}>Belum ada riwayat suku cadang kendaraan ini.</td></tr>
                 ) : (
@@ -637,6 +695,7 @@ export default function Trucks() {
                 )}
               </tbody>
             </table>
+          </div>
           </div>
         </div>
       )}
@@ -715,6 +774,54 @@ export default function Trucks() {
               <p style={s.tip}>Tip: You can assign a driver later from the fleet table.</p>
             </form>
           </div>
+        </div>
+      )}
+
+      {stnkRenewal && (
+        <div style={s.modalOverlay} onClick={() => !stnkSaving && setStnkRenewal(null)} data-testid="stnk-renewal-modal">
+          <form style={{ ...s.modalCard, maxWidth: 560 }} onSubmit={saveStnkRenewal} onClick={(e) => e.stopPropagation()}>
+            <div style={s.modalHeader}>
+              <div>
+                <h3 style={s.modalTitle}>Perpanjangan STNK {stnkRenewal.plateNumber}</h3>
+                <p style={s.modalSubtitle}>Tanggal baru dan biayanya akan dicatat bersama sebagai pengeluaran armada.</p>
+              </div>
+              <button type="button" style={s.modalClose} disabled={stnkSaving} onClick={() => setStnkRenewal(null)}><FiX size={18} /></button>
+            </div>
+            <div style={s.form}>
+              <div style={s.twoCol}>
+                <Field label="Berlaku sampai">
+                  <input type="date" required style={s.input} value={stnkRenewal.stnkExpiry} onChange={(e) => setStnkRenewal((v) => ({ ...v, stnkExpiry: e.target.value }))} />
+                </Field>
+                <Field label="Biaya perpanjangan">
+                  <input type="number" min="1" required style={s.input} value={stnkRenewal.amount} onChange={(e) => setStnkRenewal((v) => ({ ...v, amount: e.target.value }))} placeholder="Contoh: 2500000" />
+                </Field>
+              </div>
+              <Field label="Metode pembayaran">
+                <select style={s.select} value={stnkRenewal.paymentMethod} onChange={(e) => setStnkRenewal((v) => ({ ...v, paymentMethod: e.target.value }))}>
+                  <option value="BANK_TRANSFER">Transfer Bank</option>
+                  <option value="CASH">Tunai</option>
+                  <option value="OTHER">Lainnya</option>
+                </select>
+              </Field>
+              {stnkRenewal.paymentMethod === "BANK_TRANSFER" && (
+                <>
+                  <div style={s.twoCol}>
+                    <Field label="Bank"><input style={s.input} value={stnkRenewal.bankName} onChange={(e) => setStnkRenewal((v) => ({ ...v, bankName: e.target.value }))} placeholder="Nama bank" /></Field>
+                    <Field label="Nama pemilik rekening"><input style={s.input} value={stnkRenewal.accountName} onChange={(e) => setStnkRenewal((v) => ({ ...v, accountName: e.target.value }))} placeholder="Nama pemilik" /></Field>
+                  </div>
+                  <Field label="Nomor rekening"><input style={s.input} value={stnkRenewal.accountNumber} onChange={(e) => setStnkRenewal((v) => ({ ...v, accountNumber: e.target.value }))} placeholder="Nomor rekening tujuan" /></Field>
+                </>
+              )}
+              <Field label="Catatan (opsional)"><textarea style={{ ...s.input, minHeight: 82, resize: "vertical" }} value={stnkRenewal.notes} onChange={(e) => setStnkRenewal((v) => ({ ...v, notes: e.target.value }))} placeholder="Pajak, administrasi, atau keterangan lainnya" /></Field>
+              <div style={{ padding: 12, borderRadius: 7, background: BRAND.warningBg, color: "#92400E", fontSize: 13, lineHeight: 1.5 }}>
+                Setelah disimpan, transaksi berstatus <strong>Diajukan</strong>. Unggah bukti pembayaran melalui halaman Pengeluaran agar dapat disetujui dan masuk ke laporan laba/rugi armada.
+              </div>
+              <div style={{ display: "flex", gap: 12 }}>
+                <button style={{ ...s.primaryBtn, flex: 1 }} disabled={stnkSaving}>{stnkSaving ? "Menyimpan…" : "Simpan & Catat Pengeluaran"}</button>
+                <button type="button" style={s.ghostBtn} disabled={stnkSaving} onClick={() => setStnkRenewal(null)}>Batal</button>
+              </div>
+            </div>
+          </form>
         </div>
       )}
 

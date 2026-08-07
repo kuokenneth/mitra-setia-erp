@@ -13,7 +13,11 @@ import {
   FiPlus,
   FiArrowRight,
   FiActivity,
+  FiDollarSign,
+  FiTrendingDown,
+  FiTrendingUp,
 } from "react-icons/fi";
+import "./Dashboard.css";
 
 // Corporate Green Color Palette (matching Landing Page)
 const BRAND = {
@@ -283,6 +287,11 @@ export default function Dashboard() {
   const [trucks, setTrucks] = useState([]);
   const [topSpend, setTopSpend] = useState([]);
   const [topSpendLoading, setTopSpendLoading] = useState(false);
+  const [fleetProfit, setFleetProfit] = useState({ summary: {}, rows: [] });
+  const reportMonth = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
 
   const truckDriverName = (trip) => {
     const plate = trip?.truck?.plateNumber || trip?.truckPlate;
@@ -303,8 +312,9 @@ export default function Dashboard() {
       tripsToday: `/trips?from=${encodeURIComponent(startOfTodayISO())}&to=${encodeURIComponent(
         endOfTodayISO()
       )}`,
+      fleetProfit: `/fleet-profitability?month=${reportMonth}`,
     }),
-    []
+    [reportMonth]
   );
 
   useEffect(() => {
@@ -314,11 +324,12 @@ export default function Dashboard() {
       try {
         setLoading(true);
 
-        const [trucksRes, maintRes, invRes, tripsRes] = await Promise.all([
+        const [trucksRes, maintRes, invRes, tripsRes, fleetRes] = await Promise.all([
           api(endpoints.trucks).catch(() => null),
           api(endpoints.maintenance).catch(() => null),
           api(endpoints.inventoryItems).catch(() => null),
           api(endpoints.tripsToday).catch(() => null),
+          api(endpoints.fleetProfit).catch(() => null),
         ]);
 
         const fetchedTrucks = safeArr(trucksRes);
@@ -340,6 +351,7 @@ export default function Dashboard() {
 
         setStats({ tripsToday, activeTrucks, pendingMaintenance, lowStock });
         setTodayTrips(trips);
+        setFleetProfit(fleetRes?.rows ? fleetRes : { summary: {}, rows: [] });
 
         // Alerts
         const a = [];
@@ -441,6 +453,18 @@ export default function Dashboard() {
     };
   }, [endpoints, liveRevision]);
 
+  const monthlyInsights = useMemo(() => {
+    const rows = fleetProfit.rows || [];
+    const withActivity = rows.filter((row) => row.trips.total > 0 || row.totalCost > 0 || row.revenue > 0);
+    const byProfit = [...withActivity].sort((a, b) => a.profit - b.profit);
+    const byTrips = [...withActivity].sort((a, b) => b.trips.total - a.trips.total);
+    const profitable = rows.filter((row) => row.profit > 0).length;
+    const losing = rows.filter((row) => row.profit < 0).length;
+    const avgUtilization = rows.length ? rows.reduce((sum, row) => sum + row.utilizationRate, 0) / rows.length : 0;
+    const completed = rows.reduce((sum, row) => sum + row.trips.completed, 0);
+    return { worst: byProfit[0] || null, best: byProfit.at(-1) || null, mostTrips: byTrips[0] || null, profitable, losing, avgUtilization, completed, ranking: byProfit.slice(0, 5) };
+  }, [fleetProfit]);
+
   return (
     <div data-testid="dashboard-page">
       {/* HEADER */}
@@ -464,7 +488,7 @@ export default function Dashboard() {
             }}
             data-testid="dashboard-welcome"
           >
-            Welcome back, {user?.name || "User"}
+            Selamat datang, {user?.name || "Pengguna"}
           </h1>
           <p
             style={{
@@ -473,7 +497,7 @@ export default function Dashboard() {
               color: BRAND.textMuted,
             }}
           >
-            Operations overview for today
+            Ringkasan operasional dan profitabilitas perusahaan
           </p>
         </div>
 
@@ -490,7 +514,7 @@ export default function Dashboard() {
             }}
             data-testid="dashboard-date"
           >
-            {new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+            {new Date().toLocaleDateString("id-ID", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
           </span>
           <span
             style={{
@@ -503,10 +527,27 @@ export default function Dashboard() {
             }}
             data-testid="dashboard-system-status"
           >
-            System: {sysOk ? "OK" : "ERROR"}
+            Sistem: {sysOk ? "Normal" : "Bermasalah"}
           </span>
         </div>
       </div>
+
+      {/* MONTHLY FINANCIAL OVERVIEW */}
+      <section className="dash-finance">
+        <div className="dash-section-title"><div><span>REKAP BULAN INI</span><h2>Keuangan & Kinerja Armada</h2><p>Periode {new Date(`${reportMonth}-01T00:00:00`).toLocaleDateString("id-ID", { month: "long", year: "numeric" })}</p></div><button onClick={() => (window.location.href = "/fleet-profitability")}>Lihat Profit Armada <FiArrowRight/></button></div>
+        <div className="dash-money-grid">
+          <article><FiDollarSign/><small>Pendapatan</small><strong>{fmtMoney(fleetProfit.summary?.revenue)}</strong><span>{fleetProfit.summary?.trips || 0} trip tercatat</span></article>
+          <article><FiTrendingDown/><small>Total Biaya</small><strong>{fmtMoney(fleetProfit.summary?.totalCost)}</strong><span>Trip, sparepart, dan biaya tetap</span></article>
+          <article className={(fleetProfit.summary?.profit || 0) < 0 ? "loss" : "profit"}><FiTrendingUp/><small>Laba Bersih</small><strong>{fmtMoney(fleetProfit.summary?.profit)}</strong><span>Margin {Number(fleetProfit.summary?.margin || 0).toLocaleString("id-ID", { maximumFractionDigits: 1 })}%</span></article>
+          <article><FiActivity/><small>Trip Selesai</small><strong>{monthlyInsights.completed}</strong><span>Utilisasi rata-rata {Math.round(monthlyInsights.avgUtilization)}%</span></article>
+        </div>
+        <div className="dash-insight-grid">
+          <article className="danger"><div><FiTrendingDown/><span>PALING MERUGIKAN</span></div><strong>{monthlyInsights.worst?.truck.plateNumber || "Belum ada data"}</strong><b>{monthlyInsights.worst ? fmtMoney(monthlyInsights.worst.profit) : "—"}</b><small>{monthlyInsights.worst ? `${monthlyInsights.worst.trips.total} trip · Margin ${monthlyInsights.worst.margin}%` : "Belum ada aktivitas armada"}</small></article>
+          <article className="success"><div><FiTrendingUp/><span>PALING MENGUNTUNGKAN</span></div><strong>{monthlyInsights.best?.truck.plateNumber || "Belum ada data"}</strong><b>{monthlyInsights.best ? fmtMoney(monthlyInsights.best.profit) : "—"}</b><small>{monthlyInsights.best ? `${monthlyInsights.best.trips.total} trip · Margin ${monthlyInsights.best.margin}%` : "Belum ada aktivitas armada"}</small></article>
+          <article className="info"><div><FiTruck/><span>TRIP TERBANYAK</span></div><strong>{monthlyInsights.mostTrips?.truck.plateNumber || "Belum ada data"}</strong><b>{monthlyInsights.mostTrips ? `${monthlyInsights.mostTrips.trips.total} trip` : "—"}</b><small>{monthlyInsights.mostTrips ? `${monthlyInsights.mostTrips.trips.completed} selesai · Utilisasi ${monthlyInsights.mostTrips.utilizationRate}%` : "Belum ada aktivitas armada"}</small></article>
+        </div>
+        <div className="dash-fleet-recap"><span><b>{trucks.length}</b> Total truk</span><span><b>{monthlyInsights.profitable}</b> Menguntungkan</span><span className="negative"><b>{monthlyInsights.losing}</b> Merugi</span><span><b>{stats.pendingMaintenance}</b> Dalam servis</span><span><b>{stats.lowStock}</b> Stok menipis</span></div>
+      </section>
 
       {/* KPI ROW */}
       <div
@@ -518,10 +559,10 @@ export default function Dashboard() {
         }}
         data-testid="kpi-cards"
       >
-        <KpiCard label="Trips Today" value={stats.tripsToday} sub="Scheduled / In-progress" icon={FiCalendar} />
-        <KpiCard label="Active Trucks" value={stats.activeTrucks} sub="READY + DISPATCH" icon={FiTruck} />
-        <KpiCard label="Pending Maintenance" value={stats.pendingMaintenance} sub="OPEN jobs" icon={FiTool} />
-        <KpiCard label="Low Stock Items" value={stats.lowStock} sub="Below reorder point" icon={FiPackage} />
+        <KpiCard label="Trip Hari Ini" value={stats.tripsToday} sub="Terjadwal dan berjalan" icon={FiCalendar} />
+        <KpiCard label="Armada Aktif" value={stats.activeTrucks} sub="Ready dan dalam perjalanan" icon={FiTruck} />
+        <KpiCard label="Servis Tertunda" value={stats.pendingMaintenance} sub="Pekerjaan servis terbuka" icon={FiTool} />
+        <KpiCard label="Stok Menipis" value={stats.lowStock} sub="Di bawah batas minimum" icon={FiPackage} />
       </div>
 
       {/* MAIN GRID */}

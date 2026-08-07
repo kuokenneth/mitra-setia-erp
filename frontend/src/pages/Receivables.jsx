@@ -80,6 +80,7 @@ export default function Receivables() {
   }
 
   const total = Number(invoiceForm.subtotal || 0) + Number(invoiceForm.tax || 0) - Number(invoiceForm.discount || 0);
+  const invoiceOrder = data.eligibleOrders.find(order => order.id === invoiceForm.orderId);
   return <div className="ar-page">
     <header className="ar-head"><div><span className="ar-eyebrow">INVOICE & PIUTANG</span><h1>Piutang Pelanggan</h1><p>Pantau penagihan dan pembayaran pelanggan.</p></div><button className="ar-primary" onClick={openInvoice} disabled={!data.eligibleOrders.length}><FiPlus/> Buat Invoice</button></header>
     <section className="ar-stats">
@@ -97,14 +98,29 @@ export default function Receivables() {
       {!loading && !rows.length && <div className="ar-empty"><FiFileText/><h3>Belum ada invoice</h3><p>{data.eligibleOrders.length ? "Buat invoice dari pesanan yang telah selesai." : "Selesaikan pesanan terlebih dahulu agar dapat ditagih."}</p></div>}
     </section>
 
-    {modal === "invoice" && <div className="ar-overlay" onMouseDown={() => setModal("")}><form className="ar-modal" onSubmit={createInvoice} onMouseDown={e => e.stopPropagation()}><div className="ar-modal-head"><div><span className="ar-eyebrow">INVOICE BARU</span><h2>Buat tagihan pelanggan</h2></div><button type="button" onClick={() => setModal("")}><FiX/></button></div><div className="ar-form">
-      <label>Pesanan selesai<select required value={invoiceForm.orderId} onChange={e => chooseOrder(e.target.value)}><option value="">Pilih pesanan</option>{data.eligibleOrders.map(order => <option key={order.id} value={order.id}>{order.orderNo} — {order.customer?.name || order.customerName || "Tanpa nama"}</option>)}</select></label>
-      <div className="ar-grid2"><label>Nama pelanggan<input required value={invoiceForm.customerName} onChange={e => setInvoiceForm({...invoiceForm, customerName:e.target.value})}/></label><label>Telepon<input value={invoiceForm.customerPhone} onChange={e => setInvoiceForm({...invoiceForm, customerPhone:e.target.value})}/></label></div>
-      <label>Alamat penagihan<textarea rows="2" value={invoiceForm.billingAddress} onChange={e => setInvoiceForm({...invoiceForm, billingAddress:e.target.value})}/></label>
-      <div className="ar-grid2"><label>Jatuh tempo<input required type="date" value={invoiceForm.dueAt} onChange={e => setInvoiceForm({...invoiceForm, dueAt:e.target.value})}/></label><label>Subtotal<input required min="1" type="number" value={invoiceForm.subtotal} onChange={e => setInvoiceForm({...invoiceForm, subtotal:e.target.value})} placeholder="Rp 0"/></label></div>
-      <div className="ar-grid2"><label>Pajak<input min="0" type="number" value={invoiceForm.tax} onChange={e => setInvoiceForm({...invoiceForm, tax:e.target.value})}/></label><label>Diskon<input min="0" type="number" value={invoiceForm.discount} onChange={e => setInvoiceForm({...invoiceForm, discount:e.target.value})}/></label></div>
-      <label>Catatan<textarea rows="2" value={invoiceForm.notes} onChange={e => setInvoiceForm({...invoiceForm, notes:e.target.value})}/></label><div className="ar-total"><span>Total Invoice</span><strong>{rupiah(total)}</strong></div>
-    </div><div className="ar-modal-actions"><button type="button" className="secondary" onClick={() => setModal("")}>Batal</button><button className="ar-primary" disabled={busy}>{busy ? "Menyimpan..." : "Simpan Invoice"}</button></div></form></div>}
+    {modal === "invoice" && <div className="ar-overlay" onMouseDown={() => setModal("")}><form className="ar-modal ar-invoice-modal" onSubmit={createInvoice} onMouseDown={e => e.stopPropagation()}>
+      <div className="ar-modal-head"><div><span className="ar-eyebrow">INVOICE BARU</span><h2>Buat tagihan pelanggan</h2><p>Pilih pesanan dan pastikan rincian tagihan sudah benar.</p></div><button type="button" aria-label="Tutup" onClick={() => setModal("")}><FiX/></button></div>
+      <div className="ar-form ar-invoice-form">
+        <section className="ar-form-section">
+          <div className="ar-section-title"><span>1</span><div><strong>Pilih pesanan</strong><small>Hanya pesanan yang telah selesai dan belum memiliki invoice.</small></div></div>
+          <label>Pesanan selesai<select required value={invoiceForm.orderId} onChange={e => chooseOrder(e.target.value)}><option value="">Pilih pesanan</option>{data.eligibleOrders.map(order => <option key={order.id} value={order.id}>{order.orderNo} — {order.customer?.name || order.customerName || "Tanpa nama"}</option>)}</select></label>
+          {invoiceOrder && <div className="ar-order-summary"><span><small>Rute pengiriman</small><strong>{invoiceOrder.fromText || "—"} → {invoiceOrder.toText || "—"}</strong></span><span><small>Nomor pesanan</small><strong>{invoiceOrder.orderNo}</strong></span></div>}
+        </section>
+        <section className="ar-form-section">
+          <div className="ar-section-title"><span>2</span><div><strong>Informasi pelanggan</strong><small>Data ini akan dicantumkan pada invoice.</small></div></div>
+          <div className="ar-grid2"><label>Nama pelanggan<input required value={invoiceForm.customerName} onChange={e => setInvoiceForm({...invoiceForm, customerName:e.target.value})} placeholder="Nama perusahaan atau pelanggan"/></label><label>Nomor telepon<input value={invoiceForm.customerPhone} onChange={e => setInvoiceForm({...invoiceForm, customerPhone:e.target.value})} placeholder="Contoh: 0812 3456 7890"/></label></div>
+          <label>Alamat penagihan<textarea rows="2" value={invoiceForm.billingAddress} onChange={e => setInvoiceForm({...invoiceForm, billingAddress:e.target.value})} placeholder="Alamat lengkap untuk penagihan"/></label>
+        </section>
+        <section className="ar-form-section">
+          <div className="ar-section-title"><span>3</span><div><strong>Rincian tagihan</strong><small>Isi nominal dalam Rupiah.</small></div></div>
+          <div className="ar-grid2"><label>Jatuh tempo<input required type="date" value={invoiceForm.dueAt} onChange={e => setInvoiceForm({...invoiceForm, dueAt:e.target.value})}/></label><label>Subtotal<input required min="1" type="number" inputMode="numeric" value={invoiceForm.subtotal} onChange={e => setInvoiceForm({...invoiceForm, subtotal:e.target.value})} placeholder="0"/></label></div>
+          <div className="ar-grid2"><label>Pajak<input min="0" type="number" inputMode="numeric" value={invoiceForm.tax} onChange={e => setInvoiceForm({...invoiceForm, tax:e.target.value})}/></label><label>Diskon<input min="0" type="number" inputMode="numeric" value={invoiceForm.discount} onChange={e => setInvoiceForm({...invoiceForm, discount:e.target.value})}/></label></div>
+          <label>Catatan <small className="ar-optional">Opsional</small><textarea rows="2" value={invoiceForm.notes} onChange={e => setInvoiceForm({...invoiceForm, notes:e.target.value})} placeholder="Keterangan tambahan untuk pelanggan"/></label>
+          <div className="ar-total"><span><small>TOTAL TAGIHAN</small>Total Invoice</span><strong>{rupiah(total)}</strong></div>
+        </section>
+      </div>
+      <div className="ar-modal-actions"><button type="button" className="secondary" onClick={() => setModal("")}>Batal</button><button className="ar-primary" disabled={busy}>{busy ? "Menyimpan..." : "Simpan Invoice"}</button></div>
+    </form></div>}
 
     {modal === "payment" && selected && <div className="ar-overlay" onMouseDown={() => setModal("")}><form className="ar-modal ar-payment-modal" onSubmit={savePayment} onMouseDown={e => e.stopPropagation()}><div className="ar-modal-head"><div><span className="ar-eyebrow">PEMBAYARAN PIUTANG</span><h2>Catat pembayaran</h2><p>{selected.number} · {selected.customerName}</p></div><button type="button" onClick={() => setModal("")}><FiX/></button></div><div className="ar-form"><div className="ar-balance"><span>Sisa piutang</span><strong>{rupiah(selected.balance)}</strong></div><label>Jumlah diterima<input required min="1" max={selected.balance} type="number" value={paymentForm.amount} onChange={e => setPaymentForm({...paymentForm, amount:e.target.value})}/></label><div className="ar-grid2"><label>Metode<select value={paymentForm.method} onChange={e => setPaymentForm({...paymentForm, method:e.target.value})}><option value="BANK_TRANSFER">Transfer Bank</option><option value="CASH">Tunai</option><option value="OTHER">Lainnya</option></select></label><label>Tanggal diterima<input required type="date" value={paymentForm.receivedAt} onChange={e => setPaymentForm({...paymentForm, receivedAt:e.target.value})}/></label></div><label>Nomor referensi<input value={paymentForm.reference} onChange={e => setPaymentForm({...paymentForm, reference:e.target.value})} placeholder="Nomor transfer atau kuitansi"/></label><label>Catatan<textarea rows="2" value={paymentForm.notes} onChange={e => setPaymentForm({...paymentForm, notes:e.target.value})}/></label></div><div className="ar-modal-actions"><button type="button" className="secondary" onClick={() => setModal("")}>Batal</button><button className="ar-primary" disabled={busy}><FiCheck/> {busy ? "Menyimpan..." : "Simpan Pembayaran"}</button></div></form></div>}
   </div>;

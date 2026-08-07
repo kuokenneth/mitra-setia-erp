@@ -57,12 +57,19 @@ router.get("/", async (req, res) => {
             ],
           },
           include: {
-            expenses: { where: { status: { in: ["PAID", "APPROVED"] } } },
+            expenses: { where: { status: { in: ["PAID", "APPROVED"] } }, orderBy: { createdAt: "asc" } },
             order: { include: { invoice: true, trips: { select: { id: true, status: true, qtyActual: true, qtyPlanned: true } } } },
           },
         },
-        sparePartAssignments: { where: { installedAt: dateRange }, include: { stockUnit: { select: { purchasePrice: true } } } },
+        sparePartAssignments: { where: { installedAt: dateRange }, include: { stockUnit: { select: { purchasePrice: true, item: { select: { name: true, sku: true } } } } } },
         monthlyCosts: { where: { month: start } },
+        expenses: {
+          where: {
+            status: { in: ["PAID", "APPROVED"] },
+            OR: [{ paidAt: dateRange }, { paidAt: null, createdAt: dateRange }],
+          },
+          orderBy: { createdAt: "asc" },
+        },
       },
     });
 
@@ -71,19 +78,53 @@ router.get("/", async (req, res) => {
       const completedTrips = operationalTrips.filter(item => item.status === "COMPLETED").length;
       const revenue = Math.round(operationalTrips.reduce((sum, item) => sum + allocatedRevenue(item), 0));
       const tripExpenses = operationalTrips.reduce((sum, item) => sum + item.expenses.reduce((cost, expense) => cost + expense.amount, 0), 0);
+      const vehicleExpenses = truck.expenses.reduce((sum, expense) => sum + expense.amount, 0);
       const spareParts = truck.sparePartAssignments.reduce((sum, item) => sum + (item.installCost ?? item.stockUnit.purchasePrice ?? 0), 0);
       const fixedCosts = truck.monthlyCosts[0] || Object.fromEntries(COST_FIELDS.map(field => [field, 0]));
       const fixedTotal = COST_FIELDS.reduce((sum, field) => sum + (fixedCosts[field] || 0), 0);
-      const totalCost = tripExpenses + spareParts + fixedTotal;
+      const totalCost = tripExpenses + vehicleExpenses + spareParts + fixedTotal;
       const profit = revenue - totalCost;
       const margin = revenue > 0 ? round((profit / revenue) * 100) : (totalCost > 0 ? -100 : 0);
       const activeDays = new Set(operationalTrips.map(item => tripDate(item)?.toISOString().slice(0, 10)).filter(Boolean)).size;
       const contributionPerTrip = operationalTrips.length ? (revenue - tripExpenses - spareParts) / operationalTrips.length : 0;
+      const tripDetails = operationalTrips.map(item => {
+        const tripRevenue = Math.round(allocatedRevenue(item));
+        const expenseTotal = item.expenses.reduce((sum, expense) => sum + expense.amount, 0);
+        const invoiceTotal = item.order?.invoice?.total || 0;
+        return {
+          id: item.id,
+          purpose: item.purpose,
+          status: item.status,
+          date: tripDate(item),
+          fromText: item.fromText || item.order?.fromText,
+          toText: item.toText || item.order?.toText,
+          orderNo: item.order?.orderNo || null,
+          customerName: item.order?.customerName || null,
+          invoiceNumber: item.order?.invoice?.number || null,
+          invoiceTotal,
+          allocatedRevenue: tripRevenue,
+          allocationPercent: invoiceTotal > 0 ? round((tripRevenue / invoiceTotal) * 100) : 0,
+          quantity: item.qtyActual ?? item.qtyPlanned ?? null,
+          unit: item.unitSnap || item.order?.unit || null,
+          expenseTotal,
+          netContribution: tripRevenue - expenseTotal,
+          expenses: item.expenses.map(expense => ({ id: expense.id, reason: expense.reason, amount: expense.amount, status: expense.status, paidAt: expense.paidAt || expense.createdAt })),
+        };
+      });
+      const sparePartDetails = truck.sparePartAssignments.map(item => ({
+        id: item.id,
+        name: item.stockUnit.item?.name || "Sparepart",
+        sku: item.stockUnit.item?.sku || null,
+        installedAt: item.installedAt,
+        cost: item.installCost ?? item.stockUnit.purchasePrice ?? 0,
+      }));
       return {
         truck: { id: truck.id, plateNumber: truck.plateNumber, brand: truck.brand, model: truck.model, status: truck.status },
         trips: { total: operationalTrips.length, completed: completedTrips, cancelled: truck.trips.length - operationalTrips.length },
-        revenue, tripExpenses, spareParts, fixedCosts: Object.fromEntries(COST_FIELDS.map(field => [field, fixedCosts[field] || 0])),
+        revenue, tripExpenses, vehicleExpenses, spareParts, fixedCosts: Object.fromEntries(COST_FIELDS.map(field => [field, fixedCosts[field] || 0])),
         fixedTotal, totalCost, profit, margin,
+        tripDetails, sparePartDetails,
+        vehicleExpenseDetails: truck.expenses.map(expense => ({ id: expense.id, reason: expense.reason, amount: expense.amount, status: expense.status, paidAt: expense.paidAt || expense.createdAt })),
         costRatio: revenue > 0 ? ratio(totalCost, revenue) : (totalCost > 0 ? 100 : 0),
         completionRate: ratio(completedTrips, operationalTrips.length),
         utilizationRate: round(Math.min(100, (activeDays / days) * 100)), activeDays,

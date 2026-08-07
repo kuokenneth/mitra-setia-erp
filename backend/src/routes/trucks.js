@@ -236,6 +236,56 @@ router.put(
 );
 
 /**
+ * POST /trucks/:id/stnk-renewal
+ * Renew STNK and create a vehicle-linked expense in one transaction.
+ */
+router.post(
+  "/:id/stnk-renewal",
+  authRequired,
+  requireRole("OWNER", "ADMIN", "STAFF"),
+  async (req, res) => {
+    try {
+      const amount = Number(req.body.amount || 0);
+      const expiryDate = req.body.stnkExpiry ? new Date(req.body.stnkExpiry) : null;
+      const paymentMethod = String(req.body.paymentMethod || "BANK_TRANSFER").trim();
+      if (!expiryDate || Number.isNaN(expiryDate.getTime())) return res.status(400).json({ error: "Tanggal berlaku STNK wajib diisi" });
+      if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: "Biaya perpanjangan harus lebih dari 0" });
+      if (!["BANK_TRANSFER", "CASH", "OTHER"].includes(paymentMethod)) return res.status(400).json({ error: "Metode pembayaran tidak valid" });
+
+      const truck = await prisma.truck.findUnique({ where: { id: req.params.id }, select: { id: true, plateNumber: true } });
+      if (!truck) return res.status(404).json({ error: "Kendaraan tidak ditemukan" });
+
+      const result = await prisma.$transaction(async (tx) => {
+        const expense = await tx.expense.create({
+          data: {
+            status: "SUBMITTED",
+            paymentMethod,
+            bankName: String(req.body.bankName || "").trim() || null,
+            accountName: String(req.body.accountName || "").trim() || null,
+            accountNumber: String(req.body.accountNumber || "").trim() || null,
+            amount: Math.round(amount),
+            currency: "IDR",
+            reason: `Perpanjangan STNK ${truck.plateNumber}`,
+            notes: String(req.body.notes || "").trim() || null,
+            truckId: truck.id,
+            createdById: req.user?.id,
+          },
+        });
+        const updatedTruck = await tx.truck.update({
+          where: { id: truck.id },
+          data: { stnkExpiry: expiryDate, status: expiryDate <= new Date() ? "INACTIVE" : "READY" },
+        });
+        return { expense, truck: updatedTruck };
+      });
+      res.status(201).json(result);
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message || "Gagal mencatat perpanjangan STNK" });
+    }
+  }
+);
+
+/**
  * PUT /trucks/:id/stnk
  * Update STNK expiry date (auto-adjust status)
  */

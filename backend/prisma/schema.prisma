@@ -539,6 +539,7 @@ model Truck {
   maintenances         TruckMaintenance[]
   sparePartAssignments TruckSparePartAssignment[]
   monthlyCosts         TruckMonthlyCost[]
+  expenses             Expense[]
 
   @@index([driverUserId])
   @@index([stnkExpiry])
@@ -734,6 +735,9 @@ model Expense {
   tripId String?
   trip   Trip?   @relation(fields: [tripId], references: [id])
 
+  truckId String?
+  truck   Truck?  @relation(fields: [truckId], references: [id])
+
   proofUrl      String?
   proofFileName String?
   proofMimeType String?
@@ -759,6 +763,7 @@ model Expense {
   @@index([accountNumber])
   @@index([clientName])
   @@index([tripId])
+  @@index([truckId])
   @@index([proofUploadedById])
   @@index([createdById])
   @@index([approvedById])
