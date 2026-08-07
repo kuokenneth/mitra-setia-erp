@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, apiAssetUrl } from "../api";
 import { useAuth } from "../AuthContext";
+import { useLiveRefresh } from "../liveUpdates";
 import {
   FiArrowLeft,
   FiCheck,
@@ -216,6 +217,7 @@ export default function TripDetail() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+  useLiveRefresh(load);
 
   const order = trip?.order || null;
   const truck = trip?.truck || null;
@@ -312,13 +314,14 @@ export default function TripDetail() {
                     {order.orderNo}
                   </span>
                 ) : (
-                  "-"
+                  trip.purpose === "EMPTY_RETURN" ? "Perjalanan operasional · tanpa muatan" : "-"
                 )}{" "}
                 • {routeText} • Planned: {fmtDateTime(trip.plannedDepartAt)}
               </div>
 
               <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 <span style={tripBadgeStyle(trip.status)}>{String(trip.status).replaceAll("_", " ")}</span>
+                {trip.purpose === "EMPTY_RETURN" && <span style={{ ...badgeBase, background: "#FFF7ED", color: "#C2410C" }}>KEMBALI KOSONG · PENDAPATAN RP0</span>}
                 <span style={{ ...badgeBase, background: "#FFFFFF" }}>{role}</span>
 
                 {trip.qtyPlanned != null ? (

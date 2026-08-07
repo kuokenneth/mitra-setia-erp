@@ -469,9 +469,15 @@ router.patch("/:id/proof", authRequired, async (req, res) => {
 
 // Approve expense (OWNER only)
 router.post("/:id/approve", authRequired, async (req, res) => {
-  const role = req.user?.role;
-  if (role !== "OWNER") {
-    return res.status(403).json({ error: "Forbidden" });
+  const approver = await prisma.user.findUnique({
+    where: { id: req.user?.id },
+    select: { id: true, role: true, isActive: true, status: true },
+  });
+  if (!approver || !approver.isActive || approver.status !== "ACTIVE") {
+    return res.status(403).json({ error: "Akun tidak aktif" });
+  }
+  if (approver.role !== "OWNER") {
+    return res.status(403).json({ error: `Hanya OWNER yang dapat menyetujui pengeluaran. Role akun saat ini: ${approver.role}` });
   }
 
   const { id } = req.params;
@@ -486,7 +492,7 @@ router.post("/:id/approve", authRequired, async (req, res) => {
     data: {
       status: "APPROVED",
       approvedAt: new Date(),
-      approvedById: req.user?.id,
+      approvedById: approver.id,
     },
     include: {
       trip: {

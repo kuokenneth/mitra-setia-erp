@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { FiBookOpen, FiCheckCircle, FiRefreshCw, FiTrendingDown, FiTrendingUp } from "react-icons/fi";
 import { api } from "../api";
+import { useLiveRefresh } from "../liveUpdates";
 import "./Accounting.css";
 import "./AccountingFeedback.css";
 const money=n=>new Intl.NumberFormat("id-ID",{style:"currency",currency:"IDR",maximumFractionDigits:0}).format(Number(n)||0);
@@ -10,6 +11,7 @@ export default function Accounting(){
  const [data,setData]=useState({summary:{},accounts:[],entries:[]}); const [from,setFrom]=useState(start()); const [to,setTo]=useState(new Date().toISOString().slice(0,10)); const [tab,setTab]=useState("journal"); const [loading,setLoading]=useState(true); const [syncing,setSyncing]=useState(false); const [notice,setNotice]=useState(""); const [error,setError]=useState("");
  async function load(){setLoading(true);setError("");try{setData(await api(`/accounting/overview?from=${from}&to=${to}`));}catch(e){setError(e.message);}finally{setLoading(false)}}
  useEffect(()=>{load()},[]);
+ useLiveRefresh(load);
  async function sync(){setSyncing(true);setNotice("");setError("");try{const result=await api("/accounting/sync",{method:"POST"});await load();setNotice(`Sinkronisasi selesai. ${result.processed||0} transaksi diperiksa tanpa membuat jurnal ganda.`);}catch(e){setError(e.message);}finally{setSyncing(false)}}
  const grouped=useMemo(()=>Object.groupBy?Object.groupBy(data.accounts,x=>x.type):data.accounts.reduce((a,x)=>((a[x.type]??=[]).push(x),a),{}),[data.accounts]);
  return <div className="acct-page"><header className="acct-head"><div><span>GENERAL LEDGER</span><h1>Accounting</h1><p>Jurnal otomatis dari seluruh penerimaan dan penggunaan uang.</p></div><div className="acct-head-actions"><button className={`secondary ${syncing?"syncing":""}`} onClick={sync} disabled={loading||syncing} aria-busy={syncing}><FiRefreshCw className={syncing?"acct-spin":""}/> {syncing?"Sedang menyinkronkan…":"Sinkronkan Transaksi"}</button></div></header>

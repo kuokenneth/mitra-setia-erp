@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
+import { useLiveRefresh } from "../liveUpdates";
 import { FiTool, FiClock, FiCheck, FiX, FiPlus, FiRefreshCw } from "react-icons/fi";
 
 //////////////////////
@@ -356,6 +357,7 @@ export default function Maintenance() {
       setLoading(false);
     }
   }
+  useLiveRefresh(load);
 
   async function loadTrucks(search = "") {
     setTrucksLoading(true);

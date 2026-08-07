@@ -20,7 +20,6 @@ import Maintenance from "./pages/Maintenance";
 import Orders from "./pages/Orders";
 import Expenses from "./pages/Expenses";
 import DriverHome from "./pages/DriverHome";
-import DriverJobs from "./pages/DriverJobs";
 import EditProfile from "./pages/EditProfile";
 import CreateDriver from "./pages/CreateDriver";
 import OrderCreate from "./pages/OrderCreate";
@@ -29,6 +28,7 @@ import TripDetail from "./pages/TripDetail";
 import Purchasing from "./pages/Purchasing";
 import Receivables from "./pages/Receivables";
 import Accounting from "./pages/Accounting";
+import FleetProfitability from "./pages/FleetProfitability";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -59,6 +59,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             <Route path="/purchasing" element={<Purchasing />} />
             <Route path="/receivables" element={<Receivables />} />
             <Route path="/accounting" element={<Accounting />} />
+            <Route path="/fleet-profitability" element={<FleetProfitability />} />
             <Route path="/maintenance" element={<Maintenance />} />
             <Route path="/expenses" element={<Expenses />} />
             <Route path="/orders" element={<Orders />} />
@@ -69,7 +70,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
 
             {/* Driver */}
             <Route path="/driver" element={<DriverHome />} />
-            <Route path="/driver/jobs" element={<DriverJobs />} />
+            <Route path="/driver/jobs" element={<DriverHome />} />
             <Route path="/profile" element={<EditProfile />} />
           </Route>
 

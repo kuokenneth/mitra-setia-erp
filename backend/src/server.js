@@ -22,6 +22,9 @@ const dispatchRouter = require("./routes/dispatch");
 const purchasingRoutes = require("./routes/purchasing");
 const receivablesRoutes = require("./routes/receivables");
 const accountingRoutes = require("./routes/accounting");
+const fleetProfitabilityRoutes = require("./routes/fleetProfitability");
+const realtimeRoutes = require("./routes/realtime");
+const { publishUpdate } = require("./realtime");
 
 const app = express();
 
@@ -62,6 +65,17 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(morgan("dev"));
 
+// Notify connected ERP clients after every successful data mutation.
+app.use((req, res, next) => {
+  if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
+  res.on("finish", () => {
+    if (res.statusCode < 400 && !req.path.startsWith("/auth/")) {
+      publishUpdate({ method: req.method, resource: req.path.split("/").filter(Boolean)[0] || "data" });
+    }
+  });
+  next();
+});
+
 // Health check
 app.get("/health", async (req, res) => {
   const users = await prisma.user.count();
@@ -88,6 +102,8 @@ app.use("/expenses", expensesRoutes);
 app.use("/purchasing", purchasingRoutes);
 app.use("/receivables", receivablesRoutes);
 app.use("/accounting", accountingRoutes);
+app.use("/fleet-profitability", fleetProfitabilityRoutes);
+app.use("/events", realtimeRoutes);
 
 /**
  * ✅ Upload API should NOT be /uploads (conflicts with static).

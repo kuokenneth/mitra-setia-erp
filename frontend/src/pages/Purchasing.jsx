@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FiCheck, FiChevronRight, FiPackage, FiPlus, FiRefreshCw, FiShoppingCart } from "react-icons/fi";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
+import { useLiveRefresh } from "../liveUpdates";
 import "./Purchasing.css";
 import "./PurchasingForm.css";
 
@@ -38,6 +39,7 @@ export default function Purchasing() {
     } finally { setBusy(false); }
   }
   useEffect(() => { load(); }, []);
+  useLiveRefresh(load);
   async function loadInventoryItems() {
     setItemsLoading(true); setItemsError("");
     try {

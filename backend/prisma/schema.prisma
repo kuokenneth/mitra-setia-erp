@@ -74,6 +74,11 @@ enum TripStatus {
   CANCELLED
 }
 
+enum TripPurpose {
+  DELIVERY
+  EMPTY_RETURN
+}
+
 enum ExpensePaymentMethod {
   BANK_TRANSFER
   CASH
@@ -421,8 +426,8 @@ model ReceivablePayment {
 model Trip {
   id String @id @default(cuid())
 
-  orderId String
-  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId String?
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   truckId String
   truck   Truck  @relation(fields: [truckId], references: [id])
@@ -431,7 +436,9 @@ model Trip {
   driverUserId String?
   driverUser   User?   @relation(fields: [driverUserId], references: [id])
 
-  status TripStatus @default(PLANNED)
+  status            TripStatus  @default(PLANNED)
+  purpose           TripPurpose @default(DELIVERY)
+  operationalReason String?
 
   // ✅ quantity per trip (for contract decrement)
   qtyPlanned Float? // planned load for this trip
@@ -531,11 +538,31 @@ model Truck {
 
   maintenances         TruckMaintenance[]
   sparePartAssignments TruckSparePartAssignment[]
+  monthlyCosts         TruckMonthlyCost[]
 
   @@index([driverUserId])
   @@index([stnkExpiry])
   @@index([currentLocation])
   @@index([availableForBackhaul])
+}
+
+model TruckMonthlyCost {
+  id           String   @id @default(cuid())
+  truckId      String
+  truck        Truck    @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  month        DateTime
+  depreciation Int      @default(0)
+  insurance    Int      @default(0)
+  taxPermit    Int      @default(0)
+  driverSalary Int      @default(0)
+  lease        Int      @default(0)
+  overhead     Int      @default(0)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([truckId, month])
+  @@index([month])
 }
 
 model TruckMaintenance {

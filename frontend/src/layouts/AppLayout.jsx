@@ -17,8 +17,11 @@ import {
   FiCreditCard,
   FiBookOpen,
   FiX,
+  FiPieChart,
 } from "react-icons/fi";
 import { useAuth } from "../AuthContext";
+import { LiveUpdatesProvider } from "../liveUpdates";
+import "../liveUpdates.css";
 
 // Corporate Green Color Palette (matching Landing Page)
 const BRAND = {
@@ -121,6 +124,7 @@ export default function AppLayout() {
         ? [{ to: "/drivers/new", label: "Tambah Pengemudi", icon: FiUserPlus }]
         : []),
       { to: "/trucks", label: "Armada", icon: FiTruck },
+      { to: "/fleet-profitability", label: "Profit Armada", icon: FiPieChart },
       { to: "/inventory", label: "Inventory", icon: FiBox },
       { to: "/maintenance", label: "Servis", icon: FiTool },
       { to: "/purchasing", label: "Pembelian", icon: FiShoppingCart },
@@ -494,7 +498,7 @@ export default function AppLayout() {
 
         <div style={s.contentOuter}>
           <div style={s.contentInner}>
-            <Outlet />
+          <LiveUpdatesProvider><Outlet /></LiveUpdatesProvider>
           </div>
         </div>
       </main>

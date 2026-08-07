@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
+import { useLiveRefresh } from "../liveUpdates";
 import {
   FiTruck,
   FiTool,
@@ -262,6 +263,8 @@ function Card({ title, children, action }) {
 // MAIN
 //////////////////////
 export default function Dashboard() {
+  const [liveRevision, setLiveRevision] = useState(0);
+  useLiveRefresh(() => setLiveRevision(value => value + 1));
   const { user } = useAuth();
 
   const [loading, setLoading] = useState(true);
@@ -436,7 +439,7 @@ export default function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [endpoints]);
+  }, [endpoints, liveRevision]);
 
   return (
     <div data-testid="dashboard-page">

@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, apiAssetUrl, uploadFiles } from "../api";
 import { useAuth } from "../AuthContext";
+import { useLiveRefresh } from "../liveUpdates";
 import { useNavigate } from "react-router-dom";
 import { FiPlus, FiSearch, FiX } from "react-icons/fi";
 
@@ -316,6 +317,7 @@ export default function Orders() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useLiveRefresh(load);
 
   function resetCreate() {
     setCreateErr("");

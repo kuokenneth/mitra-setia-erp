@@ -1,0 +1,11 @@
+{
+  "name": "mitra-setia-erp",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently --kill-others --names FRONTEND,BACKEND,PRISMA --prefix-colors cyan,green,magenta \"npm --prefix frontend run dev\" \"npm --prefix backend run dev\" \"npm --prefix backend exec prisma studio\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
+import { useLiveRefresh } from "../liveUpdates";
 
 // Corporate Green Color Palette (matching Landing/Dashboard)
 const BRAND = {
@@ -37,6 +38,11 @@ export default function Expenses() {
   const [trips, setTrips] = useState([]);
   const [tripSearch, setTripSearch] = useState("");
   const [tripLoading, setTripLoading] = useState(false);
+  const [emptyReturnOpen, setEmptyReturnOpen] = useState(false);
+  const [eligibleTrucks, setEligibleTrucks] = useState([]);
+  const [emptyReturnLoading, setEmptyReturnLoading] = useState(false);
+  const [emptyReturnSaving, setEmptyReturnSaving] = useState(false);
+  const [emptyReturnForm, setEmptyReturnForm] = useState({ truckId: "", plannedDepartAt: "", reason: "Kembali ke Medan tanpa muatan" });
 
   const [q, setQ] = useState("");
   const [methodFilter, setMethodFilter] = useState("");
@@ -149,6 +155,50 @@ export default function Expenses() {
       setTripLoading(false);
     }
   }
+
+  async function openEmptyReturn() {
+    setEmptyReturnOpen(true);
+    setEmptyReturnLoading(true);
+    setErr("");
+    try {
+      const data = await api("/trucks");
+      const outsideMedan = (data.items || []).filter((truck) => {
+        const location = String(truck.currentLocation || "").trim().toLocaleLowerCase("id-ID");
+        return truck.status === "WAITING_BACKHAUL" && location && !location.includes("medan");
+      });
+      setEligibleTrucks(outsideMedan);
+      setEmptyReturnForm({ truckId: outsideMedan[0]?.id || "", plannedDepartAt: new Date().toISOString().slice(0, 16), reason: "Kembali ke Medan tanpa muatan" });
+    } catch (e) {
+      setErr(e.message || "Gagal memuat truk di luar Medan");
+    } finally {
+      setEmptyReturnLoading(false);
+    }
+  }
+
+  async function createEmptyReturnTrip() {
+    if (!emptyReturnForm.truckId) return setErr("Pilih truk yang akan kembali kosong");
+    setEmptyReturnSaving(true);
+    setErr("");
+    try {
+      const trip = await api("/trips/empty-return", {
+        method: "POST",
+        body: JSON.stringify({
+          truckId: emptyReturnForm.truckId,
+          plannedDepartAt: emptyReturnForm.plannedDepartAt || null,
+          reason: emptyReturnForm.reason,
+        }),
+      });
+      await loadTrips("");
+      setForm((value) => ({ ...value, tripId: trip.id }));
+      setTripSearch("");
+      setEmptyReturnOpen(false);
+    } catch (e) {
+      setErr(e.message || "Gagal membuat trip kembali kosong");
+    } finally {
+      setEmptyReturnSaving(false);
+    }
+  }
+  useLiveRefresh(load);
 
   useEffect(() => {
     if (!allowed) return;
@@ -566,34 +616,64 @@ export default function Expenses() {
             </div>
             <form onSubmit={onSubmit}>
               <div style={s.formGrid}>
-                <div>
-                  <label style={s.label}>Perjalanan (opsional)</label>
-                  <input
-                    style={s.input}
-                    value={tripSearch}
-                    onChange={(e) => setTripSearch(e.target.value)}
-                    placeholder="Cari perjalanan berdasarkan kendaraan, pengemudi, atau tujuan..."
-                  />
-                  <select
-                    value={form.tripId}
-                    onChange={(e) => onChangeForm("tripId", e.target.value)}
-                    style={{ ...s.select, marginTop: 8 }}
-                  >
-                    <option value="">
-                      {tripLoading ? "Memuat perjalanan..." : "Pilih perjalanan"}
-                    </option>
-                    {trips.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {(t.driverName || t.driverUser?.name || "Driver") +
-                          " • " +
-                          (t.truckPlate || t.truck?.plateNumber || "Truck") +
-                          " • " +
-                          (t.order?.fromText || t.fromText || "-") +
-                          " → " +
-                          (t.order?.toText || t.toText || "-")}
-                      </option>
-                    ))}
-                  </select>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12, marginBottom: 8 }}>
+                    <div>
+                      <label style={{ ...s.label, marginBottom: 3 }}>Perjalanan (opsional)</label>
+                      <div style={{ color: BRAND.textMuted, fontSize: 11 }}>Pilih trip aktif atau buat perjalanan kembali tanpa muatan.</div>
+                    </div>
+                    <button type="button" onClick={openEmptyReturn} style={{ ...s.secondaryBtn, padding: "9px 13px", whiteSpace: "nowrap" }}>
+                      + Kembali kosong
+                    </button>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10 }}>
+                    <input
+                      style={s.input}
+                      value={tripSearch}
+                      onChange={(e) => setTripSearch(e.target.value)}
+                      placeholder="Cari kendaraan, pengemudi, atau tujuan..."
+                    />
+                    <select
+                      value={form.tripId}
+                      onChange={(e) => onChangeForm("tripId", e.target.value)}
+                      style={s.select}
+                    >
+                      <option value="">{tripLoading ? "Memuat perjalanan..." : "Pilih perjalanan"}</option>
+                      {trips.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {(t.purpose === "EMPTY_RETURN" ? "KEMBALI KOSONG • " : "") +
+                            (t.driverName || t.driverUser?.name || "Driver") + " • " +
+                            (t.truckPlate || t.truck?.plateNumber || "Truck") + " • " +
+                            (t.order?.fromText || t.fromText || "-") + " → " +
+                            (t.order?.toText || t.toText || "-")}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {emptyReturnOpen && (
+                    <div style={{ marginTop: 12, padding: isMobile ? 14 : 16, border: `1px solid #CFE1D5`, borderRadius: 12, background: "#F7FBF8" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 12 }}>
+                        <div><div style={{ color: BRAND.primary, fontWeight: 750, fontSize: 13 }}>PERJALANAN KEMBALI KOSONG</div><div style={{ color: BRAND.textMuted, fontSize: 11, marginTop: 3 }}>Hanya menampilkan truk yang menunggu backhaul di luar Medan.</div></div>
+                        <button type="button" onClick={() => setEmptyReturnOpen(false)} style={{ border: 0, background: "transparent", color: BRAND.textMuted, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
+                      </div>
+                      {emptyReturnLoading ? <div style={{ color: BRAND.textMuted, fontSize: 12 }}>Memuat truk…</div> : eligibleTrucks.length === 0 ? (
+                        <div style={{ color: BRAND.textMuted, fontSize: 12, padding: "12px 0" }}>Tidak ada truk berstatus menunggu backhaul di luar Medan.</div>
+                      ) : (
+                        <>
+                          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.3fr) minmax(210px, .7fr)", gap: 10 }}>
+                            <label style={s.label}>Truk dan rute<select style={{ ...s.select, marginTop: 6 }} value={emptyReturnForm.truckId} onChange={(e) => setEmptyReturnForm((value) => ({ ...value, truckId: e.target.value }))}>
+                              {eligibleTrucks.map((truck) => <option key={truck.id} value={truck.id}>{truck.plateNumber} • {truck.currentLocation} → {truck.baseLocation || "Medan"} • {truck.driverUser?.name || "Tanpa pengemudi"}</option>)}
+                            </select></label>
+                            <label style={s.label}>Rencana berangkat<input type="datetime-local" style={{ ...s.input, marginTop: 6 }} value={emptyReturnForm.plannedDepartAt} onChange={(e) => setEmptyReturnForm((value) => ({ ...value, plannedDepartAt: e.target.value }))} /></label>
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1fr) auto", gap: 10, alignItems: "end", marginTop: 10 }}>
+                            <label style={s.label}>Alasan<input style={{ ...s.input, marginTop: 6 }} value={emptyReturnForm.reason} onChange={(e) => setEmptyReturnForm((value) => ({ ...value, reason: e.target.value }))} placeholder="Contoh: kendaraan rusak" /></label>
+                            <button type="button" style={{ ...s.primaryBtn, minWidth: isMobile ? 0 : 170, height: 46 }} disabled={emptyReturnSaving} onClick={createEmptyReturnTrip}>{emptyReturnSaving ? "Membuat…" : "Buat & pilih trip"}</button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div>

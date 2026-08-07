@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
+import { useLiveRefresh } from "../liveUpdates";
 import {
   FiPlus,
   FiRefreshCw,
@@ -140,6 +141,7 @@ export default function Trucks() {
       setLoading(false);
     }
   }
+  useLiveRefresh(() => load());
 
   async function loadAssignments(truckId) {
     if (!truckId) return;
@@ -246,6 +248,28 @@ export default function Trucks() {
       await load({ resetPage: false });
     } catch (e) {
       alert(e.message || "Gagal memperbarui STNK expiry");
+    }
+  }
+
+  async function advanceEmptyReturn(truck) {
+    const trip = truck.activeEmptyReturnTrip;
+    const next = { PLANNED: "DISPATCHED", DISPATCHED: "ARRIVED", ARRIVED: "COMPLETED" }[trip?.status];
+    if (!next) return;
+    const message = next === "DISPATCHED"
+      ? `Mulai perjalanan kembali kosong ${truck.plateNumber}?`
+      : next === "ARRIVED"
+        ? `Pastikan ${truck.plateNumber} sudah benar-benar sampai di ${trip.toText || "Medan"}.`
+        : `Selesaikan trip ${truck.plateNumber} dan ubah status armada menjadi Ready?`;
+    if (!confirm(message)) return;
+    setErr("");
+    try {
+      await api(`/trips/${trip.id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: next, timestamp: new Date().toISOString() }),
+      });
+      await load({ resetPage: false });
+    } catch (e) {
+      setErr(e.message || "Gagal memperbarui perjalanan kembali kosong");
     }
   }
 
@@ -396,6 +420,7 @@ export default function Trucks() {
                 <th style={s.th}>Nomor Polisi</th>
                 <th style={s.th}>Kendaraan</th>
                 <th style={s.th}>Status</th>
+                <th style={s.th}>Kembali Kosong</th>
                 <th style={s.th}>Lokasi Armada</th>
                 <th style={s.th}>Pengemudi Bertugas</th>
                 <th style={s.th}>Masa Berlaku STNK</th>
@@ -421,6 +446,23 @@ export default function Trucks() {
                     </td>
                     <td style={s.td}>
                       <span style={statusPill(t.status || "READY")}>{t.status || "READY"}</span>
+                    </td>
+                    <td style={s.td} onClick={(e) => e.stopPropagation()}>
+                      {t.activeEmptyReturnTrip ? (
+                        <div style={{ minWidth: 145 }}>
+                          <div style={{ fontWeight: 650, fontSize: 12 }}>
+                            {t.activeEmptyReturnTrip.status === "PLANNED" ? "Belum berangkat" : t.activeEmptyReturnTrip.status === "DISPATCHED" ? "Dalam perjalanan" : "Sudah sampai"}
+                          </div>
+                          <div style={{ ...s.smallMuted, marginTop: 3 }}>{t.activeEmptyReturnTrip.fromText || "—"} → {t.activeEmptyReturnTrip.toText || "Medan"}</div>
+                          <button
+                            type="button"
+                            style={{ ...s.iconBtn, width: "auto", marginTop: 7, padding: "6px 9px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", color: t.activeEmptyReturnTrip.status === "DISPATCHED" ? "#92400E" : BRAND.primary, background: t.activeEmptyReturnTrip.status === "DISPATCHED" ? BRAND.warningBg : BRAND.white }}
+                            onClick={() => advanceEmptyReturn(t)}
+                          >
+                            {t.activeEmptyReturnTrip.status === "PLANNED" ? "Berangkat" : t.activeEmptyReturnTrip.status === "DISPATCHED" ? "Sampai Medan" : "Selesaikan"}
+                          </button>
+                        </div>
+                      ) : <span style={s.smallMuted}>—</span>}
                     </td>
                     <td style={s.td} onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
@@ -494,7 +536,7 @@ export default function Trucks() {
 
               {!loading && pagedItems.length === 0 && (
                 <tr>
-                  <td style={s.empty} colSpan={7}>Tidak ada kendaraan ditemukan.</td>
+                  <td style={s.empty} colSpan={8}>Tidak ada kendaraan ditemukan.</td>
                 </tr>
               )}
             </tbody>
@@ -705,6 +747,7 @@ export default function Trucks() {
           </form>
         </div>
       )}
+
     </div>
   );
 }

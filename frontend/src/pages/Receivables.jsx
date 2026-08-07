@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FiAlertCircle, FiCheck, FiCreditCard, FiFileText, FiPlus, FiRefreshCw, FiSend, FiX } from "react-icons/fi";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
+import { useLiveRefresh } from "../liveUpdates";
 import "./Receivables.css";
 
 const rupiah = value => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value) || 0);
@@ -31,6 +32,7 @@ export default function Receivables() {
     finally { setLoading(false); }
   }
   useEffect(() => { load(); }, []);
+  useLiveRefresh(load);
 
   const rows = useMemo(() => data.invoices.filter(invoice => {
     const matchesStatus = filter === "ALL" || invoice.displayStatus === filter;

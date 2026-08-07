@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
+import { useLiveRefresh } from "../liveUpdates";
 import { FiSearch, FiChevronLeft, FiChevronRight } from "react-icons/fi";
 
 // Corporate Green Color Palette (matching Landing Page)
@@ -119,6 +120,7 @@ export default function Users() {
       setLoading(false);
     }
   }
+  useLiveRefresh(load);
 
   useEffect(() => {
     if (!allowed) return;

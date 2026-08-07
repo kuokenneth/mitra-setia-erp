@@ -110,9 +110,15 @@ async function updateTruckOperationalState(tx, trip, nextStatus, timestamp) {
   }
 
   if (nextStatus === "CANCELLED") {
+    const location = truck.currentLocation || origin;
+    const awayFromBase = Boolean(baseLocation && location && !sameLocation(baseLocation, location));
     await tx.truck.update({
       where: { id: truck.id },
-      data: { status: "READY", availableForBackhaul: false, idleSince: null },
+      data: {
+        status: awayFromBase ? "WAITING_BACKHAUL" : "READY",
+        availableForBackhaul: awayFromBase,
+        idleSince: awayFromBase ? timestamp : null,
+      },
     });
   }
 }
@@ -144,6 +150,7 @@ async function safeUpdateTruckStatus(tx, truckId, nextTruckStatus) {
  * Helper: recompute order status when a trip changes.
  */
 async function recomputeOrderStatus(tx, orderId) {
+  if (!orderId) return;
   const order = await tx.order.findUnique({
     where: { id: orderId },
     select: { id: true, status: true, qty: true },
@@ -306,6 +313,66 @@ router.get("/my", authRequired, async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(400).json({ error: e.message || "Failed to load trips" });
+  }
+});
+
+/**
+ * POST /trips/empty-return
+ * Create a non-revenue trip for a truck returning to its base without cargo.
+ * The planned trip can be selected by Expenses before departure.
+ */
+router.post("/empty-return", authRequired, async (req, res) => {
+  try {
+    if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
+    const { truckId, driverUserId, plannedDepartAt, reason } = req.body || {};
+    if (!truckId) return res.status(400).json({ error: "Truk wajib dipilih" });
+
+    const created = await prisma.$transaction(async (tx) => {
+      const truck = await tx.truck.findUnique({ where: { id: truckId }, include: { driverUser: true } });
+      if (!truck) throw new Error("Truk tidak ditemukan");
+      if (truck.status !== "WAITING_BACKHAUL") throw new Error("Hanya truk yang menunggu backhaul yang dapat dibuatkan perjalanan kembali kosong");
+      if (!truck.currentLocation) throw new Error("Lokasi truk saat ini belum diisi");
+      if (!truck.baseLocation) throw new Error("Base / pool utama truk belum diisi");
+      if (sameLocation(truck.currentLocation, truck.baseLocation)) throw new Error("Truk sudah berada di base / pool utama");
+
+      const selectedDriverId = driverUserId || truck.driverUserId;
+      if (!selectedDriverId) throw new Error("Pengemudi wajib dipilih");
+      const driver = await tx.user.findUnique({ where: { id: selectedDriverId } });
+      if (!driver || driver.role !== "DRIVER" || driver.status !== "ACTIVE") throw new Error("Pengemudi tidak aktif atau tidak valid");
+
+      const busy = await tx.trip.findFirst({
+        where: { OR: [{ truckId }, { driverUserId: selectedDriverId }], status: { in: ACTIVE_TRIP_STATUSES } },
+        select: { id: true },
+      });
+      if (busy) throw new Error("Truk atau pengemudi masih memiliki perjalanan aktif");
+
+      const trip = await tx.trip.create({
+        data: {
+          orderId: null,
+          truckId,
+          driverUserId: selectedDriverId,
+          status: "PLANNED",
+          purpose: "EMPTY_RETURN",
+          operationalReason: str(reason) || "Kembali ke base tanpa muatan",
+          plannedDepartAt: toDate(plannedDepartAt),
+          plateNumberSnap: truck.plateNumber,
+          driverNameSnap: driver.name,
+          fromText: truck.currentLocation,
+          toText: truck.baseLocation,
+        },
+      });
+      await tx.truck.update({
+        where: { id: truckId },
+        data: { status: "RETURNING_EMPTY", availableForBackhaul: false, idleSince: null },
+      });
+      return trip;
+    });
+
+    const full = await prisma.trip.findUnique({ where: { id: created.id }, include: { truck: true, driverUser: true, order: true } });
+    res.status(201).json(normalizeTrip(full));
+  } catch (e) {
+    console.error(e);
+    res.status(400).json({ error: e.message || "Gagal membuat perjalanan kembali kosong" });
   }
 });
 

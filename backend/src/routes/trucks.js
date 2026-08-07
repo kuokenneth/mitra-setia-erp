@@ -50,10 +50,16 @@ router.get(
         orderBy: { createdAt: "desc" },
         include: {
           driverUser: { select: { id: true, name: true, email: true } },
+          trips: {
+            where: { purpose: "EMPTY_RETURN", status: { in: ["PLANNED", "DISPATCHED", "ARRIVED"] } },
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: { id: true, status: true, fromText: true, toText: true, plannedDepartAt: true, operationalReason: true },
+          },
         },
       });
 
-      res.json({ items });
+      res.json({ items: items.map(({ trips, ...truck }) => ({ ...truck, activeEmptyReturnTrip: trips[0] || null })) });
     } catch (e) {
       console.error("GET /trucks failed", e);
       const migrationMissing = e?.code === "P2022" || String(e?.message || "").includes("does not exist");

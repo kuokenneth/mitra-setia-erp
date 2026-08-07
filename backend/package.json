@@ -4,6 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "postinstall": "prisma generate",
+    "predev": "prisma generate",
+    "prestart": "prisma generate",
     "dev": "nodemon src/server.js",
     "start": "node src/server.js"
   },

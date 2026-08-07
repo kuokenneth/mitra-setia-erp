@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
+import { useLiveRefresh } from "../liveUpdates";
 
 // Corporate Green Color Palette (matching Landing/Dashboard)
 const BRAND = {
@@ -604,6 +605,7 @@ export default function Inventory() {
       setLoading(false);
     }
   }
+  useLiveRefresh(refresh);
 
   useEffect(() => {
     if (!allowed) return;

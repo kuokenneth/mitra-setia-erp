@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, apiAssetUrl, uploadFiles } from "../api";
 import { useAuth } from "../AuthContext";
+import { useLiveRefresh } from "../liveUpdates";
 import {
   FiActivity,
   FiArrowLeft,
@@ -369,6 +370,7 @@ export default function OrderDetail() {
   useEffect(() => {
     load();
   }, [id]);
+  useLiveRefresh(load);
 
   async function loadDrivers() {
     const data = await api(`/users`);
