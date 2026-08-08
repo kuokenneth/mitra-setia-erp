@@ -126,17 +126,35 @@ router.patch(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, unit, isSerialized } = req.body || {};
+      const { sku, name, unit, isSerialized } = req.body || {};
+      const existing = await prisma.item.findUnique({
+        where: { id },
+        include: { stocks: { select: { qty: true } }, _count: { select: { stockUnits: true, movements: true } } },
+      });
+      if (!existing) return res.status(404).json({ ok: false, error: "Barang tidak ditemukan" });
+      const nextSerialized = isSerialized !== undefined ? Boolean(isSerialized) : existing.isSerialized;
+      const hasStockHistory = existing._count.stockUnits > 0 || existing._count.movements > 0 || existing.stocks.some((stock) => Number(stock.qty) !== 0);
+      if (nextSerialized !== existing.isSerialized && hasStockHistory) {
+        return res.status(400).json({ ok: false, error: "Tipe serialized tidak dapat diubah karena barang sudah memiliki stok atau riwayat pergerakan" });
+      }
+      const cleanSku = sku !== undefined ? String(sku).trim() : undefined;
+      const cleanName = name !== undefined ? String(name).trim() : undefined;
+      const cleanUnit = unit !== undefined ? String(unit).trim() : undefined;
+      if (cleanSku !== undefined && !cleanSku) return res.status(400).json({ ok: false, error: "SKU wajib diisi" });
+      if (cleanName !== undefined && !cleanName) return res.status(400).json({ ok: false, error: "Nama barang wajib diisi" });
+      if (cleanUnit !== undefined && !cleanUnit) return res.status(400).json({ ok: false, error: "Satuan wajib diisi" });
       const item = await prisma.item.update({
         where: { id },
         data: {
-          name: name !== undefined ? String(name) : undefined,
-          unit: unit !== undefined ? String(unit) : undefined,
-          isSerialized: isSerialized !== undefined ? Boolean(isSerialized) : undefined,
+          sku: cleanSku,
+          name: cleanName,
+          unit: cleanUnit,
+          isSerialized: nextSerialized,
         },
       });
       res.json({ ok: true, item });
     } catch (e) {
+      if (isUniqueError(e)) return res.status(400).json({ ok: false, error: "SKU sudah digunakan barang lain" });
       res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   }

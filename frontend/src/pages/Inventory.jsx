@@ -447,6 +447,7 @@ export default function Inventory() {
   const [unitLocationId, setUnitLocationId] = useState("");
 
   const [openCreateItem, setOpenCreateItem] = useState(false);
+  const [editItemForm, setEditItemForm] = useState(null);
   const [openReceive, setOpenReceive] = useState(false);
   const [openAssign, setOpenAssign] = useState(false);
   const [openCreateLocation, setOpenCreateLocation] = useState(false);
@@ -646,6 +647,41 @@ export default function Inventory() {
 
       setOpenCreateItem(false);
       setCreateItemForm({ sku: "", name: "", unit: "PCS", isSerialized: false });
+      await loadItems();
+    } catch (e) {
+      setErr(String(e?.message || e));
+    }
+  }
+
+  function openEditItem(item) {
+    setErr("");
+    setEditItemForm({
+      id: item.id,
+      sku: item.sku || "",
+      name: item.name || "",
+      unit: item.unit || "PCS",
+      isSerialized: Boolean(item.isSerialized),
+      originalSerialized: Boolean(item.isSerialized),
+      totalStock: sumStocks(item.stocks),
+    });
+  }
+
+  async function updateItem() {
+    setErr("");
+    try {
+      if (!editItemForm?.sku.trim() || !editItemForm?.name.trim() || !editItemForm?.unit.trim()) {
+        throw new Error("SKU, nama, dan satuan wajib diisi");
+      }
+      await api(`/inventory/items/${editItemForm.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          sku: editItemForm.sku.trim(),
+          name: editItemForm.name.trim(),
+          unit: editItemForm.unit.trim(),
+          isSerialized: editItemForm.isSerialized,
+        }),
+      });
+      setEditItemForm(null);
       await loadItems();
     } catch (e) {
       setErr(String(e?.message || e));
@@ -934,6 +970,7 @@ export default function Inventory() {
               <ItemsTable
                 items={filteredItems}
                 loading={loading}
+                onEdit={openEditItem}
                 onUse={(itemId) => {
                   const item = items.find((x) => x.id === itemId);
                   if (!item) return;
@@ -1086,6 +1123,40 @@ export default function Inventory() {
               Create
             </Btn>
           </div>
+        </Modal>
+
+        <Modal open={Boolean(editItemForm)} title="Edit Barang" onClose={() => setEditItemForm(null)}>
+          {editItemForm ? (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>SKU</div>
+                  <input style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }} value={editItemForm.sku} onChange={(e) => setEditItemForm((p) => ({ ...p, sku: e.target.value }))} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Satuan</div>
+                  <input style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }} value={editItemForm.unit} onChange={(e) => setEditItemForm((p) => ({ ...p, unit: e.target.value }))} placeholder="PCS / SET / LITER" />
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Nama barang</div>
+                  <input style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }} value={editItemForm.name} onChange={(e) => setEditItemForm((p) => ({ ...p, name: e.target.value }))} />
+                </div>
+                <label style={{ display: "flex", alignItems: "center", gap: 10, gridColumn: "1 / -1", color: BRAND.text, fontWeight: 500 }}>
+                  <input type="checkbox" checked={editItemForm.isSerialized} onChange={(e) => setEditItemForm((p) => ({ ...p, isSerialized: e.target.checked }))} />
+                  Serialized — setiap unit memiliki nomor seri
+                </label>
+              </div>
+              {editItemForm.isSerialized !== editItemForm.originalSerialized && (
+                <div style={{ marginTop: 14, padding: 12, borderRadius: 7, background: BRAND.warningLight, color: "#92400E", fontSize: 12, lineHeight: 1.5 }}>
+                  Perubahan tipe serialized hanya diperbolehkan jika barang belum memiliki stok atau riwayat pergerakan.
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 18 }}>
+                <Btn style={btn} onClick={() => setEditItemForm(null)}>Batal</Btn>
+                <Btn style={btnPrimary} onClick={updateItem}>Simpan Perubahan</Btn>
+              </div>
+            </>
+          ) : null}
         </Modal>
 
         <Modal open={openReceive} title="Receive Stock (IN)" onClose={() => setOpenReceive(false)}>
@@ -1421,7 +1492,7 @@ export default function Inventory() {
 //////////////////////
 // TABLE COMPONENTS
 //////////////////////
-function ItemsTable({ items, loading, onUse }) {
+function ItemsTable({ items, loading, onUse, onEdit }) {
   if (loading) {
     return <div style={{ padding: 20, color: BRAND.textMuted }}>Memuat...</div>;
   }
@@ -1452,6 +1523,10 @@ function ItemsTable({ items, loading, onUse }) {
               <td style={tdSoft}>{it.isSerialized ? "Yes" : "No"}</td>
               <td style={td}>{sumStocks(it.stocks)}</td>
               <td style={td}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+                  <Btn style={{ ...btn, height: 32, padding: "0 12px", fontSize: 12 }} onClick={() => onEdit(it)}>
+                    Edit
+                  </Btn>
                 {!it.isSerialized ? (
                   <Btn
                     style={{ ...btn, height: 32, padding: "0 12px", fontSize: 12 }}
@@ -1460,8 +1535,9 @@ function ItemsTable({ items, loading, onUse }) {
                     Use
                   </Btn>
                 ) : (
-                  <span style={{ color: BRAND.textMuted, fontSize: 12 }}>—</span>
+                  null
                 )}
+                </div>
               </td>
             </tr>
           ))}
