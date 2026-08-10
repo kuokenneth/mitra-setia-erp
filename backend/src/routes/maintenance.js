@@ -188,6 +188,30 @@ router.get("/:id", authRequired, async (req, res) => {
 });
 
 ////////////////////////////////////////////////////
+// UPDATE SERVICE PHOTOS
+// PATCH /maintenance/:id/photos
+// body: { photos: string[] }
+////////////////////////////////////////////////////
+router.patch("/:id/photos", authRequired, async (req, res) => {
+  try {
+    if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
+    const photos = Array.isArray(req.body?.photos)
+      ? req.body.photos.map((photo) => String(photo || "").trim()).filter(Boolean).slice(0, 10)
+      : null;
+    if (!photos) return res.status(400).json({ error: "photos must be an array" });
+
+    const job = await prisma.truckMaintenance.update({
+      where: { id: req.params.id },
+      data: { photos },
+      select: { id: true, photos: true },
+    });
+    res.json({ job });
+  } catch (e) {
+    res.status(e.code === "P2025" ? 404 : 400).json({ error: e.message || "Failed to update photos" });
+  }
+});
+
+////////////////////////////////////////////////////
 // UPDATE STATUS
 // PATCH /maintenance/:id/status
 // body: { status: "OPEN"|"DONE"|"CANCELLED" }

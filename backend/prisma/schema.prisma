@@ -575,6 +575,7 @@ model TruckMaintenance {
   status     MaintenanceStatus @default(OPEN)
   createdAt  DateTime          @default(now())
   doneAt     DateTime?
+  photos     String[]          @default([])
 
   truck     Truck           @relation(fields: [truckId], references: [id])
   movements StockMovement[]
@@ -646,7 +647,7 @@ model TruckSparePartAssignment {
 model Item {
   id           String   @id @default(cuid())
   sku          String   @unique
-  name         String
+  name         String   @unique
   unit         String   @default("PCS")
   isSerialized Boolean  @default(false)
   createdAt    DateTime @default(now())

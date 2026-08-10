@@ -15,6 +15,33 @@ function isUniqueError(e) {
   return e && (e.code === "P2002" || String(e.message || "").includes("Unique constraint"));
 }
 
+function itemUniqueErrorMessage(e) {
+  const target = Array.isArray(e?.meta?.target) ? e.meta.target : [e?.meta?.target];
+  if (target.some((field) => String(field).toLowerCase() === "name")) {
+    return "Nama barang sudah digunakan";
+  }
+  return "SKU sudah digunakan";
+}
+
+async function getDuplicateItemField({ sku, name, excludeId }) {
+  const excludeCurrent = excludeId ? { id: { not: excludeId } } : {};
+  if (sku) {
+    const itemWithSku = await prisma.item.findFirst({
+      where: { ...excludeCurrent, sku: { equals: sku, mode: "insensitive" } },
+      select: { id: true },
+    });
+    if (itemWithSku) return "SKU";
+  }
+  if (name) {
+    const itemWithName = await prisma.item.findFirst({
+      where: { ...excludeCurrent, name: { equals: name, mode: "insensitive" } },
+      select: { id: true },
+    });
+    if (itemWithName) return "Nama barang";
+  }
+  return null;
+}
+
 /**
  * Helper: ensures InventoryStock row exists, returns it.
  */
@@ -96,11 +123,17 @@ router.post(
       if (!sku || !name) {
         return res.status(400).json({ ok: false, error: "sku and name are required" });
       }
+      const cleanSku = String(sku).trim();
+      const cleanName = String(name).trim();
+      const duplicateField = await getDuplicateItemField({ sku: cleanSku, name: cleanName });
+      if (duplicateField) {
+        return res.status(400).json({ ok: false, error: `${duplicateField} sudah digunakan` });
+      }
 
       const item = await prisma.item.create({
         data: {
-          sku: String(sku).trim(),
-          name: String(name).trim(),
+          sku: cleanSku,
+          name: cleanName,
           unit: unit ? String(unit).trim() : undefined,
           isSerialized: Boolean(isSerialized),
         },
@@ -109,7 +142,7 @@ router.post(
       res.json({ ok: true, item });
     } catch (e) {
       if (isUniqueError(e)) {
-        return res.status(400).json({ ok: false, error: "SKU already exists" });
+        return res.status(400).json({ ok: false, error: itemUniqueErrorMessage(e) });
       }
       res.status(500).json({ ok: false, error: String(e.message || e) });
     }
@@ -143,6 +176,12 @@ router.patch(
       if (cleanSku !== undefined && !cleanSku) return res.status(400).json({ ok: false, error: "SKU wajib diisi" });
       if (cleanName !== undefined && !cleanName) return res.status(400).json({ ok: false, error: "Nama barang wajib diisi" });
       if (cleanUnit !== undefined && !cleanUnit) return res.status(400).json({ ok: false, error: "Satuan wajib diisi" });
+      const duplicateField = await getDuplicateItemField({
+        sku: cleanSku ?? existing.sku,
+        name: cleanName ?? existing.name,
+        excludeId: id,
+      });
+      if (duplicateField) return res.status(400).json({ ok: false, error: `${duplicateField} sudah digunakan barang lain` });
       const item = await prisma.item.update({
         where: { id },
         data: {
@@ -154,7 +193,7 @@ router.patch(
       });
       res.json({ ok: true, item });
     } catch (e) {
-      if (isUniqueError(e)) return res.status(400).json({ ok: false, error: "SKU sudah digunakan barang lain" });
+      if (isUniqueError(e)) return res.status(400).json({ ok: false, error: `${itemUniqueErrorMessage(e)} untuk barang lain` });
       res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   }
