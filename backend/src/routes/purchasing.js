@@ -8,7 +8,7 @@ const router = express.Router();
 const seq = (prefix) => `${prefix}-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
 const includePO = { supplier: true, request: true, items: { include: { item: true } }, receipts: { include: { items: { include: { purchaseOrderItem: { include: { item: true } } } }, location: true, createdBy: { select: { name: true } } } }, payments: { include: { createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } } } };
 
-router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF"));
+router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"));
 router.get("/overview", async (_req, res) => {
   const [requests, orders, suppliers, locations, items] = await Promise.all([
     prisma.purchaseRequest.findMany({ include: { items: { include: { item: true } }, createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } }, orderBy: { createdAt: "desc" } }),

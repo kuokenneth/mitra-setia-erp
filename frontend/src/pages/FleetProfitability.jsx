@@ -17,6 +17,7 @@ function Bar({ value, tone = "green" }) {
 
 export default function FleetProfitability() {
   const { user } = useAuth();
+  const canAccess = ["OWNER", "ADMIN"].includes(user?.role);
   const [month, setMonth] = useState(currentMonth());
   const [data, setData] = useState({ summary: {}, rows: [] });
   const [loading, setLoading] = useState(true);
@@ -28,12 +29,16 @@ export default function FleetProfitability() {
   const canEdit = ["OWNER", "ADMIN"].includes(user?.role);
 
   async function load() {
+    if (!canAccess) {
+      setLoading(false);
+      return;
+    }
     setLoading(true); setError("");
     try { setData(await api(`/fleet-profitability?month=${month}`)); }
     catch (err) { setError(err.message); }
     finally { setLoading(false); }
   }
-  useEffect(() => { load(); }, [month]);
+  useEffect(() => { if (canAccess) load(); }, [month, canAccess]);
   useLiveRefresh(load);
   const best = useMemo(() => [...data.rows].sort((a, b) => b.profit - a.profit)[0], [data.rows]);
   const sortedRows = useMemo(() => [...data.rows].sort((a, b) => {
@@ -50,6 +55,8 @@ export default function FleetProfitability() {
     catch (err) { setError(err.message); }
     finally { setSaving(false); }
   }
+
+  if (!canAccess) return <main className="fp-page"><header className="fp-head"><div><span>AKSES DIBATASI</span><h1>Profit Armada</h1><p>Halaman ini hanya tersedia untuk Owner dan Admin.</p></div></header></main>;
 
   return <main className="fp-page">
     <header className="fp-head"><div><span>ANALISIS ARMADA</span><h1>Profit Armada</h1><p>Ukur trip, pendapatan, seluruh biaya, dan keuntungan setiap truk.</p></div><label>Periode<input type="month" value={month} onChange={event => setMonth(event.target.value)} /></label></header>

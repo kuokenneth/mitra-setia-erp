@@ -168,6 +168,47 @@ function TruckSearchSelect({ trucks, value, onChange, placeholder = "Cari nomor 
   );
 }
 
+function ItemSearchSelect({ items, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const selected = useMemo(() => (items || []).find((item) => item.id === value) || null, [items, value]);
+
+  useEffect(() => {
+    if (selected) setQuery(`${selected.sku || ""} — ${selected.name || ""}`);
+    if (!selected && !value) setQuery("");
+  }, [selected, value]);
+
+  const filtered = useMemo(() => {
+    const keyword = query.trim().toLowerCase();
+    const list = items || [];
+    if (!keyword) return list.slice(0, 30);
+    return list.filter((item) => `${item.sku || ""} ${item.name || ""} ${item.unit || ""}`.toLowerCase().includes(keyword)).slice(0, 50);
+  }, [items, query]);
+
+  return (
+    <div style={{ position: "relative", minWidth: 280, flex: "1 1 280px" }}>
+      <input
+        style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
+        value={query}
+        placeholder="Cari SKU atau nama item..."
+        onChange={(e) => { setQuery(e.target.value); setOpen(true); if (value) onChange(""); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 140)}
+      />
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, maxHeight: 300, overflowY: "auto", background: BRAND.white, border: `1px solid ${BRAND.border}`, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", borderRadius: 8, zIndex: 50 }}>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { onChange(""); setQuery(""); setOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "10px 12px", border: "none", borderBottom: `1px solid ${BRAND.border}`, background: BRAND.white, color: BRAND.textMuted, cursor: "pointer" }}>Semua item</button>
+          {filtered.length ? filtered.map((item) => (
+            <button key={item.id} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { onChange(item.id); setQuery(`${item.sku || ""} — ${item.name || ""}`); setOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "10px 12px", border: "none", borderBottom: `1px solid ${BRAND.border}`, background: item.id === value ? BRAND.secondary : BRAND.white, cursor: "pointer" }}>
+              <strong>{item.sku || "-"}</strong> — {item.name || "-"} <span style={{ color: BRAND.textMuted }}>({item.unit || "PCS"})</span>
+            </button>
+          )) : <div style={{ padding: 12, color: BRAND.textMuted }}>Item tidak ditemukan.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const pill = {
   display: "inline-flex",
   alignItems: "center",
@@ -429,7 +470,8 @@ function sumStocks(stocks) {
 export default function Inventory() {
   const { user } = useAuth();
   const role = user?.role || "UNKNOWN";
-  const allowed = role === "OWNER" || role === "ADMIN" || role === "STAFF";
+  const allowed = role === "OWNER" || role === "ADMIN" || role === "STAFF" || role === "SPAREPART_ADMIN";
+  const isSparepartAdmin = role === "SPAREPART_ADMIN";
 
   const [tab, setTab] = useState("ITEMS");
   const [q, setQ] = useState("");
@@ -442,11 +484,12 @@ export default function Inventory() {
   const [units, setUnits] = useState([]);
   const [movements, setMovements] = useState([]);
 
-  const [unitStatus, setUnitStatus] = useState("IN_STOCK");
+  const [unitStatus, setUnitStatus] = useState("");
   const [unitItemId, setUnitItemId] = useState("");
   const [unitLocationId, setUnitLocationId] = useState("");
 
   const [openCreateItem, setOpenCreateItem] = useState(false);
+  const [createItemError, setCreateItemError] = useState("");
   const [editItemForm, setEditItemForm] = useState(null);
   const [openReceive, setOpenReceive] = useState(false);
   const [openAssign, setOpenAssign] = useState(false);
@@ -630,9 +673,19 @@ export default function Inventory() {
 
   async function createItem() {
     setErr("");
+    setCreateItemError("");
     try {
       if (!createItemForm.sku.trim() || !createItemForm.name.trim()) {
         throw new Error("SKU and Name are required");
+      }
+
+      const sku = createItemForm.sku.trim().toLowerCase();
+      const name = createItemForm.name.trim().toLowerCase();
+      if (items.some((item) => String(item.sku || "").trim().toLowerCase() === sku)) {
+        throw new Error("SKU sudah digunakan");
+      }
+      if (items.some((item) => String(item.name || "").trim().toLowerCase() === name)) {
+        throw new Error("Nama barang sudah digunakan");
       }
 
       await api("/inventory/items", {
@@ -649,7 +702,7 @@ export default function Inventory() {
       setCreateItemForm({ sku: "", name: "", unit: "PCS", isSerialized: false });
       await loadItems();
     } catch (e) {
-      setErr(String(e?.message || e));
+      setCreateItemError(String(e?.message || e));
     }
   }
 
@@ -892,7 +945,7 @@ export default function Inventory() {
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <Pill variant="grey">{totalItems} items</Pill>
 
-            <Btn style={btn} onClick={() => setOpenCreateItem(true)}>
+            <Btn style={btn} onClick={() => { setCreateItemError(""); setOpenCreateItem(true); }}>
               + New Item
             </Btn>
 
@@ -1020,7 +1073,7 @@ export default function Inventory() {
               />
             ) : null}
 
-            {tab === "MOVEMENTS" ? <MovementsTable movements={filteredMovements} loading={loading} /> : null}
+            {tab === "MOVEMENTS" ? <MovementsTable movements={filteredMovements} loading={loading} from={mvFrom} to={mvTo} onFromChange={setMvFrom} onToChange={setMvTo} onApply={refresh} /> : null}
           </div>
         </div>
 
@@ -1078,6 +1131,12 @@ export default function Inventory() {
         </Modal>
 
         <Modal open={openCreateItem} title="Create Item (Sparepart Master)" onClose={() => setOpenCreateItem(false)}>
+          {createItemError ? (
+            <div style={{ ...errorBox, marginBottom: 14 }}>
+              <div style={{ fontWeight: 600, color: BRAND.danger }}>Tidak dapat membuat item</div>
+              <div style={{ marginTop: 6, color: BRAND.danger }}>{createItemError}</div>
+            </div>
+          ) : null}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>SKU</div>
@@ -1139,7 +1198,13 @@ export default function Inventory() {
                 </div>
                 <div style={{ gridColumn: "1 / -1" }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Nama barang</div>
-                  <input style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }} value={editItemForm.name} onChange={(e) => setEditItemForm((p) => ({ ...p, name: e.target.value }))} />
+                  <input
+                    style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box", background: isSparepartAdmin ? "#F3F4F6" : undefined }}
+                    value={editItemForm.name}
+                    onChange={(e) => setEditItemForm((p) => ({ ...p, name: e.target.value }))}
+                    disabled={isSparepartAdmin}
+                  />
+                  {isSparepartAdmin && <div style={{ marginTop: 6, fontSize: 12, color: BRAND.textMuted }}>Nama barang hanya dapat diubah oleh Owner, Admin, atau Staf.</div>}
                 </div>
                 <label style={{ display: "flex", alignItems: "center", gap: 10, gridColumn: "1 / -1", color: BRAND.text, fontWeight: 500 }}>
                   <input type="checkbox" checked={editItemForm.isSerialized} onChange={(e) => setEditItemForm((p) => ({ ...p, isSerialized: e.target.checked }))} />
@@ -1578,18 +1643,7 @@ function UnitsTable({
           <option value="SCRAPPED">SCRAPPED</option>
         </select>
 
-        <select
-          style={{ ...selectPill, minWidth: 160 }}
-          value={unitItemId}
-          onChange={(e) => setUnitItemId(e.target.value)}
-        >
-          <option value="">All Items</option>
-          {items.map((it) => (
-            <option key={it.id} value={it.id}>
-              {it.sku} — {it.name}
-            </option>
-          ))}
-        </select>
+        <ItemSearchSelect items={items} value={unitItemId} onChange={setUnitItemId} />
 
         <select
           style={{ ...selectPill, minWidth: 160 }}
@@ -1680,17 +1734,34 @@ function UnitsTable({
   );
 }
 
-function MovementsTable({ movements, loading }) {
+function MovementsTable({ movements, loading, from, to, onFromChange, onToChange, onApply }) {
+  const filters = (
+    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16, alignItems: "end" }}>
+      <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
+        Dari tanggal
+        <input type="date" value={from} onChange={(e) => onFromChange(e.target.value)} style={{ ...inputPill, minWidth: 180 }} />
+      </label>
+      <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
+        Sampai tanggal
+        <input type="date" value={to} onChange={(e) => onToChange(e.target.value)} style={{ ...inputPill, minWidth: 180 }} />
+      </label>
+      <Btn style={btn} onClick={onApply}>Terapkan</Btn>
+      {(from || to) && <Btn style={btn} onClick={() => { onFromChange(""); onToChange(""); setTimeout(onApply, 0); }}>Reset</Btn>}
+    </div>
+  );
+
   if (loading) {
-    return <div style={{ padding: 20, color: BRAND.textMuted }}>Memuat...</div>;
+    return <>{filters}<div style={{ padding: 20, color: BRAND.textMuted }}>Memuat...</div></>;
   }
 
   if (movements.length === 0) {
-    return <div style={{ padding: 20, color: BRAND.textMuted }}>Mutasi stok tidak ditemukan.</div>;
+    return <>{filters}<div style={{ padding: 20, color: BRAND.textMuted }}>Mutasi stok tidak ditemukan.</div></>;
   }
 
   return (
-    <div style={tableWrap}>
+    <>
+      {filters}
+      <div style={tableWrap}>
       <table style={table}>
         <thead>
           <tr>
@@ -1721,6 +1792,7 @@ function MovementsTable({ movements, loading }) {
           ))}
         </tbody>
       </table>
-    </div>
+      </div>
+    </>
   );
 }

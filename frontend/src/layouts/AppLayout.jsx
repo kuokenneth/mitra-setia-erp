@@ -111,11 +111,17 @@ export default function AppLayout() {
   const role = user?.role || "UNKNOWN";
   const isOwnerAdmin = role === "OWNER" || role === "ADMIN";
   const isStaff = role === "STAFF";
+  const isSparepartAdmin = role === "SPAREPART_ADMIN";
   const canManageDrivers = isOwnerAdmin || isStaff;
   const isDriver = role === "DRIVER";
 
   const menu = useMemo(() => {
     if (isDriver) return [{ to: "/driver/jobs", label: "Tugas Saya", icon: FiClipboard }];
+    if (isSparepartAdmin) return [
+      { to: "/inventory", label: "Inventory", icon: FiBox },
+      { to: "/maintenance", label: "Servis", icon: FiTool },
+      { to: "/purchasing", label: "Pembelian", icon: FiShoppingCart },
+    ];
 
     return [
       { to: "/dashboard", label: "Dashboard", icon: FiBarChart2 },
@@ -124,7 +130,7 @@ export default function AppLayout() {
         ? [{ to: "/drivers/new", label: "Tambah Pengemudi", icon: FiUserPlus }]
         : []),
       { to: "/trucks", label: "Armada", icon: FiTruck },
-      { to: "/fleet-profitability", label: "Profit Armada", icon: FiPieChart },
+      ...(isOwnerAdmin ? [{ to: "/fleet-profitability", label: "Profit Armada", icon: FiPieChart }] : []),
       { to: "/inventory", label: "Inventory", icon: FiBox },
       { to: "/maintenance", label: "Servis", icon: FiTool },
       { to: "/purchasing", label: "Pembelian", icon: FiShoppingCart },
@@ -133,7 +139,7 @@ export default function AppLayout() {
       { to: "/receivables", label: "Piutang", icon: FiCreditCard },
       ...(isOwnerAdmin ? [{ to: "/accounting", label: "Accounting", icon: FiBookOpen }] : []),
     ];
-  }, [isDriver, isOwnerAdmin, canManageDrivers]);
+  }, [isDriver, isSparepartAdmin, isOwnerAdmin, canManageDrivers]);
 
   async function doLogout() {
     await logout();

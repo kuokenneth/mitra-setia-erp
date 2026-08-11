@@ -272,8 +272,9 @@ export default function Orders() {
   const [form, setForm] = useState({
     customerName: "",
     cargoName: "",
+    cargoCategory: "FERTILIZER",
     qty: "",
-    unit: "TON",
+    unit: "",
     fromText: "",
     toText: "",
     plannedAt: "",
@@ -324,8 +325,9 @@ export default function Orders() {
     setForm({
       customerName: "",
       cargoName: "",
+      cargoCategory: "FERTILIZER",
       qty: "",
-      unit: "TON",
+      unit: "",
       fromText: "",
       toText: "",
       plannedAt: "",
@@ -358,8 +360,9 @@ export default function Orders() {
       const payload = {
         customerName: form.customerName || null,
         cargoName: form.cargoName || null,
-        qty: form.qty ? Number(form.qty) : null,
-        unit: form.unit || null,
+        cargoCategory: form.cargoCategory,
+        qty: form.cargoCategory === "MATERIAL" || !form.qty ? null : Number(form.qty),
+        unit: form.cargoCategory === "MATERIAL" || !form.unit ? null : form.unit,
         fromText: form.fromText || null,
         toText: form.toText || null,
         plannedAt: form.plannedAt ? new Date(form.plannedAt).toISOString() : null,
@@ -651,25 +654,41 @@ export default function Orders() {
             <Input value={form.customerName} onChange={(e) => update("customerName", e.target.value)} placeholder="Kepada Yth" />
           </div>
 
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
+              Jenis angkutan
+            </label>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10 }}>
+              {[
+                { value: "FERTILIZER", label: "Pupuk", note: "Berat wajib diisi" },
+                { value: "CANGKANG", label: "Cangkang", note: "Berat wajib diisi" },
+                { value: "MATERIAL", label: "Material / Ambang", note: "Berat dari faktur muatan" },
+              ].map((option) => {
+                const active = form.cargoCategory === option.value;
+                return <button key={option.value} type="button" onClick={() => setForm((current) => ({ ...current, cargoCategory: option.value, ...(option.value === "MATERIAL" ? { qty: "", unit: "" } : {}) }))} style={{ padding: "12px 14px", borderRadius: 8, border: `1px solid ${active ? BRAND.primary : BRAND.border}`, background: active ? BRAND.accent : BRAND.white, color: BRAND.text, textAlign: "left", cursor: "pointer" }}><div style={{ fontWeight: 700, fontSize: 14 }}>{option.label}</div><div style={{ marginTop: 3, fontSize: 12, color: active ? BRAND.primary : BRAND.textMuted }}>{option.note}</div></button>;
+              })}
+            </div>
+          </div>
+
           <div>
             <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
-              Cargo / Product name
+              Nama barang / material
             </label>
             <Input value={form.cargoName} onChange={(e) => update("cargoName", e.target.value)} placeholder="Cargo name" />
           </div>
 
           <div>
             <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
-              Quantity
+              Berat / jumlah {form.cargoCategory === "FERTILIZER" ? "(wajib)" : "(diisi dari faktur)"}
             </label>
-            <Input type="number" value={form.qty} onChange={(e) => update("qty", e.target.value)} placeholder="0" />
+            <Input type="number" disabled={form.cargoCategory === "MATERIAL"} value={form.qty} onChange={(e) => update("qty", e.target.value)} placeholder={form.cargoCategory === "MATERIAL" ? "Diisi dari faktur muatan" : "Contoh: 25"} />
           </div>
 
           <div>
             <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
-              Unit
+              Satuan {form.cargoCategory === "FERTILIZER" ? "(wajib)" : ""}
             </label>
-            <Input value={form.unit} onChange={(e) => update("unit", e.target.value)} placeholder="TON / BAG / UNIT" />
+            <Input disabled={form.cargoCategory === "MATERIAL"} value={form.unit} onChange={(e) => update("unit", e.target.value)} placeholder={form.cargoCategory === "MATERIAL" ? "Diisi dari faktur muatan" : "TON / M3 / UNIT"} />
           </div>
 
           <div>

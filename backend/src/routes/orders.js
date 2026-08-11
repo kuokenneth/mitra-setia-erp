@@ -185,6 +185,13 @@ router.post("/", authRequired, async (req, res) => {
 
     const body = req.body || {};
     const proofs = Array.isArray(body.proofs) ? body.proofs : [];
+    const cargoCategory = ["FERTILIZER", "CANGKANG", "MATERIAL"].includes(body.cargoCategory)
+      ? body.cargoCategory
+      : "FERTILIZER";
+    const orderQty = typeof body.qty === "number" ? body.qty : num(body.qty, null);
+    if (cargoCategory !== "MATERIAL" && !(Number(orderQty) > 0)) {
+      return res.status(400).json({ error: "Berat/jumlah wajib diisi untuk angkutan pupuk atau cangkang" });
+    }
 
     const created = await prisma.$transaction(async (tx) => {
       const orderNo = await nextOrderNo(tx);
@@ -198,8 +205,9 @@ router.post("/", authRequired, async (req, res) => {
           description: body.description || null,
           notes: body.notes || null,
           cargoName: body.cargoName || null,
-          qty: typeof body.qty === "number" ? body.qty : num(body.qty, null),
-          unit: body.unit || null,
+          cargoCategory,
+          qty: cargoCategory === "MATERIAL" ? null : orderQty,
+          unit: cargoCategory === "MATERIAL" ? null : (body.unit || null),
           fromText: body.fromText || null,
           toText: body.toText || null,
           plannedAt: body.plannedAt ? new Date(body.plannedAt) : null,
@@ -249,6 +257,7 @@ router.get("/:id", authRequired, async (req, res) => {
       include: {
         customer: true,
         proofs: { orderBy: { createdAt: "desc" } },
+        materialInvoices: { orderBy: { issuedAt: "desc" }, include: { trip: { include: { truck: true } }, lines: { orderBy: { createdAt: "asc" } } } },
         trips: {
           orderBy: { createdAt: "desc" },
           include: {
@@ -265,6 +274,34 @@ router.get("/:id", authRequired, async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(400).json({ error: e.message || "Failed to load order" });
+  }
+});
+
+// Faktur muatan untuk angkutan material/ambang. Faktur hanya boleh dicatat
+// sesudah sebuah truk ditetapkan ke pesanan.
+router.post("/:id/material-invoices", authRequired, async (req, res) => {
+  try {
+    if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
+    const orderId = req.params.id;
+    const { tripId, number, materialName, qty, unit, issuedAt, notes, proof, lines: inputLines } = req.body || {};
+    if (!tripId) return res.status(400).json({ error: "Trip wajib diisi" });
+    const lines = Array.isArray(inputLines) && inputLines.length
+      ? inputLines.map((line) => ({ ppNumber: str(line.ppNumber), poNumber: str(line.poNumber), itemName: String(line.itemName || "").trim(), qty: num(line.qty, 0), unit: String(line.unit || "").trim(), totalKg: num(line.totalKg, null), totalAmount: num(line.totalAmount, null) }))
+      : [{ ppNumber: null, poNumber: null, itemName: String(materialName || "").trim(), qty: num(qty, 0), unit: String(unit || "").trim(), totalKg: null, totalAmount: null }];
+    if (lines.some((line) => !line.itemName || line.qty <= 0 || !line.unit)) return res.status(400).json({ error: "Setiap baris muatan wajib memiliki nama barang, qty, dan satuan" });
+    const order = await prisma.order.findUnique({ where: { id: orderId }, select: { cargoCategory: true } });
+    if (order?.cargoCategory !== "MATERIAL") return res.status(400).json({ error: "Faktur Muatan hanya untuk angkutan material atau ambang" });
+    const trip = await prisma.trip.findFirst({ where: { id: String(tripId), orderId }, include: { dispatchLetter: { select: { number: true } } } });
+    if (!trip) return res.status(400).json({ error: "Tetapkan truk ke pesanan terlebih dahulu" });
+    if (!trip.dispatchLetter?.number) return res.status(400).json({ error: "Buat Surat Jalan untuk trip ini terlebih dahulu" });
+    const documentNumber = trip.dispatchLetter.number;
+    const invoice = await prisma.materialInvoice.create({
+      data: { orderId, tripId: trip.id, number: documentNumber, materialName: lines.length === 1 ? lines[0].itemName : "Multiple materials", qty: lines.reduce((sum, line) => sum + line.qty, 0), unit: lines.length === 1 ? lines[0].unit : "LINES", issuedAt: issuedAt ? new Date(issuedAt) : new Date(), notes: str(notes), proofUrl: str(proof?.url), proofFileName: str(proof?.fileName), proofMimeType: str(proof?.mimeType), proofSize: num(proof?.size, null), lines: { create: lines } },
+      include: { trip: { include: { truck: true } }, lines: true },
+    });
+    res.json({ invoice });
+  } catch (e) {
+    res.status(400).json({ error: e.code === "P2002" ? "Nomor faktur sudah dipakai pada pesanan ini" : e.message || "Gagal menyimpan faktur muatan" });
   }
 });
 
@@ -367,8 +404,8 @@ router.post("/:id/trips", authRequired, async (req, res) => {
     if (!truckId) return res.status(400).json({ error: "truckId is required" });
     if (!driverUserId) return res.status(400).json({ error: "driverUserId is required" });
 
-    const tripQty = qtyPlanned !== undefined ? num(qtyPlanned, null) : undefined;
-    if (qtyPlanned !== undefined && (tripQty === null || tripQty <= 0)) {
+    const tripQty = qtyPlanned != null ? num(qtyPlanned, null) : undefined;
+    if (qtyPlanned != null && (tripQty === null || tripQty <= 0)) {
       return res.status(400).json({ error: "qtyPlanned must be a positive number" });
     }
 
@@ -379,8 +416,10 @@ router.post("/:id/trips", authRequired, async (req, res) => {
       if (!order) throw new Error("Order not found");
       if (order.status === "CANCELLED") throw new Error("Order is cancelled");
 
-      // ✅ If order.qty exists, qtyPlanned is required and must not exceed remaining
-      if (order.qty != null) {
+      // Material/ambang receives its actual weight through MaterialInvoice after
+      // loading. Fertilizer must always have a planned load quantity.
+      const isMaterialShipment = order.cargoCategory === "MATERIAL" || (!(Number(order.qty) > 0) && order.cargoCategory !== "CANGKANG");
+      if (!isMaterialShipment) {
         const q = tripQty === undefined ? null : tripQty;
         if (q === null || q <= 0) throw new Error("qtyPlanned is required for this order");
 

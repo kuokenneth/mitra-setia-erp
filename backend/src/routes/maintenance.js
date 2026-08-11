@@ -6,7 +6,7 @@ const { authRequired } = require("../middleware/authRequired");
 const router = express.Router();
 
 function canWrite(user) {
-  return ["OWNER", "ADMIN", "STAFF"].includes(user?.role);
+  return ["OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"].includes(user?.role);
 }
 
 function num(v, d = 0) {
@@ -278,7 +278,7 @@ router.get("/:id/available-units", authRequired, async (req, res) => {
         itemId: String(itemId),
         status: "IN_STOCK",
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ purchasedAt: "asc" }, { createdAt: "asc" }],
       include: { item: true, location: true },
       take: 200,
     });
@@ -384,6 +384,15 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
     });
     if (!unit) return res.status(404).json({ error: "Stock unit not found" });
     if (unit.status !== "IN_STOCK") return res.status(400).json({ error: "Stock unit not available" });
+
+    const oldestAvailableUnit = await prisma.stockUnit.findFirst({
+      where: { itemId: unit.itemId, status: "IN_STOCK" },
+      orderBy: [{ purchasedAt: "asc" }, { createdAt: "asc" }],
+      select: { id: true },
+    });
+    if (oldestAvailableUnit && oldestAvailableUnit.id !== unit.id) {
+      return res.status(400).json({ error: "FIFO berlaku: assign unit stok yang paling lama diterima terlebih dahulu" });
+    }
 
     // ✅ SAFETY: serialized units MUST have purchasePrice
     if (unit.item?.isSerialized && (unit.purchasePrice == null || Number(unit.purchasePrice) <= 0)) {

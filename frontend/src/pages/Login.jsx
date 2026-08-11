@@ -39,8 +39,8 @@ export default function Login() {
     setErr("");
     setBusy(true);
     try {
-      await login(email.trim(), password);
-      nav("/dashboard");
+      const user = await login(email.trim(), password);
+      nav(user?.role === "SPAREPART_ADMIN" ? "/inventory" : "/dashboard");
     } catch (e) {
       setErr(e?.message || String(e));
     } finally {

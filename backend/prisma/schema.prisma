@@ -14,6 +14,7 @@ datasource db {
 enum UserRole {
   OWNER
   ADMIN
+  SPAREPART_ADMIN
   STAFF
   DRIVER
 }
@@ -64,6 +65,12 @@ enum OrderStatus {
 enum OrderType {
   OUTBOUND
   RETURN
+}
+
+enum CargoCategory {
+  FERTILIZER
+  CANGKANG
+  MATERIAL
 }
 
 enum TripStatus {
@@ -338,10 +345,11 @@ model Order {
   customerName String?
 
   // core order info
-  description String?
-  cargoName   String?
-  qty         Float?
-  unit        String? // "TON", "BAG", etc.
+  description   String?
+  cargoName     String?
+  cargoCategory CargoCategory @default(FERTILIZER)
+  qty           Float?
+  unit          String? // "TON", "BAG", etc.
 
   fromText  String? // pickup / warehouse
   toText    String? // destination
@@ -356,9 +364,10 @@ model Order {
   backhaulOrders    Order[] @relation("BackhaulLink")
 
   // relations
-  trips   Trip[]
-  proofs  OrderProof[]
-  invoice Invoice?
+  trips            Trip[]
+  proofs           OrderProof[]
+  materialInvoices MaterialInvoice[]
+  invoice          Invoice?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -457,7 +466,8 @@ model Trip {
   fromText        String?
   toText          String?
 
-  dispatchLetter DispatchLetter?
+  dispatchLetter   DispatchLetter?
+  materialInvoices MaterialInvoice[]
 
   expenses Expense[]
 
@@ -483,6 +493,48 @@ model OrderProof {
   createdAt DateTime @default(now())
 
   @@index([orderId])
+}
+
+model MaterialInvoice {
+  id            String   @id @default(cuid())
+  orderId       String
+  tripId        String
+  number        String
+  materialName  String
+  qty           Float
+  unit          String
+  issuedAt      DateTime @default(now())
+  notes         String?
+  proofUrl      String?
+  proofFileName String?
+  proofMimeType String?
+  proofSize     Int?
+  createdAt     DateTime @default(now())
+
+  order Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  trip  Trip                  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  lines MaterialInvoiceLine[]
+
+  @@unique([orderId, number])
+  @@index([orderId])
+  @@index([tripId])
+}
+
+model MaterialInvoiceLine {
+  id                String   @id @default(cuid())
+  materialInvoiceId String
+  ppNumber          String?
+  poNumber          String?
+  itemName          String
+  qty               Float
+  unit              String
+  totalKg           Float?
+  totalAmount       Int?
+  createdAt         DateTime @default(now())
+
+  materialInvoice MaterialInvoice @relation(fields: [materialInvoiceId], references: [id], onDelete: Cascade)
+
+  @@index([materialInvoiceId])
 }
 
 model DispatchLetter {

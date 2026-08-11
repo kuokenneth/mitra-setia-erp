@@ -1,6 +1,6 @@
 // src/pages/Maintenance.jsx - Corporate Minimalist Design
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api } from "../api";
+import { api, apiAssetUrl, uploadFiles } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { FiTool, FiClock, FiCheck, FiX, FiPlus, FiRefreshCw } from "react-icons/fi";
@@ -218,6 +218,82 @@ function Select({ children, ...props }) {
   );
 }
 
+function SearchableItemPicker({ items, value, onChange, disabled, placeholder, testId }) {
+  const [query, setQuery] = useState("");
+  const selected = items.find((item) => item.id === value);
+  const filtered = useMemo(() => {
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return items.slice(0, 100);
+    return items.filter((item) => `${item.sku || ""} ${item.name || ""} ${item.unit || ""}`.toLowerCase().includes(keyword)).slice(0, 100);
+  }, [items, query]);
+
+  return (
+    <div>
+      {selected && <div style={{ marginBottom: 7, fontSize: 12, color: BRAND.primary, fontWeight: 600 }}>Dipilih: {selected.sku} — {selected.name}</div>}
+      <Input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+        data-testid={testId}
+      />
+      <div style={{ maxHeight: 190, overflowY: "auto", marginTop: 8, border: `1px solid ${BRAND.border}`, borderRadius: 6, background: BRAND.white }}>
+        {!filtered.length ? (
+          <div style={{ padding: 12, fontSize: 13, color: BRAND.textMuted }}>Tidak ada sparepart yang cocok.</div>
+        ) : filtered.map((item) => (
+          <button
+            type="button"
+            key={item.id}
+            disabled={disabled}
+            onClick={() => { onChange(item.id); setQuery(""); }}
+            style={{ display: "block", width: "100%", padding: "10px 12px", border: "none", borderBottom: `1px solid ${BRAND.border}`, background: item.id === value ? BRAND.secondary : BRAND.white, color: BRAND.text, textAlign: "left", cursor: disabled ? "not-allowed" : "pointer", fontSize: 13 }}
+          >
+            <strong>{item.sku}</strong> — {item.name} <span style={{ color: BRAND.textMuted }}>({item.unit || "PCS"})</span>
+          </button>
+        ))}
+      </div>
+      {!query && items.length > 100 && <div style={{ marginTop: 6, fontSize: 12, color: BRAND.textMuted }}>Menampilkan 100 item pertama. Ketik SKU atau nama untuk mencari.</div>}
+    </div>
+  );
+}
+
+function ServicePhoto({ photo, alt }) {
+  const [src, setSrc] = useState("");
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    const url = apiAssetUrl(photo);
+    if (/^https?:\/\//i.test(url) && !url.includes("/api/uploads/")) {
+      setSrc(url);
+      return undefined;
+    }
+
+    let active = true;
+    let objectUrl = "";
+    const token = localStorage.getItem("token");
+    fetch(url, { credentials: "include", headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.blob();
+      })
+      .then((blob) => {
+        if (!blob.type.startsWith("image/")) throw new Error("File bukan gambar");
+        objectUrl = URL.createObjectURL(blob);
+        if (active) setSrc(objectUrl);
+      })
+      .catch(() => active && setLoadError("Foto tidak dapat dimuat"));
+
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [photo]);
+
+  if (loadError) return <div style={{ display: "grid", placeItems: "center", height: "100%", padding: 12, color: BRAND.danger, fontSize: 13, textAlign: "center" }}>{loadError}</div>;
+  if (!src) return <div style={{ display: "grid", placeItems: "center", height: "100%", color: BRAND.textMuted, fontSize: 13 }}>Memuat foto...</div>;
+  return <img src={src} alt={alt} style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }} />;
+}
+
 function Modal({ open, title, onClose, children, width = 900 }) {
   if (!open) return null;
   return (
@@ -280,7 +356,7 @@ function Modal({ open, title, onClose, children, width = 900 }) {
 export default function Maintenance() {
   const { user } = useAuth();
   const role = user?.role || "UNKNOWN";
-  const allowed = role === "OWNER" || role === "ADMIN" || role === "STAFF";
+  const allowed = role === "OWNER" || role === "ADMIN" || role === "STAFF" || role === "SPAREPART_ADMIN";
 
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -336,6 +412,8 @@ export default function Maintenance() {
   const [useQty, setUseQty] = useState("");
   const [useNote, setUseNote] = useState("");
   const [usingStock, setUsingStock] = useState(false);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [photoError, setPhotoError] = useState("");
 
   const truckSearchTimer = useRef(null);
 
@@ -398,6 +476,7 @@ export default function Maintenance() {
       setUseLocationId("");
       setUseQty("");
       setUseNote("");
+      setPhotoError("");
     } catch (e) {
       setErr(e.message || "Gagal memuat detail");
     } finally {
@@ -505,7 +584,9 @@ export default function Maintenance() {
   async function loadAvailableUnits(itemId) {
     if (!activeJob?.id || !itemId) return;
     const data = await api(`/maintenance/${activeJob.id}/available-units?itemId=${encodeURIComponent(itemId)}`);
-    setAvailableUnits(data.units || []);
+    const units = data.units || [];
+    setAvailableUnits(units);
+    setUnitPick(units[0]?.id || "");
   }
 
   async function loadAssignedUnits(itemId) {
@@ -576,6 +657,32 @@ export default function Maintenance() {
       setErr(e.message || "Failed to use stock");
     } finally {
       setUsingStock(false);
+    }
+  }
+
+  async function updatePhotos(photos) {
+    if (!activeJob?.id) return;
+    const data = await api(`/maintenance/${activeJob.id}/photos`, {
+      method: "PATCH",
+      body: JSON.stringify({ photos }),
+    });
+    setActiveJob((job) => (job ? { ...job, photos: data.job.photos || [] } : job));
+  }
+
+  async function uploadMaintenancePhotos(files) {
+    const selected = Array.from(files || []);
+    if (!selected.length || !activeJob?.id) return;
+    setPhotoError("");
+    setUploadingPhotos(true);
+    try {
+      const uploaded = await uploadFiles(selected);
+      const photoUrls = uploaded.filter((file) => String(file.mimeType || "").startsWith("image/")).map((file) => file.url);
+      if (!photoUrls.length) throw new Error("Pilih file gambar untuk dokumentasi servis.");
+      await updatePhotos([...(activeJob.photos || []), ...photoUrls].slice(0, 10));
+    } catch (e) {
+      setPhotoError(e.message || "Gagal mengunggah foto");
+    } finally {
+      setUploadingPhotos(false);
     }
   }
 
@@ -893,11 +1000,11 @@ export default function Maintenance() {
       </Modal>
 
       {/* DETAIL MODAL */}
-      <Modal open={showDetail} title="Maintenance Detail" onClose={() => setShowDetail(false)} width={1020}>
+      <Modal open={showDetail} title="Maintenance Detail" onClose={() => setShowDetail(false)} width={1280}>
         {detailLoading || !activeJob ? (
           <div style={{ padding: 20, color: BRAND.textMuted, fontSize: 14 }}>Memuat...</div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(320px, 0.8fr) minmax(620px, 1.6fr)", gap: 20 }}>
             {/* LEFT - Job Info */}
             <Card>
               <div style={{ padding: 16 }}>
@@ -982,8 +1089,32 @@ export default function Maintenance() {
               </div>
             </Card>
 
+            <Card style={{ gridColumn: "1 / -1", gridRow: "2" }}>
+              <div style={{ padding: 16 }}>
+                <div style={{ fontWeight: 600, color: BRAND.text }}>Foto kondisi & servis</div>
+                <div style={{ marginTop: 5, marginBottom: 14, fontSize: 13, color: BRAND.textMuted }}>Unggah foto sparepart yang dipasang, komponen rusak, atau hasil pekerjaan. Maksimal 10 foto.</div>
+                {allowed && (
+                  <label style={{ display: "inline-flex", padding: "10px 14px", borderRadius: 6, background: BRAND.secondary, border: `1px solid ${BRAND.border}`, color: BRAND.primary, cursor: uploadingPhotos ? "wait" : "pointer", fontWeight: 600, fontSize: 14 }}>
+                    <input type="file" accept="image/*" multiple hidden disabled={uploadingPhotos} onChange={(e) => { uploadMaintenancePhotos(e.target.files); e.target.value = ""; }} />
+                    {uploadingPhotos ? "Mengunggah foto..." : "+ Tambah foto"}
+                  </label>
+                )}
+                {photoError && <div style={{ marginTop: 10, color: BRAND.danger, fontSize: 13 }}>{photoError}</div>}
+                {(activeJob.photos || []).length ? (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14, marginTop: 16 }}>
+                    {(activeJob.photos || []).map((photo, index) => (
+                      <div key={photo} style={{ position: "relative", height: 240, borderRadius: 8, overflow: "hidden", border: `1px solid ${BRAND.border}`, background: BRAND.secondary }}>
+                        <a href={apiAssetUrl(photo)} target="_blank" rel="noreferrer" style={{ display: "block", height: "100%" }}><ServicePhoto photo={photo} alt={`Dokumentasi servis ${index + 1}`} /></a>
+                        {allowed && <button type="button" onClick={() => updatePhotos((activeJob.photos || []).filter((_, photoIndex) => photoIndex !== index)).catch((e) => setPhotoError(e.message || "Gagal menghapus foto"))} style={{ position: "absolute", top: 6, right: 6, border: "none", borderRadius: 4, background: "rgba(255,255,255,0.92)", color: BRAND.danger, cursor: "pointer", padding: "4px 7px", fontWeight: 700 }}>×</button>}
+                      </div>
+                    ))}
+                  </div>
+                ) : <div style={{ marginTop: 14, color: BRAND.textMuted, fontSize: 13 }}>Belum ada foto dokumentasi.</div>}
+              </div>
+            </Card>
+
             {/* RIGHT - Spare Parts */}
-            <Card>
+            <Card style={{ gridColumn: "2", gridRow: "1" }}>
               <div style={{ padding: 16 }}>
                 <div style={{ fontWeight: 600, marginBottom: 16, color: BRAND.text }}>Record Spareparts Used</div>
 
@@ -1000,11 +1131,11 @@ export default function Maintenance() {
                     A) Assign Serialized Unit
                   </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
-                    <Select
+                  <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 1.4fr) 1fr 1fr", gap: 10, marginBottom: 10 }}>
+                    <SearchableItemPicker
+                      items={serializedItems}
                       value={assignItemId}
-                      onChange={async (e) => {
-                        const v = e.target.value;
+                      onChange={async (v) => {
                         setAssignItemId(v);
                         setUnitPick("");
                         setReplaceUnitId("");
@@ -1015,23 +1146,17 @@ export default function Maintenance() {
                         await loadAssignedUnits(v);
                       }}
                       disabled={!allowed || activeJob.status !== "OPEN"}
-                      data-testid="serialized-item-select"
-                    >
-                      <option value="">Select serialized item</option>
-                      {serializedItems.map((it) => (
-                        <option key={it.id} value={it.id}>
-                          {it.sku} — {it.name}
-                        </option>
-                      ))}
-                    </Select>
+                      placeholder="Cari SKU / nama item serialized..."
+                      testId="serialized-item-search"
+                    />
 
                     <Select
                       value={unitPick}
                       onChange={(e) => setUnitPick(e.target.value)}
-                      disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId}
+                      disabled
                       data-testid="stock-unit-select"
                     >
-                      <option value="">Pick stock unit</option>
+                      <option value="">Unit FIFO akan dipilih otomatis</option>
                       {availableUnits.map((u) => (
                         <option key={u.id} value={u.id}>
                           {u.serialNumber || u.barcode || u.id.slice(0, 8)} • {u.location?.name || "No location"}
@@ -1055,6 +1180,10 @@ export default function Maintenance() {
                         </option>
                       ))}
                     </Select>
+                  </div>
+
+                  <div style={{ marginTop: -2, marginBottom: 10, fontSize: 12, color: BRAND.textMuted }}>
+                    FIFO aktif: sistem otomatis menggunakan unit stok yang paling lama diterima.
                   </div>
 
                   <Input
@@ -1090,20 +1219,15 @@ export default function Maintenance() {
                     B) Use Non-Serialized Stock (qty)
                   </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-                    <Select
+                  <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 1.4fr) 1fr", gap: 10, marginBottom: 10 }}>
+                    <SearchableItemPicker
+                      items={nonSerializedItems}
                       value={useItemId}
-                      onChange={(e) => setUseItemId(e.target.value)}
+                      onChange={setUseItemId}
                       disabled={!allowed || activeJob.status !== "OPEN"}
-                      data-testid="non-serialized-item-select"
-                    >
-                      <option value="">Select non-serialized item</option>
-                      {nonSerializedItems.map((it) => (
-                        <option key={it.id} value={it.id}>
-                          {it.sku} — {it.name} ({it.unit})
-                        </option>
-                      ))}
-                    </Select>
+                      placeholder="Cari SKU / nama sparepart..."
+                      testId="non-serialized-item-search"
+                    />
 
                     <Select
                       value={useLocationId}

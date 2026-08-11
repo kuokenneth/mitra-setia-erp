@@ -135,5 +135,14 @@ router.patch("/:id/status", authRequired, async (req, res) => {
   res.json(updated);
 });
 
+// Update user role — OWNER/ADMIN only
+router.patch("/:id/role", authRequired, async (req, res) => {
+  if (!["OWNER", "ADMIN"].includes(req.user?.role)) return res.status(403).json({ error: "Forbidden" });
+  const role = String(req.body?.role || "");
+  if (!["ADMIN", "SPAREPART_ADMIN", "STAFF", "DRIVER"].includes(role)) return res.status(400).json({ error: "Invalid role" });
+  const updated = await prisma.user.update({ where: { id: req.params.id }, data: { role }, select: { id: true, role: true } });
+  res.json(updated);
+});
+
 
 module.exports = router;

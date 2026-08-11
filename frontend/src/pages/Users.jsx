@@ -70,6 +70,15 @@ export default function Users() {
     }
   }
 
+  async function updateRole(userId, role) {
+    try {
+      await api(`/users/${userId}/role`, { method: "PATCH", body: JSON.stringify({ role }) });
+      setItems((prev) => prev.map((u) => (u.id === userId ? { ...u, role } : u)));
+    } catch (e) {
+      alert(e.message || "Gagal memperbarui peran");
+    }
+  }
+
   function matchesQuery(u, query) {
     if (!query) return true;
     const qn = query.trim().toLowerCase();
@@ -187,6 +196,7 @@ export default function Users() {
             >
               <option value="">Semua peran</option>
               <option value="ADMIN">Admin</option>
+              <option value="SPAREPART_ADMIN">Admin Sparepart</option>
               <option value="STAFF">Staf</option>
               <option value="DRIVER">Pengemudi</option>
             </select>
@@ -228,7 +238,12 @@ export default function Users() {
                   </td>
                   <td style={s.td}>{u.email}</td>
                   <td style={s.td}>
-                    <span style={rolePill(u.role)}>{u.role}</span>
+                    <select value={u.role} onChange={(e) => updateRole(u.id, e.target.value)} style={{ ...s.statusSelect, ...rolePill(u.role) }}>
+                      <option value="ADMIN">Admin</option>
+                      <option value="SPAREPART_ADMIN">Admin Sparepart</option>
+                      <option value="STAFF">Staf</option>
+                      <option value="DRIVER">Pengemudi</option>
+                    </select>
                   </td>
                   <td style={s.td}>{u.phone || "-"}</td>
                   <td style={s.td}>
@@ -304,6 +319,8 @@ function rolePill(role) {
 
   if (role === "ADMIN")
     return { ...base, background: "#EFF6FF", color: "#1D4ED8" };
+  if (role === "SPAREPART_ADMIN")
+    return { ...base, background: "#ECFDF5", color: BRAND.primary };
   if (role === "STAFF")
     return { ...base, background: BRAND.warningBg, color: BRAND.warning };
   return { ...base, background: BRAND.accent, color: BRAND.primary };

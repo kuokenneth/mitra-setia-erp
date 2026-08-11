@@ -77,7 +77,7 @@ async function getItemQtyTotal(tx, itemId) {
 router.get(
   "/items",
   authRequired,
-  requireRole("OWNER", "ADMIN", "STAFF"),
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     const q = String(req.query.q || "").trim();
     const where =
@@ -116,7 +116,7 @@ router.get(
 router.post(
   "/items",
   authRequired,
-  requireRole("OWNER", "ADMIN", "STAFF"),
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     try {
       const { sku, name, unit, isSerialized } = req.body || {};
@@ -155,7 +155,7 @@ router.post(
 router.patch(
   "/items/:id",
   authRequired,
-  requireRole("OWNER", "ADMIN", "STAFF"),
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -173,6 +173,9 @@ router.patch(
       const cleanSku = sku !== undefined ? String(sku).trim() : undefined;
       const cleanName = name !== undefined ? String(name).trim() : undefined;
       const cleanUnit = unit !== undefined ? String(unit).trim() : undefined;
+      if (req.user?.role === "SPAREPART_ADMIN" && cleanName !== undefined && cleanName !== existing.name) {
+        return res.status(403).json({ ok: false, error: "Admin Sparepart tidak dapat mengubah nama barang" });
+      }
       if (cleanSku !== undefined && !cleanSku) return res.status(400).json({ ok: false, error: "SKU wajib diisi" });
       if (cleanName !== undefined && !cleanName) return res.status(400).json({ ok: false, error: "Nama barang wajib diisi" });
       if (cleanUnit !== undefined && !cleanUnit) return res.status(400).json({ ok: false, error: "Satuan wajib diisi" });
@@ -209,7 +212,7 @@ router.patch(
 router.get(
   "/locations",
   authRequired,
-  requireRole("OWNER", "ADMIN", "STAFF"),
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     const locations = await prisma.inventoryLocation.findMany({
       orderBy: { name: "asc" },
@@ -225,7 +228,7 @@ router.get(
 router.post(
   "/locations",
   authRequired,
-  requireRole("OWNER", "ADMIN", "STAFF"),
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     try {
       const { name } = req.body || {};
@@ -254,7 +257,7 @@ router.post(
 router.get(
   "/stocks",
   authRequired,
-  requireRole("OWNER", "ADMIN", "STAFF"),
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     const itemId = req.query.itemId ? String(req.query.itemId) : undefined;
     const locationId = req.query.locationId ? String(req.query.locationId) : undefined;
@@ -275,21 +278,27 @@ router.get(
 );
 
 /**
- * GET /inventory/movements?itemId=&type=&limit=50
+ * GET /inventory/movements?itemId=&type=&from=YYYY-MM-DD&to=YYYY-MM-DD&limit=50
  */
 router.get(
   "/movements",
   authRequired,
-  requireRole("OWNER", "ADMIN", "STAFF"),
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     const itemId = req.query.itemId ? String(req.query.itemId) : undefined;
     const type = req.query.type ? String(req.query.type) : undefined;
+    const from = req.query.from ? new Date(`${String(req.query.from)}T00:00:00.000`) : undefined;
+    const to = req.query.to ? new Date(`${String(req.query.to)}T23:59:59.999`) : undefined;
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit || "50", 10)));
+    if ((from && Number.isNaN(from.getTime())) || (to && Number.isNaN(to.getTime()))) {
+      return res.status(400).json({ ok: false, error: "Format tanggal tidak valid" });
+    }
 
     const movements = await prisma.stockMovement.findMany({
       where: {
         ...(itemId ? { itemId } : {}),
         ...(type ? { type } : {}),
+        ...(from || to ? { createdAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}),
       },
       include: {
           item: true,
@@ -332,7 +341,7 @@ router.get(
 router.post(
   "/receive",
   authRequired,
-  requireRole("OWNER", "ADMIN", "STAFF"),
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     const createdById = req.user?.id || null;
     const { itemId, locationId, qty, note, units } = req.body || {};
@@ -476,7 +485,7 @@ router.post(
 router.post(
   "/adjust",
   authRequired,
-  requireRole("OWNER", "ADMIN", "STAFF"),
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     const createdById = req.user?.id || null;
     const { itemId, locationId, qtyDelta, note } = req.body || {};
@@ -534,7 +543,7 @@ router.post(
 router.post(
   "/transfer",
   authRequired,
-  requireRole("OWNER", "ADMIN", "STAFF"),
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     const createdById = req.user?.id || null;
     const { itemId, fromLocationId, toLocationId, qty, note } = req.body || {};
@@ -602,12 +611,12 @@ router.post(
 ////////////////////////////////////////////////////
 
 /**
- * GET /inventory/units?status=IN_STOCK&itemId=&locationId=&q=
+ * GET /inventory/units?status=&itemId=&locationId=&q=
  */
 router.get(
   "/units",
   authRequired,
-  requireRole("OWNER", "ADMIN", "STAFF"),
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     const status = req.query.status ? String(req.query.status) : undefined;
     const itemId = req.query.itemId ? String(req.query.itemId) : undefined;
@@ -623,6 +632,16 @@ router.get(
             OR: [
               { serialNumber: { contains: q, mode: "insensitive" } },
               { barcode: { contains: q, mode: "insensitive" } },
+              { item: { sku: { contains: q, mode: "insensitive" } } },
+              { item: { name: { contains: q, mode: "insensitive" } } },
+              {
+                assignments: {
+                  some: {
+                    removedAt: null,
+                    truck: { plateNumber: { contains: q, mode: "insensitive" } },
+                  },
+                },
+              },
             ],
           }
         : {}),
@@ -652,7 +671,7 @@ router.get(
 router.post(
   "/units/:unitId/transfer",
   authRequired,
-  requireRole("OWNER", "ADMIN", "STAFF"),
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     const createdById = req.user?.id || null;
     const { unitId } = req.params;
@@ -726,7 +745,7 @@ router.post(
 router.post(
   "/units/:unitId/assign",
   authRequired,
-  requireRole("OWNER", "ADMIN", "STAFF"),
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     const createdById = req.user?.id || null;
     const { unitId } = req.params;
@@ -836,7 +855,7 @@ router.post(
 router.post(
   "/units/:unitId/remove",
   authRequired,
-  requireRole("OWNER", "ADMIN", "STAFF"),
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     const createdById = req.user?.id || null;
     const { unitId } = req.params;
@@ -943,7 +962,7 @@ router.post(
 router.get(
   "/units/:unitId/history",
   authRequired,
-  requireRole("OWNER", "ADMIN", "STAFF"),
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     const { unitId } = req.params;
 
@@ -968,7 +987,7 @@ router.get(
 router.get(
   "/trucks/:truckId/spareparts",
   authRequired,
-  requireRole("OWNER", "ADMIN", "STAFF"),
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     const { truckId } = req.params;
     const currentOnly = String(req.query.currentOnly || "") === "1";
@@ -999,7 +1018,7 @@ router.get(
 router.post(
   "/consume",
   authRequired,
-  requireRole("OWNER", "ADMIN", "STAFF"),
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     const createdById = req.user?.id || null;
     const { itemId, locationId, qty, note } = req.body || {};
@@ -1071,7 +1090,7 @@ router.post(
 router.post(
   "/units/:id/scrap",
   authRequired,
-  requireRole("OWNER", "ADMIN", "STAFF"),
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     const unitId = req.params.id;
     const { note } = req.body || {};
@@ -1155,7 +1174,7 @@ router.post(
 router.patch(
   "/units/:id",
   authRequired,
-  requireRole("OWNER", "ADMIN", "STAFF"),
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     try {
       const unitId = req.params.id;
