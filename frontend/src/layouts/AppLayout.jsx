@@ -18,6 +18,7 @@ import {
   FiBookOpen,
   FiX,
   FiPieChart,
+  FiShield,
 } from "react-icons/fi";
 import { useAuth } from "../AuthContext";
 import { LiveUpdatesProvider } from "../liveUpdates";
@@ -138,6 +139,7 @@ export default function AppLayout() {
       { to: "/orders", label: "Pesanan", icon: FiFileText },
       { to: "/receivables", label: "Piutang", icon: FiCreditCard },
       ...(isOwnerAdmin ? [{ to: "/accounting", label: "Accounting", icon: FiBookOpen }] : []),
+      ...(role === "OWNER" ? [{ to: "/audit-trail", label: "Audit Trail", icon: FiShield }] : []),
     ];
   }, [isDriver, isSparepartAdmin, isOwnerAdmin, canManageDrivers]);
 

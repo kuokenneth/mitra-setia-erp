@@ -101,6 +101,9 @@ router.post("/login", async (req, res) => {
       role: user.role,
     });
 
+    // Expose the authenticated actor to the audit middleware for this request.
+    req.user = { id: user.id, name: user.name, email: user.email, role: user.role };
+
     res.cookie("token", token, {
       httpOnly: true,
       secure: isProd,                 // ✅ true on Render (HTTPS)
@@ -124,7 +127,7 @@ router.post("/login", async (req, res) => {
   }
 });
 
-router.post("/logout", (req, res) => {
+router.post("/logout", requireAuth, (req, res) => {
   const isProd = process.env.NODE_ENV === "production";
   res.clearCookie("token", {
     secure: isProd,

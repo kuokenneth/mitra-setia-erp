@@ -483,6 +483,10 @@ export default function Inventory() {
   const [trucks, setTrucks] = useState([]);
   const [units, setUnits] = useState([]);
   const [movements, setMovements] = useState([]);
+  const [itemPage, setItemPage] = useState(1);
+  const [unitPage, setUnitPage] = useState(1);
+  const [itemPagination, setItemPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
+  const [unitPagination, setUnitPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
 
   const [unitStatus, setUnitStatus] = useState("");
   const [unitItemId, setUnitItemId] = useState("");
@@ -588,21 +592,25 @@ export default function Inventory() {
     setTrucks(data.trucks || data.items || []);
   }
 
-  async function loadItems() {
-    const qs = buildQuery({ q: q || undefined });
+  async function loadItems(page = itemPage) {
+    const qs = buildQuery({ q: q || undefined, page, limit: 20 });
     const data = await api(`/inventory/items${qs}`);
     setItems(data.items || []);
+    setItemPagination(data.pagination || { page, limit: 20, total: (data.items || []).length, totalPages: 1 });
   }
 
-  async function loadUnits() {
+  async function loadUnits(page = unitPage) {
     const qs = buildQuery({
       status: unitStatus || undefined,
       itemId: unitItemId || undefined,
       locationId: unitLocationId || undefined,
       q: q || undefined,
+      page,
+      limit: 20,
     });
     const data = await api(`/inventory/units${qs}`);
     setUnits(data.units || []);
+    setUnitPagination(data.pagination || { page, limit: 20, total: (data.units || []).length, totalPages: 1 });
   }
 
   async function loadMovements() {
@@ -648,6 +656,18 @@ export default function Inventory() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function changeItemPage(page) {
+    setItemPage(page);
+    setLoading(true);
+    try { await loadItems(page); } catch (e) { setErr(String(e?.message || e)); } finally { setLoading(false); }
+  }
+
+  async function changeUnitPage(page) {
+    setUnitPage(page);
+    setLoading(true);
+    try { await loadUnits(page); } catch (e) { setErr(String(e?.message || e)); } finally { setLoading(false); }
   }
   useLiveRefresh(refresh);
 
@@ -930,7 +950,7 @@ export default function Inventory() {
     );
   }
 
-  const totalItems = items.length;
+  const totalItems = itemPagination.total;
 
   return (
     <div style={pageBg}>
@@ -1002,7 +1022,7 @@ export default function Inventory() {
               <input
                 style={{ ...inputPill, minWidth: 320 }}
                 value={q}
-                onChange={(e) => setQ(e.target.value)}
+                onChange={(e) => { setQ(e.target.value); setItemPage(1); setUnitPage(1); }}
                 placeholder="Cari berdasarkan nama / SKU / barcode..."
                 onKeyDown={(e) => {
                   if (e.key === "Enter") refresh();
@@ -1020,6 +1040,7 @@ export default function Inventory() {
 
           <div style={{ marginTop: 16 }}>
             {tab === "ITEMS" ? (
+              <>
               <ItemsTable
                 items={filteredItems}
                 loading={loading}
@@ -1040,9 +1061,12 @@ export default function Inventory() {
                   setOpenConsume(true);
                 }}
               />
+              <Pagination pagination={itemPagination} onChange={changeItemPage} />
+              </>
             ) : null}
 
             {tab === "UNITS" ? (
+              <>
               <UnitsTable
                 units={filteredUnits}
                 loading={loading}
@@ -1071,6 +1095,8 @@ export default function Inventory() {
                 }}
                 onApplyFilters={loadUnits}
               />
+              <Pagination pagination={unitPagination} onChange={changeUnitPage} />
+              </>
             ) : null}
 
             {tab === "MOVEMENTS" ? <MovementsTable movements={filteredMovements} loading={loading} from={mvFrom} to={mvTo} onFromChange={setMvFrom} onToChange={setMvTo} onApply={refresh} /> : null}
@@ -1557,6 +1583,21 @@ export default function Inventory() {
 //////////////////////
 // TABLE COMPONENTS
 //////////////////////
+function Pagination({ pagination, onChange }) {
+  const { page = 1, totalPages = 1, total = 0, limit = 20 } = pagination || {};
+  if (totalPages <= 1) return total ? <div style={{ marginTop: 12, color: BRAND.textMuted, fontSize: 12 }}>{total} data</div> : null;
+  const from = (page - 1) * limit + 1;
+  const to = Math.min(page * limit, total);
+  return <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 14 }}>
+    <div style={{ color: BRAND.textMuted, fontSize: 12 }}>Menampilkan {from}–{to} dari {total} data</div>
+    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <Btn style={{ ...btn, height: 32, padding: "0 12px", opacity: page <= 1 ? 0.5 : 1 }} disabled={page <= 1} onClick={() => onChange(page - 1)}>← Sebelumnya</Btn>
+      <span style={{ color: BRAND.textMuted, fontSize: 12 }}>Halaman {page} / {totalPages}</span>
+      <Btn style={{ ...btn, height: 32, padding: "0 12px", opacity: page >= totalPages ? 0.5 : 1 }} disabled={page >= totalPages} onClick={() => onChange(page + 1)}>Berikutnya →</Btn>
+    </div>
+  </div>;
+}
+
 function ItemsTable({ items, loading, onUse, onEdit }) {
   if (loading) {
     return <div style={{ padding: 20, color: BRAND.textMuted }}>Memuat...</div>;

@@ -80,6 +80,9 @@ router.get(
   requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     const q = String(req.query.q || "").trim();
+    const page = Math.max(1, parseInt(req.query.page || "1", 10) || 1);
+    const requestedLimit = parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(100, Math.max(1, requestedLimit)) : undefined;
     const where =
       q.length > 0
         ? {
@@ -90,14 +93,18 @@ router.get(
           }
         : {};
 
-    const items = await prisma.item.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      include: {
-        stocks: { include: { location: true } },
-        _count: { select: { movements: true } },
-      },
-    });
+    const [total, items] = await prisma.$transaction([
+      prisma.item.count({ where }),
+      prisma.item.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        ...(limit ? { skip: (page - 1) * limit, take: limit } : {}),
+        include: {
+          stocks: { include: { location: true } },
+          _count: { select: { movements: true } },
+        },
+      }),
+    ]);
 
     // add quick total
     const withTotals = items.map((it) => ({
@@ -105,7 +112,7 @@ router.get(
       qtyTotal: (it.stocks || []).reduce((a, s) => a + (s.qty || 0), 0),
     }));
 
-    res.json({ ok: true, items: withTotals });
+    res.json({ ok: true, items: withTotals, pagination: { page, limit: limit || total || 1, total, totalPages: limit ? Math.max(1, Math.ceil(total / limit)) : 1 } });
   }
 );
 
@@ -622,6 +629,9 @@ router.get(
     const itemId = req.query.itemId ? String(req.query.itemId) : undefined;
     const locationId = req.query.locationId ? String(req.query.locationId) : undefined;
     const q = String(req.query.q || "").trim();
+    const page = Math.max(1, parseInt(req.query.page || "1", 10) || 1);
+    const requestedLimit = parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(100, Math.max(1, requestedLimit)) : undefined;
 
     const where = {
       ...(status ? { status } : {}),
@@ -647,20 +657,24 @@ router.get(
         : {}),
     };
 
-    const units = await prisma.stockUnit.findMany({
-      where,
-      include: {
-        item: true,
-        location: true,
-        assignments: {
-          where: { removedAt: null },
-          include: { truck: true },
+    const [total, units] = await prisma.$transaction([
+      prisma.stockUnit.count({ where }),
+      prisma.stockUnit.findMany({
+        where,
+        include: {
+          item: true,
+          location: true,
+          assignments: {
+            where: { removedAt: null },
+            include: { truck: true },
+          },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { createdAt: "desc" },
+        ...(limit ? { skip: (page - 1) * limit, take: limit } : {}),
+      }),
+    ]);
 
-    res.json({ ok: true, units });
+    res.json({ ok: true, units, pagination: { page, limit: limit || total || 1, total, totalPages: limit ? Math.max(1, Math.ceil(total / limit)) : 1 } });
   }
 );
 

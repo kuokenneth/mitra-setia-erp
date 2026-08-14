@@ -178,7 +178,33 @@ model User {
   purchasePaymentsApproved    PurchasePayment[]          @relation("PurchasePaymentApprovedBy")
   invoicesCreated             Invoice[]                  @relation("InvoiceCreatedBy")
   receivablePaymentsCreated   ReceivablePayment[]        @relation("ReceivablePaymentCreatedBy")
+  ordersCreated               Order[]                    @relation("OrderCreatedBy")
+  auditLogs                   AuditLog[]                  @relation("AuditLogActor")
   journalEntriesCreated       JournalEntry[]             @relation("JournalEntryCreatedBy")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation("AuditLogActor", fields: [userId], references: [id], onDelete: SetNull)
+  actorName  String?
+  actorEmail String?
+  actorRole  String?
+  action     String
+  method     String
+  resource   String
+  entityId   String?
+  path       String
+  statusCode Int
+  changes    Json
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([resource])
+  @@index([action])
 }
 
 model Supplier {
@@ -358,6 +384,10 @@ model Order {
   notes  String?
   status OrderStatus @default(DRAFT)
 
+  // User who originally entered the order. Optional for legacy records.
+  createdById String?
+  createdBy   User?   @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
   // backhaul linkage
   backhaulOfOrderId String?
   backhaulOfOrder   Order?  @relation("BackhaulLink", fields: [backhaulOfOrderId], references: [id])
@@ -378,6 +408,7 @@ model Order {
   @@index([customerName])
   @@index([toText])
   @@index([backhaulOfOrderId])
+  @@index([createdById])
 }
 
 ////////////////////////////////////////////////////

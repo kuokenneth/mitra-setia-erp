@@ -24,7 +24,9 @@ const receivablesRoutes = require("./routes/receivables");
 const accountingRoutes = require("./routes/accounting");
 const fleetProfitabilityRoutes = require("./routes/fleetProfitability");
 const realtimeRoutes = require("./routes/realtime");
+const auditRoutes = require("./routes/audit");
 const { publishUpdate } = require("./realtime");
+const { auditTrail } = require("./middleware/auditTrail");
 
 const app = express();
 
@@ -64,6 +66,7 @@ app.options(/.*/, cors());
 app.use(express.json());
 app.use(cookieParser());
 app.use(morgan("dev"));
+app.use(auditTrail);
 
 // Notify connected ERP clients after every successful data mutation.
 app.use((req, res, next) => {
@@ -104,6 +107,7 @@ app.use("/receivables", receivablesRoutes);
 app.use("/accounting", accountingRoutes);
 app.use("/fleet-profitability", fleetProfitabilityRoutes);
 app.use("/events", realtimeRoutes);
+app.use("/audit", auditRoutes);
 
 /**
  * ✅ Upload API should NOT be /uploads (conflicts with static).

@@ -719,7 +719,7 @@ export default function OrderDetail() {
                 <InfoTile icon={FiMapPin} label="Rute" value={route} sub="Lokasi asal dan tujuan" />
                 <InfoTile icon={FiCalendar} label="Jadwal" value={fmtDate(order.plannedAt)} sub="Deadline selesai pengiriman" />
                 <InfoTile icon={FiActivity} label="Perjalanan" value={`${trips.length} trip`} sub={tripCompletionLabel} />
-                <InfoTile icon={FiClock} label="Dibuat" value={fmtDateTime(order.createdAt)} sub="Waktu pesanan dicatat" />
+                <InfoTile icon={FiClock} label="Dibuat oleh" value={order.createdBy?.name || order.createdBy?.email || "Data lama"} sub={fmtDateTime(order.createdAt)} />
               </div>
 
               <div style={{ marginTop: 14, padding: 16, border: `1px solid ${BRAND.border}`, borderRadius: 10, background: BRAND.white }}>

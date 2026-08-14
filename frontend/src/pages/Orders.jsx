@@ -593,6 +593,9 @@ export default function Orders() {
                         • Trip: {o._count.trips ?? 0} • Bukti: {o._count.proofs ?? 0}
                       </span>
                     )}
+                    <span style={{ fontSize: 12, color: BRAND.textMuted }}>
+                      • Dibuat oleh: {o.createdBy?.name || o.createdBy?.email || "Data lama"}
+                    </span>
                   </div>
                 </div>
 

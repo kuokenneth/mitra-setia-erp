@@ -29,6 +29,7 @@ import Purchasing from "./pages/Purchasing";
 import Receivables from "./pages/Receivables";
 import Accounting from "./pages/Accounting";
 import FleetProfitability from "./pages/FleetProfitability";
+import AuditTrail from "./pages/AuditTrail";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -60,6 +61,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             <Route path="/receivables" element={<Receivables />} />
             <Route path="/accounting" element={<Accounting />} />
             <Route path="/fleet-profitability" element={<FleetProfitability />} />
+            <Route path="/audit-trail" element={<AuditTrail />} />
             <Route path="/maintenance" element={<Maintenance />} />
             <Route path="/expenses" element={<Expenses />} />
             <Route path="/orders" element={<Orders />} />

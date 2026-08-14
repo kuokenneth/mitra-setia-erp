@@ -124,6 +124,7 @@ router.get("/", authRequired, async (req, res) => {
       orderBy: [{ plannedAt: "desc" }, { createdAt: "desc" }],
       include: {
         customer: true,
+        createdBy: { select: { id: true, name: true, email: true } },
         _count: { select: { trips: true, proofs: true } },
         trips: {
           select: {
@@ -212,6 +213,7 @@ router.post("/", authRequired, async (req, res) => {
           toText: body.toText || null,
           plannedAt: body.plannedAt ? new Date(body.plannedAt) : null,
           status: body.status || "DRAFT",
+          createdById: req.user.id,
         },
       });
 
@@ -234,7 +236,7 @@ router.post("/", authRequired, async (req, res) => {
 
     const full = await prisma.order.findUnique({
       where: { id: created.id },
-      include: { customer: true, proofs: true, trips: true },
+      include: { customer: true, createdBy: { select: { id: true, name: true, email: true } }, proofs: true, trips: true },
     });
 
     res.json(full);
@@ -256,6 +258,7 @@ router.get("/:id", authRequired, async (req, res) => {
       where: { id },
       include: {
         customer: true,
+        createdBy: { select: { id: true, name: true, email: true } },
         proofs: { orderBy: { createdAt: "desc" } },
         materialInvoices: { orderBy: { issuedAt: "desc" }, include: { trip: { include: { truck: true } }, lines: { orderBy: { createdAt: "asc" } } } },
         trips: {
@@ -332,7 +335,7 @@ router.patch("/:id", authRequired, async (req, res) => {
         plannedAt: body.plannedAt !== undefined ? (body.plannedAt ? new Date(body.plannedAt) : null) : undefined,
         status: body.status ?? undefined,
       },
-      include: { customer: true, proofs: true },
+      include: { customer: true, createdBy: { select: { id: true, name: true, email: true } }, proofs: true },
     });
 
     res.json(updated);
@@ -548,6 +551,7 @@ router.post("/:id/backhaul", authRequired, async (req, res) => {
           plannedAt: body.plannedAt ? new Date(body.plannedAt) : null,
           notes: body.notes ?? null,
           description: body.description ?? null,
+          createdById: req.user.id,
         },
       });
 
@@ -556,7 +560,7 @@ router.post("/:id/backhaul", authRequired, async (req, res) => {
 
     const full = await prisma.order.findUnique({
       where: { id: created.id },
-      include: { customer: true, proofs: true, trips: true, backhaulOfOrder: true },
+      include: { customer: true, createdBy: { select: { id: true, name: true, email: true } }, proofs: true, trips: true, backhaulOfOrder: true },
     });
 
     res.json(full);

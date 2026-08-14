@@ -37,9 +37,14 @@ export function AuthProvider({ children }) {
   }
 
   async function logout() {
-    localStorage.removeItem("token"); // 🔑
-    await api("/auth/logout", { method: "POST" });
-    setUser(null);
+    try {
+      // Keep the bearer token available until the authenticated logout request
+      // has reached the server, so the audit log can identify the actor.
+      await api("/auth/logout", { method: "POST" });
+    } finally {
+      localStorage.removeItem("token");
+      setUser(null);
+    }
   }
 
   return (
