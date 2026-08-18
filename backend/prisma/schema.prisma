@@ -28,8 +28,15 @@ enum UserStatus {
 enum StockUnitStatus {
   IN_STOCK
   ASSIGNED
+  RETREADING
   SCRAPPED
   LOST
+}
+
+enum RetreadStatus {
+  SENT
+  COMPLETED
+  CANCELLED
 }
 
 enum StockMoveType {
@@ -193,6 +200,7 @@ model User {
   ordersCreated               Order[]                    @relation("OrderCreatedBy")
   auditLogs                   AuditLog[]                 @relation("AuditLogActor")
   journalEntriesCreated       JournalEntry[]             @relation("JournalEntryCreatedBy")
+  tireRetreadsCreated        TireRetread[]              @relation("TireRetreadCreatedBy")
 }
 
 model AuditLog {
@@ -229,6 +237,7 @@ model Supplier {
   bankAccount    String?
   createdAt      DateTime        @default(now())
   purchaseOrders PurchaseOrder[]
+  tireRetreads   TireRetread[]
 }
 
 model PurchaseRequest {
@@ -723,6 +732,9 @@ model StockUnit {
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
   scrappedAt DateTime?
+  retreadCount     Int       @default(0)
+  lastRetreadAt    DateTime?
+  totalRetreadCost Int       @default(0)
 
   item           Item               @relation(fields: [itemId], references: [id])
   location       InventoryLocation? @relation(fields: [locationId], references: [id])
@@ -730,6 +742,7 @@ model StockUnit {
 
   assignments TruckSparePartAssignment[]
   movements   StockMovement[]
+  tireRetreads TireRetread[]
 
   @@index([itemId])
   @@index([locationId])
@@ -782,6 +795,32 @@ model Item {
   purchaseRequestItems PurchaseRequestItem[]
   purchaseOrderItems   PurchaseOrderItem[]
   inventoryBatches     InventoryBatch[]
+  retreadsFrom         TireRetread[]       @relation("RetreadFromItem")
+  retreadsTo           TireRetread[]       @relation("RetreadToItem")
+}
+
+model TireRetread {
+  id          String        @id @default(cuid())
+  stockUnitId String
+  stockUnit   StockUnit     @relation(fields: [stockUnitId], references: [id], onDelete: Cascade)
+  fromItemId  String
+  fromItem    Item          @relation("RetreadFromItem", fields: [fromItemId], references: [id])
+  toItemId    String
+  toItem      Item          @relation("RetreadToItem", fields: [toItemId], references: [id])
+  supplierId  String?
+  supplier    Supplier?     @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  status      RetreadStatus @default(SENT)
+  cost        Int
+  sentAt      DateTime      @default(now())
+  completedAt DateTime?
+  notes       String?
+  createdById String?
+  createdBy   User?         @relation("TireRetreadCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime      @default(now())
+
+  @@index([stockUnitId])
+  @@index([supplierId])
+  @@index([status])
 }
 
 model InventoryLocation {

@@ -1,6 +1,6 @@
 // src/layouts/AppLayout.jsx - Corporate Minimalist Design
 import { useEffect, useMemo, useRef, useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   FiBarChart2,
   FiBox,
@@ -16,6 +16,7 @@ import {
   FiMap,
   FiShoppingCart,
   FiCreditCard,
+  FiChevronDown,
   FiBookOpen,
   FiX,
   FiPieChart,
@@ -39,7 +40,9 @@ const BRAND = {
   border: "#E5E7EB",
 };
 
-function TopNavLinks({ menu, styles, navRef, onNavigate }) {
+function TopNavLinks({ menu, styles, navRef, onNavigate, mobile = false }) {
+  const location = useLocation();
+  const [hoveredDepartment, setHoveredDepartment] = useState("");
   function keepMenuPosition() {
     const element = navRef.current;
     const scrollLeft = element?.scrollLeft || 0;
@@ -59,11 +62,20 @@ function TopNavLinks({ menu, styles, navRef, onNavigate }) {
   return (
     <nav
       ref={navRef}
-      style={styles.topNav}
+      style={{ ...styles.topNav, ...(mobile ? { display: "grid", overflow: "visible", alignItems: "stretch" } : {}) }}
       className="top-nav-scroll"
       data-testid="app-navigation"
     >
-      {menu.map((m) => (
+      {menu.map((m) => m.items ? (
+        <div key={m.label} onMouseEnter={() => !mobile && setHoveredDepartment(m.label)} onMouseLeave={() => !mobile && setHoveredDepartment("")} style={{ position: "relative", flex: "0 0 auto" }}>
+          <div style={{ ...styles.topNavItem, ...(m.items.some((item) => location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)) ? styles.topNavActive : {}), cursor: "default" }}>
+            <span style={styles.topNavIcon}>{m.icon ? <m.icon /> : "--"}</span><span>{m.label}</span><FiChevronDown size={13}/>
+          </div>
+          {(mobile || hoveredDepartment === m.label) && <div style={mobile ? { display: "grid", gap: 3, margin: "4px 0 8px 24px" } : { position: "absolute", top: "100%", left: 0, minWidth: 215, paddingTop: 7, zIndex: 80 }}><div style={mobile ? {} : { padding: 7, display: "grid", gap: 3, border: `1px solid ${BRAND.border}`, borderRadius: 10, background: BRAND.white, boxShadow: "0 14px 35px rgba(15,40,28,.14)" }}>
+            {m.items.map((item) => <NavLink key={item.to} to={item.to} onClick={keepMenuPosition} style={({isActive}) => ({ ...styles.topNavItem, ...(isActive || location.pathname.startsWith(`${item.to}/`) ? styles.topNavActive : {}), width: "100%", boxSizing: "border-box" })}><span style={styles.topNavIcon}>{item.icon ? <item.icon/> : "--"}</span><span>{item.label}</span></NavLink>)}
+          </div></div>}
+        </div>
+      ) : (
         <NavLink
           key={m.to}
           to={m.to}
@@ -90,11 +102,11 @@ export default function AppLayout() {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() =>
-    window.matchMedia("(max-width: 900px)").matches
+    window.matchMedia("(max-width: 1100px)").matches
   );
 
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 900px)");
+    const mq = window.matchMedia("(max-width: 1100px)");
     const onChange = () => setIsMobile(mq.matches);
 
     if (mq.addEventListener) mq.addEventListener("change", onChange);
@@ -119,29 +131,16 @@ export default function AppLayout() {
 
   const menu = useMemo(() => {
     if (isDriver) return [{ to: "/driver/jobs", label: "Tugas Saya", icon: FiClipboard }];
-    if (isSparepartAdmin) return [
-      { to: "/inventory", label: "Inventory", icon: FiBox },
-      { to: "/maintenance", label: "Servis", icon: FiTool },
-      { to: "/purchasing", label: "Pembelian", icon: FiShoppingCart },
-    ];
+    if (isSparepartAdmin) return [{ label: "Bengkel & Pembelian", icon: FiTool, items: [
+      { to: "/inventory", label: "Inventory", icon: FiBox }, { to: "/maintenance", label: "Servis", icon: FiTool }, { to: "/purchasing", label: "Pembelian", icon: FiShoppingCart },
+    ] }];
 
     return [
       { to: "/dashboard", label: "Dashboard", icon: FiBarChart2 },
-      ...(isOwnerAdmin ? [{ to: "/users", label: "Pengguna", icon: FiUser }] : []),
-      ...(canManageDrivers
-        ? [{ to: "/drivers/new", label: "Tambah Pengemudi", icon: FiUserPlus }]
-        : []),
-      { to: "/trucks", label: "Armada", icon: FiTruck },
-      ...(isOwnerAdmin ? [{ to: "/fleet-profitability", label: "Profit Armada", icon: FiPieChart }] : []),
-      { to: "/inventory", label: "Inventory", icon: FiBox },
-      { to: "/maintenance", label: "Servis", icon: FiTool },
-      { to: "/purchasing", label: "Pembelian", icon: FiShoppingCart },
-      { to: "/expenses", label: "Pengeluaran", icon: FiDollarSign },
-      { to: "/orders", label: "Pesanan", icon: FiFileText },
-      { to: "/trips", label: "Trips", icon: FiMap },
-      { to: "/receivables", label: "Piutang", icon: FiCreditCard },
-      ...(isOwnerAdmin ? [{ to: "/accounting", label: "Accounting", icon: FiBookOpen }] : []),
-      ...(role === "OWNER" ? [{ to: "/audit-trail", label: "Audit Trail", icon: FiShield }] : []),
+      { label: "Operasional", icon: FiTruck, items: [{ to: "/trucks", label: "Armada", icon: FiTruck }, { to: "/orders", label: "Pesanan", icon: FiFileText }, { to: "/trips", label: "Trips", icon: FiMap }] },
+      { label: "Bengkel & Pembelian", icon: FiTool, items: [{ to: "/inventory", label: "Inventory", icon: FiBox }, { to: "/maintenance", label: "Servis", icon: FiTool }, { to: "/purchasing", label: "Pembelian", icon: FiShoppingCart }] },
+      { label: "Keuangan", icon: FiDollarSign, items: [{ to: "/expenses", label: "Pengeluaran", icon: FiDollarSign }, { to: "/receivables", label: "Piutang", icon: FiCreditCard }, ...(isOwnerAdmin ? [{ to: "/fleet-profitability", label: "Profit Armada", icon: FiPieChart }, { to: "/accounting", label: "Accounting", icon: FiBookOpen }] : [])] },
+      { label: "Administrasi", icon: FiShield, items: [...(isOwnerAdmin ? [{ to: "/users", label: "Pengguna", icon: FiUser }] : []), ...(canManageDrivers ? [{ to: "/drivers/new", label: "Tambah Pengemudi", icon: FiUserPlus }] : []), ...(role === "OWNER" ? [{ to: "/audit-trail", label: "Audit Trail", icon: FiShield }] : [])] },
     ];
   }, [isDriver, isSparepartAdmin, isOwnerAdmin, canManageDrivers]);
 
@@ -169,12 +168,12 @@ export default function AppLayout() {
 
     // Desktop topbar
     topbar: {
-      padding: "0 32px",
+      padding: "0 24px",
       height: 72,
       background: BRAND.white,
       borderBottom: `1px solid ${BRAND.border}`,
       display: "grid",
-      gridTemplateColumns: "minmax(200px, 1fr) minmax(520px, 3fr) minmax(220px, 1fr)",
+      gridTemplateColumns: "240px minmax(0, 1fr) 220px",
       alignItems: "center",
       boxSizing: "border-box",
       position: "sticky",
@@ -191,9 +190,9 @@ export default function AppLayout() {
 
     topCenter: {
       display: "flex",
-      justifyContent: "flex-start",
+      justifyContent: "center",
       minWidth: 0,
-      overflow: "hidden",
+      overflow: "visible",
     },
 
     brand: { display: "flex", alignItems: "center", gap: 12 },
@@ -211,11 +210,11 @@ export default function AppLayout() {
     topNav: {
       display: "flex",
       width: "100%",
-      gap: 4,
+      gap: 10,
       alignItems: "center",
       flexWrap: "nowrap",
-      justifyContent: "flex-start",
-      overflowX: "auto",
+      justifyContent: "center",
+      overflowX: "visible",
       overflowAnchor: "none",
       scrollBehavior: "auto",
       WebkitOverflowScrolling: "touch",
@@ -228,7 +227,9 @@ export default function AppLayout() {
       color: BRAND.textMuted,
       fontWeight: 500,
       fontSize: 14,
-      padding: "8px 14px",
+      minHeight: 42,
+      padding: "8px 12px",
+      boxSizing: "border-box",
       borderRadius: 6,
       display: "inline-flex",
       alignItems: "center",
@@ -447,6 +448,7 @@ export default function AppLayout() {
                     styles={s}
                     navRef={navScrollRef}
                     onNavigate={() => setMobileOpen(false)}
+                    mobile
                   />
                   <button
                     onClick={async () => {

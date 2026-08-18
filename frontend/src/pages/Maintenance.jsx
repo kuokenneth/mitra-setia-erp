@@ -414,6 +414,10 @@ export default function Maintenance() {
   const [usingStock, setUsingStock] = useState(false);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [photoError, setPhotoError] = useState("");
+  const [tireAction, setTireAction] = useState(null);
+  const [retreadOptions, setRetreadOptions] = useState({ items: [], suppliers: [] });
+  const [retreadForm, setRetreadForm] = useState({ toItemId: "", supplierId: "", cost: "", sentAt: "", notes: "" });
+  const [tireActionSaving, setTireActionSaving] = useState(false);
 
   const truckSearchTimer = useRef(null);
 
@@ -657,6 +661,63 @@ export default function Maintenance() {
       setErr(e.message || "Failed to use stock");
     } finally {
       setUsingStock(false);
+    }
+  }
+
+  async function startTireAction(assignment, type) {
+    setErr("");
+    setTireAction({ type, assignment });
+    setRetreadForm({ toItemId: "", supplierId: "", cost: "", sentAt: "", notes: "" });
+    if (type === "RETREAD") {
+      try {
+        const data = await api("/inventory/retread-options");
+        const options = { items: data.items || [], suppliers: data.suppliers || [] };
+        setRetreadOptions(options);
+        const currentItemId = assignment.stockUnit?.itemId;
+        setRetreadForm((form) => ({
+          ...form,
+          toItemId: options.items.find((item) => item.id !== currentItemId && /masak|retread/i.test(item.name || ""))?.id || "",
+        }));
+      } catch (e) {
+        setTireAction(null);
+        setErr(e.message || "Gagal memuat pilihan ban masak");
+      }
+    }
+  }
+
+  async function submitTireAction() {
+    const unit = tireAction?.assignment?.stockUnit;
+    if (!unit?.id || !activeJob?.id) return;
+    setTireActionSaving(true);
+    setErr("");
+    try {
+      if (tireAction.type === "RETREAD") {
+        if (!retreadForm.toItemId) throw new Error("Pilih item tujuan Ban Masak");
+        if (retreadForm.cost === "") throw new Error("Masukkan biaya masak ban");
+        await api(`/inventory/units/${unit.id}/retread`, {
+          method: "POST",
+          body: JSON.stringify({
+            ...retreadForm,
+            cost: Number(retreadForm.cost),
+            supplierId: retreadForm.supplierId || undefined,
+            sentAt: retreadForm.sentAt || undefined,
+            notes: retreadForm.notes || undefined,
+            maintenanceId: activeJob.id,
+          }),
+        });
+      } else {
+        await api(`/inventory/units/${unit.id}/scrap`, {
+          method: "POST",
+          body: JSON.stringify({ note: retreadForm.notes || `Dilepas dan scrap saat servis ${activeJob.title}` }),
+        });
+      }
+      setTireAction(null);
+      await refreshDetail();
+      await load();
+    } catch (e) {
+      setErr(e.message || "Gagal memproses ban");
+    } finally {
+      setTireActionSaving(false);
     }
   }
 
@@ -1295,6 +1356,7 @@ export default function Maintenance() {
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Unit</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Dari</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Catatan</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Tindakan Ban</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1309,11 +1371,21 @@ export default function Maintenance() {
                           </td>
                           <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{a.stockUnit?.location?.name || "—"}</td>
                           <td style={{ padding: "12px 8px", color: BRAND.textMuted }}>{a.note || "—"}</td>
+                          <td style={{ padding: "12px 8px" }}>
+                            {!a.removedAt && a.stockUnit?.status === "ASSIGNED" && activeJob.status === "OPEN" ? (
+                              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                <Button variant="secondary" onClick={() => startTireAction(a, "RETREAD")}>Lepas & Masak</Button>
+                                <Button variant="danger" onClick={() => startTireAction(a, "SCRAP")}>Lepas & Scrap</Button>
+                              </div>
+                            ) : (
+                              <span style={{ color: BRAND.textMuted }}>{a.removedAt ? "Sudah dilepas" : "—"}</span>
+                            )}
+                          </td>
                         </tr>
                       ))}
                       {(activeJob.sparePartAssignments || []).length === 0 && (
                         <tr>
-                          <td colSpan={5} style={{ padding: 16, color: BRAND.textMuted, textAlign: "center" }}>
+                          <td colSpan={6} style={{ padding: 16, color: BRAND.textMuted, textAlign: "center" }}>
                             No serialized spareparts assigned yet.
                           </td>
                         </tr>
@@ -1365,6 +1437,62 @@ export default function Maintenance() {
             </Card>
           </div>
         )}
+      </Modal>
+
+      <Modal
+        open={Boolean(tireAction)}
+        title={tireAction?.type === "RETREAD" ? "Lepas & Kirim Masak Ban" : "Lepas & Scrap Ban"}
+        onClose={() => !tireActionSaving && setTireAction(null)}
+        width={620}
+      >
+        {tireAction ? (
+          <div style={{ display: "grid", gap: 14 }}>
+            <div style={{ padding: 14, borderRadius: 6, background: BRAND.secondary, border: `1px solid ${BRAND.border}` }}>
+              <div style={{ fontSize: 12, color: BRAND.textMuted }}>Ban pada {activeJob?.truck?.plateNumber || "truk"}</div>
+              <div style={{ marginTop: 4, fontWeight: 700, color: BRAND.text }}>
+                {tireAction.assignment.stockUnit?.item?.name} · Serial {tireAction.assignment.stockUnit?.serialNumber || tireAction.assignment.stockUnitId}
+              </div>
+            </div>
+
+            {tireAction.type === "RETREAD" ? (
+              <>
+                <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
+                  Item tujuan setelah selesai dimasak
+                  <Select value={retreadForm.toItemId} onChange={(e) => setRetreadForm((form) => ({ ...form, toItemId: e.target.value }))}>
+                    <option value="">Pilih item Ban Masak</option>
+                    {retreadOptions.items.map((item) => <option key={item.id} value={item.id}>{item.sku} — {item.name}</option>)}
+                  </Select>
+                </label>
+                <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
+                  Vendor masak ban
+                  <Select value={retreadForm.supplierId} onChange={(e) => setRetreadForm((form) => ({ ...form, supplierId: e.target.value }))}>
+                    <option value="">Tanpa vendor</option>
+                    {retreadOptions.suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+                  </Select>
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>Biaya masak (Rp)<Input type="number" min="0" value={retreadForm.cost} onChange={(e) => setRetreadForm((form) => ({ ...form, cost: e.target.value }))} /></label>
+                  <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>Tanggal dilepas/dikirim<Input type="datetime-local" value={retreadForm.sentAt} onChange={(e) => setRetreadForm((form) => ({ ...form, sentAt: e.target.value }))} /></label>
+                </div>
+              </>
+            ) : (
+              <div style={{ padding: 14, borderRadius: 6, background: BRAND.dangerBg, color: BRAND.danger, fontSize: 13 }}>
+                Ban akan dilepas dari truk dan dikeluarkan permanen dari stok. Tindakan ini digunakan untuk ban rusak berat yang tidak layak dimasak.
+              </div>
+            )}
+
+            <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
+              Catatan kondisi ban
+              <Input value={retreadForm.notes} onChange={(e) => setRetreadForm((form) => ({ ...form, notes: e.target.value }))} placeholder="Contoh: tapak tipis tetapi casing masih layak" />
+            </label>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <Button variant="secondary" disabled={tireActionSaving} onClick={() => setTireAction(null)}>Batal</Button>
+              <Button variant={tireAction.type === "RETREAD" ? "primary" : "danger"} disabled={tireActionSaving} onClick={submitTireAction}>
+                {tireActionSaving ? "Memproses..." : tireAction.type === "RETREAD" ? "Lepas & Kirim" : "Lepas & Scrap"}
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </Modal>
     </div>
   );

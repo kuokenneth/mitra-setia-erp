@@ -509,6 +509,11 @@ export default function Inventory() {
 
   const [openScrap, setOpenScrap] = useState(false);
   const [scrapForm, setScrapForm] = useState({ unitId: "", note: "" });
+  const [openRetread, setOpenRetread] = useState(false);
+  const [openCompleteRetread, setOpenCompleteRetread] = useState(false);
+  const [retreadOptions, setRetreadOptions] = useState({ items: [], suppliers: [], locations: [] });
+  const [retreadForm, setRetreadForm] = useState({ unitId: "", serialNumber: "", toItemId: "", supplierId: "", cost: "", sentAt: "", notes: "" });
+  const [completeRetreadForm, setCompleteRetreadForm] = useState({ unitId: "", serialNumber: "", locationId: "", completedAt: "" });
 
   const [createItemForm, setCreateItemForm] = useState({
     sku: "",
@@ -646,6 +651,80 @@ export default function Inventory() {
       setOpenScrap(false);
       setScrapForm({ unitId: "", note: "" });
 
+      await Promise.all([loadUnits(), loadMovements(), loadItems()]);
+    } catch (e) {
+      setErr(String(e?.message || e));
+    }
+  }
+
+  async function loadRetreadOptions() {
+    const data = await api("/inventory/retread-options");
+    const options = { items: data.items || [], suppliers: data.suppliers || [], locations: data.locations || [] };
+    setRetreadOptions(options);
+    return options;
+  }
+
+  async function openRetreadUnit(unit) {
+    setErr("");
+    try {
+      const options = await loadRetreadOptions();
+      setRetreadForm({
+        unitId: unit.id,
+        serialNumber: unit.serialNumber || "",
+        toItemId: options.items.find((item) => item.id !== unit.itemId && /masak|retread/i.test(item.name || ""))?.id || "",
+        supplierId: "",
+        cost: "",
+        sentAt: "",
+        notes: "",
+      });
+      setOpenRetread(true);
+    } catch (e) {
+      setErr(String(e?.message || e));
+    }
+  }
+
+  async function sendToRetread() {
+    setErr("");
+    try {
+      if (!retreadForm.toItemId) throw new Error("Pilih item tujuan Ban Masak");
+      if (retreadForm.cost === "") throw new Error("Masukkan biaya masak ban");
+      await api(`/inventory/units/${retreadForm.unitId}/retread`, {
+        method: "POST",
+        body: JSON.stringify({
+          toItemId: retreadForm.toItemId,
+          supplierId: retreadForm.supplierId || undefined,
+          cost: Number(retreadForm.cost),
+          sentAt: retreadForm.sentAt || undefined,
+          notes: retreadForm.notes || undefined,
+        }),
+      });
+      setOpenRetread(false);
+      await Promise.all([loadUnits(), loadMovements(), loadItems()]);
+    } catch (e) {
+      setErr(String(e?.message || e));
+    }
+  }
+
+  async function openCompleteRetreadUnit(unit) {
+    setErr("");
+    try {
+      const options = await loadRetreadOptions();
+      setCompleteRetreadForm({ unitId: unit.id, serialNumber: unit.serialNumber || "", locationId: options.locations[0]?.id || "", completedAt: "" });
+      setOpenCompleteRetread(true);
+    } catch (e) {
+      setErr(String(e?.message || e));
+    }
+  }
+
+  async function completeRetread() {
+    setErr("");
+    try {
+      if (!completeRetreadForm.locationId) throw new Error("Pilih lokasi penerimaan");
+      await api(`/inventory/units/${completeRetreadForm.unitId}/retread/complete`, {
+        method: "POST",
+        body: JSON.stringify({ locationId: completeRetreadForm.locationId, completedAt: completeRetreadForm.completedAt || undefined }),
+      });
+      setOpenCompleteRetread(false);
       await Promise.all([loadUnits(), loadMovements(), loadItems()]);
     } catch (e) {
       setErr(String(e?.message || e));
@@ -1106,6 +1185,7 @@ export default function Inventory() {
                   setScrapForm({ unitId: unit.id, note: "" });
                   setOpenScrap(true);
                 }}
+                onCompleteRetread={openCompleteRetreadUnit}
                 onApplyFilters={loadUnits}
               />
               <Pagination pagination={unitPagination} onChange={changeUnitPage} />
@@ -1167,6 +1247,63 @@ export default function Inventory() {
                 Scrap
               </Btn>
             </div>
+          </div>
+        </Modal>
+
+        <Modal open={openRetread} title="Kirim Ban untuk Dimasak" onClose={() => setOpenRetread(false)}>
+          <div style={{ display: "grid", gap: 14 }}>
+            <div style={{ padding: 12, borderRadius: 8, background: BRAND.secondary }}>
+              <div style={{ fontSize: 12, color: BRAND.textMuted }}>Nomor seri tetap digunakan</div>
+              <div style={{ marginTop: 3, fontWeight: 700 }}>{retreadForm.serialNumber || retreadForm.unitId}</div>
+            </div>
+            <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
+              Item tujuan (Ban Masak)
+              <select style={{ ...selectPill, width: "100%" }} value={retreadForm.toItemId} onChange={(e) => setRetreadForm((p) => ({ ...p, toItemId: e.target.value }))}>
+                <option value="">Pilih item Ban Masak</option>
+                {retreadOptions.items.map((item) => <option key={item.id} value={item.id}>{item.sku} — {item.name}</option>)}
+              </select>
+            </label>
+            <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
+              Vendor masak ban
+              <select style={{ ...selectPill, width: "100%" }} value={retreadForm.supplierId} onChange={(e) => setRetreadForm((p) => ({ ...p, supplierId: e.target.value }))}>
+                <option value="">Tanpa vendor</option>
+                {retreadOptions.suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+              </select>
+            </label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
+                Biaya masak (Rp)
+                <input type="number" min="0" style={{ ...inputPill, minWidth: 0 }} value={retreadForm.cost} onChange={(e) => setRetreadForm((p) => ({ ...p, cost: e.target.value }))} />
+              </label>
+              <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
+                Tanggal dikirim
+                <input type="datetime-local" style={{ ...inputPill, minWidth: 0 }} value={retreadForm.sentAt} onChange={(e) => setRetreadForm((p) => ({ ...p, sentAt: e.target.value }))} />
+              </label>
+            </div>
+            <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
+              Catatan
+              <input style={{ ...inputPill, minWidth: 0 }} value={retreadForm.notes} onChange={(e) => setRetreadForm((p) => ({ ...p, notes: e.target.value }))} placeholder="Kondisi ban atau pekerjaan vendor" />
+            </label>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn style={btn} onClick={() => setOpenRetread(false)}>Batal</Btn><Btn style={btnPrimary} onClick={sendToRetread}>Kirim ke Vendor</Btn></div>
+          </div>
+        </Modal>
+
+        <Modal open={openCompleteRetread} title="Terima Ban Selesai Dimasak" onClose={() => setOpenCompleteRetread(false)}>
+          <div style={{ display: "grid", gap: 14 }}>
+            <Pill variant="green">Serial: {completeRetreadForm.serialNumber || completeRetreadForm.unitId}</Pill>
+            <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
+              Lokasi penerimaan
+              <select style={{ ...selectPill, width: "100%" }} value={completeRetreadForm.locationId} onChange={(e) => setCompleteRetreadForm((p) => ({ ...p, locationId: e.target.value }))}>
+                <option value="">Pilih lokasi</option>
+                {retreadOptions.locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+              </select>
+            </label>
+            <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
+              Tanggal selesai
+              <input type="datetime-local" style={{ ...inputPill, minWidth: 0 }} value={completeRetreadForm.completedAt} onChange={(e) => setCompleteRetreadForm((p) => ({ ...p, completedAt: e.target.value }))} />
+            </label>
+            <div style={{ padding: 12, borderRadius: 8, background: BRAND.secondary, color: BRAND.textMuted, fontSize: 13 }}>Setelah diterima, unit yang sama masuk stok sebagai item Ban Masak. Nomor seri dan riwayat lama tidak berubah.</div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn style={btn} onClick={() => setOpenCompleteRetread(false)}>Batal</Btn><Btn style={btnPrimary} onClick={completeRetread}>Terima Ban</Btn></div>
           </div>
         </Modal>
 
@@ -1703,6 +1840,7 @@ function UnitsTable({
   onAssign,
   onBarcode,
   onScrap,
+  onCompleteRetread,
   onApplyFilters,
 }) {
   return (
@@ -1717,6 +1855,7 @@ function UnitsTable({
           <option value="">Semua Status</option>
           <option value="IN_STOCK">IN_STOCK</option>
           <option value="ASSIGNED">ASSIGNED</option>
+          <option value="RETREADING">RETREADING</option>
           <option value="SCRAPPED">SCRAPPED</option>
         </select>
 
@@ -1764,13 +1903,14 @@ function UnitsTable({
                 const currentAssign = (u.assignments || [])[0];
                 const truck = currentAssign?.truck;
                 const originPo = u.inventoryBatch?.purchaseOrderItem?.purchaseOrder;
+                const latestRetread = (u.tireRetreads || [])[0];
                 return (
                   <tr key={u.id}>
                     <td style={td}>{u.serialNumber || "-"}</td>
                     <td style={td}>{u.item?.sku || "-"} — {u.item?.name || ""}</td>
                     <td style={tdSoft}>{u.barcode || "-"}</td>
                     <td style={td}>
-                      <Pill variant={u.status === "IN_STOCK" ? "green" : u.status === "SCRAPPED" ? "red" : "grey"}>
+                      <Pill variant={u.status === "IN_STOCK" ? "green" : u.status === "SCRAPPED" ? "red" : u.status === "RETREADING" ? "yellow" : "grey"}>
                         {u.status || "-"}
                       </Pill>
                     </td>
@@ -1778,6 +1918,7 @@ function UnitsTable({
                     <td style={tdSoft}>
                       <div>{originPo?.supplier?.name || "Tidak tercatat"}</div>
                       <div style={{ fontSize: 12 }}>{originPo?.number || "-"}{u.inventoryBatch?.goodsReceipt?.number ? ` / ${u.inventoryBatch.goodsReceipt.number}` : ""}</div>
+                      {u.retreadCount > 0 || latestRetread ? <div style={{ fontSize: 12, marginTop: 4, color: BRAND.primary }}>Masak {u.retreadCount || 0}×{latestRetread?.supplier?.name ? ` · ${latestRetread.supplier.name}` : ""}</div> : null}
                     </td>
                     <td style={tdSoft}>{truck?.plateNumber || "-"}</td>
                     <td style={td}>
@@ -1790,18 +1931,23 @@ function UnitsTable({
                             Assign
                           </Btn>
                         ) : null}
+                        {u.status === "RETREADING" ? (
+                          <Btn style={{ ...btnPrimary, height: 28, padding: "0 10px", fontSize: 11 }} onClick={() => onCompleteRetread(u)}>
+                            Selesai Masak
+                          </Btn>
+                        ) : null}
                         <Btn
                           style={{ ...btn, height: 28, padding: "0 10px", fontSize: 11 }}
                           onClick={() => onBarcode(u)}
                         >
                           Barcode
                         </Btn>
-                        {u.status !== "SCRAPPED" ? (
+                        {u.status !== "SCRAPPED" && u.status !== "RETREADING" ? (
                           <Btn
                             style={{ ...btnDanger, height: 28, padding: "0 10px", fontSize: 11 }}
                             onClick={() => onScrap(u)}
                           >
-                            Scrap
+                            {u.status === "ASSIGNED" ? "Lepas & Scrap" : "Scrap"}
                           </Btn>
                         ) : null}
                       </div>

@@ -716,6 +716,10 @@ router.get(
             where: { removedAt: null },
             include: { truck: true },
           },
+          tireRetreads: {
+            include: { supplier: true, fromItem: true, toItem: true },
+            orderBy: { sentAt: "desc" },
+          },
         },
         orderBy: { createdAt: "desc" },
         ...(limit ? { skip: (page - 1) * limit, take: limit } : {}),
@@ -723,6 +727,201 @@ router.get(
     ]);
 
     res.json({ ok: true, units, pagination: { page, limit: limit || total || 1, total, totalPages: limit ? Math.max(1, Math.ceil(total / limit)) : 1 } });
+  }
+);
+
+/** Options used by the tire-retread forms (not limited by inventory pagination). */
+router.get(
+  "/retread-options",
+  authRequired,
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
+  async (_req, res) => {
+    const [items, suppliers, locations] = await prisma.$transaction([
+      prisma.item.findMany({ where: { isSerialized: true }, orderBy: { name: "asc" } }),
+      prisma.supplier.findMany({ orderBy: { name: "asc" } }),
+      prisma.inventoryLocation.findMany({ orderBy: { name: "asc" } }),
+    ]);
+    res.json({ ok: true, items, suppliers, locations });
+  }
+);
+
+/** Remove an assigned tire (or take one from stock) and send it to a retread vendor. */
+router.post(
+  "/units/:unitId/retread",
+  authRequired,
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
+  async (req, res) => {
+    const createdById = req.user?.id || null;
+    const { unitId } = req.params;
+    const { toItemId, supplierId, cost, sentAt, notes, maintenanceId } = req.body || {};
+    const retreadCost = Number(cost);
+
+    if (!toItemId) return res.status(400).json({ ok: false, error: "Item Ban Masak wajib dipilih" });
+    if (!Number.isInteger(retreadCost) || retreadCost < 0) {
+      return res.status(400).json({ ok: false, error: "Biaya masak harus berupa angka bulat dan tidak boleh negatif" });
+    }
+
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const dispatchedAt = sentAt ? new Date(sentAt) : new Date();
+        if (Number.isNaN(dispatchedAt.getTime())) throw new Error("Tanggal kirim tidak valid");
+        const unit = await tx.stockUnit.findUnique({
+          where: { id: unitId },
+          include: {
+            item: true,
+            assignments: { where: { removedAt: null }, take: 1, include: { truck: true } },
+          },
+        });
+        if (!unit) throw new Error("Unit tidak ditemukan");
+        if (!unit.item.isSerialized) throw new Error("Hanya barang berserial yang dapat diproses");
+        if (!['IN_STOCK', 'ASSIGNED'].includes(unit.status)) {
+          throw new Error("Unit harus sedang terpasang di truk atau berada di stok");
+        }
+        if (unit.status === "IN_STOCK" && !unit.locationId) throw new Error("Lokasi unit tidak tercatat");
+        if (unit.itemId === toItemId) throw new Error("Pilih item Ban Masak yang berbeda dari item asal");
+
+        const targetItem = await tx.item.findUnique({ where: { id: toItemId } });
+        if (!targetItem?.isSerialized) throw new Error("Item tujuan harus merupakan barang berserial");
+        if (supplierId) {
+          const supplier = await tx.supplier.findUnique({ where: { id: supplierId } });
+          if (!supplier) throw new Error("Vendor tidak ditemukan");
+        }
+        const openRetread = await tx.tireRetread.findFirst({ where: { stockUnitId: unitId, status: "SENT" } });
+        if (openRetread) throw new Error("Unit ini masih dalam proses masak");
+
+        const activeAssignment = unit.assignments[0] || null;
+        if (unit.status === "ASSIGNED") {
+          if (!activeAssignment) throw new Error("Data pemasangan aktif pada truk tidak ditemukan");
+          if (maintenanceId) {
+            const maintenance = await tx.truckMaintenance.findUnique({ where: { id: maintenanceId } });
+            if (!maintenance || maintenance.status !== "OPEN") throw new Error("Pekerjaan servis aktif tidak ditemukan");
+            if (maintenance.truckId !== activeAssignment.truckId) throw new Error("Ban tidak terpasang pada truk servis ini");
+          }
+          await tx.truckSparePartAssignment.update({
+            where: { id: activeAssignment.id },
+            data: {
+              removedAt: dispatchedAt,
+              note: notes ? `Dilepas untuk masak ban: ${String(notes)}` : "Dilepas untuk masak ban",
+            },
+          });
+        } else {
+          const stock = await tx.inventoryStock.findUnique({
+            where: { itemId_locationId: { itemId: unit.itemId, locationId: unit.locationId } },
+          });
+          if ((stock?.qty || 0) < 1) throw new Error("Stok unit pada lokasi asal tidak mencukupi");
+          await tx.inventoryStock.update({
+            where: { itemId_locationId: { itemId: unit.itemId, locationId: unit.locationId } },
+            data: { qty: { decrement: 1 } },
+          });
+          if (unit.inventoryBatchId) {
+            await tx.inventoryBatch.updateMany({
+              where: { id: unit.inventoryBatchId, remainingQty: { gte: 1 } },
+              data: { remainingQty: { decrement: 1 } },
+            });
+          }
+        }
+
+        const retread = await tx.tireRetread.create({
+          data: {
+            stockUnitId: unit.id,
+            fromItemId: unit.itemId,
+            toItemId,
+            supplierId: supplierId || null,
+            cost: retreadCost,
+            sentAt: dispatchedAt,
+            notes: notes ? String(notes) : null,
+            createdById,
+          },
+          include: { supplier: true, fromItem: true, toItem: true },
+        });
+        await tx.stockUnit.update({ where: { id: unit.id }, data: { status: "RETREADING", locationId: null } });
+        await tx.stockMovement.create({
+          data: {
+            type: "OUT",
+            itemId: unit.itemId,
+            qty: 1,
+            note: `${activeAssignment?.truck?.plateNumber ? `Dilepas dari ${activeAssignment.truck.plateNumber} dan d` : "D"}ikirim untuk masak ban${retread.supplier?.name ? ` ke ${retread.supplier.name}` : ""}`,
+            createdById,
+            fromLocationId: unit.locationId,
+            maintenanceId: maintenanceId || null,
+            stockUnitId: unit.id,
+          },
+        });
+        return retread;
+      });
+      res.json({ ok: true, retread: result });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: String(e.message || e) });
+    }
+  }
+);
+
+/** Complete a retread and return the same serial-numbered unit as the target item. */
+router.post(
+  "/units/:unitId/retread/complete",
+  authRequired,
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
+  async (req, res) => {
+    const createdById = req.user?.id || null;
+    const { unitId } = req.params;
+    const { locationId, completedAt } = req.body || {};
+    if (!locationId) return res.status(400).json({ ok: false, error: "Lokasi penerimaan wajib dipilih" });
+
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const unit = await tx.stockUnit.findUnique({ where: { id: unitId } });
+        if (!unit) throw new Error("Unit tidak ditemukan");
+        if (unit.status !== "RETREADING") throw new Error("Unit tidak sedang dalam proses masak");
+        const retread = await tx.tireRetread.findFirst({
+          where: { stockUnitId: unitId, status: "SENT" },
+          orderBy: { sentAt: "desc" },
+          include: { supplier: true, toItem: true },
+        });
+        if (!retread) throw new Error("Data proses masak aktif tidak ditemukan");
+        const location = await tx.inventoryLocation.findUnique({ where: { id: locationId } });
+        if (!location) throw new Error("Lokasi penerimaan tidak ditemukan");
+        const finishedAt = completedAt ? new Date(completedAt) : new Date();
+        if (Number.isNaN(finishedAt.getTime())) throw new Error("Tanggal selesai tidak valid");
+
+        await ensureStockRow(tx, retread.toItemId, locationId);
+        await tx.inventoryStock.update({
+          where: { itemId_locationId: { itemId: retread.toItemId, locationId } },
+          data: { qty: { increment: 1 } },
+        });
+        const updatedUnit = await tx.stockUnit.update({
+          where: { id: unitId },
+          data: {
+            itemId: retread.toItemId,
+            locationId,
+            status: "IN_STOCK",
+            purchasePrice: retread.cost,
+            retreadCount: { increment: 1 },
+            lastRetreadAt: finishedAt,
+            totalRetreadCost: { increment: retread.cost },
+          },
+          include: { item: true, location: true },
+        });
+        await tx.tireRetread.update({
+          where: { id: retread.id },
+          data: { status: "COMPLETED", completedAt: finishedAt },
+        });
+        await tx.stockMovement.create({
+          data: {
+            type: "IN",
+            itemId: retread.toItemId,
+            qty: 1,
+            note: `Ban selesai dimasak${retread.supplier?.name ? ` oleh ${retread.supplier.name}` : ""}`,
+            createdById,
+            toLocationId: locationId,
+            stockUnitId: unitId,
+          },
+        });
+        return updatedUnit;
+      });
+      res.json({ ok: true, unit: result });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: String(e.message || e) });
+    }
   }
 );
 
