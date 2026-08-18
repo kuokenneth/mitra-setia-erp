@@ -8,6 +8,7 @@ const router = express.Router();
 const allowedRoles = ["OWNER", "ADMIN", "STAFF"];
 const proofRoles = ["OWNER", "ADMIN", "STAFF"];
 const TRIP_EXPENSE_LIMIT = Number(process.env.TRIP_EXPENSE_LIMIT || 0);
+const EXPENSE_CATEGORIES = ["TRIP_ALLOWANCE", "DRIVER_SALARY", "FUEL", "TOLL_PARKING", "LOADING_UNLOADING", "REPAIR_MAINTENANCE", "SPAREPART", "OFFICE_OPERATIONAL", "OTHER"];
 
 function ensureRole(req, res) {
   const role = req.user?.role;
@@ -254,6 +255,7 @@ router.post("/", authRequired, async (req, res) => {
   const paymentMethod = cleanStr(req.body.paymentMethod) || "BANK_TRANSFER";
   const amount = Number(req.body.amount || 0);
   const currency = cleanStr(req.body.currency) || "IDR";
+  const category = cleanStr(req.body.category) || "OTHER";
   const reason = cleanStr(req.body.reason);
   const clientName = cleanStr(req.body.clientName);
   const bankName = cleanStr(req.body.bankName);
@@ -265,6 +267,9 @@ router.post("/", authRequired, async (req, res) => {
   const allowedMethods = ["BANK_TRANSFER", "CASH", "OTHER"];
   if (!allowedMethods.includes(paymentMethod)) {
     return res.status(400).json({ error: "Invalid payment method" });
+  }
+  if (!EXPENSE_CATEGORIES.includes(category)) {
+    return res.status(400).json({ error: "Kategori pengeluaran tidak valid" });
   }
   if (!Number.isFinite(amount) || amount <= 0) {
     return res.status(400).json({ error: "Amount must be greater than 0" });
@@ -281,9 +286,9 @@ router.post("/", authRequired, async (req, res) => {
     if (!trip) {
       return res.status(404).json({ error: "Trip not found" });
     }
-    if (trip.status !== "PLANNED") {
+    if (["COMPLETED", "CANCELLED"].includes(trip.status)) {
       return res.status(400).json({
-        error: "Pengeluaran perjalanan hanya dapat dibuat sebelum kendaraan berangkat",
+        error: "Pengeluaran hanya dapat ditambahkan sebelum perjalanan diselesaikan",
       });
     }
   }
@@ -297,6 +302,7 @@ router.post("/", authRequired, async (req, res) => {
       accountNumber,
       amount: Math.round(amount),
       currency,
+      category,
       reason,
       clientName,
       notes,
@@ -337,6 +343,7 @@ router.patch("/:id", authRequired, async (req, res) => {
   const paymentMethod = cleanStr(req.body.paymentMethod);
   const amount = req.body.amount !== undefined ? Number(req.body.amount) : undefined;
   const currency = cleanStr(req.body.currency);
+  const category = cleanStr(req.body.category);
   const reason = cleanStr(req.body.reason);
   const clientName = cleanStr(req.body.clientName);
   const bankName = cleanStr(req.body.bankName);
@@ -349,6 +356,9 @@ router.patch("/:id", authRequired, async (req, res) => {
     if (!allowedMethods.includes(paymentMethod)) {
       return res.status(400).json({ error: "Invalid payment method" });
     }
+  }
+  if (category && !EXPENSE_CATEGORIES.includes(category)) {
+    return res.status(400).json({ error: "Kategori pengeluaran tidak valid" });
   }
   if (amount !== undefined && (!Number.isFinite(amount) || amount <= 0)) {
     return res.status(400).json({ error: "Amount must be greater than 0" });
@@ -363,6 +373,7 @@ router.patch("/:id", authRequired, async (req, res) => {
       ...(accountNumber !== undefined && { accountNumber }),
       ...(amount !== undefined && { amount: Math.round(amount) }),
       ...(currency && { currency }),
+      ...(category && { category }),
       ...(reason && { reason }),
       ...(clientName !== undefined && { clientName }),
       ...(notes !== undefined && { notes }),

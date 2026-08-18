@@ -55,6 +55,7 @@ router.get("/:id", async (req, res) => {
     res.setHeader("Content-Length", String(file.size));
     res.setHeader("Content-Disposition", `inline; filename="${safeName}"`);
     res.setHeader("Cache-Control", "private, max-age=86400");
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
     res.send(Buffer.from(file.data));
   } catch (e) {
     res.status(400).send(e.message || "Gagal membuka bukti");

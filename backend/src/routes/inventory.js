@@ -56,6 +56,21 @@ async function ensureStockRow(tx, itemId, locationId) {
   });
 }
 
+async function consumeBatchesFifo(tx, itemId, locationId, qty) {
+  let remaining = qty;
+  const batches = await tx.inventoryBatch.findMany({
+    where: { itemId, locationId, remainingQty: { gt: 0 } },
+    orderBy: [{ receivedAt: "asc" }, { createdAt: "asc" }],
+  });
+  for (const batch of batches) {
+    if (remaining <= 0) break;
+    const used = Math.min(remaining, batch.remainingQty);
+    await tx.inventoryBatch.update({ where: { id: batch.id }, data: { remainingQty: { decrement: used } } });
+    remaining -= used;
+  }
+  return remaining;
+}
+
 /**
  * Helper: sum qty across all locations for an item
  */
@@ -330,6 +345,38 @@ router.get(
   }
 );
 
+router.get(
+  "/batches",
+  authRequired,
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
+  async (req, res) => {
+    const itemId = req.query.itemId ? String(req.query.itemId) : undefined;
+    const locationId = req.query.locationId ? String(req.query.locationId) : undefined;
+    const q = String(req.query.q || "").trim();
+    const batches = await prisma.inventoryBatch.findMany({
+      where: {
+        ...(itemId ? { itemId } : {}),
+        ...(locationId ? { locationId } : {}),
+        ...(q ? { OR: [
+          { item: { sku: { contains: q, mode: "insensitive" } } },
+          { item: { name: { contains: q, mode: "insensitive" } } },
+          { purchaseOrderItem: { purchaseOrder: { number: { contains: q, mode: "insensitive" } } } },
+          { purchaseOrderItem: { purchaseOrder: { supplier: { name: { contains: q, mode: "insensitive" } } } } },
+        ] } : {}),
+      },
+      include: {
+        item: true,
+        location: true,
+        goodsReceipt: true,
+        purchaseOrderItem: { include: { purchaseOrder: { include: { supplier: true } } } },
+      },
+      orderBy: [{ receivedAt: "desc" }, { createdAt: "desc" }],
+      take: 300,
+    });
+    res.json({ ok: true, batches });
+  }
+);
+
 
 /**
  * POST /inventory/receive
@@ -363,13 +410,6 @@ router.post(
 
       const location = await prisma.inventoryLocation.findUnique({ where: { id: locationId } });
       if (!location) throw new Error("Location not found");
-
-      // ensure stock row exists (UPSERT is better than "find then create")
-      const ensureStockUpsert = prisma.inventoryStock.upsert({
-        where: { itemId_locationId: { itemId, locationId } },
-        update: {},
-        create: { itemId, locationId, qty: 0 },
-      });
 
       // ============================
       // SERIALIZED
@@ -415,15 +455,16 @@ router.post(
 
         const receivedQty = data.length;
 
-        // batch transaction (no interactive tx)
-        await prisma.$transaction([
-          ensureStockUpsert,
-          prisma.stockUnit.createMany({ data }),
-          prisma.inventoryStock.update({
+        await prisma.$transaction(async (tx) => {
+          await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId, locationId } }, update: {}, create: { itemId, locationId, qty: 0 } });
+          const averageUnitPrice = Math.round(data.reduce((sum, unit) => sum + unit.purchasePrice, 0) / receivedQty);
+          const batch = await tx.inventoryBatch.create({ data: { itemId, locationId, receivedQty, remainingQty: receivedQty, receivedAt: new Date(), unitPrice: averageUnitPrice } });
+          await tx.stockUnit.createMany({ data: data.map((unit) => ({ ...unit, inventoryBatchId: batch.id })) });
+          await tx.inventoryStock.update({
             where: { itemId_locationId: { itemId, locationId } },
             data: { qty: { increment: receivedQty } },
-          }),
-          prisma.stockMovement.create({
+          });
+          await tx.stockMovement.create({
             data: {
               type: "IN",
               itemId,
@@ -432,8 +473,8 @@ router.post(
               createdById,
               toLocationId: locationId,
             },
-          }),
-        ]);
+          });
+        });
 
         // fetch created units back (optional, but matches your old response)
         const serials = data.map((d) => d.serialNumber);
@@ -453,13 +494,14 @@ router.post(
         throw new Error("qty must be > 0 for non-serialized items");
       }
 
-      const [movement] = await prisma.$transaction([
-        ensureStockUpsert,
-        prisma.inventoryStock.update({
+      const movement = await prisma.$transaction(async (tx) => {
+        await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId, locationId } }, update: {}, create: { itemId, locationId, qty: 0 } });
+        await tx.inventoryBatch.create({ data: { itemId, locationId, receivedQty, remainingQty: receivedQty, receivedAt: new Date() } });
+        await tx.inventoryStock.update({
           where: { itemId_locationId: { itemId, locationId } },
           data: { qty: { increment: receivedQty } },
-        }),
-        prisma.stockMovement.create({
+        });
+        return tx.stockMovement.create({
           data: {
             type: "IN",
             itemId,
@@ -468,8 +510,8 @@ router.post(
             createdById,
             toLocationId: locationId,
           },
-        }),
-      ]).then((arr) => [arr[2]]);
+        });
+      });
 
       res.json({ ok: true, movement, receivedQty });
     } catch (e) {
@@ -664,6 +706,12 @@ router.get(
         include: {
           item: true,
           location: true,
+          inventoryBatch: {
+            include: {
+              goodsReceipt: true,
+              purchaseOrderItem: { include: { purchaseOrder: { include: { supplier: true } } } },
+            },
+          },
           assignments: {
             where: { removedAt: null },
             include: { truck: true },
@@ -800,6 +848,12 @@ router.post(
           where: { itemId_locationId: { itemId: unit.itemId, locationId: fromLoc } },
           data: { qty: { decrement: 1 } },
         });
+        if (unit.inventoryBatchId) {
+          await tx.inventoryBatch.updateMany({
+            where: { id: unit.inventoryBatchId, remainingQty: { gte: 1 } },
+            data: { remainingQty: { decrement: 1 } },
+          });
+        }
 
         // create assignment
         // ✅ if serialized, require purchasePrice (so we can compute cost)
@@ -917,6 +971,12 @@ router.post(
             where: { itemId_locationId: { itemId: unit.itemId, locationId: toLocationId } },
             data: { qty: { increment: 1 } },
           });
+          if (unit.inventoryBatchId) {
+            await tx.inventoryBatch.update({
+              where: { id: unit.inventoryBatchId },
+              data: { remainingQty: { increment: 1 } },
+            });
+          }
 
           updatedUnit = await tx.stockUnit.update({
             where: { id: unitId },
@@ -1071,6 +1131,8 @@ router.post(
           where: { itemId_locationId: { itemId, locationId } },
           data: { qty: { decrement: useQty } },
         });
+
+        await consumeBatchesFifo(tx, itemId, locationId, useQty);
 
         // movement log (use CONSUME or OUT; pick one and keep consistent)
         const movement = await tx.stockMovement.create({

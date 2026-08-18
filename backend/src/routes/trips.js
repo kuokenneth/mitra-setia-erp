@@ -226,6 +226,9 @@ router.get("/", authRequired, async (req, res) => {
 
     const status = str(req.query.status);
     const q = str(req.query.q);
+    const page = Math.max(1, parseInt(req.query.page || "1", 10) || 1);
+    const requestedLimit = parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(100, Math.max(1, requestedLimit)) : null;
 
     // ✅ aliases: from/to -> dateFrom/dateTo
     let dateFrom = toDate(req.query.dateFrom || req.query.from);
@@ -266,18 +269,23 @@ router.get("/", authRequired, async (req, res) => {
       else where.AND = [qFilter];
     }
 
-    const trips = await prisma.trip.findMany({
-      where,
-      orderBy: [{ plannedDepartAt: "desc" }, { createdAt: "desc" }],
-      include: {
-        truck: true,
-        driverUser: true,
-        order: { select: { id: true, orderNo: true, customerName: true, fromText: true, toText: true, status: true } },
-        dispatchLetter: true,
-      },
-    });
+    const [total, trips] = await prisma.$transaction([
+      prisma.trip.count({ where }),
+      prisma.trip.findMany({
+        where,
+        orderBy: [{ plannedDepartAt: "desc" }, { createdAt: "desc" }],
+        ...(limit ? { skip: (page - 1) * limit, take: limit } : {}),
+        include: {
+          truck: true,
+          driverUser: true,
+          order: { select: { id: true, orderNo: true, customerName: true, fromText: true, toText: true, status: true } },
+          dispatchLetter: true,
+          _count: { select: { arrivalProofs: true, expenses: true } },
+        },
+      }),
+    ]);
 
-    res.json({ items: trips.map(normalizeTrip) });
+    res.json({ items: trips.map(normalizeTrip), pagination: { page, limit: limit || total || 1, total, totalPages: limit ? Math.max(1, Math.ceil(total / limit)) : 1 } });
   } catch (e) {
     console.error(e);
     res.status(400).json({ error: e.message || "Failed to load trips" });
@@ -391,9 +399,9 @@ router.get("/:id", authRequired, async (req, res) => {
         order: {
           include: {
             customer: true,
-            proofs: { orderBy: { createdAt: "desc" } },
           },
         },
+        arrivalProofs: { orderBy: { createdAt: "desc" } },
         dispatchLetter: true,
       },
     });
@@ -408,6 +416,23 @@ router.get("/:id", authRequired, async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(400).json({ error: e.message || "Failed to load trip" });
+  }
+});
+
+router.post("/:id/arrival-proofs", authRequired, async (req, res) => {
+  try {
+    const trip = await prisma.trip.findUnique({ where: { id: req.params.id }, select: { id: true, driverUserId: true, status: true } });
+    if (!trip) return res.status(404).json({ error: "Trip not found" });
+    if (!canWrite(req.user) && !(isDriver(req.user) && trip.driverUserId === req.user.id)) return res.status(403).json({ error: "Forbidden" });
+    if (!["DISPATCHED", "ARRIVED", "COMPLETED"].includes(trip.status)) return res.status(400).json({ error: "Bukti timbangan dapat diunggah setelah kendaraan berangkat" });
+    const proofs = Array.isArray(req.body?.proofs) ? req.body.proofs : [];
+    const valid = proofs.filter((proof) => str(proof?.url)).slice(0, 10);
+    if (!valid.length) return res.status(400).json({ error: "Pilih minimal satu bukti timbangan" });
+    await prisma.tripArrivalProof.createMany({ data: valid.map((proof) => ({ tripId: trip.id, url: str(proof.url), fileName: str(proof.fileName), mimeType: str(proof.mimeType), size: Number.isFinite(Number(proof.size)) ? Number(proof.size) : null })) });
+    const arrivalProofs = await prisma.tripArrivalProof.findMany({ where: { tripId: trip.id }, orderBy: { createdAt: "desc" } });
+    res.status(201).json({ arrivalProofs });
+  } catch (e) {
+    res.status(400).json({ error: e.message || "Gagal menyimpan bukti timbangan" });
   }
 });
 

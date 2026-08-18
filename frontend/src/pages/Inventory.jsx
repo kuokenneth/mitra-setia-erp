@@ -479,10 +479,12 @@ export default function Inventory() {
   const [loading, setLoading] = useState(false);
 
   const [items, setItems] = useState([]);
+  const [receiveItems, setReceiveItems] = useState([]);
   const [locations, setLocations] = useState([]);
   const [trucks, setTrucks] = useState([]);
   const [units, setUnits] = useState([]);
   const [movements, setMovements] = useState([]);
+  const [batches, setBatches] = useState([]);
   const [itemPage, setItemPage] = useState(1);
   const [unitPage, setUnitPage] = useState(1);
   const [itemPagination, setItemPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
@@ -625,6 +627,12 @@ export default function Inventory() {
     setMovements(data.movements || []);
   }
 
+  async function loadBatches() {
+    const qs = buildQuery({ itemId: unitItemId || undefined, locationId: unitLocationId || undefined, q: q || undefined });
+    const data = await api(`/inventory/batches${qs}`);
+    setBatches(data.batches || []);
+  }
+
   async function scrapUnit() {
     setErr("");
     try {
@@ -651,6 +659,7 @@ export default function Inventory() {
       if (tab === "ITEMS") await loadItems();
       if (tab === "UNITS") await loadUnits();
       if (tab === "MOVEMENTS") await loadMovements();
+      if (tab === "BATCHES") await loadBatches();
     } catch (e) {
       setErr(String(e?.message || e));
     } finally {
@@ -789,7 +798,7 @@ export default function Inventory() {
   async function receiveStock() {
     setErr("");
     try {
-      const item = items.find((x) => x.id === receiveForm.itemId);
+      const item = receiveItems.find((x) => x.id === receiveForm.itemId) || items.find((x) => x.id === receiveForm.itemId);
       if (!item) throw new Error("Select an item");
       if (!receiveForm.locationId) throw new Error("Select a location");
 
@@ -990,7 +999,8 @@ export default function Inventory() {
                 try {
                   setErr("");
                   await loadLocations();
-                  await loadItems();
+                  const data = await api("/inventory/items");
+                  setReceiveItems(data.items || []);
                   setOpenReceive(true);
                 } catch (e) {
                   setErr(String(e?.message || e));
@@ -1015,6 +1025,9 @@ export default function Inventory() {
               </Btn>
               <Btn style={tabBtn(tab === "MOVEMENTS")} onClick={() => setTab("MOVEMENTS")}>
                 Movements
+              </Btn>
+              <Btn style={tabBtn(tab === "BATCHES")} onClick={() => setTab("BATCHES")}>
+                Asal Stok
               </Btn>
             </div>
 
@@ -1100,6 +1113,7 @@ export default function Inventory() {
             ) : null}
 
             {tab === "MOVEMENTS" ? <MovementsTable movements={filteredMovements} loading={loading} from={mvFrom} to={mvTo} onFromChange={setMvFrom} onToChange={setMvTo} onApply={refresh} /> : null}
+            {tab === "BATCHES" ? <BatchesTable batches={batches} loading={loading} /> : null}
           </div>
         </div>
 
@@ -1269,18 +1283,11 @@ export default function Inventory() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Barang</div>
-              <select
-                style={{ ...selectPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
+              <ItemSearchSelect
+                items={receiveItems}
                 value={receiveForm.itemId}
-                onChange={(e) => setReceiveForm((p) => ({ ...p, itemId: e.target.value }))}
-              >
-                <option value="">Pilih barang...</option>
-                {items.map((it) => (
-                  <option key={it.id} value={it.id}>
-                    {it.sku} — {it.name} {it.isSerialized ? "(serialized)" : ""}
-                  </option>
-                ))}
-              </select>
+                onChange={(itemId) => setReceiveForm((p) => ({ ...p, itemId }))}
+              />
             </div>
 
             <div>
@@ -1341,7 +1348,7 @@ export default function Inventory() {
             </div>
 
             {(() => {
-              const item = items.find((x) => x.id === receiveForm.itemId);
+              const item = receiveItems.find((x) => x.id === receiveForm.itemId) || items.find((x) => x.id === receiveForm.itemId);
               if (!item?.isSerialized) return null;
 
               return (
@@ -1366,7 +1373,7 @@ export default function Inventory() {
             <div style={{ gridColumn: "1 / -1" }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
                 Serialized Units {(() => {
-                  const item = items.find((x) => x.id === receiveForm.itemId);
+                  const item = receiveItems.find((x) => x.id === receiveForm.itemId) || items.find((x) => x.id === receiveForm.itemId);
                   return item?.isSerialized ? "(required)" : "(optional)";
                 })()}
               </div>
@@ -1583,6 +1590,35 @@ export default function Inventory() {
 //////////////////////
 // TABLE COMPONENTS
 //////////////////////
+function BatchesTable({ batches, loading }) {
+  if (loading) return <div style={{ padding: 20, color: BRAND.textMuted }}>Memuat asal stok...</div>;
+  if (!batches.length) return <div style={{ padding: 20, color: BRAND.textMuted }}>Belum ada batch stok yang tercatat.</div>;
+  return (
+    <div style={tableWrap}>
+      <table style={{ ...table, minWidth: 1150 }}>
+        <thead><tr>
+          <th style={th}>Barang</th><th style={th}>Supplier</th><th style={th}>PO / GR</th>
+          <th style={th}>Tanggal Beli</th><th style={th}>Lokasi Terima</th><th style={th}>Diterima</th>
+          <th style={th}>Tersisa</th><th style={th}>Harga/Unit</th>
+        </tr></thead>
+        <tbody>{batches.map((batch) => {
+          const po = batch.purchaseOrderItem?.purchaseOrder;
+          return <tr key={batch.id}>
+            <td style={td}><div>{batch.item?.name || "-"}</div><div style={{ fontSize: 12, color: BRAND.textMuted }}>{batch.item?.sku || "-"}</div></td>
+            <td style={td}>{po?.supplier?.name || <span style={{ color: BRAND.textMuted }}>Tidak tercatat</span>}</td>
+            <td style={td}><div>{po?.number || "Manual"}</div><div style={{ fontSize: 12, color: BRAND.textMuted }}>{batch.goodsReceipt?.number || "Tanpa GR"}</div></td>
+            <td style={tdSoft}>{fmtDate(batch.receivedAt)}</td>
+            <td style={tdSoft}>{batch.location?.name || "-"}</td>
+            <td style={td}>{batch.receivedQty} {batch.item?.unit || ""}</td>
+            <td style={td}>{batch.remainingQty == null ? <Pill>Belum diketahui</Pill> : <Pill variant={Number(batch.remainingQty) > 0 ? "green" : "grey"}>{batch.remainingQty} {batch.item?.unit || ""}</Pill>}</td>
+            <td style={tdSoft}>{batch.unitPrice == null ? "-" : new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(batch.unitPrice)}</td>
+          </tr>;
+        })}</tbody>
+      </table>
+    </div>
+  );
+}
+
 function Pagination({ pagination, onChange }) {
   const { page = 1, totalPages = 1, total = 0, limit = 20 } = pagination || {};
   if (totalPages <= 1) return total ? <div style={{ marginTop: 12, color: BRAND.textMuted, fontSize: 12 }}>{total} data</div> : null;
@@ -1718,6 +1754,7 @@ function UnitsTable({
                 <th style={th}>Barcode</th>
                 <th style={th}>Status</th>
                 <th style={th}>Location</th>
+                <th style={th}>Asal Pembelian</th>
                 <th style={th}>Kendaraan</th>
                 <th style={th}>Tindakan</th>
               </tr>
@@ -1726,6 +1763,7 @@ function UnitsTable({
               {units.map((u) => {
                 const currentAssign = (u.assignments || [])[0];
                 const truck = currentAssign?.truck;
+                const originPo = u.inventoryBatch?.purchaseOrderItem?.purchaseOrder;
                 return (
                   <tr key={u.id}>
                     <td style={td}>{u.serialNumber || "-"}</td>
@@ -1737,6 +1775,10 @@ function UnitsTable({
                       </Pill>
                     </td>
                     <td style={tdSoft}>{u.location?.name || "-"}</td>
+                    <td style={tdSoft}>
+                      <div>{originPo?.supplier?.name || "Tidak tercatat"}</div>
+                      <div style={{ fontSize: 12 }}>{originPo?.number || "-"}{u.inventoryBatch?.goodsReceipt?.number ? ` / ${u.inventoryBatch.goodsReceipt.number}` : ""}</div>
+                    </td>
                     <td style={tdSoft}>{truck?.plateNumber || "-"}</td>
                     <td style={td}>
                       <div style={{ display: "flex", gap: 6 }}>

@@ -12,6 +12,7 @@ import {
   FiFlag,
   FiMapPin,
   FiTruck,
+  FiUploadCloud,
   FiUser,
   FiX,
 } from "react-icons/fi";
@@ -199,6 +200,8 @@ export default function TripDetail() {
 
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState("");
+  const [uploadingArrivalProofs, setUploadingArrivalProofs] = useState(false);
+  const [arrivalProofErr, setArrivalProofErr] = useState("");
 
   async function load() {
     try {
@@ -412,15 +415,40 @@ export default function TripDetail() {
             </div>
           </div>
 
-          {/* Proofs quick view (from order.proofs included in GET /trips/:id) */}
+          {/* Trip-specific proof that the goods reached destination. */}
           <div style={{ marginTop: 14 }}>
-            <div style={{ fontWeight: 650, marginBottom: 8, fontSize: 16 }}>Bukti Pesanan</div>
+            <div style={{ fontWeight: 650, marginBottom: 4, fontSize: 16 }}>Bukti Timbangan / Barang Tiba</div>
+            <div style={{ color: "#718078", fontSize: 13, marginBottom: 12 }}>Unggah surat timbang atau dokumen penerimaan dari lokasi tujuan.</div>
 
-            {(order?.proofs || []).length === 0 ? (
-              <div style={{ color: "#7A8780", fontWeight: 400, fontSize: 13, padding: "12px 0" }}>Belum ada bukti pesanan yang diunggah.</div>
+            {(canWrite || isDriver) && ["DISPATCHED", "ARRIVED", "COMPLETED"].includes(currentStatus) ? (
+              <label style={{ display: "flex", alignItems: "center", gap: 13, padding: "14px 16px", marginBottom: 14, borderRadius: 12, border: `1.5px dashed ${uploadingArrivalProofs ? "#0D7C3D" : "#A9D2BA"}`, background: "linear-gradient(135deg, #F7FBF8 0%, #EEF7F1 100%)", cursor: uploadingArrivalProofs ? "not-allowed" : "pointer" }}>
+                <span style={{ width: 40, height: 40, borderRadius: 10, display: "grid", placeItems: "center", color: "#0D7C3D", background: "#FFFFFF", boxShadow: "0 3px 10px rgba(13,124,61,.10)" }}><FiUploadCloud size={20}/></span>
+                <span><strong style={{ display: "block", color: "#173B2D", fontSize: 14 }}>{uploadingArrivalProofs ? "Sedang mengunggah..." : "Tambah bukti timbangan"}</strong><span style={{ color: "#718078", fontSize: 12 }}>Gambar atau PDF · maksimal 15 MB per file</span></span>
+                <input type="file" multiple accept="image/*,application/pdf" disabled={uploadingArrivalProofs} style={{ position: "absolute", width: 1, height: 1, opacity: 0 }} onChange={async (e) => {
+                  try {
+                    setArrivalProofErr("");
+                    const files = Array.from(e.target.files || []);
+                    if (!files.length) return;
+                    setUploadingArrivalProofs(true);
+                    const uploaded = await uploadFiles(files);
+                    await api(`/trips/${id}/arrival-proofs`, { method: "POST", body: JSON.stringify({ proofs: uploaded }) });
+                    e.target.value = "";
+                    await load();
+                  } catch (error) {
+                    setArrivalProofErr(error?.message || "Gagal mengunggah bukti timbangan");
+                  } finally {
+                    setUploadingArrivalProofs(false);
+                  }
+                }}/>
+              </label>
+            ) : currentStatus === "PLANNED" ? <div style={{ marginBottom: 14, padding: "12px 14px", borderRadius: 10, background: "#F4F7F5", color: "#718078", fontSize: 12 }}>Upload tersedia setelah kendaraan berangkat.</div> : null}
+            {arrivalProofErr ? <div style={{ marginBottom: 12, color: "#DC2626", fontSize: 13, fontWeight: 600 }}>{arrivalProofErr}</div> : null}
+
+            {(trip.arrivalProofs || []).length === 0 ? (
+              <div style={{ color: "#7A8780", fontWeight: 400, fontSize: 13, padding: "12px 0" }}>Belum ada bukti barang tiba yang diunggah.</div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-                {(order?.proofs || []).slice(0, 8).map((p) => {
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                {(trip.arrivalProofs || []).map((p) => {
                   const isPdf =
                     String(p.mimeType || "").toLowerCase().includes("pdf") ||
                     String(p.url || "").toLowerCase().includes(".pdf");
@@ -429,18 +457,19 @@ export default function TripDetail() {
                     <div
                       key={p.id}
                       style={{
-                        borderRadius: 16,
+                        width: 190,
+                        maxWidth: "100%",
+                        boxSizing: "border-box",
+                        overflow: "hidden",
+                        borderRadius: 12,
                         border: "1px solid rgba(15, 60, 45, 0.12)",
                         background: "linear-gradient(180deg, #FFFFFF 0%, #FBFFFD 100%)",
                         boxShadow: "0 12px 26px rgba(10, 40, 30, 0.06)",
                         padding: 10,
                       }}
                     >
-                      <div style={{ fontWeight: 1000, fontSize: 12, color: "#2F6B55" }}>{fmtDateTime(p.createdAt)}</div>
-
                       {isPdf ? (
-                        <div style={{ marginTop: 10 }}>
-                          <div style={{ fontWeight: 1000 }}>PDF</div>
+                        <div style={{ height: 112, display: "grid", placeItems: "center", borderRadius: 9, background: "#F1F7F3" }}>
                           <a href={apiAssetUrl(p.url)} target="_blank" rel="noreferrer" style={{ fontWeight: 600, color: "#0B2A1F" }}>
                             Buka PDF
                           </a>
@@ -449,26 +478,20 @@ export default function TripDetail() {
                         <a href={apiAssetUrl(p.url)} target="_blank" rel="noreferrer">
                           <img
                             src={apiAssetUrl(p.url)}
-                            alt="Bukti pesanan"
-                            style={{ marginTop: 8, width: "100%", height: 150, objectFit: "cover", borderRadius: 12 }}
+                            alt={p.fileName || "Bukti timbangan"}
+                            style={{ display: "block", width: "100%", height: 112, objectFit: "cover", borderRadius: 9 }}
                           />
                         </a>
                       )}
 
-                      <div style={{ marginTop: 8, fontWeight: 900, fontSize: 12, color: "#2F6B55" }}>{p.fileName || ""}</div>
+                      <div title={p.fileName || "Bukti timbangan"} style={{ marginTop: 8, fontWeight: 700, fontSize: 12, color: "#2F6B55", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.fileName || "Bukti timbangan"}</div>
+                      <div style={{ marginTop: 3, fontSize: 11, color: "#718078" }}>{fmtDateTime(p.createdAt)}</div>
                     </div>
                   );
                 })}
               </div>
             )}
 
-            {(order?.proofs || []).length > 8 ? (
-              <div style={{ marginTop: 10 }}>
-                <button style={btnGhost} onClick={() => nav(`/orders/${order.id}`)}>
-                  Lihat semua bukti di pesanan
-                </button>
-              </div>
-            ) : null}
           </div>
         </div>
       </div>

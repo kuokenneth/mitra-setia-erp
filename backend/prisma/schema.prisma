@@ -98,6 +98,18 @@ enum ExpenseStatus {
   APPROVED
 }
 
+enum ExpenseCategory {
+  TRIP_ALLOWANCE
+  DRIVER_SALARY
+  FUEL
+  TOLL_PARKING
+  LOADING_UNLOADING
+  REPAIR_MAINTENANCE
+  SPAREPART
+  OFFICE_OPERATIONAL
+  OTHER
+}
+
 enum PurchaseRequestStatus {
   DRAFT
   WAITING_APPROVAL
@@ -179,7 +191,7 @@ model User {
   invoicesCreated             Invoice[]                  @relation("InvoiceCreatedBy")
   receivablePaymentsCreated   ReceivablePayment[]        @relation("ReceivablePaymentCreatedBy")
   ordersCreated               Order[]                    @relation("OrderCreatedBy")
-  auditLogs                   AuditLog[]                  @relation("AuditLogActor")
+  auditLogs                   AuditLog[]                 @relation("AuditLogActor")
   journalEntriesCreated       JournalEntry[]             @relation("JournalEntryCreatedBy")
 }
 
@@ -279,30 +291,39 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderItem {
-  id              String             @id @default(cuid())
-  purchaseOrderId String
-  purchaseOrder   PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  itemId          String
-  item            Item               @relation(fields: [itemId], references: [id])
-  qty             Float
-  unitPrice       Int
-  receivedQty     Float              @default(0)
-  receiptItems    GoodsReceiptItem[]
+  id               String             @id @default(cuid())
+  purchaseOrderId  String
+  purchaseOrder    PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  itemId           String
+  item             Item               @relation(fields: [itemId], references: [id])
+  qty              Float
+  unitPrice        Int
+  receivedQty      Float              @default(0)
+  receiptItems     GoodsReceiptItem[]
+  inventoryBatches InventoryBatch[]
 }
 
 model GoodsReceipt {
-  id              String             @id @default(cuid())
-  number          String             @unique
-  purchaseOrderId String
-  purchaseOrder   PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id])
-  locationId      String
-  location        InventoryLocation  @relation(fields: [locationId], references: [id])
-  deliveryNote    String?
-  notes           String?
-  receivedAt      DateTime           @default(now())
-  createdById     String
-  createdBy       User               @relation("GoodsReceiptCreatedBy", fields: [createdById], references: [id])
-  items           GoodsReceiptItem[]
+  id                      String             @id @default(cuid())
+  number                  String             @unique
+  purchaseOrderId         String
+  purchaseOrder           PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id])
+  locationId              String
+  location                InventoryLocation  @relation(fields: [locationId], references: [id])
+  deliveryNote            String?
+  notes                   String?
+  supplierInvoiceNumber   String?
+  supplierInvoiceDate     DateTime?
+  supplierInvoiceAmount   Int?
+  supplierInvoiceProofUrl String?
+  supplierInvoiceFileName String?
+  supplierInvoiceMimeType String?
+  supplierInvoiceSize     Int?
+  receivedAt              DateTime           @default(now())
+  createdById             String
+  createdBy               User               @relation("GoodsReceiptCreatedBy", fields: [createdById], references: [id])
+  items                   GoodsReceiptItem[]
+  inventoryBatches        InventoryBatch[]
 }
 
 model GoodsReceiptItem {
@@ -313,6 +334,7 @@ model GoodsReceiptItem {
   purchaseOrderItem   PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id])
   qty                 Float
   condition           String            @default("GOOD")
+  inventoryBatch      InventoryBatch?
 }
 
 model PurchasePayment {
@@ -499,6 +521,7 @@ model Trip {
 
   dispatchLetter   DispatchLetter?
   materialInvoices MaterialInvoice[]
+  arrivalProofs    TripArrivalProof[]
 
   expenses Expense[]
 
@@ -509,6 +532,21 @@ model Trip {
   @@index([truckId])
   @@index([driverUserId])
   @@index([status])
+}
+
+model TripArrivalProof {
+  id     String @id @default(cuid())
+  tripId String
+  trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  url      String
+  fileName String?
+  mimeType String?
+  size     Int?
+
+  createdAt DateTime @default(now())
+
+  @@index([tripId])
 }
 
 model OrderProof {
@@ -670,11 +708,12 @@ model TruckMaintenance {
 // INVENTORY
 ////////////////////////////////////////////////////
 model StockUnit {
-  id           String  @id @default(cuid())
-  itemId       String
-  locationId   String?
-  serialNumber String? @unique
-  barcode      String? @unique
+  id               String  @id @default(cuid())
+  itemId           String
+  locationId       String?
+  serialNumber     String? @unique
+  barcode          String? @unique
+  inventoryBatchId String?
 
   purchasePrice Int?
   currency      String?   @default("IDR")
@@ -685,8 +724,9 @@ model StockUnit {
   updatedAt  DateTime        @updatedAt
   scrappedAt DateTime?
 
-  item     Item               @relation(fields: [itemId], references: [id])
-  location InventoryLocation? @relation(fields: [locationId], references: [id])
+  item           Item               @relation(fields: [itemId], references: [id])
+  location       InventoryLocation? @relation(fields: [locationId], references: [id])
+  inventoryBatch InventoryBatch?    @relation(fields: [inventoryBatchId], references: [id], onDelete: SetNull)
 
   assignments TruckSparePartAssignment[]
   movements   StockMovement[]
@@ -694,6 +734,7 @@ model StockUnit {
   @@index([itemId])
   @@index([locationId])
   @@index([status])
+  @@index([inventoryBatchId])
 }
 
 model TruckSparePartAssignment {
@@ -740,6 +781,7 @@ model Item {
   stockUnits           StockUnit[]
   purchaseRequestItems PurchaseRequestItem[]
   purchaseOrderItems   PurchaseOrderItem[]
+  inventoryBatches     InventoryBatch[]
 }
 
 model InventoryLocation {
@@ -751,8 +793,34 @@ model InventoryLocation {
   fromMoves StockMovement[]  @relation("FromLocation")
   toMoves   StockMovement[]  @relation("ToLocation")
 
-  stockUnits    StockUnit[]
-  goodsReceipts GoodsReceipt[]
+  stockUnits       StockUnit[]
+  goodsReceipts    GoodsReceipt[]
+  inventoryBatches InventoryBatch[]
+}
+
+model InventoryBatch {
+  id                  String   @id @default(cuid())
+  itemId              String
+  locationId          String
+  goodsReceiptId      String?
+  goodsReceiptItemId  String?  @unique
+  purchaseOrderItemId String?
+  receivedQty         Float
+  remainingQty        Float?
+  unitPrice           Int?
+  receivedAt          DateTime @default(now())
+  createdAt           DateTime @default(now())
+
+  item              Item               @relation(fields: [itemId], references: [id])
+  location          InventoryLocation  @relation(fields: [locationId], references: [id])
+  goodsReceipt      GoodsReceipt?      @relation(fields: [goodsReceiptId], references: [id], onDelete: SetNull)
+  goodsReceiptItem  GoodsReceiptItem?  @relation(fields: [goodsReceiptItemId], references: [id], onDelete: SetNull)
+  purchaseOrderItem PurchaseOrderItem? @relation(fields: [purchaseOrderItemId], references: [id], onDelete: SetNull)
+  stockUnits        StockUnit[]
+
+  @@index([itemId, locationId, remainingQty])
+  @@index([goodsReceiptId])
+  @@index([purchaseOrderItemId])
 }
 
 model InventoryStock {
@@ -810,7 +878,8 @@ model Expense {
   accountNumber String?
 
   amount   Int
-  currency String @default("IDR")
+  currency String          @default("IDR")
+  category ExpenseCategory @default(OTHER)
 
   reason     String
   clientName String?

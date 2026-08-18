@@ -25,6 +25,7 @@ import CreateDriver from "./pages/CreateDriver";
 import OrderCreate from "./pages/OrderCreate";
 import OrderDetail from "./pages/OrderDetail";
 import TripDetail from "./pages/TripDetail";
+import Trips from "./pages/Trips";
 import Purchasing from "./pages/Purchasing";
 import Receivables from "./pages/Receivables";
 import Accounting from "./pages/Accounting";
@@ -69,6 +70,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             <Route path="/orders/:id" element={<OrderDetail />} />
             <Route path="/drivers/new" element={<CreateDriver />} />
             <Route path="/trips/:id" element={<TripDetail />} />
+            <Route path="/trips" element={<Trips />} />
 
             {/* Driver */}
             <Route path="/driver" element={<DriverHome />} />

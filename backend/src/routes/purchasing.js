@@ -48,26 +48,35 @@ router.patch("/orders/:id/status", requireRole("OWNER", "ADMIN"), async (req, re
   res.json({ ok: true, order: await prisma.purchaseOrder.update({ where: { id: req.params.id }, data: { status: req.body.status } }) });
 });
 router.post("/receipts", async (req, res) => {
-  const { purchaseOrderId, locationId, deliveryNote, notes, items = [] } = req.body;
+  const { purchaseOrderId, locationId, deliveryNote, notes, supplierInvoiceNumber, supplierInvoiceDate, supplierInvoiceAmount, supplierInvoiceProofUrl, supplierInvoiceFileName, supplierInvoiceMimeType, supplierInvoiceSize, items = [] } = req.body;
+  try {
   const receipt = await prisma.$transaction(async tx => {
     const po = await tx.purchaseOrder.findUnique({ where: { id: purchaseOrderId }, include: { items: { include: { item: true } } } });
+    if (!po) throw new Error("Purchase Order tidak ditemukan");
+    if (!locationId || !items.length) throw new Error("Lokasi dan item penerimaan wajib diisi");
+    const invoiceAmount = supplierInvoiceAmount === "" || supplierInvoiceAmount == null ? null : Number(supplierInvoiceAmount);
+    if (invoiceAmount != null && (!Number.isFinite(invoiceAmount) || invoiceAmount < 0)) throw new Error("Nilai invoice supplier tidak valid");
+    const invoiceDate = supplierInvoiceDate ? new Date(supplierInvoiceDate) : null;
+    if (invoiceDate && Number.isNaN(invoiceDate.getTime())) throw new Error("Tanggal invoice supplier tidak valid");
+    const rec = await tx.goodsReceipt.create({ data: { number: seq("GR"), purchaseOrderId, locationId, deliveryNote, notes, supplierInvoiceNumber: supplierInvoiceNumber ? String(supplierInvoiceNumber).trim() : null, supplierInvoiceDate: invoiceDate, supplierInvoiceAmount: invoiceAmount == null ? null : Math.round(invoiceAmount), supplierInvoiceProofUrl: supplierInvoiceProofUrl || null, supplierInvoiceFileName: supplierInvoiceFileName || null, supplierInvoiceMimeType: supplierInvoiceMimeType || null, supplierInvoiceSize: Number.isFinite(Number(supplierInvoiceSize)) ? Number(supplierInvoiceSize) : null, createdById: req.user.id } });
     for (const row of items) {
       const poi = po.items.find(i => i.id === row.purchaseOrderItemId); const qty = Number(row.qty);
       if (!poi || qty <= 0 || poi.receivedQty + qty > poi.qty) throw new Error("Jumlah penerimaan melebihi sisa PO");
+      const receiptItem = await tx.goodsReceiptItem.create({ data: { receiptId: rec.id, purchaseOrderItemId: poi.id, qty, condition: row.condition || "GOOD" } });
+      const batch = await tx.inventoryBatch.create({ data: { itemId: poi.itemId, locationId, goodsReceiptId: rec.id, goodsReceiptItemId: receiptItem.id, purchaseOrderItemId: poi.id, receivedQty: qty, remainingQty: qty, unitPrice: poi.unitPrice, receivedAt: rec.receivedAt } });
       if (poi.item.isSerialized) {
         const units = Array.isArray(row.units) ? row.units : [];
         if (!Number.isInteger(qty) || units.length !== qty) throw new Error(`${poi.item.name}: jumlah serial number harus sama dengan qty diterima`);
         for (const unit of units) {
           const serialNumber = String(unit.serialNumber || "").trim();
           if (!serialNumber) throw new Error(`${poi.item.name}: serial number wajib diisi`);
-          await tx.stockUnit.create({ data: { itemId: poi.itemId, locationId, serialNumber, barcode: unit.barcode ? String(unit.barcode).trim() : null, purchasePrice: poi.unitPrice, purchasedAt: new Date(), currency: "IDR", status: "IN_STOCK" } });
+          await tx.stockUnit.create({ data: { itemId: poi.itemId, locationId, inventoryBatchId: batch.id, serialNumber, barcode: unit.barcode ? String(unit.barcode).trim() : null, purchasePrice: poi.unitPrice, purchasedAt: rec.receivedAt, currency: "IDR", status: "IN_STOCK" } });
         }
       }
       await tx.purchaseOrderItem.update({ where: { id: poi.id }, data: { receivedQty: { increment: qty } } });
       await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: poi.itemId, locationId } }, create: { itemId: poi.itemId, locationId, qty }, update: { qty: { increment: qty } } });
       await tx.stockMovement.create({ data: { type: "IN", itemId: poi.itemId, qty, toLocationId: locationId, createdById: req.user.id, note: `Penerimaan ${po.number}` } });
     }
-    const rec = await tx.goodsReceipt.create({ data: { number: seq("GR"), purchaseOrderId, locationId, deliveryNote, notes, createdById: req.user.id, items: { create: items.map(i => ({ purchaseOrderItemId: i.purchaseOrderItemId, qty: Number(i.qty), condition: i.condition || "GOOD" })) } } });
     const all = await tx.purchaseOrderItem.findMany({ where: { purchaseOrderId } });
     const fullyReceived = all.every(i => i.receivedQty >= i.qty);
     const receiptValue = items.reduce((sum, row) => {
@@ -77,6 +86,9 @@ router.post("/receipts", async (req, res) => {
     if (receiptValue > 0) await postJournal(tx, { date: rec.receivedAt, description: `Penerimaan barang ${rec.number}`, sourceType: "GOODS_RECEIPT", sourceId: rec.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.INVENTORY, debit: receiptValue }, { code: SYSTEM_ACCOUNTS.AP, credit: receiptValue }] });
     await tx.purchaseOrder.update({ where: { id: purchaseOrderId }, data: { status: fullyReceived ? "FULLY_RECEIVED" : "PARTIALLY_RECEIVED" } }); return rec;
   }); res.json({ ok: true, receipt });
+  } catch (e) {
+    res.status(400).json({ error: e.message || "Gagal menerima barang" });
+  }
 });
 router.post("/payments", async (req, res) => {
   const po = await prisma.purchaseOrder.findUnique({ where: { id: req.body.purchaseOrderId }, include: { items: true, payments: true } });

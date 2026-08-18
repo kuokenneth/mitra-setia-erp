@@ -24,6 +24,18 @@ const BRAND = {
   infoLight: "#DBEAFE",
 };
 
+const EXPENSE_CATEGORIES = {
+  TRIP_ALLOWANCE: "Uang Jalan",
+  DRIVER_SALARY: "Gaji Sopir",
+  FUEL: "BBM",
+  TOLL_PARKING: "Tol & Parkir",
+  LOADING_UNLOADING: "Bongkar Muat",
+  REPAIR_MAINTENANCE: "Perbaikan & Perawatan",
+  SPAREPART: "Sparepart",
+  OFFICE_OPERATIONAL: "Operasional Kantor",
+  OTHER: "Lainnya",
+};
+
 export default function Expenses() {
   const { user } = useAuth();
   const role = user?.role || "UNKNOWN";
@@ -68,6 +80,7 @@ export default function Expenses() {
 
   const [form, setForm] = useState({
     tripId: "",
+    category: "TRIP_ALLOWANCE",
     paymentMethod: "BANK_TRANSFER",
     bankName: "",
     accountName: "",
@@ -94,6 +107,7 @@ export default function Expenses() {
   function resetForm() {
     setForm({
       tripId: "",
+      category: "TRIP_ALLOWANCE",
       paymentMethod: "BANK_TRANSFER",
       bankName: "",
       accountName: "",
@@ -145,10 +159,8 @@ export default function Expenses() {
     try {
       const params = new URLSearchParams();
       if (search.trim()) params.set("q", search.trim());
-      params.set("status", "PLANNED");
       const data = await api(`/trips?${params.toString()}`);
-      // Pertahanan tambahan: uang jalan hanya dibuat sebelum kendaraan berangkat.
-      setTrips((data.items || []).filter((trip) => trip.status === "PLANNED"));
+      setTrips((data.items || []).filter((trip) => !["COMPLETED", "CANCELLED"].includes(trip.status)));
     } catch (e) {
       setErr(e.message || "Gagal memuat trips");
     } finally {
@@ -230,6 +242,7 @@ export default function Expenses() {
         method: "POST",
         body: JSON.stringify({
           tripId: form.tripId || undefined,
+          category: form.category,
           paymentMethod: form.paymentMethod,
           bankName: form.bankName,
           accountName: form.accountName,
@@ -450,6 +463,7 @@ export default function Expenses() {
                 <th style={s.th}>Bank</th>
                 <th style={s.th}>Rekening</th>
                 <th style={s.th}>Jumlah</th>
+                <th style={s.th}>Kategori</th>
                 <th style={s.th}>Alasan</th>
                 <th style={s.th}>Klien</th>
                 <th style={s.th}>Tindakan</th>
@@ -481,6 +495,7 @@ export default function Expenses() {
                       maximumFractionDigits: 0,
                     }).format(x.amount || 0)}
                   </td>
+                  <td style={s.td}>{EXPENSE_CATEGORIES[x.category] || "Lainnya"}</td>
                   <td style={s.td}>{x.reason}</td>
                   <td style={s.tdSoft}>{x.clientName || "-"}</td>
                   <td style={s.td}>
@@ -571,7 +586,7 @@ export default function Expenses() {
 
               {!loading && items.length === 0 ? (
                 <tr>
-                  <td style={s.empty} colSpan={9}>
+                  <td style={s.empty} colSpan={10}>
                     Tidak ada expenses ditemukan.
                   </td>
                 </tr>
@@ -620,7 +635,7 @@ export default function Expenses() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12, marginBottom: 8 }}>
                     <div>
                       <label style={{ ...s.label, marginBottom: 3 }}>Perjalanan (opsional)</label>
-                      <div style={{ color: BRAND.textMuted, fontSize: 11 }}>Pilih trip aktif atau buat perjalanan kembali tanpa muatan.</div>
+                      <div style={{ color: BRAND.textMuted, fontSize: 11 }}>Trip dapat dipilih sampai status Tiba; trip Selesai tidak ditampilkan.</div>
                     </div>
                     <button type="button" onClick={openEmptyReturn} style={{ ...s.secondaryBtn, padding: "9px 13px", whiteSpace: "nowrap" }}>
                       + Kembali kosong
@@ -645,7 +660,7 @@ export default function Expenses() {
                             (t.driverName || t.driverUser?.name || "Driver") + " • " +
                             (t.truckPlate || t.truck?.plateNumber || "Truck") + " • " +
                             (t.order?.fromText || t.fromText || "-") + " → " +
-                            (t.order?.toText || t.toText || "-")}
+                            (t.order?.toText || t.toText || "-") + ` • ${t.status}`}
                         </option>
                       ))}
                     </select>
@@ -731,6 +746,12 @@ export default function Expenses() {
                     onChange={(e) => onChangeForm("amount", e.target.value)}
                     placeholder="0"
                   />
+                </div>
+                <div>
+                  <label style={s.label}>Kategori Pengeluaran</label>
+                  <select style={s.select} value={form.category} onChange={(e) => onChangeForm("category", e.target.value)}>
+                    {Object.entries(EXPENSE_CATEGORIES).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label style={s.label}>Mata Uang</label>
@@ -820,6 +841,10 @@ export default function Expenses() {
                 <div style={s.detailValue}>
                   {detailItem.trip?.truck?.plateNumber || detailItem.trip?.plateNumberSnap || "-"}
                 </div>
+              </div>
+              <div>
+                <div style={s.detailLabel}>Kategori</div>
+                <div style={s.detailValue}>{EXPENSE_CATEGORIES[detailItem.category] || "Lainnya"}</div>
               </div>
               <div>
                 <div style={s.detailLabel}>Alasan</div>

@@ -15,6 +15,7 @@ import {
   FiMapPin,
   FiPackage,
   FiPlus,
+  FiUploadCloud,
   FiUser,
   FiX,
 } from "react-icons/fi";
@@ -732,8 +733,10 @@ export default function OrderDetail() {
           {tab === "PROOFS" && (
             <div>
               {canWrite && (
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ marginBottom: 18 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", borderRadius: 10, border: `1.5px dashed ${uploadingProofs ? BRAND.primary : "#B7D8C5"}`, background: "linear-gradient(135deg, #F7FBF8 0%, #EEF7F1 100%)", cursor: uploadingProofs ? "not-allowed" : "pointer", opacity: uploadingProofs ? 0.7 : 1 }}>
+                    <span style={{ width: 42, height: 42, borderRadius: 10, display: "grid", placeItems: "center", flex: "0 0 auto", color: BRAND.primary, background: BRAND.white, boxShadow: "0 3px 10px rgba(13,124,61,.10)" }}><FiUploadCloud size={21}/></span>
+                    <span style={{ display: "grid", gap: 3 }}><strong style={{ fontSize: 14, color: BRAND.text }}>{uploadingProofs ? "Sedang mengunggah..." : "Tambah gambar atau PDF"}</strong><span style={{ fontSize: 12, color: BRAND.textMuted }}>Bisa memilih beberapa file · maksimal 15 MB per file</span></span>
                     <input
                       type="file"
                       multiple
@@ -768,20 +771,9 @@ export default function OrderDetail() {
                           setUploadingProofs(false);
                         }
                       }}
-                      style={{
-                        height: 44,
-                        padding: "10px 14px",
-                        borderRadius: 6,
-                        border: `1px solid ${BRAND.border}`,
-                        fontWeight: 500,
-                        maxWidth: 360,
-                        background: BRAND.white,
-                      }}
+                      style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
                     />
-                    <span style={{ fontSize: 13, color: BRAND.textMuted }}>
-                      {uploadingProofs ? "Sedang mengunggah..." : "Pilih beberapa gambar atau PDF · maks. 15 MB per file"}
-                    </span>
-                  </div>
+                  </label>
                   {uploadProofErr && <div style={{ marginTop: 10, color: BRAND.danger, fontWeight: 500 }}>{uploadProofErr}</div>}
                 </div>
               )}
@@ -789,7 +781,7 @@ export default function OrderDetail() {
               {proofs.length === 0 ? (
                 <div style={{ color: BRAND.textMuted, fontSize: 14 }}>Belum ada bukti pesanan.</div>
               ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
                   {proofs.map((p) => {
                     const isPdf =
                       String(p.mimeType || "").toLowerCase().includes("pdf") ||
@@ -799,28 +791,33 @@ export default function OrderDetail() {
                       <div
                         key={p.id}
                         style={{
-                          padding: 12,
-                          borderRadius: 6,
+                          display: "grid",
+                          gap: 8,
+                          width: 190,
+                          maxWidth: "100%",
+                          padding: 8,
+                          boxSizing: "border-box",
+                          overflow: "hidden",
+                          borderRadius: 10,
                           border: `1px solid ${BRAND.border}`,
-                          background: BRAND.secondary,
+                          background: BRAND.white,
+                          boxShadow: "0 4px 14px rgba(17,24,39,.06)",
                         }}
                       >
-                        <div style={{ fontSize: 12, color: BRAND.textMuted, marginBottom: 8 }}>{fmtDateTime(p.createdAt)}</div>
-
                         {isPdf ? (
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <FiFile size={24} color={BRAND.textLight} />
-                            <a href={apiAssetUrl(p.url)} target="_blank" rel="noreferrer" style={{ color: BRAND.primary, fontWeight: 500 }}>
+                          <div style={{ height: 112, display: "grid", placeItems: "center", gap: 4, borderRadius: 8, background: "#F3F7F4" }}>
+                            <FiFile size={30} color={BRAND.primary} />
+                            <a href={apiAssetUrl(p.url)} target="_blank" rel="noreferrer" style={{ color: BRAND.primary, fontSize: 12, fontWeight: 600, textDecoration: "none" }}>
                               Buka PDF
                             </a>
                           </div>
                         ) : (
                           <a href={apiAssetUrl(p.url)} target="_blank" rel="noreferrer">
-                            <img src={apiAssetUrl(p.url)} alt="Bukti pesanan" style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: 4 }} />
+                            <img src={apiAssetUrl(p.url)} alt={p.fileName || "Bukti pesanan"} style={{ display: "block", width: "100%", height: 112, objectFit: "cover", borderRadius: 8, background: BRAND.secondary }} />
                           </a>
                         )}
 
-                        {p.fileName && <div style={{ marginTop: 8, fontSize: 12, color: BRAND.textMuted }}>{p.fileName}</div>}
+                        <div style={{ minWidth: 0, padding: "2px 4px 3px" }}><div title={p.fileName || "Bukti"} style={{ fontSize: 12, fontWeight: 600, color: BRAND.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.fileName || "Bukti"}</div><div style={{ marginTop: 3, fontSize: 11, color: BRAND.textMuted }}>{fmtDateTime(p.createdAt)}</div></div>
                       </div>
                     );
                   })}

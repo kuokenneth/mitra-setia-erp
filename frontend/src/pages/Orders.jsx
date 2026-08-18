@@ -4,7 +4,7 @@ import { api, apiAssetUrl, uploadFiles } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { useNavigate } from "react-router-dom";
-import { FiPlus, FiSearch, FiX } from "react-icons/fi";
+import { FiFileText, FiPlus, FiSearch, FiTrash2, FiUploadCloud, FiX } from "react-icons/fi";
 
 //////////////////////
 // THEME - CORPORATE MINIMALIST
@@ -749,12 +749,15 @@ export default function Orders() {
             <div style={{ marginBottom: 10, color: BRAND.danger, fontWeight: 500, fontSize: 14 }}>{uploadErr}</div>
           )}
 
-          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ borderRadius: 10, border: `1.5px dashed ${uploading ? BRAND.primary : "#B7D8C5"}`, background: "linear-gradient(135deg, #F7FBF8 0%, #EEF7F1 100%)", overflow: "hidden" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", cursor: creating || uploading ? "not-allowed" : "pointer", opacity: creating ? 0.65 : 1, borderBottom: proofs.length ? `1px solid ${BRAND.border}` : "none" }}>
+            <span style={{ width: 42, height: 42, borderRadius: 10, display: "grid", placeItems: "center", flex: "0 0 auto", color: BRAND.primary, background: BRAND.white, boxShadow: "0 3px 10px rgba(13,124,61,.10)" }}><FiUploadCloud size={21}/></span>
+            <span style={{ display: "grid", gap: 3 }}>
+              <strong style={{ fontSize: 14, color: BRAND.text }}>{uploading ? "Sedang mengunggah..." : "Pilih gambar atau PDF"}</strong>
+              <span style={{ fontSize: 12, color: BRAND.textMuted }}>Bisa memilih beberapa file · maksimal 15 MB per file</span>
+            </span>
             <input
-              type="file"
-              multiple
-              accept="image/*,application/pdf"
-              disabled={creating || uploading}
+              type="file" multiple accept="image/*,application/pdf" disabled={creating || uploading}
               onChange={async (e) => {
                 try {
                   setUploadErr("");
@@ -781,24 +784,12 @@ export default function Orders() {
                   setUploading(false);
                 }
               }}
-              style={{
-                height: 44,
-                padding: "10px 14px",
-                borderRadius: 6,
-                border: `1px solid ${BRAND.border}`,
-                fontWeight: 500,
-                maxWidth: 360,
-                background: BRAND.white,
-              }}
+              style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
             />
-
-            <span style={{ fontSize: 13, color: BRAND.textMuted }}>
-              {uploading ? "Sedang mengunggah..." : "Bisa memilih beberapa file · maks. 15 MB per file"}
-            </span>
-          </div>
+          </label>
 
           {proofs.length > 0 && (
-            <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ padding: 12, display: "flex", flexWrap: "wrap", gap: 10, overflow: "hidden" }}>
               {proofs.map((p, idx) => {
                 const isPdf =
                   String(p.mimeType || "").includes("pdf") || String(p.url || "").toLowerCase().includes(".pdf");
@@ -807,41 +798,40 @@ export default function Orders() {
                   <div
                     key={`${p.url}-${idx}`}
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      gap: 12,
-                      padding: 12,
-                      borderRadius: 6,
+                      display: "grid",
+                      gap: 8,
+                      padding: 8,
+                      width: 190,
+                      maxWidth: "100%",
+                      boxSizing: "border-box",
+                      minWidth: 0,
+                      overflow: "hidden",
+                      borderRadius: 10,
                       border: `1px solid ${BRAND.border}`,
-                      background: BRAND.secondary,
+                      background: BRAND.white,
+                      boxShadow: "0 4px 14px rgba(17, 24, 39, .06)",
                     }}
                   >
-                    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                      {isPdf ? (
-                        <div style={{ fontWeight: 600, color: BRAND.textLight }}>PDF</div>
-                      ) : (
+                    {isPdf ? (
+                      <div style={{ height: 112, display: "grid", placeItems: "center", gap: 4, borderRadius: 8, background: "#F3F7F4" }}>
+                        <FiFileText size={30} color={BRAND.primary}/>
+                        <div>
+                          <a href={apiAssetUrl(p.url)} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: BRAND.primary, fontWeight: 600, textDecoration: "none" }}>Buka PDF</a>
+                        </div>
+                      </div>
+                    ) : (
+                      <a href={apiAssetUrl(p.url)} target="_blank" rel="noreferrer" style={{ display: "block" }}>
                         <img
                           src={apiAssetUrl(p.url)}
-                          alt="Bukti pesanan"
-                          style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 4 }}
+                          alt={p.fileName || "Bukti pesanan"}
+                          style={{ display: "block", width: "100%", height: 112, objectFit: "cover", borderRadius: 8, background: BRAND.secondary }}
                         />
-                      )}
-                      <div>
-                        <div style={{ fontWeight: 500, color: BRAND.text }}>{p.fileName || "Bukti"}</div>
-                        <a
-                          href={apiAssetUrl(p.url)}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{ fontSize: 13, color: BRAND.primary, fontWeight: 500 }}
-                        >
-                          Buka
-                        </a>
-                      </div>
+                      </a>
+                    )}
+                    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 30px", alignItems: "center", gap: 8, padding: "2px 2px 1px 4px", minWidth: 0 }}>
+                      <div title={p.fileName || "Bukti"} style={{ minWidth: 0, maxWidth: "100%", fontWeight: 500, fontSize: 12, color: BRAND.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.fileName || "Bukti"}</div>
+                      <button type="button" title="Hapus" aria-label={`Hapus ${p.fileName || "bukti"}`} onClick={() => removeProof(idx)} disabled={creating || uploading} style={{ width: 30, height: 30, flex: "0 0 auto", display: "grid", placeItems: "center", border: "none", borderRadius: 8, color: BRAND.danger, background: "#FEF2F2", cursor: "pointer" }}><FiTrash2 size={14}/></button>
                     </div>
-                    <Button variant="secondary" onClick={() => removeProof(idx)} disabled={creating || uploading}>
-                      Hapus
-                    </Button>
                   </div>
                 );
               })}
@@ -849,8 +839,9 @@ export default function Orders() {
           )}
 
           {proofs.length === 0 && (
-            <div style={{ marginTop: 10, fontSize: 13, color: BRAND.textMuted }}>Belum ada bukti yang diunggah.</div>
+            <div style={{ padding: "0 18px 14px", fontSize: 12, color: BRAND.textMuted }}>Belum ada bukti yang diunggah.</div>
           )}
+          </div>
         </div>
 
         {/* Actions */}
