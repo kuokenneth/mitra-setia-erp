@@ -1,5 +1,5 @@
 /* Shared tablet behavior: iPad portrait/landscape and similar 8–13 inch screens. */
-@media (min-width: 701px) and (max-width: 1280px) {
+@media (min-width: 701px) and (max-width: 1440px) {
   .orders-filter-grid {
     display: grid !important;
     grid-template-columns: repeat(2,minmax(0,1fr));

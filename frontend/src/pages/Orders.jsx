@@ -486,16 +486,16 @@ export default function Orders() {
 
             <div style={{ flex: "0 0 150px" }}>
               <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
-                From Date
+                Dari tanggal
               </label>
-              <Input className={`tablet-date-input ${dateFrom ? "has-value" : ""}`} aria-label="Tanggal mulai" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+              <span className={`date-placeholder-wrap ${dateFrom ? "has-value" : ""}`} data-placeholder="Pilih tanggal awal"><Input className="tablet-date-input" aria-label="Tanggal mulai" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></span>
             </div>
 
             <div style={{ flex: "0 0 150px" }}>
               <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
-                To Date
+                Sampai tanggal
               </label>
-              <Input className={`tablet-date-input ${dateTo ? "has-value" : ""}`} aria-label="Tanggal selesai" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+              <span className={`date-placeholder-wrap ${dateTo ? "has-value" : ""}`} data-placeholder="Pilih tanggal akhir"><Input className="tablet-date-input" aria-label="Tanggal selesai" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} /></span>
             </div>
 
             <Button variant="primary" onClick={load} disabled={loading} data-testid="apply-btn">

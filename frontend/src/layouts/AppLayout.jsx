@@ -103,11 +103,11 @@ export default function AppLayout() {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() =>
-    window.matchMedia("(max-width: 1280px)").matches
+    window.matchMedia("(max-width: 1440px)").matches
   );
 
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 1280px)");
+    const mq = window.matchMedia("(max-width: 1440px)");
     const onChange = () => setIsMobile(mq.matches);
 
     if (mq.addEventListener) mq.addEventListener("change", onChange);
