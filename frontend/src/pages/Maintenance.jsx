@@ -418,6 +418,8 @@ export default function Maintenance() {
   const [retreadOptions, setRetreadOptions] = useState({ items: [], suppliers: [] });
   const [retreadForm, setRetreadForm] = useState({ toItemId: "", supplierId: "", cost: "", sentAt: "", notes: "" });
   const [tireActionSaving, setTireActionSaving] = useState(false);
+  const [progressNote, setProgressNote] = useState("");
+  const [savingProgressNote, setSavingProgressNote] = useState(false);
 
   const truckSearchTimer = useRef(null);
 
@@ -481,6 +483,7 @@ export default function Maintenance() {
       setUseQty("");
       setUseNote("");
       setPhotoError("");
+      setProgressNote("");
     } catch (e) {
       setErr(e.message || "Gagal memuat detail");
     } finally {
@@ -728,6 +731,26 @@ export default function Maintenance() {
       body: JSON.stringify({ photos }),
     });
     setActiveJob((job) => (job ? { ...job, photos: data.job.photos || [] } : job));
+  }
+
+  async function addProgressNote() {
+    const content = progressNote.trim();
+    if (!activeJob?.id || !content) return;
+    setSavingProgressNote(true);
+    setErr("");
+    try {
+      await api(`/maintenance/${activeJob.id}/notes`, {
+        method: "POST",
+        body: JSON.stringify({ content }),
+      });
+      setProgressNote("");
+      await refreshDetail();
+      await load();
+    } catch (e) {
+      setErr(e.message || "Gagal menambahkan catatan");
+    } finally {
+      setSavingProgressNote(false);
+    }
   }
 
   async function uploadMaintenancePhotos(files) {
@@ -1171,6 +1194,54 @@ export default function Maintenance() {
                     ))}
                   </div>
                 ) : <div style={{ marginTop: 14, color: BRAND.textMuted, fontSize: 13 }}>Belum ada foto dokumentasi.</div>}
+              </div>
+            </Card>
+
+            <Card style={{ gridColumn: "1 / -1" }}>
+              <div style={{ padding: 16 }}>
+                <div style={{ fontWeight: 600, color: BRAND.text }}>Catatan perkembangan servis</div>
+                <div style={{ marginTop: 5, fontSize: 13, color: BRAND.textMuted }}>
+                  Tambahkan temuan kerusakan atau pekerjaan baru tanpa menghapus riwayat sebelumnya.
+                </div>
+
+                {allowed && activeJob.status === "OPEN" ? (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "end", marginTop: 14 }}>
+                    <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
+                      Catatan baru
+                      <textarea
+                        value={progressNote}
+                        onChange={(e) => setProgressNote(e.target.value.slice(0, 2000))}
+                        placeholder="Contoh: Saat dibongkar ditemukan bearing roda aus dan perlu diganti."
+                        style={{ width: "100%", minHeight: 82, padding: 12, borderRadius: 6, border: `1px solid ${BRAND.border}`, resize: "vertical", font: "inherit", boxSizing: "border-box" }}
+                      />
+                    </label>
+                    <Button variant="primary" onClick={addProgressNote} disabled={savingProgressNote || !progressNote.trim()}>
+                      {savingProgressNote ? "Menyimpan..." : "Tambah Catatan"}
+                    </Button>
+                  </div>
+                ) : null}
+
+                <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
+                  {activeJob.note ? (
+                    <div style={{ padding: 13, borderRadius: 6, border: `1px solid ${BRAND.accent}`, background: BRAND.successBg }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
+                        <strong style={{ fontSize: 13, color: BRAND.primary }}>Catatan awal servis</strong>
+                        <span style={{ fontSize: 12, color: BRAND.textMuted }}>{fmtDateTime(activeJob.createdAt)}</span>
+                      </div>
+                      <div style={{ fontSize: 14, lineHeight: 1.55, color: BRAND.textLight, whiteSpace: "pre-wrap" }}>{activeJob.note}</div>
+                    </div>
+                  ) : null}
+                  {(activeJob.notes || []).map((entry) => (
+                    <div key={entry.id} style={{ padding: 13, borderRadius: 6, border: `1px solid ${BRAND.border}`, background: BRAND.secondary }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
+                        <strong style={{ fontSize: 13, color: BRAND.text }}>{entry.createdBy?.name || entry.createdBy?.email || "Pengguna"}</strong>
+                        <span style={{ fontSize: 12, color: BRAND.textMuted }}>{fmtDateTime(entry.createdAt)}</span>
+                      </div>
+                      <div style={{ fontSize: 14, lineHeight: 1.55, color: BRAND.textLight, whiteSpace: "pre-wrap" }}>{entry.content}</div>
+                    </div>
+                  ))}
+                  {!activeJob.note && (activeJob.notes || []).length === 0 ? <div style={{ color: BRAND.textMuted, fontSize: 13 }}>Belum ada catatan perkembangan.</div> : null}
+                </div>
               </div>
             </Card>
 

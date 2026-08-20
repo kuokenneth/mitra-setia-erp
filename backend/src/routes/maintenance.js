@@ -86,6 +86,10 @@ router.get("/", authRequired, async (req, res) => {
             stockUnit: true,
           },
         },
+        notes: {
+          orderBy: { createdAt: "desc" },
+          include: { createdBy: { select: { id: true, name: true, email: true, role: true } } },
+        },
       },
     });
 
@@ -167,6 +171,10 @@ router.get("/:id", authRequired, async (req, res) => {
           orderBy: { createdAt: "desc" },
           include: { item: true, fromLocation: true, toLocation: true, createdBy: true, stockUnit: true },
         },
+        notes: {
+          orderBy: { createdAt: "desc" },
+          include: { createdBy: { select: { id: true, name: true, email: true, role: true } } },
+        },
       },
     });
 
@@ -208,6 +216,37 @@ router.patch("/:id/photos", authRequired, async (req, res) => {
     res.json({ job });
   } catch (e) {
     res.status(e.code === "P2025" ? 404 : 400).json({ error: e.message || "Failed to update photos" });
+  }
+});
+
+////////////////////////////////////////////////////
+// ADD PROGRESS NOTE
+// POST /maintenance/:id/notes
+// body: { content }
+////////////////////////////////////////////////////
+router.post("/:id/notes", authRequired, async (req, res) => {
+  try {
+    if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
+    const content = String(req.body?.content || "").trim();
+    if (!content) return res.status(400).json({ error: "Catatan tidak boleh kosong" });
+    if (content.length > 2000) return res.status(400).json({ error: "Catatan maksimal 2.000 karakter" });
+
+    const maintenance = await prisma.truckMaintenance.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, status: true },
+    });
+    if (!maintenance) return res.status(404).json({ error: "Pekerjaan servis tidak ditemukan" });
+    if (maintenance.status !== "OPEN") {
+      return res.status(400).json({ error: "Catatan hanya dapat ditambahkan ketika servis masih berjalan" });
+    }
+
+    const note = await prisma.maintenanceNote.create({
+      data: { maintenanceId: maintenance.id, content, createdById: req.user?.id || null },
+      include: { createdBy: { select: { id: true, name: true, email: true, role: true } } },
+    });
+    res.json({ note });
+  } catch (e) {
+    res.status(e.code === "P2025" ? 404 : 400).json({ error: e.message || "Gagal menambahkan catatan" });
   }
 });
 

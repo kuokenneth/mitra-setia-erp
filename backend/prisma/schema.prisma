@@ -201,6 +201,7 @@ model User {
   auditLogs                   AuditLog[]                 @relation("AuditLogActor")
   journalEntriesCreated       JournalEntry[]             @relation("JournalEntryCreatedBy")
   tireRetreadsCreated        TireRetread[]              @relation("TireRetreadCreatedBy")
+  maintenanceNotesCreated    MaintenanceNote[]          @relation("MaintenanceNoteCreatedBy")
 }
 
 model AuditLog {
@@ -711,6 +712,20 @@ model TruckMaintenance {
   movements StockMovement[]
 
   sparePartAssignments TruckSparePartAssignment[]
+  notes                MaintenanceNote[]
+}
+
+model MaintenanceNote {
+  id            String           @id @default(cuid())
+  maintenanceId String
+  maintenance   TruckMaintenance @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
+  content       String
+  createdById   String?
+  createdBy     User?            @relation("MaintenanceNoteCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt     DateTime         @default(now())
+
+  @@index([maintenanceId])
+  @@index([createdAt])
 }
 
 ////////////////////////////////////////////////////
