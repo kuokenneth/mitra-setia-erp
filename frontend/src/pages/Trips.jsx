@@ -57,11 +57,11 @@ export default function Trips() {
         <div style={{ padding: "8px 13px", borderRadius: 20, border: `1px solid ${C.border}`, background: C.white, color: C.muted, fontSize: 13 }}><strong style={{ color: C.text }}>{pagination.total}</strong> perjalanan</div>
       </div>
 
-      <form onSubmit={applyFilters} style={{ marginTop: 22, padding: 18, display: "grid", gridTemplateColumns: "minmax(220px, 1.5fr) repeat(3, minmax(150px, .7fr)) auto auto", gap: 10, alignItems: "end", border: `1px solid ${C.border}`, borderRadius: 12, background: C.white }}>
+      <form className="trips-filter-grid" onSubmit={applyFilters} style={{ marginTop: 22, padding: 18, display: "grid", gridTemplateColumns: "minmax(220px, 1.5fr) repeat(3, minmax(150px, .7fr)) auto auto", gap: 10, alignItems: "end", border: `1px solid ${C.border}`, borderRadius: 12, background: C.white }}>
         <label style={label}><span>Cari trip</span><div style={{ position: "relative" }}><FiSearch style={{ position: "absolute", left: 12, top: 13, color: C.muted }}/><input style={{ ...input, paddingLeft: 38 }} value={filters.q} onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))} placeholder="No. order, truk, sopir, tujuan..."/></div></label>
         <label style={label}><span>Status</span><select style={input} value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}><option value="">Semua status</option>{Object.entries(statusLabel).map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label>
-        <label style={label}><span>Dari tanggal</span><input style={input} type="date" value={filters.dateFrom} onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}/></label>
-        <label style={label}><span>Sampai tanggal</span><input style={input} type="date" value={filters.dateTo} onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}/></label>
+        <label style={label}><span>Dari tanggal</span><input className={`tablet-date-input ${filters.dateFrom ? "has-value" : ""}`} aria-label="Tanggal mulai trip" style={input} type="date" value={filters.dateFrom} onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}/></label>
+        <label style={label}><span>Sampai tanggal</span><input className={`tablet-date-input ${filters.dateTo ? "has-value" : ""}`} aria-label="Tanggal selesai trip" style={input} type="date" value={filters.dateTo} onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}/></label>
         <button style={primary}>Terapkan</button><button type="button" style={secondary} onClick={resetFilters}>Reset</button>
       </form>
 

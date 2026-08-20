@@ -448,7 +448,7 @@ export default function Orders() {
       {/* Filters */}
       <Card style={{ marginBottom: 24 }}>
         <div style={{ padding: 20 }}>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div className="orders-filter-grid" style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
             <div style={{ flex: "1 1 280px", minWidth: 200 }}>
               <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
                 Search
@@ -488,14 +488,14 @@ export default function Orders() {
               <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
                 From Date
               </label>
-              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+              <Input className={`tablet-date-input ${dateFrom ? "has-value" : ""}`} aria-label="Tanggal mulai" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
             </div>
 
             <div style={{ flex: "0 0 150px" }}>
               <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
                 To Date
               </label>
-              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+              <Input className={`tablet-date-input ${dateTo ? "has-value" : ""}`} aria-label="Tanggal selesai" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
             </div>
 
             <Button variant="primary" onClick={load} disabled={loading} data-testid="apply-btn">

@@ -1994,14 +1994,14 @@ function UnitsTable({
 
 function MovementsTable({ movements, loading, from, to, onFromChange, onToChange, onApply }) {
   const filters = (
-    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16, alignItems: "end" }}>
+    <div className="inventory-movement-filters" style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16, alignItems: "end" }}>
       <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
         Dari tanggal
-        <input type="date" value={from} onChange={(e) => onFromChange(e.target.value)} style={{ ...inputPill, minWidth: 180 }} />
+        <span className={`date-placeholder-wrap ${from ? "has-value" : ""}`} data-placeholder="Pilih tanggal awal"><input className="tablet-date-input" aria-label="Tanggal awal pergerakan" type="date" value={from} onChange={(e) => onFromChange(e.target.value)} style={{ ...inputPill, minWidth: 180 }} /></span>
       </label>
       <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
         Sampai tanggal
-        <input type="date" value={to} onChange={(e) => onToChange(e.target.value)} style={{ ...inputPill, minWidth: 180 }} />
+        <span className={`date-placeholder-wrap ${to ? "has-value" : ""}`} data-placeholder="Pilih tanggal akhir"><input className="tablet-date-input" aria-label="Tanggal akhir pergerakan" type="date" value={to} onChange={(e) => onToChange(e.target.value)} style={{ ...inputPill, minWidth: 180 }} /></span>
       </label>
       <Btn style={btn} onClick={onApply}>Terapkan</Btn>
       {(from || to) && <Btn style={btn} onClick={() => { onFromChange(""); onToChange(""); setTimeout(onApply, 0); }}>Reset</Btn>}

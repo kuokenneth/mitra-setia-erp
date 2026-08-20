@@ -70,8 +70,8 @@ export default function AuditTrail() {
       <label className="audit-search"><FiSearch/><input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Cari user, endpoint, atau ID data" /></label>
       <select value={resource} onChange={(e) => { setResource(e.target.value); setPage(1); }}><option value="">Semua modul</option>{data.resources.map((item) => <option key={item} value={item}>{item}</option>)}</select>
       <select value={action} onChange={(e) => { setAction(e.target.value); setPage(1); }}><option value="">Semua aksi</option>{["CREATE","UPDATE","DELETE","LOGIN","LOGOUT","REGISTER"].map((item) => <option key={item} value={item}>{actionLabel[item]}</option>)}</select>
-      <label className="audit-date"><span>Dari tanggal</span><input type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} /></label>
-      <label className="audit-date"><span>Sampai tanggal</span><input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} /></label>
+      <label className="audit-date"><span>Dari tanggal</span><span className={`date-placeholder-wrap ${dateFrom ? "has-value" : ""}`} data-placeholder="Pilih tanggal awal"><input className="tablet-date-input" aria-label="Tanggal awal audit" type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} /></span></label>
+      <label className="audit-date"><span>Sampai tanggal</span><span className={`date-placeholder-wrap ${dateTo ? "has-value" : ""}`} data-placeholder="Pilih tanggal akhir"><input className="tablet-date-input" aria-label="Tanggal akhir audit" type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} /></span></label>
       {(dateFrom || dateTo) && <button className="audit-reset" type="button" onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }}>Hapus filter tanggal</button>}
     </section>
     {error && <div className="audit-error">{error}</div>}
