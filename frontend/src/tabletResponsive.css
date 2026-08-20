@@ -19,6 +19,14 @@
   .trips-filter-grid > * { min-width: 0; width: 100%; }
   .trips-filter-grid > button { justify-self: stretch; }
 
+  .maintenance-filter-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    gap: 14px !important;
+  }
+  .maintenance-filter-grid > * { min-width: 0 !important; width: 100% !important; max-width: none !important; }
+  .maintenance-filter-grid > button { justify-content: center; }
+
   .inventory-movement-filters {
     display: grid !important;
     grid-template-columns: repeat(2,minmax(0,1fr)) auto auto;
@@ -43,8 +51,15 @@
     grid-template-columns: repeat(4,minmax(0,1fr)) !important;
   }
   .trips-filter-grid > :nth-child(1) { grid-column: span 2; }
-  .trips-filter-grid > :nth-child(4) { grid-column: span 2; }
+  .trips-filter-grid > :nth-child(2) { grid-column: span 2; }
   .trips-filter-grid > button { min-width: 0; }
+
+  .maintenance-filter-grid {
+    grid-template-columns: repeat(4,minmax(0,1fr));
+  }
+  .maintenance-filter-grid > :nth-child(1),
+  .maintenance-filter-grid > :nth-child(2) { grid-column: span 2; }
+  .maintenance-filter-grid > :nth-child(5) { grid-column: span 2; }
 
   .inventory-movement-filters {
     grid-template-columns: repeat(4,minmax(0,1fr));
@@ -59,7 +74,15 @@
   min-width: 0;
   min-inline-size: 0;
   overflow: hidden;
+  border: 0;
   border-radius: 8px;
+  background: #fff;
+  box-sizing: border-box;
+  box-shadow: inset 0 0 0 1px #dce5df;
+  transition: box-shadow .18s ease;
+}
+.date-placeholder-wrap:focus-within {
+  box-shadow: inset 0 0 0 1px #0d7c3d,0 0 0 3px rgba(13,124,61,.1);
 }
 .date-placeholder-wrap::after {
   content: attr(data-placeholder);
@@ -86,11 +109,15 @@
   min-width: 0 !important;
   min-inline-size: 0 !important;
   box-sizing: border-box !important;
+  border: 0 !important;
+  border-radius: inherit !important;
+  box-shadow: none !important;
   background-color: #fff;
 }
 
 .orders-filter-grid > button,
-.trips-filter-grid > button {
+.trips-filter-grid > button,
+.maintenance-filter-grid > button {
   position: relative;
   z-index: 2;
   width: 100% !important;
@@ -101,6 +128,7 @@
 
 .orders-filter-grid > div,
 .trips-filter-grid > label,
+.maintenance-filter-grid > div,
 .audit-filters > * {
   min-width: 0 !important;
   max-width: 100%;
@@ -108,11 +136,11 @@
 }
 
 @media (max-width: 700px) {
-  .orders-filter-grid,.trips-filter-grid,.inventory-movement-filters {
+  .orders-filter-grid,.trips-filter-grid,.maintenance-filter-grid,.inventory-movement-filters {
     display: grid !important;
     grid-template-columns: 1fr !important;
   }
-  .orders-filter-grid > *, .trips-filter-grid > *, .inventory-movement-filters > * {
+  .orders-filter-grid > *, .trips-filter-grid > *, .maintenance-filter-grid > *, .inventory-movement-filters > * {
     min-width: 0 !important;
     width: 100% !important;
     box-sizing: border-box;

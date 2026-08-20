@@ -834,6 +834,7 @@ export default function Maintenance() {
       <Card style={{ marginBottom: 24 }}>
         <div style={{ padding: 20 }}>
           <div
+            className="maintenance-filter-grid"
             style={{
               display: "flex",
               gap: 12,
@@ -867,16 +868,16 @@ export default function Maintenance() {
 
             <div style={{ flex: "0 0 150px" }}>
               <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
-                From Date
+                Dari tanggal
               </label>
-              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} data-testid="from-date" />
+              <span className={`date-placeholder-wrap ${from ? "has-value" : ""}`} data-placeholder="Pilih tanggal awal"><Input className="tablet-date-input" aria-label="Tanggal awal servis" type="date" value={from} onChange={(e) => setFrom(e.target.value)} data-testid="from-date" /></span>
             </div>
 
             <div style={{ flex: "0 0 150px" }}>
               <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
-                To Date
+                Sampai tanggal
               </label>
-              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} data-testid="to-date" />
+              <span className={`date-placeholder-wrap ${to ? "has-value" : ""}`} data-placeholder="Pilih tanggal akhir"><Input className="tablet-date-input" aria-label="Tanggal akhir servis" type="date" value={to} onChange={(e) => setTo(e.target.value)} data-testid="to-date" /></span>
             </div>
 
             <Button variant="primary" onClick={load} disabled={loading} data-testid="apply-filter-btn">
