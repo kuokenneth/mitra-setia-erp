@@ -32,6 +32,25 @@
   .p-tabs,.acct-tabs { overflow-x: auto; scrollbar-width: none; }
 }
 
+/* Tablet landscape: filter tetap padat dalam dua baris yang seimbang. */
+@media (min-width: 1000px) and (max-width: 1440px) {
+  .orders-filter-grid {
+    grid-template-columns: repeat(4,minmax(0,1fr));
+  }
+  .orders-filter-grid > :nth-child(1) { grid-column: span 2; }
+
+  .trips-filter-grid {
+    grid-template-columns: repeat(4,minmax(0,1fr)) !important;
+  }
+  .trips-filter-grid > :nth-child(1) { grid-column: span 2; }
+  .trips-filter-grid > :nth-child(4) { grid-column: span 2; }
+  .trips-filter-grid > button { min-width: 0; }
+
+  .inventory-movement-filters {
+    grid-template-columns: repeat(4,minmax(0,1fr));
+  }
+}
+
 .date-placeholder-wrap {
   position: relative;
   display: block;
