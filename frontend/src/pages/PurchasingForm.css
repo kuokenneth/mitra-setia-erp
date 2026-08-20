@@ -72,6 +72,322 @@
   .purchase-request-modal .grid2 { grid-template-columns: 1fr; gap: 14px; }
   .purchase-request-modal .modal-actions { padding: 16px 20px 20px; }
 }
+
+/* Penerimaan barang: ringkas, mudah dipindai, dan tetap nyaman saat banyak item. */
+.purchasing .transaction-modal:not(.payment-modal) {
+  width: min(840px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  padding: 0;
+  overflow-y: auto;
+  border-radius: 16px;
+  background: #fbfdfc;
+  scrollbar-width: thin;
+  scrollbar-color: #b8c9be transparent;
+}
+.purchasing .transaction-modal:not(.payment-modal) .modal-heading {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  padding: 20px 24px 17px;
+  border-bottom: 1px solid #e4ece7;
+  background: rgba(255,255,255,.97);
+  backdrop-filter: blur(12px);
+}
+.purchasing .transaction-modal:not(.payment-modal) .modal-heading h2 {
+  margin: 4px 0 3px;
+  font-size: 22px;
+  line-height: 1.2;
+}
+.purchasing .transaction-modal:not(.payment-modal) .modal-heading p { font-size: 12px; }
+.purchasing .transaction-modal:not(.payment-modal) .po-form-body {
+  gap: 13px;
+  padding: 17px 24px 20px;
+}
+.purchasing .transaction-modal:not(.payment-modal) label {
+  gap: 5px;
+  color: #2b3931;
+  font-size: 11px;
+  font-weight: 750;
+}
+.purchasing .transaction-modal:not(.payment-modal) input:not([type="file"]),
+.purchasing .transaction-modal:not(.payment-modal) select {
+  height: 42px;
+  min-height: 42px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.purchasing .transaction-modal:not(.payment-modal) input[type="date"] {
+  display: flex;
+  align-items: center;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 42px;
+  color-scheme: light;
+}
+.purchasing .transaction-modal:not(.payment-modal) input[type="date"]::-webkit-date-and-time-value {
+  min-height: 42px;
+  line-height: 42px;
+  text-align: left;
+}
+.purchasing .transaction-modal:not(.payment-modal) input[type="date"]::-webkit-datetime-edit {
+  display: flex;
+  align-items: center;
+  height: 42px;
+  padding: 0;
+}
+.purchasing .transaction-modal:not(.payment-modal) .po-price-list {
+  overflow: hidden;
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 4px 18px rgba(26,66,44,.04);
+}
+.purchasing .transaction-modal:not(.payment-modal) .section-label {
+  padding: 9px 13px;
+  background: #edf4ef;
+  color: #567064;
+  font-size: 9px;
+}
+.purchasing .transaction-modal:not(.payment-modal) .po-price-row {
+  grid-template-columns: minmax(0,1fr) 190px;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 14px;
+}
+.purchasing .transaction-modal:not(.payment-modal) .po-price-row strong { font-size: 13px; }
+.purchasing .transaction-modal:not(.payment-modal) .serial-entry { margin-top: -3px; }
+.purchasing .transaction-modal:not(.payment-modal) .serial-entry textarea {
+  min-height: 72px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.purchasing .transaction-modal:not(.payment-modal) .invoice-entry-card {
+  display: block;
+  overflow: hidden;
+  padding: 0;
+  border-radius: 11px;
+  background: #fff;
+}
+.purchasing .transaction-modal:not(.payment-modal) .invoice-entry-card .grid3 {
+  gap: 11px;
+  padding: 13px 14px 11px;
+}
+.purchasing .receipt-upload {
+  position: relative;
+  display: grid !important;
+  grid-template-columns: 40px minmax(0,1fr);
+  align-items: center;
+  gap: 11px !important;
+  min-height: 66px;
+  margin: 0 14px 14px;
+  padding: 10px 12px;
+  overflow: hidden;
+  border: 1.5px dashed #a9cfb7;
+  border-radius: 9px;
+  background: #f3faf5;
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease, transform .18s ease;
+}
+.purchasing .receipt-upload:hover {
+  border-color: #0d7c3d;
+  background: #ebf7ef;
+  transform: translateY(-1px);
+}
+.purchasing .receipt-upload input[type="file"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.purchasing .receipt-upload-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  background: #fff;
+  color: #0d7c3d;
+  box-shadow: 0 4px 12px rgba(21,62,43,.08);
+  font-size: 19px;
+}
+.purchasing .receipt-upload strong,
+.purchasing .receipt-upload small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.purchasing .receipt-upload strong { color: #223129; font-size: 12px; }
+.purchasing .receipt-upload small { margin-top: 3px; color: #718078; font-size: 10px; font-weight: 500; }
+.purchasing .transaction-modal:not(.payment-modal) .modal-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  margin: 0;
+  padding: 13px 24px;
+  border-top: 1px solid #e2eae5;
+  background: rgba(255,255,255,.97);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 -8px 24px rgba(24,54,37,.06);
+}
+
+@media (max-width: 700px) {
+  .purchasing .transaction-modal:not(.payment-modal) {
+    width: 100%;
+    max-height: calc(100vh - 18px);
+    border-radius: 16px 16px 8px 8px;
+  }
+  .purchasing .transaction-modal:not(.payment-modal) .modal-heading,
+  .purchasing .transaction-modal:not(.payment-modal) .po-form-body,
+  .purchasing .transaction-modal:not(.payment-modal) .modal-actions { padding-left: 17px; padding-right: 17px; }
+  .purchasing .transaction-modal:not(.payment-modal) .po-price-row { grid-template-columns: 1fr; gap: 8px; }
+  .purchasing .transaction-modal:not(.payment-modal) .grid3 { grid-template-columns: 1fr; }
+}
+
+/* Purchase Order composer — compact document-style layout. */
+.purchasing .po-modal {
+  width: min(820px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  border-radius: 16px;
+  background: #fbfdfc;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #b8c9be transparent;
+}
+.purchasing .po-modal .modal-heading {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  padding: 20px 24px 17px;
+  background: rgba(255, 255, 255, .97);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 1px 0 #e6ede8;
+}
+.purchasing .po-modal .modal-heading h2 {
+  margin: 4px 0 3px;
+  font-size: 22px;
+  line-height: 1.2;
+}
+.purchasing .po-modal .modal-heading p { font-size: 12px; }
+.purchasing .po-modal .po-form-body {
+  gap: 13px;
+  padding: 17px 24px 20px;
+}
+.purchasing .po-modal .item-mode {
+  height: 42px;
+  padding: 3px;
+  border: 1px solid #e1e9e4;
+  background: #eef4f0;
+}
+.purchasing .po-modal .item-mode button {
+  min-height: 34px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.purchasing .po-modal .new-item-box {
+  gap: 10px;
+  padding: 13px 14px;
+  border-radius: 10px;
+  background: #f7faf8;
+}
+.purchasing .po-modal label {
+  gap: 5px;
+  color: #2b3931;
+  font-size: 11px;
+  font-weight: 750;
+}
+.purchasing .po-modal input:not([type="checkbox"]),
+.purchasing .po-modal select {
+  height: 42px;
+  min-height: 42px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.purchasing .po-modal input[type="date"] {
+  display: flex;
+  align-items: center;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 42px;
+  color-scheme: light;
+}
+.purchasing .po-modal input[type="date"]::-webkit-date-and-time-value {
+  min-height: 42px;
+  line-height: 42px;
+  text-align: left;
+}
+.purchasing .po-modal input[type="date"]::-webkit-datetime-edit {
+  display: flex;
+  align-items: center;
+  height: 42px;
+  padding: 0;
+}
+.purchasing .po-modal input[type="date"]::-webkit-calendar-picker-indicator {
+  margin: 0;
+  align-self: center;
+}
+.purchasing .po-modal select {
+  background-position: calc(100% - 18px) 18px, calc(100% - 13px) 18px;
+}
+.purchasing .po-modal textarea {
+  min-height: 70px;
+  padding: 11px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+.purchasing .po-modal .po-price-list {
+  border-radius: 10px;
+  box-shadow: 0 4px 18px rgba(26, 66, 44, .04);
+}
+.purchasing .po-modal .section-label {
+  padding: 8px 13px;
+  background: #edf4ef;
+  color: #567064;
+  font-size: 9px;
+}
+.purchasing .po-modal .po-price-row {
+  grid-template-columns: minmax(0, 1fr) 210px;
+  gap: 18px;
+  align-items: center;
+  padding: 11px 13px;
+}
+.purchasing .po-modal .po-price-row strong { font-size: 13px; }
+.purchasing .po-modal .grid3 { gap: 10px; }
+.purchasing .po-modal .po-total {
+  min-height: 62px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #0f4930 0%, #123c2a 100%);
+  box-shadow: 0 9px 24px rgba(15, 73, 48, .16);
+}
+.purchasing .po-modal .po-total span { font-size: 11px; }
+.purchasing .po-modal .po-total strong { font-size: 22px; letter-spacing: -.02em; }
+.purchasing .po-modal .modal-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  margin: 0;
+  padding: 13px 24px;
+  border-top: 1px solid #e2eae5;
+  background: rgba(255, 255, 255, .97);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 -8px 24px rgba(24, 54, 37, .06);
+}
+.purchasing .po-modal .modal-actions button { min-width: 104px; }
+
+@media (max-width: 700px) {
+  .purchasing .po-modal { width: 100%; max-height: calc(100vh - 18px); border-radius: 16px 16px 8px 8px; }
+  .purchasing .po-modal .modal-heading, .purchasing .po-modal .po-form-body, .purchasing .po-modal .modal-actions { padding-left: 17px; padding-right: 17px; }
+  .purchasing .po-modal .po-price-row { grid-template-columns: 1fr; gap: 8px; }
+  .purchasing .po-modal .grid3, .purchasing .po-modal .grid2 { grid-template-columns: 1fr; }
+}
 .po-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; padding-top: 13px; border-top: 1px solid #edf1ee; }
 .po-actions button, .payment-side button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 6px 10px; border: 1px solid #c5dfcf; border-radius: 7px; background: #eef8f2; color: #0d7c3d; font-size: 11px; font-weight: 800; }
 .po-progress { height: 5px; overflow: hidden; margin: -8px 0 14px; border-radius: 99px; background: #edf1ee; }
@@ -91,6 +407,156 @@
 .payment-summary strong { font-size: 22px; }
 .approval-note { display: flex; align-items: flex-start; gap: 9px; padding: 12px; border-radius: 9px; background: #fff8df; color: #775600; font-size: 12px; }
 .approval-note svg { flex: 0 0 auto; margin-top: 2px; }
+
+/* Pengajuan pembayaran — ringkas seperti lembar konfirmasi transaksi. */
+.purchasing .payment-modal {
+  width: min(680px,calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  padding: 0;
+  overflow-y: auto;
+  border-radius: 16px;
+  background: #fbfdfc;
+}
+.purchasing .payment-modal .modal-heading {
+  padding: 20px 24px 17px;
+  background: linear-gradient(135deg,#fff 0%,#f5faf7 100%);
+}
+.purchasing .payment-modal .modal-heading h2 {
+  margin: 4px 0 3px;
+  font-size: 22px;
+  line-height: 1.2;
+}
+.purchasing .payment-modal .modal-heading p { font-size: 12px; }
+.purchasing .payment-modal .modal-heading p span { margin: 0 4px; color: #b1bdb5; }
+.purchasing .payment-modal .po-form-body {
+  gap: 14px;
+  padding: 18px 24px 20px;
+}
+.purchasing .payment-modal label {
+  gap: 6px;
+  color: #2b3931;
+  font-size: 11px;
+  font-weight: 750;
+}
+.purchasing .payment-modal label > small {
+  display: inline;
+  margin-left: 4px;
+  color: #8b978f;
+  font-size: 9px;
+  font-weight: 600;
+}
+.purchasing .payment-modal input,
+.purchasing .payment-modal select {
+  height: 43px !important;
+  min-height: 43px !important;
+  padding: 0 12px !important;
+  border-radius: 8px !important;
+  font-size: 14px !important;
+}
+.purchasing .payment-modal select {
+  background-position: calc(100% - 18px) 18px,calc(100% - 13px) 18px;
+}
+.purchasing .payment-modal .payment-summary {
+  min-height: 76px;
+  padding: 15px 17px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 11px;
+  background: linear-gradient(135deg,#103f2b 0%,#17563a 100%);
+  box-shadow: 0 10px 24px rgba(15,73,48,.16);
+}
+.purchasing .payment-modal .payment-summary span {
+  color: #d5e4db;
+  font-size: 11px;
+  font-weight: 700;
+}
+.purchasing .payment-modal .payment-summary span small {
+  display: block;
+  margin-top: 4px;
+  color: #a9c5b5;
+  font-size: 9px;
+  font-weight: 500;
+}
+.purchasing .payment-modal .payment-summary strong {
+  font-size: 23px;
+  letter-spacing: -.025em;
+}
+.purchasing .payment-modal .money-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.purchasing .payment-modal .money-input > span {
+  position: absolute;
+  left: 12px;
+  z-index: 1;
+  color: #0d7c3d;
+  font-size: 13px;
+  font-weight: 800;
+  pointer-events: none;
+}
+.purchasing .payment-modal .money-input input { padding-left: 39px !important; font-size: 16px !important; }
+.purchasing .payment-modal .payment-form-grid { gap: 12px; }
+.purchasing .payment-modal .payment-form-grid > label {
+  display: grid;
+  grid-template-rows: 17px 43px;
+  align-content: start;
+  gap: 6px;
+}
+.purchasing .payment-modal .payment-field-label {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-height: 17px;
+  line-height: 17px;
+}
+.purchasing .payment-modal .payment-field-label small {
+  color: #8b978f;
+  font-size: 9px;
+  font-weight: 600;
+}
+.purchasing .payment-modal .approval-note {
+  align-items: center;
+  gap: 11px;
+  padding: 11px 12px;
+  border: 1px solid #f0df9d;
+  border-radius: 9px;
+  background: #fffaf0;
+  color: #6f5500;
+}
+.purchasing .payment-modal .approval-note-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #fff1bd;
+}
+.purchasing .payment-modal .approval-note strong,
+.purchasing .payment-modal .approval-note small { display: block; }
+.purchasing .payment-modal .approval-note strong { font-size: 11px; }
+.purchasing .payment-modal .approval-note small { margin-top: 2px; color: #8b711e; font-size: 9px; }
+.purchasing .payment-modal .modal-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  margin: 0;
+  padding: 13px 24px;
+  border-top: 1px solid #e2eae5;
+  background: rgba(255,255,255,.97);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 -8px 24px rgba(24,54,37,.05);
+}
+.purchasing .payment-modal .modal-actions button { min-width: 96px; }
+
+@media (max-width: 600px) {
+  .purchasing .payment-modal { width: 100%; max-height: calc(100vh - 18px); }
+  .purchasing .payment-modal .modal-heading,
+  .purchasing .payment-modal .po-form-body,
+  .purchasing .payment-modal .modal-actions { padding-left: 17px; padding-right: 17px; }
+  .purchasing .payment-modal .payment-summary { align-items: flex-start; flex-direction: column; gap: 7px; }
+  .purchasing .payment-modal .payment-form-grid { grid-template-columns: 1fr; }
+}
 .serialized-receipt-row { grid-template-columns: minmax(0, 1fr) minmax(150px, .5fr); }
 .serial-entry { grid-column: 1 / -1; }
 .serial-entry textarea { min-height: 82px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
@@ -98,6 +564,132 @@
 .serialized-badge { display: inline-flex; margin-top: 8px; padding: 3px 6px; border-radius: 4px; background: #e8f2ff; color: #2368a2; font-size: 9px; font-weight: 900; letter-spacing: .08em; }
 .status.WAITING_PAYMENT_APPROVAL { background: #fff2cc; color: #8a5b00; }
 .status.PAID { background: #dcfce7; color: #16733d; }
+
+/* Riwayat penerimaan menggunakan kartu padat, bukan panel kosong setinggi halaman. */
+.receipt-list {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 18px;
+}
+.receipt-card {
+  display: grid;
+  grid-template-columns: 44px minmax(0,1fr);
+  gap: 14px;
+  padding: 17px;
+  border: 1px solid #dfe8e2;
+  border-radius: 12px;
+  background: linear-gradient(135deg,#fff 0%,#fbfdfc 100%);
+  box-shadow: 0 5px 18px rgba(19,58,38,.045);
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+.receipt-card:hover {
+  transform: translateY(-1px);
+  border-color: #bcd8c6;
+  box-shadow: 0 10px 28px rgba(19,58,38,.08);
+}
+.receipt-card-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  background: #e8f6ed;
+  color: #0d7c3d;
+  font-size: 19px;
+}
+.receipt-card-main { min-width: 0; }
+.receipt-card-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+.receipt-card-title h3 {
+  margin: 6px 0 0;
+  color: #203027;
+  font-size: 17px;
+  letter-spacing: -.01em;
+}
+.receipt-card-title time {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: #f2f6f3;
+  color: #68776e;
+  font-size: 11px;
+  font-weight: 700;
+}
+.receipt-source {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 5px 0 12px;
+  color: #6f7e75;
+  font-size: 12px;
+}
+.receipt-source span { color: #b2beb6; }
+.receipt-info {
+  display: grid;
+  grid-template-columns: minmax(180px,1fr) minmax(160px,.7fr);
+  gap: 10px;
+  max-width: 560px;
+}
+.receipt-info > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 52px;
+  padding: 9px 11px;
+  border: 1px solid #e4ebe6;
+  border-radius: 9px;
+  background: #f8faf9;
+  color: #0d7c3d;
+}
+.receipt-info small,.receipt-info strong { display: block; }
+.receipt-info small { margin-bottom: 2px; color: #77847c; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.receipt-info strong { color: #26352c; font-size: 12px; }
+.receipt-proof { margin-top: 10px; }
+.receipt-lines { margin-top: 11px; }
+.receipt-lines span {
+  align-items: center;
+  border: 1px solid #e3ebe5;
+  background: #fff;
+}
+.receipt-lines b { color: #0d7c3d; }
+.receipt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 13px;
+  padding-top: 12px;
+  border-top: 1px solid #edf1ee;
+}
+.receipt-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 7px 11px;
+  border: 1px solid #d8e3db;
+  border-radius: 7px;
+  background: #fff;
+  color: #496056;
+  font-size: 11px;
+  font-weight: 800;
+}
+.receipt-actions button:hover { border-color: #a9cfb7; color: #0d7c3d; background: #f2faf5; }
+.receipt-actions .primary-action { border-color: #0d7c3d; background: #0d7c3d; color: #fff; }
+.receipt-actions .primary-action:hover { background: #096b34; color: #fff; }
+
+@media (max-width: 650px) {
+  .receipt-list { padding: 12px; }
+  .receipt-card { grid-template-columns: 1fr; padding: 14px; }
+  .receipt-card-title { gap: 10px; }
+  .receipt-card-title time { white-space: nowrap; }
+  .receipt-info { grid-template-columns: 1fr; }
+}
 @media (max-width: 600px) {
   .activity-list > article { grid-template-columns: 38px minmax(0, 1fr); }
   .activity-list > article > time, .payment-side { grid-column: 2; align-items: flex-start; }
@@ -138,6 +730,24 @@
   font-weight: 600;
   line-height: 1.2;
   box-shadow: none;
+}
+
+.purchasing .p-head .primary {
+  transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease;
+  will-change: transform;
+}
+.purchasing .p-head .primary:hover {
+  transform: translateY(-3px);
+  background: #0a6b35 !important;
+  box-shadow: 0 10px 22px rgba(13,124,61,.22);
+}
+.purchasing .p-head .primary:active {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 12px rgba(13,124,61,.18);
+}
+.purchasing .p-head .primary:focus-visible {
+  outline: 3px solid rgba(13,124,61,.2);
+  outline-offset: 3px;
 }
 
 /* Jaga bidang form tetap memiliki ruang napas di sisi kanan dan kiri. */

@@ -1,0 +1,20 @@
+.expense-new-button {
+  transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease !important;
+  will-change: transform;
+}
+
+.expense-new-button:hover {
+  transform: translateY(-3px);
+  background: #0a6b35 !important;
+  box-shadow: 0 10px 22px rgba(13, 124, 61, .22) !important;
+}
+
+.expense-new-button:active {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 12px rgba(13, 124, 61, .18) !important;
+}
+
+.expense-new-button:focus-visible {
+  outline: 3px solid rgba(13, 124, 61, .2);
+  outline-offset: 3px;
+}

@@ -3,6 +3,7 @@ const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { requireRole } = require("../middleware/requireRole");
 const { SYSTEM_ACCOUNTS, cashCode, postJournal } = require("../services/accounting");
+const { esc, num: fmtNum, money, date: fmtDate, documentHtml } = require("../utils/printDocument");
 const router = express.Router();
 
 const seq = (prefix) => `${prefix}-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
@@ -16,6 +17,33 @@ router.get("/overview", async (_req, res) => {
     prisma.supplier.findMany({ orderBy: { name: "asc" } }), prisma.inventoryLocation.findMany({ orderBy: { name: "asc" } }), prisma.item.findMany({ orderBy: { name: "asc" } })
   ]);
   res.json({ ok: true, requests, orders, suppliers, locations, items });
+});
+router.get("/orders/:id/print", async (req, res) => {
+  const po = await prisma.purchaseOrder.findUnique({ where: { id: req.params.id }, include: includePO });
+  if (!po) return res.status(404).json({ error: "Purchase Order tidak ditemukan" });
+  const subtotal = po.items.reduce((sum, item) => sum + Number(item.qty) * Number(item.unitPrice), 0);
+  const total = subtotal + Number(po.tax) + Number(po.shippingCost) - Number(po.discount);
+  const rows = po.items.map((item, index) => `<tr><td class="center">${index + 1}</td><td>${esc(item.item.sku)}</td><td>${esc(item.item.name)}</td><td class="right">${fmtNum(item.qty)}</td><td>${esc(item.item.unit)}</td><td class="right">${money(item.unitPrice)}</td><td class="right">${money(Number(item.qty) * Number(item.unitPrice))}</td></tr>`).join("");
+  res.type("html").send(documentHtml({
+    title: "PURCHASE ORDER",
+    subtitle: po.number,
+    meta: `Status: ${esc(po.status)}<br>Tanggal: ${fmtDate(po.createdAt)}`,
+    body: `<div class="summary"><div class="box">Supplier<b>${esc(po.supplier.name)}</b><span>${esc(po.supplier.address || "-")}</span></div><div class="box">Pengiriman<b>${esc(po.deliveryAddress || "-")}</b><span>Estimasi: ${fmtDate(po.estimatedArrival)}</span></div><div class="box">Termin<b>${esc(po.paymentTerms || "-")}</b><span>PR: ${esc(po.request?.number || "-")}</span></div></div><table><thead><tr><th>No</th><th>SKU</th><th>Barang</th><th class="right">Qty</th><th>Satuan</th><th class="right">Harga</th><th class="right">Jumlah</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="6" class="right">Subtotal</td><td class="right">${money(subtotal)}</td></tr><tr><td colspan="6" class="right">Ongkir + Pajak - Diskon</td><td class="right">${money(Number(po.shippingCost) + Number(po.tax) - Number(po.discount))}</td></tr><tr><td colspan="6" class="right"><b>TOTAL</b></td><td class="right"><b>${money(total)}</b></td></tr></tfoot></table><div class="signatures"><div>Dibuat oleh</div><div>Supplier</div><div>Disetujui oleh</div></div>`,
+  }));
+});
+router.get("/receipts/:id/print", async (req, res) => {
+  const receipt = await prisma.goodsReceipt.findUnique({
+    where: { id: req.params.id },
+    include: { purchaseOrder: { include: { supplier: true } }, location: true, createdBy: { select: { name: true } }, items: { include: { purchaseOrderItem: { include: { item: true } } } } },
+  });
+  if (!receipt) return res.status(404).json({ error: "Penerimaan barang tidak ditemukan" });
+  const rows = receipt.items.map((row, index) => `<tr><td class="center">${index + 1}</td><td>${esc(row.purchaseOrderItem.item.sku)}</td><td>${esc(row.purchaseOrderItem.item.name)}</td><td class="right">${fmtNum(row.qty)}</td><td>${esc(row.purchaseOrderItem.item.unit)}</td><td>${esc(row.condition)}</td></tr>`).join("");
+  res.type("html").send(documentHtml({
+    title: "BUKTI PENERIMAAN BARANG",
+    subtitle: receipt.number,
+    meta: `Tanggal terima: ${fmtDate(receipt.receivedAt, true)}<br>PO: ${esc(receipt.purchaseOrder.number)}`,
+    body: `<div class="summary"><div class="box">Supplier<b>${esc(receipt.purchaseOrder.supplier.name)}</b></div><div class="box">Lokasi penerimaan<b>${esc(receipt.location.name)}</b></div><div class="box">Penerima<b>${esc(receipt.createdBy?.name || "-")}</b></div></div><table><thead><tr><th>No</th><th>SKU</th><th>Barang</th><th class="right">Diterima</th><th>Satuan</th><th>Kondisi</th></tr></thead><tbody>${rows}</tbody></table><table><tbody><tr><th style="width:28%">Surat jalan supplier</th><td>${esc(receipt.deliveryNote || "-")}</td></tr><tr><th>Nomor invoice supplier</th><td>${esc(receipt.supplierInvoiceNumber || "-")}</td></tr><tr><th>Tanggal invoice</th><td>${fmtDate(receipt.supplierInvoiceDate)}</td></tr><tr><th>Nilai invoice</th><td>${receipt.supplierInvoiceAmount == null ? "-" : money(receipt.supplierInvoiceAmount)}</td></tr><tr><th>Catatan</th><td>${esc(receipt.notes || "-")}</td></tr></tbody></table><div class="signatures"><div>Pengirim / Supplier</div><div>Penerima</div><div>Diperiksa oleh</div></div>`,
+  }));
 });
 router.post("/suppliers", async (req, res) => res.json({ ok: true, supplier: await prisma.supplier.create({ data: req.body }) }));
 router.post("/requests", async (req, res) => {

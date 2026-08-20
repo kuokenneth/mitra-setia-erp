@@ -1,8 +1,10 @@
 // src/pages/Expenses.jsx - Corporate Minimalist Design
 import { useEffect, useMemo, useState } from "react";
-import { api } from "../api";
+import { api, getAccessToken } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
+import { ProtectedFilePreview } from "../components/ProtectedFile";
+import "./Expenses.css";
 
 // Corporate Green Color Palette (matching Landing/Dashboard)
 const BRAND = {
@@ -285,14 +287,12 @@ export default function Expenses() {
     const formData = new FormData();
     formData.append("files", file);
 
-    const token = localStorage.getItem("token");
+    const token = getAccessToken();
     const res = await fetch(`${API_BASE}/api/uploads`, {
       method: "POST",
       body: formData,
       credentials: "include",
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || data?.message || "Gagal mengunggah");
@@ -330,11 +330,9 @@ export default function Expenses() {
       return;
     }
     try {
-      const token = localStorage.getItem("token");
+      const token = getAccessToken();
       const res = await fetch(`${API_BASE}/expenses/report?month=${reportMonth}`, {
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         credentials: "include",
       });
       const html = await res.text();
@@ -399,10 +397,10 @@ export default function Expenses() {
               style={s.monthInput}
             />
             <button style={s.secondaryBtn} onClick={() => openMonthlyReport(false)}>
-              Print Monthly
+              Cetak Bulanan
             </button>
           </div>
-          <button style={s.primaryBtn} onClick={() => setShowModal(true)}>
+          <button className="expense-new-button" style={s.primaryBtn} onClick={() => setShowModal(true)}>
             + Pengeluaran Baru
           </button>
         </div>
@@ -501,15 +499,9 @@ export default function Expenses() {
                   <td style={s.td}>
                     <div style={s.actionsRow}>
                       {x.proofUrl ? (
-                        <a
-                          href={normalizeProofUrl(x.proofUrl)}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={s.linkBtn}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          Lihat Bukti
-                        </a>
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <ProtectedFilePreview url={x.proofUrl} mimeType={x.proofMimeType} fileName={x.proofFileName || "Bukti expense"} imageStyle={{ width: 86, height: 58, objectFit: "cover", borderRadius: 7 }} onError={(e) => setErr(e.message)} />
+                        </div>
                       ) : null}
                       {canUploadProof && x.status === "SUBMITTED" && (
                         <label style={s.linkBtn} onClick={(e) => e.stopPropagation()}>

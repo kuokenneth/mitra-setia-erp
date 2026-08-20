@@ -3,8 +3,74 @@ const express = require("express");
 const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { requireRole } = require("../middleware/requireRole");
+const { esc, num: fmtNum, date: fmtDate, documentHtml } = require("../utils/printDocument");
 
 const router = express.Router();
+
+const inventoryAccess = ["OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"];
+
+router.get("/reports/stock", authRequired, requireRole(...inventoryAccess), async (req, res) => {
+  try {
+    const scope = req.query.scope === "daily" ? "daily" : "overall";
+    const reportDate = String(req.query.date || new Date().toISOString().slice(0, 10));
+    const items = await prisma.item.findMany({
+      include: { stocks: { include: { location: true } } },
+      orderBy: [{ name: "asc" }],
+    });
+
+    if (scope === "overall") {
+      const rows = items.flatMap((item) => (item.stocks.length ? item.stocks : [{ qty: 0, location: null }]).map((stock) =>
+        `<tr><td>${esc(item.sku)}</td><td>${esc(item.name)}</td><td>${esc(stock.location?.name || "-")}</td><td class="right">${fmtNum(stock.qty)}</td><td>${esc(item.unit)}</td><td class="center">${item.isSerialized ? "Ya" : "Tidak"}</td></tr>`
+      )).join("");
+      const totalQty = items.reduce((sum, item) => sum + item.stocks.reduce((a, stock) => a + Number(stock.qty || 0), 0), 0);
+      return res.type("html").send(documentHtml({
+        title: "Laporan Stok Keseluruhan",
+        subtitle: "Posisi stok terkini per barang dan lokasi",
+        meta: `Jumlah item: ${items.length}`,
+        landscape: true,
+        body: `<div class="summary"><div class="box">Master barang<b>${items.length}</b></div><div class="box">Total kuantitas<b>${fmtNum(totalQty)}</b></div><div class="box">Tanggal posisi<b>${fmtDate(new Date(), true)}</b></div></div><table><thead><tr><th>SKU</th><th>Nama Barang</th><th>Lokasi</th><th class="right">Saldo</th><th>Satuan</th><th class="center">Berserial</th></tr></thead><tbody>${rows || '<tr><td colspan="6" class="center">Belum ada data stok</td></tr>'}</tbody></table><div class="signatures"><div>Dibuat oleh</div><div>Diperiksa oleh</div><div>Disetujui oleh</div></div>`,
+      }));
+    }
+
+    const start = new Date(`${reportDate}T00:00:00+07:00`);
+    if (Number.isNaN(start.getTime())) return res.status(400).json({ error: "Tanggal tidak valid" });
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    const movementsFromStart = await prisma.stockMovement.findMany({
+      where: { createdAt: { gte: start } },
+      include: { item: true, fromLocation: true, toLocation: true, createdBy: { select: { name: true } } },
+      orderBy: { createdAt: "asc" },
+    });
+    const movements = movementsFromStart.filter((movement) => movement.createdAt < end);
+    const currentByItem = new Map(items.map((item) => [item.id, item.stocks.reduce((sum, stock) => sum + Number(stock.qty || 0), 0)]));
+    const summary = new Map();
+    for (const movement of movements) {
+      const row = summary.get(movement.itemId) || { item: movement.item, incoming: 0, outgoing: 0 };
+      if (movement.type === "IN") row.incoming += Number(movement.qty || 0);
+      if (movement.type === "OUT") row.outgoing += Number(movement.qty || 0);
+      summary.set(movement.itemId, row);
+    }
+    const futureNetByItem = new Map();
+    for (const movement of movementsFromStart.filter((entry) => entry.createdAt >= end)) {
+      const delta = movement.type === "IN" ? Number(movement.qty || 0) : movement.type === "OUT" ? -Number(movement.qty || 0) : 0;
+      futureNetByItem.set(movement.itemId, (futureNetByItem.get(movement.itemId) || 0) + delta);
+    }
+    const summaryRows = [...summary.values()].map((row) => {
+      const closing = (currentByItem.get(row.item.id) || 0) - (futureNetByItem.get(row.item.id) || 0);
+      const opening = closing - row.incoming + row.outgoing;
+      return `<tr><td>${esc(row.item.sku)}</td><td>${esc(row.item.name)}</td><td class="right">${fmtNum(opening)}</td><td class="right">${fmtNum(row.incoming)}</td><td class="right">${fmtNum(row.outgoing)}</td><td class="right">${fmtNum(closing)}</td><td>${esc(row.item.unit)}</td></tr>`;
+    }).join("");
+    const movementRows = movements.map((movement) => `<tr><td>${fmtDate(movement.createdAt, true)}</td><td>${esc(movement.type)}</td><td>${esc(movement.item.sku)} — ${esc(movement.item.name)}</td><td class="right">${fmtNum(movement.qty)}</td><td>${esc(movement.fromLocation?.name || "-")}</td><td>${esc(movement.toLocation?.name || "-")}</td><td>${esc(movement.note || "-")}</td><td>${esc(movement.createdBy?.name || "-")}</td></tr>`).join("");
+    res.type("html").send(documentHtml({
+      title: "Laporan Stok Harian",
+      subtitle: `Mutasi persediaan tanggal ${reportDate}`,
+      meta: `Jumlah mutasi: ${movements.length}`,
+      landscape: true,
+      body: `<h3>Ringkasan Barang Bergerak</h3><table><thead><tr><th>SKU</th><th>Barang</th><th class="right">Saldo Awal</th><th class="right">Masuk</th><th class="right">Keluar</th><th class="right">Saldo Akhir</th><th>Satuan</th></tr></thead><tbody>${summaryRows || '<tr><td colspan="7" class="center">Tidak ada mutasi pada tanggal ini</td></tr>'}</tbody></table><h3>Rincian Mutasi</h3><table><thead><tr><th>Waktu</th><th>Jenis</th><th>Barang</th><th class="right">Qty</th><th>Dari</th><th>Ke</th><th>Catatan</th><th>Petugas</th></tr></thead><tbody>${movementRows || '<tr><td colspan="8" class="center">Tidak ada mutasi</td></tr>'}</tbody></table><div class="signatures"><div>Dibuat oleh</div><div>Diperiksa oleh</div><div>Disetujui oleh</div></div>`,
+    }));
+  } catch (error) {
+    res.status(500).json({ error: error.message || "Gagal membuat laporan stok" });
+  }
+});
 
 function num(v, d = 0) {
   const n = Number(v);

@@ -2,6 +2,7 @@ const express = require("express");
 const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { SYSTEM_ACCOUNTS, cashCode, postJournal } = require("../services/accounting");
+const { esc, money, date: fmtDate, documentHtml } = require("../utils/printDocument");
 
 const router = express.Router();
 
@@ -160,92 +161,35 @@ router.get("/report", authRequired, async (req, res) => {
           },
         },
       },
+      truck: { select: { plateNumber: true, brand: true, model: true } },
       createdBy: { select: { id: true, name: true, email: true } },
       proofUploadedBy: { select: { id: true, name: true, email: true } },
       approvedBy: { select: { id: true, name: true, email: true } },
     },
   });
 
-  const total = items.reduce((sum, x) => sum + (x.amount || 0), 0);
+  const total = items.reduce((sum, x) => sum + Number(x.amount || 0), 0);
+  const approved = items.filter(x => ["APPROVED", "PAID"].includes(x.status)).length;
+  const categories = { TRIP_ALLOWANCE: "Uang jalan", DRIVER_SALARY: "Gaji pengemudi", FUEL: "Bahan bakar", TOLL_PARKING: "Tol & parkir", LOADING_UNLOADING: "Bongkar muat", REPAIR_MAINTENANCE: "Perbaikan & servis", SPAREPART: "Sparepart", OFFICE_OPERATIONAL: "Operasional kantor", OTHER: "Lainnya" };
+  const methods = { BANK_TRANSFER: "Transfer bank", CASH: "Tunai", OTHER: "Lainnya" };
+  const statuses = { SUBMITTED: "Diajukan", APPROVED: "Disetujui", PAID: "Dibayar", REJECTED: "Ditolak" };
+  const monthLabel = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(start);
+  const rows = items.map((x, index) => {
+    const trip = x.trip || {};
+    const truck = trip.truck || x.truck;
+    const tripNumber = trip.order?.orderNo || trip.id || "-";
+    const route = trip.order ? `${trip.order.fromText || "-"} → ${trip.order.toText || "-"}` : "Tidak terkait trip";
+    const assignment = truck?.plateNumber ? `${truck.plateNumber}${trip.driverUser?.name ? ` · ${trip.driverUser.name}` : ""}` : "-";
+    return `<tr><td class="center">${index + 1}</td><td>${fmtDate(x.createdAt)}</td><td>${esc(categories[x.category] || "Lainnya")}</td><td><b>${esc(x.reason || "-")}</b><br><span class="muted">${esc(tripNumber)} · ${esc(route)}</span></td><td>${esc(assignment)}</td><td>${esc(methods[x.paymentMethod] || x.paymentMethod || "-")}</td><td>${esc(x.createdBy?.name || "-")}</td><td>${esc(statuses[x.status] || x.status || "Diajukan")}</td><td class="right">${money(x.amount)}</td></tr>`;
+  }).join("");
 
-  const fmt = (v) =>
-    new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(v || 0);
-
-  const html = `
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Monthly Expense रिपोर्ट - ${month}</title>
-    <style>
-      body { font-family: Arial, sans-serif; color: #111; margin: 24px; }
-      h1 { margin: 0 0 8px; font-size: 22px; }
-      .sub { color: #555; margin-bottom: 16px; }
-      table { width: 100%; border-collapse: collapse; font-size: 12px; }
-      th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
-      th { background: #f5f5f5; text-transform: uppercase; font-size: 11px; letter-spacing: .4px; }
-      .right { text-align: right; white-space: nowrap; }
-      .muted { color: #666; }
-      .footer { margin-top: 16px; font-weight: 700; }
-      @media print { body { margin: 10mm; } }
-    </style>
-  </head>
-  <body>
-    <h1>Expense Report</h1>
-    <div class="sub">Month: ${month}</div>
-    <table>
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Trip</th>
-          <th>Driver</th>
-          <th>Truck</th>
-          <th>From → To</th>
-          <th>Reason</th>
-          <th>Method</th>
-          <th>Amount</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${
-          items.length
-            ? items
-                .map((x) => {
-                  const t = x.trip || {};
-                  const driver = t.driverUser?.name || t.driverNameSnap || "-";
-                  const truck = t.truck?.plateNumber || t.plateNumberSnap || "-";
-                  const from = t.order?.fromText || t.fromText || "-";
-                  const to = t.order?.toText || t.toText || "-";
-                  return `
-          <tr>
-            <td>${x.createdAt ? new Date(x.createdAt).toLocaleDateString() : "-"}</td>
-            <td class="muted">${t.id || "-"}</td>
-            <td>${driver}</td>
-            <td>${truck}</td>
-            <td>${from} → ${to}</td>
-            <td>${x.reason || "-"}</td>
-            <td>${x.paymentMethod || "-"}</td>
-            <td class="right">${fmt(x.amount)}</td>
-            <td>${x.status || "SUBMITTED"}</td>
-          </tr>`;
-                })
-                .join("")
-            : `<tr><td colspan="9">No expenses found for this month.</td></tr>`
-        }
-      </tbody>
-    </table>
-    <div class="footer">Total: ${fmt(total)}</div>
-  </body>
-</html>
-  `;
-
-  res.setHeader("Content-Type", "text/html");
-  res.send(html);
+  res.type("html").send(documentHtml({
+    title: "LAPORAN PENGELUARAN BULANAN",
+    subtitle: monthLabel,
+    meta: `Periode: 1–${new Date(year, mon, 0).getDate()} ${esc(monthLabel)}<br>Jumlah data: ${items.length}`,
+    landscape: true,
+    body: `<div class="summary"><div class="box">Total pengeluaran<b>${money(total)}</b><span>Seluruh transaksi periode ini</span></div><div class="box">Jumlah transaksi<b>${items.length}</b><span>Catatan pengeluaran</span></div><div class="box">Disetujui / dibayar<b>${approved}</b><span>Dari ${items.length} transaksi</span></div></div><table><thead><tr><th class="center">No</th><th>Tanggal</th><th>Kategori</th><th>Keterangan / Trip</th><th>Armada / Pengemudi</th><th>Metode</th><th>Dibuat oleh</th><th>Status</th><th class="right">Nominal</th></tr></thead><tbody>${rows || `<tr><td colspan="9" class="center">Belum ada pengeluaran pada periode ini.</td></tr>`}</tbody><tfoot><tr><td colspan="8" class="right"><b>TOTAL PENGELUARAN</b></td><td class="right"><b>${money(total)}</b></td></tr></tfoot></table><div class="signatures"><div>Dibuat oleh</div><div>Diperiksa oleh</div><div>Disetujui oleh</div></div>`,
+  }));
 });
 
 // Create expense

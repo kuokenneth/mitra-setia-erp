@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { API_BASE } from "./api";
+import { API_BASE, getAccessToken } from "./api";
 
 const LiveContext = createContext({ status: "connecting", lastUpdate: null });
 
@@ -16,7 +16,7 @@ export function LiveUpdatesProvider({ children }) {
       setStatus("connecting");
       controller = new AbortController();
       try {
-        const token = localStorage.getItem("token");
+        const token = getAccessToken();
         const response = await fetch(`${API_BASE}/events`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
           credentials: "include",

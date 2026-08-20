@@ -1,6 +1,10 @@
 export const API_BASE =
   (import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/$/, "");
 
+export function getAccessToken() {
+  return sessionStorage.getItem("accessToken");
+}
+
 export function apiAssetUrl(value) {
   const url = String(value || "").trim();
   if (!url) return "";
@@ -14,7 +18,7 @@ export async function uploadFiles(fileList) {
 
   const fd = new FormData();
   files.forEach((file) => fd.append("files", file));
-  const token = localStorage.getItem("token");
+  const token = getAccessToken();
   const res = await fetch(`${API_BASE}/api/uploads`, {
     method: "POST",
     body: fd,
@@ -36,14 +40,13 @@ export async function uploadFiles(fileList) {
 export async function api(path, options = {}) {
   const url = `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
 
-  const token = localStorage.getItem("token"); // ✅
-
+  const token = getAccessToken();
   const res = await fetch(url, {
     method: options.method || "GET",
     ...options,
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}), // ✅
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {}),
     },
     credentials: "include", // keep this (works for Chrome cookie too)
@@ -59,6 +62,27 @@ export async function api(path, options = {}) {
 
   if (!res.ok) throw new Error(data?.error || data?.message || `Request failed (${res.status})`);
   return data;
+}
+
+export async function openPrintDocument(path) {
+  const popup = window.open("", "_blank");
+  try {
+    const token = getAccessToken();
+    const url = `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
+    const response = await fetch(url, {
+      credentials: "include",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    const html = await response.text();
+    if (!response.ok) throw new Error(`Dokumen tidak dapat dibuat (${response.status})`);
+    if (!popup) throw new Error("Popup diblokir browser");
+    popup.document.open();
+    popup.document.write(html);
+    popup.document.close();
+  } catch (error) {
+    popup?.close();
+    throw error;
+  }
 }
 
 

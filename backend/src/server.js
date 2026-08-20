@@ -27,8 +27,10 @@ const realtimeRoutes = require("./routes/realtime");
 const auditRoutes = require("./routes/audit");
 const { publishUpdate } = require("./realtime");
 const { auditTrail } = require("./middleware/auditTrail");
+const { authRequired } = require("./middleware/authRequired");
 
 const app = express();
+app.set("trust proxy", 1);
 
 app.use(helmet());
 
@@ -44,8 +46,7 @@ const allowedOrigins = [
   process.env.FRONTEND_URL, // if you set it
 ].filter(Boolean);
 
-app.use(
-  cors({
+const corsOptions = {
     origin: function (origin, cb) {
       // allow Postman/curl with no origin
       if (!origin) return cb(null, true);
@@ -57,15 +58,26 @@ app.use(
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
+  };
+app.use(cors(corsOptions));
 
 // ✅ Handle preflight for all routes
-app.options(/.*/, cors());
+app.options(/.*/, cors(corsOptions));
 
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 app.use(morgan("dev"));
+
+// Cookie authentication crosses origins in production, so every browser data
+// mutation must originate from an explicitly allowed frontend.
+app.use((req, res, next) => {
+  if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
+  const origin = req.get("origin");
+  const hasBearer = req.headers.authorization?.startsWith("Bearer ");
+  if (process.env.NODE_ENV !== "production" && !origin) return next();
+  if (hasBearer || (origin && allowedOrigins.includes(origin))) return next();
+  return res.status(403).json({ error: "Invalid request origin" });
+});
 app.use(auditTrail);
 
 // Notify connected ERP clients after every successful data mutation.
@@ -81,15 +93,15 @@ app.use((req, res, next) => {
 
 // Health check
 app.get("/health", async (req, res) => {
-  const users = await prisma.user.count();
-  res.json({ ok: true, service: "backend", users });
+  await prisma.$queryRaw`SELECT 1`;
+  res.json({ ok: true, service: "backend" });
 });
 
 /**
  * ✅ PUBLIC STATIC FIRST
  * These must NOT be behind auth, and should not be mounted twice.
  */
-app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
+app.use("/uploads", authRequired, express.static(path.join(__dirname, "..", "uploads"), { dotfiles: "deny", index: false }));
 
 /**
  * ✅ API ROUTES
@@ -116,7 +128,7 @@ app.use("/audit", auditRoutes);
 app.use("/api/uploads", uploadsRoutes);
 
 app.use("/trips", tripsRouter);
-app.use("/dispatch", express.static(path.join(process.cwd(), "public", "dispatch")));
+app.use("/dispatch", authRequired, express.static(path.join(process.cwd(), "public", "dispatch"), { dotfiles: "deny", index: false }));
 app.use("/dispatch", dispatchRouter);
 
 

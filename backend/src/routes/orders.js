@@ -2,6 +2,7 @@
 const express = require("express");
 const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
+const { esc, num: fmtNum, money, date: fmtDate, documentHtml } = require("../utils/printDocument");
 
 const router = express.Router();
 
@@ -282,6 +283,34 @@ router.get("/:id", authRequired, async (req, res) => {
 
 // Faktur muatan untuk angkutan material/ambang. Faktur hanya boleh dicatat
 // sesudah sebuah truk ditetapkan ke pesanan.
+router.get("/:id/material-invoices/print", authRequired, async (req, res) => {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: req.params.id },
+      include: {
+        customer: true,
+        materialInvoices: { orderBy: { issuedAt: "asc" }, include: { trip: { include: { truck: true, driverUser: true } }, lines: { orderBy: { createdAt: "asc" } } } },
+      },
+    });
+    if (!order) return res.status(404).json({ error: "Pesanan tidak ditemukan" });
+    const invoices = order.materialInvoices || [];
+    const allLines = invoices.flatMap(invoice => (invoice.lines?.length ? invoice.lines : [{ itemName: invoice.materialName, qty: invoice.qty, unit: invoice.unit, totalKg: null, totalAmount: null }]).map(line => ({ invoice, line })));
+    const totalQty = allLines.reduce((sum, row) => sum + Number(row.line.qty || 0), 0);
+    const totalKg = allLines.reduce((sum, row) => sum + Number(row.line.totalKg || 0), 0);
+    const totalAmount = allLines.reduce((sum, row) => sum + Number(row.line.totalAmount || 0), 0);
+    const rows = allLines.map((row, index) => `<tr><td class="center">${index + 1}</td><td>${fmtDate(row.invoice.issuedAt)}</td><td><b>${esc(row.invoice.number)}</b><br><span class="muted">${esc(row.invoice.trip?.truck?.plateNumber || "-")}${row.invoice.trip?.driverUser?.name ? ` · ${esc(row.invoice.trip.driverUser.name)}` : ""}</span></td><td>${esc(row.line.ppNumber || "-")}</td><td>${esc(row.line.poNumber || "-")}</td><td>${esc(row.line.itemName || "-")}</td><td class="right">${fmtNum(row.line.qty)} ${esc(row.line.unit || "")}</td><td class="right">${row.line.totalKg == null ? "-" : fmtNum(row.line.totalKg)}</td><td class="right">${row.line.totalAmount == null ? "-" : money(row.line.totalAmount)}</td><td>${esc(row.invoice.notes || "-")}</td></tr>`).join("");
+    res.type("html").send(documentHtml({
+      title: "REKAP FAKTUR MUATAN",
+      subtitle: order.orderNo,
+      landscape: true,
+      meta: `Tanggal pesanan: ${fmtDate(order.createdAt)}<br>Jumlah faktur: ${invoices.length}`,
+      body: `<div class="summary"><div class="box">Pelanggan<b>${esc(order.customer?.name || order.customerName || "-")}</b><span>${esc(order.customer?.phone || "")}</span></div><div class="box">Rute<b>${esc(order.fromText || "-")} → ${esc(order.toText || "-")}</b><span>${invoices.length} faktur muatan</span></div><div class="box">Total tercatat<b>${totalKg ? `${fmtNum(totalKg)} kg` : `${fmtNum(totalQty)} unit`}</b><span>${totalAmount ? money(totalAmount) : "Nilai belum dicatat"}</span></div></div><table><thead><tr><th class="center">No</th><th>Tanggal</th><th>Surat Jalan / Armada</th><th>No. PP</th><th>No. PO</th><th>Barang</th><th class="right">Qty</th><th class="right">Total Kg</th><th class="right">Total Rp</th><th>Catatan</th></tr></thead><tbody>${rows || `<tr><td colspan="10" class="center">Belum ada faktur muatan pada pesanan ini.</td></tr>`}</tbody><tfoot><tr><td colspan="6" class="right"><b>TOTAL</b></td><td class="right"><b>${fmtNum(totalQty)}</b></td><td class="right"><b>${fmtNum(totalKg)}</b></td><td class="right"><b>${money(totalAmount)}</b></td><td></td></tr></tfoot></table><div class="signatures"><div>Dibuat oleh</div><div>Diperiksa oleh</div><div>Disetujui oleh</div></div>`,
+    }));
+  } catch (e) {
+    res.status(400).json({ error: e.message || "Gagal mencetak faktur muatan" });
+  }
+});
+
 router.post("/:id/material-invoices", authRequired, async (req, res) => {
   try {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });

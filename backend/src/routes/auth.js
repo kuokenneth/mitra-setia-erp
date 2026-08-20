@@ -2,11 +2,18 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const { prisma } = require("../prisma");
 const { signToken, requireAuth } = require("../auth");
+const { rateLimit } = require("../middleware/rateLimit");
 
 const router = express.Router();
 
+function authCookieOptions(req) {
+  const forwardedProto = String(req.get("x-forwarded-proto") || "").split(",")[0].trim();
+  const secure = req.secure || forwardedProto === "https" || process.env.NODE_ENV === "production";
+  return { httpOnly: true, secure, sameSite: secure ? "none" : "lax", maxAge: 7 * 24 * 60 * 60 * 1000, path: "/" };
+}
+
 // Register (INVITE CODE REQUIRED)
-router.post("/register", async (req, res) => {
+router.post("/register", rateLimit({ windowMs: 60 * 60 * 1000, max: 10 }), async (req, res) => {
   try {
     const { name, email, password, confirmPassword, inviteCode } = req.body || {};
 
@@ -25,6 +32,9 @@ router.post("/register", async (req, res) => {
     }
     if (pwd !== cpwd) {
       return res.status(400).json({ ok: false, error: "passwords do not match" });
+    }
+    if (pwd.length < 10) {
+      return res.status(400).json({ ok: false, error: "password must be at least 10 characters" });
     }
 
     if (!process.env.INVITE_CODE) {
@@ -66,12 +76,20 @@ router.post("/register", async (req, res) => {
   }
 });
 
-router.post("/login", async (req, res) => {
+router.post(
+  "/login",
+  rateLimit({ windowMs: 15 * 60 * 1000, max: 50, key: (req) => req.ip }),
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    key: (req) => String(req.body?.email || "").trim().toLowerCase(),
+    message: "Terlalu banyak percobaan login. Coba lagi dalam 15 menit.",
+  }),
+  async (req, res) => {
   try {
     const { email, password } = req.body || {};
     const emailNorm = String(email || "").trim().toLowerCase();
     const pwd = String(password || "");
-    const isProd = process.env.NODE_ENV === "production";
 
     if (!emailNorm || !pwd) {
       return res.status(400).json({ ok: false, error: "email and password required" });
@@ -104,17 +122,11 @@ router.post("/login", async (req, res) => {
     // Expose the authenticated actor to the audit middleware for this request.
     req.user = { id: user.id, name: user.name, email: user.email, role: user.role };
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: isProd,                 // ✅ true on Render (HTTPS)
-      sameSite: isProd ? "none" : "lax", // ✅ allow Netlify -> Render cookies
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: "/", 
-    });
+    res.cookie("token", token, authCookieOptions(req));
 
     return res.json({
       ok: true,
-      token, 
+      token,
       user: {
         id: user.id,
         name: user.name,
@@ -125,13 +137,14 @@ router.post("/login", async (req, res) => {
   } catch (e) {
     return res.status(500).json({ ok: false, error: e?.message || String(e) });
   }
-});
+  }
+);
 
 router.post("/logout", requireAuth, (req, res) => {
-  const isProd = process.env.NODE_ENV === "production";
+  const cookie = authCookieOptions(req);
   res.clearCookie("token", {
-    secure: isProd,
-    sameSite: isProd ? "none" : "lax",
+    secure: cookie.secure,
+    sameSite: cookie.sameSite,
     path: "/",
   });
   res.json({ ok: true });
@@ -151,10 +164,10 @@ router.get("/me", requireAuth, async (req, res) => {
   });
 
   if (!user || !user.isActive) {
-    const isProd = process.env.NODE_ENV === "production";
+    const cookie = authCookieOptions(req);
     res.clearCookie("token", {
-      secure: isProd,
-      sameSite: isProd ? "none" : "lax",
+      secure: cookie.secure,
+      sameSite: cookie.sameSite,
       path: "/",
     });
     return res.status(401).json({ ok: false, error: "Unauthorized" });

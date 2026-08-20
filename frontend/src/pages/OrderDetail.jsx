@@ -1,9 +1,10 @@
 // src/pages/OrderDetail.jsx - Corporate Minimalist Design
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api, apiAssetUrl, uploadFiles } from "../api";
+import { api, apiAssetUrl, openPrintDocument, uploadFiles } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
+import { openProtectedFile, ProtectedFilePreview, ProtectedImage } from "../components/ProtectedFile";
 import {
   FiActivity,
   FiArrowLeft,
@@ -15,6 +16,7 @@ import {
   FiMapPin,
   FiPackage,
   FiPlus,
+  FiPrinter,
   FiUploadCloud,
   FiUser,
   FiX,
@@ -807,14 +809,10 @@ export default function OrderDetail() {
                         {isPdf ? (
                           <div style={{ height: 112, display: "grid", placeItems: "center", gap: 4, borderRadius: 8, background: "#F3F7F4" }}>
                             <FiFile size={30} color={BRAND.primary} />
-                            <a href={apiAssetUrl(p.url)} target="_blank" rel="noreferrer" style={{ color: BRAND.primary, fontSize: 12, fontWeight: 600, textDecoration: "none" }}>
-                              Buka PDF
-                            </a>
+                            <button type="button" onClick={() => openProtectedFile(p.url).catch((e) => setErr(e.message))} style={{ border: 0, background: "transparent", cursor: "pointer", color: BRAND.primary, fontSize: 12, fontWeight: 600 }}>Buka PDF</button>
                           </div>
                         ) : (
-                          <a href={apiAssetUrl(p.url)} target="_blank" rel="noreferrer">
-                            <img src={apiAssetUrl(p.url)} alt={p.fileName || "Bukti pesanan"} style={{ display: "block", width: "100%", height: 112, objectFit: "cover", borderRadius: 8, background: BRAND.secondary }} />
-                          </a>
+                          <ProtectedImage url={p.url} alt={p.fileName || "Bukti pesanan"} style={{ display: "block", width: "100%", height: 112, objectFit: "cover", borderRadius: 8, background: BRAND.secondary }} />
                         )}
 
                         <div style={{ minWidth: 0, padding: "2px 4px 3px" }}><div title={p.fileName || "Bukti"} style={{ fontSize: 12, fontWeight: 600, color: BRAND.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.fileName || "Bukti"}</div><div style={{ marginTop: 3, fontSize: 11, color: BRAND.textMuted }}>{fmtDateTime(p.createdAt)}</div></div>
@@ -866,9 +864,7 @@ export default function OrderDetail() {
                       {t.dispatchLetter?.pdfUrl ? (
                         <div style={{ marginTop: 8, fontSize: 13 }}>
                           Dispatch:{" "}
-                          <a href={t.dispatchLetter.pdfUrl} target="_blank" rel="noreferrer" style={{ color: BRAND.primary, fontWeight: 500 }}>
-                            Open PDF
-                          </a>{" "}
+                          <button type="button" onClick={() => openProtectedFile(t.dispatchLetter.pdfUrl).catch((e) => setErr(e.message))} style={{ border: 0, padding: 0, background: "transparent", cursor: "pointer", color: BRAND.primary, fontWeight: 500 }}>Open PDF</button>{" "}
                           <span style={{ color: BRAND.textMuted }}>({t.dispatchLetter.number})</span>
                         </div>
                       ) : (
@@ -894,7 +890,7 @@ export default function OrderDetail() {
 
           {tab === "MATERIAL_INVOICES" && (
             <div>
-              <div style={{ marginBottom: 18, color: BRAND.textMuted, fontSize: 14 }}>Khusus angkutan material/ambang. Input faktur setelah truk ditetapkan dan barang dimuat.</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 18 }}><div style={{ color: BRAND.textMuted, fontSize: 14 }}>Khusus angkutan material/ambang. Input faktur setelah truk ditetapkan dan barang dimuat.</div>{materialInvoices.length > 0 && <Button type="button" variant="secondary" size="small" icon={FiPrinter} onClick={() => openPrintDocument(`/orders/${id}/material-invoices/print`).catch((error) => setErr(error.message))}>Cetak Semua Faktur</Button>}</div>
               {canWrite && (trips.length ? (
                 <form onSubmit={createMaterialInvoice} style={{ padding: 16, border: `1px solid ${BRAND.border}`, borderRadius: 10, background: BRAND.secondary, marginBottom: 20 }}>
                   <div style={{ fontWeight: 650, color: BRAND.text, marginBottom: 14 }}>Tambah Faktur Muatan</div>
@@ -914,7 +910,7 @@ export default function OrderDetail() {
                   <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}><Button type="submit" variant="primary" disabled={savingMaterialInvoice}>{savingMaterialInvoice ? "Menyimpan..." : "Simpan Faktur"}</Button></div>
                 </form>
               ) : <div style={{ padding: 16, border: `1px dashed ${BRAND.border}`, color: BRAND.textMuted, borderRadius: 8, marginBottom: 18 }}>Tetapkan truk ke pesanan terlebih dahulu sebelum memasukkan faktur muatan.</div>)}
-              {materialInvoices.length ? <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}><thead><tr style={{ textAlign: "left", color: BRAND.textMuted, borderBottom: `1px solid ${BRAND.border}` }}><th style={{ padding: 10 }}>Tanggal</th><th style={{ padding: 10 }}>No. GRN / Surat Jalan</th><th style={{ padding: 10 }}>Truk</th><th style={{ padding: 10 }}>Rincian Muatan</th><th style={{ padding: 10 }}>Bukti</th><th style={{ padding: 10 }}>Catatan</th></tr></thead><tbody>{materialInvoices.map((invoice) => <tr key={invoice.id} style={{ borderBottom: `1px solid ${BRAND.border}` }}><td style={{ padding: 10, verticalAlign: "top" }}>{fmtDate(invoice.issuedAt)}</td><td style={{ padding: 10, fontWeight: 600, verticalAlign: "top" }}>{invoice.number}</td><td style={{ padding: 10, verticalAlign: "top" }}>{invoice.trip?.truck?.plateNumber || "-"}</td><td style={{ padding: 10 }}>{invoice.lines?.length ? <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}><thead><tr style={{ color: BRAND.textMuted }}><th style={{ textAlign: "left" }}>PP</th><th style={{ textAlign: "left" }}>PO</th><th style={{ textAlign: "left" }}>Barang</th><th style={{ textAlign: "right" }}>Qty</th><th style={{ textAlign: "right" }}>Kg</th><th style={{ textAlign: "right" }}>Rp</th></tr></thead><tbody>{invoice.lines.map((line) => <tr key={line.id}><td>{line.ppNumber || "-"}</td><td>{line.poNumber || "-"}</td><td>{line.itemName}</td><td style={{ textAlign: "right" }}>{fmtNum(line.qty)} {line.unit}</td><td style={{ textAlign: "right" }}>{line.totalKg != null ? fmtNum(line.totalKg) : "-"}</td><td style={{ textAlign: "right" }}>{line.totalAmount != null ? Number(line.totalAmount).toLocaleString("id-ID") : "-"}</td></tr>)}</tbody></table> : `${invoice.materialName} — ${fmtNum(invoice.qty)} ${invoice.unit}`}</td><td style={{ padding: 10, verticalAlign: "top" }}>{invoice.proofUrl ? <a href={apiAssetUrl(invoice.proofUrl)} target="_blank" rel="noreferrer" style={{ color: BRAND.primary, fontWeight: 600 }}>Buka file</a> : "-"}</td><td style={{ padding: 10, color: BRAND.textMuted, verticalAlign: "top" }}>{invoice.notes || "-"}</td></tr>)}</tbody></table></div> : <div style={{ padding: 20, color: BRAND.textMuted, textAlign: "center" }}>Belum ada faktur muatan.</div>}
+              {materialInvoices.length ? <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}><thead><tr style={{ textAlign: "left", color: BRAND.textMuted, borderBottom: `1px solid ${BRAND.border}` }}><th style={{ padding: 10 }}>Tanggal</th><th style={{ padding: 10 }}>No. GRN / Surat Jalan</th><th style={{ padding: 10 }}>Truk</th><th style={{ padding: 10 }}>Rincian Muatan</th><th style={{ padding: 10 }}>Bukti</th><th style={{ padding: 10 }}>Catatan</th></tr></thead><tbody>{materialInvoices.map((invoice) => <tr key={invoice.id} style={{ borderBottom: `1px solid ${BRAND.border}` }}><td style={{ padding: 10, verticalAlign: "top" }}>{fmtDate(invoice.issuedAt)}</td><td style={{ padding: 10, fontWeight: 600, verticalAlign: "top" }}>{invoice.number}</td><td style={{ padding: 10, verticalAlign: "top" }}>{invoice.trip?.truck?.plateNumber || "-"}</td><td style={{ padding: 10 }}>{invoice.lines?.length ? <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}><thead><tr style={{ color: BRAND.textMuted }}><th style={{ textAlign: "left" }}>PP</th><th style={{ textAlign: "left" }}>PO</th><th style={{ textAlign: "left" }}>Barang</th><th style={{ textAlign: "right" }}>Qty</th><th style={{ textAlign: "right" }}>Kg</th><th style={{ textAlign: "right" }}>Rp</th></tr></thead><tbody>{invoice.lines.map((line) => <tr key={line.id}><td>{line.ppNumber || "-"}</td><td>{line.poNumber || "-"}</td><td>{line.itemName}</td><td style={{ textAlign: "right" }}>{fmtNum(line.qty)} {line.unit}</td><td style={{ textAlign: "right" }}>{line.totalKg != null ? fmtNum(line.totalKg) : "-"}</td><td style={{ textAlign: "right" }}>{line.totalAmount != null ? Number(line.totalAmount).toLocaleString("id-ID") : "-"}</td></tr>)}</tbody></table> : `${invoice.materialName} — ${fmtNum(invoice.qty)} ${invoice.unit}`}</td><td style={{ padding: 10, verticalAlign: "top" }}>{invoice.proofUrl ? <ProtectedFilePreview url={invoice.proofUrl} mimeType={invoice.proofMimeType} fileName={invoice.proofFileName || "Bukti faktur"} imageStyle={{ width: 110, height: 72, objectFit: "cover", borderRadius: 7 }} onError={(e) => setErr(e.message)} /> : "-"}</td><td style={{ padding: 10, color: BRAND.textMuted, verticalAlign: "top" }}>{invoice.notes || "-"}</td></tr>)}</tbody></table></div> : <div style={{ padding: 20, color: BRAND.textMuted, textAlign: "center" }}>Belum ada faktur muatan.</div>}
             </div>
           )}
 

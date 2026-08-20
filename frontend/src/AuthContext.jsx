@@ -19,6 +19,7 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
+    localStorage.removeItem("token");
     refresh();
   }, []);
 
@@ -28,10 +29,8 @@ export function AuthProvider({ children }) {
       body: JSON.stringify({ email, password }),
     });
 
-    // 🔑 SAVE TOKEN (THIS FIXES 401)
-    if (data.token) {
-      localStorage.setItem("token", data.token);
-    }
+    if (data.token) sessionStorage.setItem("accessToken", data.token);
+
     setUser(data.user);
     return data.user;
   }
@@ -43,6 +42,7 @@ export function AuthProvider({ children }) {
       await api("/auth/logout", { method: "POST" });
     } finally {
       localStorage.removeItem("token");
+      sessionStorage.removeItem("accessToken");
       setUser(null);
     }
   }

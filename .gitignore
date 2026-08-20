@@ -12,6 +12,10 @@ yarn-error.log*
 # Prisma
 backend/prisma/dev.db
 backend/prisma/dev.db-journal
+backend/dev.db
+backend/uploads/
+backend/src/uploads/
+backend/public/dispatch/*.pdf
 
 # Build
 dist/
@@ -27,5 +31,4 @@ logs
 # IDE
 .vscode/
 .idea/
-
 

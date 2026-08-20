@@ -73,6 +73,9 @@ router.post(
       if (!name || !email || !password) {
         return res.status(400).json({ error: "name, email, password are required" });
       }
+      if (String(password).length < 10) {
+        return res.status(400).json({ error: "password must be at least 10 characters" });
+      }
 
       const exists = await prisma.user.findUnique({ where: { email: String(email).trim().toLowerCase() } });
       if (exists) return res.status(409).json({ error: "Email already in use" });

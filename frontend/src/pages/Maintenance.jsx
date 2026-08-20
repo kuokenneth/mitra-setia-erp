@@ -1,8 +1,9 @@
 // src/pages/Maintenance.jsx - Corporate Minimalist Design
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, apiAssetUrl, uploadFiles } from "../api";
+import { api, apiAssetUrl, getAccessToken, uploadFiles } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
+import { ProtectedImage } from "../components/ProtectedFile";
 import { FiTool, FiClock, FiCheck, FiX, FiPlus, FiRefreshCw } from "react-icons/fi";
 
 //////////////////////
@@ -270,7 +271,7 @@ function ServicePhoto({ photo, alt }) {
 
     let active = true;
     let objectUrl = "";
-    const token = localStorage.getItem("token");
+    const token = getAccessToken();
     fetch(url, { credentials: "include", headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then((response) => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -1188,7 +1189,7 @@ export default function Maintenance() {
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14, marginTop: 16 }}>
                     {(activeJob.photos || []).map((photo, index) => (
                       <div key={photo} style={{ position: "relative", height: 240, borderRadius: 8, overflow: "hidden", border: `1px solid ${BRAND.border}`, background: BRAND.secondary }}>
-                        <a href={apiAssetUrl(photo)} target="_blank" rel="noreferrer" style={{ display: "block", height: "100%" }}><ServicePhoto photo={photo} alt={`Dokumentasi servis ${index + 1}`} /></a>
+                        <ProtectedImage url={photo} alt={`Dokumentasi servis ${index + 1}`} style={{ display: "block", width: "100%", height: "240px", objectFit: "cover" }} />
                         {allowed && <button type="button" onClick={() => updatePhotos((activeJob.photos || []).filter((_, photoIndex) => photoIndex !== index)).catch((e) => setPhotoError(e.message || "Gagal menghapus foto"))} style={{ position: "absolute", top: 6, right: 6, border: "none", borderRadius: 4, background: "rgba(255,255,255,0.92)", color: BRAND.danger, cursor: "pointer", padding: "4px 7px", fontWeight: 700 }}>×</button>}
                       </div>
                     ))}

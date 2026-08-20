@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api, apiAssetUrl } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
+import { openProtectedFile, ProtectedImage } from "../components/ProtectedFile";
 import {
   FiArrowLeft,
   FiCheck,
@@ -407,9 +408,7 @@ export default function TripDetail() {
                 label="Surat jalan"
                 icon={FiFileText}
                 value={trip.dispatchLetter?.pdfUrl ? (
-                  <a href={trip.dispatchLetter.pdfUrl} target="_blank" rel="noreferrer" style={{ fontWeight: 600, color: "#0D7C3D", textDecoration: "none" }}>
-                    {trip.dispatchLetter.number || "Buka PDF"}
-                  </a>
+                  <button type="button" onClick={() => openProtectedFile(trip.dispatchLetter.pdfUrl).catch((e) => setErr(e.message))} style={{ border: 0, padding: 0, background: "transparent", cursor: "pointer", fontWeight: 600, color: "#0D7C3D" }}>{trip.dispatchLetter.number || "Buka PDF"}</button>
                 ) : "Belum dibuat"}
               />
             </div>
@@ -470,18 +469,10 @@ export default function TripDetail() {
                     >
                       {isPdf ? (
                         <div style={{ height: 112, display: "grid", placeItems: "center", borderRadius: 9, background: "#F1F7F3" }}>
-                          <a href={apiAssetUrl(p.url)} target="_blank" rel="noreferrer" style={{ fontWeight: 600, color: "#0B2A1F" }}>
-                            Buka PDF
-                          </a>
+                          <button type="button" onClick={() => openProtectedFile(p.url).catch((e) => setErr(e.message))} style={{ border: 0, background: "transparent", cursor: "pointer", fontWeight: 600, color: "#0B2A1F" }}>Buka PDF</button>
                         </div>
                       ) : (
-                        <a href={apiAssetUrl(p.url)} target="_blank" rel="noreferrer">
-                          <img
-                            src={apiAssetUrl(p.url)}
-                            alt={p.fileName || "Bukti timbangan"}
-                            style={{ display: "block", width: "100%", height: 112, objectFit: "cover", borderRadius: 9 }}
-                          />
-                        </a>
+                        <ProtectedImage url={p.url} alt={p.fileName || "Bukti timbangan"} style={{ display: "block", width: "100%", height: 112, objectFit: "cover", borderRadius: 9 }} />
                       )}
 
                       <div title={p.fileName || "Bukti timbangan"} style={{ marginTop: 8, fontWeight: 700, fontSize: 12, color: "#2F6B55", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.fileName || "Bukti timbangan"}</div>

@@ -1,52 +1,36 @@
 // backend/src/routes/uploads.js
 const express = require("express");
 const multer = require("multer");
-const { v2: cloudinary } = require("cloudinary");
-const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const { authRequired } = require("../middleware/authRequired");
 const { prisma } = require("../prisma");
 
 const router = express.Router();
 
-const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-const cloudKey = process.env.CLOUDINARY_API_KEY;
-const cloudSecret = process.env.CLOUDINARY_API_SECRET;
-const cloudinaryEnabled = Boolean(cloudName && cloudKey && cloudSecret && ![cloudName, cloudKey, cloudSecret].includes("xxxx"));
+const allowedTypes = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
 
-if (cloudinaryEnabled) {
-  cloudinary.config({
-    cloud_name: cloudName,
-    api_key: cloudKey,
-    api_secret: cloudSecret,
-  });
+function hasValidSignature(file) {
+  const b = file.buffer;
+  if (!b || b.length < 12) return false;
+  if (file.mimetype === "application/pdf") return b.subarray(0, 5).toString("ascii") === "%PDF-";
+  if (file.mimetype === "image/jpeg") return b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
+  if (file.mimetype === "image/png") return b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  if (file.mimetype === "image/webp") return b.subarray(0, 4).toString("ascii") === "RIFF" && b.subarray(8, 12).toString("ascii") === "WEBP";
+  return false;
 }
 
-// Cloudinary storage
-const cloudStorage = new CloudinaryStorage({
-  cloudinary,
-  params: async (req, file) => {
-    const isPdf = file.mimetype === "application/pdf";
-    return {
-      folder: "mitra-setia/expenses",
-      resource_type: isPdf ? "raw" : "image",
-      public_id: `${Date.now()}-${(file.originalname || "file").replace(/\.[^/.]+$/, "")}`.replace(/[\W]/g, "_"),
-    };
-  },
-});
-
 const upload = multer({
-  // Database fallback is persistent across Render restarts.
-  storage: cloudinaryEnabled ? cloudStorage : multer.memoryStorage(),
+  // Proofs are kept behind authenticated download routes, never public URLs.
+  storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowed = file.mimetype === "application/pdf" || String(file.mimetype || "").startsWith("image/");
-    cb(allowed ? null : new Error("Hanya file PDF dan gambar yang diperbolehkan"), allowed);
+    const allowed = allowedTypes.has(String(file.mimetype || "").toLowerCase());
+    cb(allowed ? null : new Error("Hanya PDF, JPG, PNG, dan WEBP yang diperbolehkan"), allowed);
   },
 });
 
 // Public read endpoint. IDs are unguessable CUIDs and the response is inline so
 // image/PDF proofs can be opened directly from a new browser tab.
-router.get("/:id", async (req, res) => {
+router.get("/:id", authRequired, async (req, res) => {
   try {
     const file = await prisma.storedFile.findUnique({ where: { id: req.params.id } });
     if (!file) return res.status(404).send("Bukti tidak ditemukan");
@@ -76,12 +60,14 @@ router.post("/", authRequired, (req, res, next) => {
   try {
     const files = req.files || [];
     if (!files.length) return res.status(400).json({ error: "Pilih minimal satu file PDF atau gambar" });
+    if (files.some((file) => !hasValidSignature(file))) {
+      return res.status(400).json({ error: "Isi file tidak sesuai dengan format PDF atau gambar yang dipilih" });
+    }
     const out = await Promise.all(files.map(async (f) => {
-      if (cloudinaryEnabled) return { url: f.path, fileName: f.originalname, mimeType: f.mimetype, size: f.size };
       const stored = await prisma.storedFile.create({ data: { fileName: f.originalname || "bukti", mimeType: f.mimetype || "application/octet-stream", size: f.size, data: f.buffer } });
       return { url: `/api/uploads/${stored.id}`, fileName: stored.fileName, mimeType: stored.mimeType, size: stored.size };
     }));
-    res.json({ items: out, storage: cloudinaryEnabled ? "cloudinary" : "database" });
+    res.json({ items: out, storage: "database" });
   } catch (e) {
     console.error(e);
     res.status(400).json({ error: e.message || "Upload failed" });

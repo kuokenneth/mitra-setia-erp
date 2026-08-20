@@ -5,6 +5,7 @@ import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { useNavigate } from "react-router-dom";
 import { FiFileText, FiPlus, FiSearch, FiTrash2, FiUploadCloud, FiX } from "react-icons/fi";
+import { openProtectedFile, ProtectedImage } from "../components/ProtectedFile";
 
 //////////////////////
 // THEME - CORPORATE MINIMALIST
@@ -816,17 +817,11 @@ export default function Orders() {
                       <div style={{ height: 112, display: "grid", placeItems: "center", gap: 4, borderRadius: 8, background: "#F3F7F4" }}>
                         <FiFileText size={30} color={BRAND.primary}/>
                         <div>
-                          <a href={apiAssetUrl(p.url)} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: BRAND.primary, fontWeight: 600, textDecoration: "none" }}>Buka PDF</a>
+                          <button type="button" onClick={() => openProtectedFile(p.url).catch((e) => setErr(e.message))} style={{ border: 0, background: "transparent", cursor: "pointer", fontSize: 12, color: BRAND.primary, fontWeight: 600 }}>Buka PDF</button>
                         </div>
                       </div>
                     ) : (
-                      <a href={apiAssetUrl(p.url)} target="_blank" rel="noreferrer" style={{ display: "block" }}>
-                        <img
-                          src={apiAssetUrl(p.url)}
-                          alt={p.fileName || "Bukti pesanan"}
-                          style={{ display: "block", width: "100%", height: 112, objectFit: "cover", borderRadius: 8, background: BRAND.secondary }}
-                        />
-                      </a>
+                      <ProtectedImage url={p.url} alt={p.fileName || "Bukti pesanan"} style={{ display: "block", width: "100%", height: 112, objectFit: "cover", borderRadius: 8, background: BRAND.secondary }} />
                     )}
                     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 30px", alignItems: "center", gap: 8, padding: "2px 2px 1px 4px", minWidth: 0 }}>
                       <div title={p.fileName || "Bukti"} style={{ minWidth: 0, maxWidth: "100%", fontWeight: 500, fontSize: 12, color: BRAND.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.fileName || "Bukti"}</div>
