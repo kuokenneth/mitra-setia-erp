@@ -99,7 +99,16 @@
 }
 .date-placeholder-wrap.has-value::after,
 .date-placeholder-wrap:focus-within::after { display: none; }
-.date-placeholder-wrap:not(.has-value) .tablet-date-input::-webkit-datetime-edit { color: transparent; }
+.date-placeholder-wrap:not(.has-value):not(:focus-within) .tablet-date-input::-webkit-datetime-edit {
+  color: transparent;
+}
+.date-placeholder-wrap:not(.has-value):not(:focus-within) .tablet-date-input::-webkit-datetime-edit-fields-wrapper {
+  opacity: 0;
+}
+.date-placeholder-wrap.has-value .tablet-date-input::-webkit-datetime-edit-fields-wrapper,
+.date-placeholder-wrap:focus-within .tablet-date-input::-webkit-datetime-edit-fields-wrapper {
+  opacity: 1;
+}
 .date-placeholder-wrap .tablet-date-input,
 .tablet-date-input {
   position: relative;
@@ -150,10 +159,14 @@
 .maintenance-filter-grid > button {
   position: relative;
   z-index: 2;
-  width: 100% !important;
-  min-width: 0 !important;
+  width: auto !important;
+  min-width: 92px !important;
+  max-width: 140px;
+  justify-self: start;
   justify-content: center !important;
   box-sizing: border-box;
+  padding-left: 20px !important;
+  padding-right: 20px !important;
 }
 
 .orders-filter-grid > div,
@@ -173,6 +186,8 @@
   .orders-filter-grid > *, .trips-filter-grid > *, .maintenance-filter-grid > *, .inventory-movement-filters > * {
     min-width: 0 !important;
     width: 100% !important;
+    max-width: none;
+    justify-self: stretch;
     box-sizing: border-box;
   }
 }
