@@ -207,12 +207,18 @@ router.post(
   requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     try {
-      const { sku, name, unit, isSerialized } = req.body || {};
+      const { sku, name, unit, isSerialized, category } = req.body || {};
       if (!sku || !name) {
         return res.status(400).json({ ok: false, error: "sku and name are required" });
       }
       const cleanSku = String(sku).trim();
       const cleanName = String(name).trim();
+      const cleanCategory = ["GENERAL_SPAREPART", "TIRE", "BATTERY", "OTHER"].includes(category)
+        ? category
+        : "GENERAL_SPAREPART";
+      if (cleanCategory === "TIRE" && !Boolean(isSerialized)) {
+        return res.status(400).json({ ok: false, error: "Item kategori Ban wajib menggunakan pelacakan serialized" });
+      }
       const duplicateField = await getDuplicateItemField({ sku: cleanSku, name: cleanName });
       if (duplicateField) {
         return res.status(400).json({ ok: false, error: `${duplicateField} sudah digunakan` });
@@ -224,6 +230,7 @@ router.post(
           name: cleanName,
           unit: unit ? String(unit).trim() : undefined,
           isSerialized: Boolean(isSerialized),
+          category: cleanCategory,
         },
       });
 
@@ -247,13 +254,19 @@ router.patch(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { sku, name, unit, isSerialized } = req.body || {};
+      const { sku, name, unit, isSerialized, category } = req.body || {};
       const existing = await prisma.item.findUnique({
         where: { id },
         include: { stocks: { select: { qty: true } }, _count: { select: { stockUnits: true, movements: true } } },
       });
       if (!existing) return res.status(404).json({ ok: false, error: "Barang tidak ditemukan" });
       const nextSerialized = isSerialized !== undefined ? Boolean(isSerialized) : existing.isSerialized;
+      const nextCategory = category !== undefined && ["GENERAL_SPAREPART", "TIRE", "BATTERY", "OTHER"].includes(category)
+        ? category
+        : existing.category;
+      if (nextCategory === "TIRE" && !nextSerialized) {
+        return res.status(400).json({ ok: false, error: "Item kategori Ban wajib menggunakan pelacakan serialized" });
+      }
       const hasStockHistory = existing._count.stockUnits > 0 || existing._count.movements > 0 || existing.stocks.some((stock) => Number(stock.qty) !== 0);
       if (nextSerialized !== existing.isSerialized && hasStockHistory) {
         return res.status(400).json({ ok: false, error: "Tipe serialized tidak dapat diubah karena barang sudah memiliki stok atau riwayat pergerakan" });
@@ -280,6 +293,7 @@ router.patch(
           name: cleanName,
           unit: cleanUnit,
           isSerialized: nextSerialized,
+          category: nextCategory,
         },
       });
       res.json({ ok: true, item });
@@ -803,7 +817,7 @@ router.get(
   requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (_req, res) => {
     const [items, suppliers, locations] = await prisma.$transaction([
-      prisma.item.findMany({ where: { isSerialized: true }, orderBy: { name: "asc" } }),
+      prisma.item.findMany({ where: { isSerialized: true, category: "TIRE" }, orderBy: { name: "asc" } }),
       prisma.supplier.findMany({ orderBy: { name: "asc" } }),
       prisma.inventoryLocation.findMany({ orderBy: { name: "asc" } }),
     ]);
@@ -840,6 +854,7 @@ router.post(
         });
         if (!unit) throw new Error("Unit tidak ditemukan");
         if (!unit.item.isSerialized) throw new Error("Hanya barang berserial yang dapat diproses");
+        if (unit.item.category !== "TIRE") throw new Error("Hanya item kategori Ban yang dapat diproses masak ban");
         if (!['IN_STOCK', 'ASSIGNED'].includes(unit.status)) {
           throw new Error("Unit harus sedang terpasang di truk atau berada di stok");
         }
@@ -847,7 +862,7 @@ router.post(
         if (unit.itemId === toItemId) throw new Error("Pilih item Ban Masak yang berbeda dari item asal");
 
         const targetItem = await tx.item.findUnique({ where: { id: toItemId } });
-        if (!targetItem?.isSerialized) throw new Error("Item tujuan harus merupakan barang berserial");
+        if (!targetItem?.isSerialized || targetItem.category !== "TIRE") throw new Error("Item tujuan harus merupakan item Ban berserial");
         if (supplierId) {
           const supplier = await tx.supplier.findUnique({ where: { id: supplierId } });
           if (!supplier) throw new Error("Vendor tidak ditemukan");

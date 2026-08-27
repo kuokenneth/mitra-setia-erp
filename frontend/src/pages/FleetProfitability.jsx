@@ -33,8 +33,14 @@ export default function FleetProfitability() {
       setLoading(false);
       return;
     }
+    const normalizedMonth = String(month || "").trim();
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(normalizedMonth)) {
+      setError("Pilih periode bulan yang valid.");
+      setLoading(false);
+      return;
+    }
     setLoading(true); setError("");
-    try { setData(await api(`/fleet-profitability?month=${month}`)); }
+    try { setData(await api(`/fleet-profitability?month=${encodeURIComponent(normalizedMonth)}`)); }
     catch (err) { setError(err.message); }
     finally { setLoading(false); }
   }

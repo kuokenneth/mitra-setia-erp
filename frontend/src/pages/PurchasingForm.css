@@ -1,9 +1,19 @@
 .item-mode { display: grid; grid-template-columns: 1fr 1fr; background: #f0f4f1; border-radius: 9px; padding: 4px; }
 .item-mode button { display: flex; justify-content: center; align-items: center; gap: 6px; border: 0; background: transparent; color: #68746c; font-size: 12px; }
 .item-mode button.selected { background: #fff; color: #0d7c3d; box-shadow: 0 1px 4px #173c2820; }
+.request-item-mode { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .new-item-box { display: grid; gap: 12px; padding: 14px; border: 1px solid #dfe8e2; background: #f8fbf9; border-radius: 10px; }
 .purchasing .modal .check-label { display: flex; grid-template-columns: none; align-items: center; gap: 8px; }
 .purchasing .modal .check-label input { width: auto; }
+.retread-purchase-picker { display: grid; gap: 8px; padding: 12px; border: 1px solid #b9d9c5; border-radius: 10px; background: #f2faf5; }
+.retread-purchase-picker > strong { color: #146c3a; font-size: 13px; }
+.retread-purchase-picker > small { color: #607067; font-size: 12px; }
+.purchasing .modal .retread-unit-option { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid #d6e4da; border-radius: 8px; background: #fff; cursor: pointer; }
+.purchasing .modal .retread-unit-option.selected { border-color: #0d7c3d; background: #e8f7ed; box-shadow: 0 0 0 2px rgba(13, 124, 61, .1); }
+.purchasing .modal .retread-unit-option input { width: 18px; height: 18px; flex: 0 0 auto; accent-color: #0d7c3d; }
+.retread-unit-option span { display: grid; gap: 2px; }
+.retread-unit-option b { color: #18251d; font-size: 13px; }
+.retread-unit-option small { color: #65736a; font-size: 11px; }
 .field-help { color: #a05c00; font-weight: 500; }
 .form-error { padding: 10px 12px; border-radius: 8px; background: #fee2e2; color: #b42318; font-size: 12px; }
 .purchasing .modal button:disabled { opacity: .6; cursor: not-allowed; }
@@ -18,7 +28,7 @@
 .purchasing .modal select { appearance: none; -webkit-appearance: none; padding-right: 40px; background-image: linear-gradient(45deg, transparent 50%, #5e6b63 50%), linear-gradient(135deg, #5e6b63 50%, transparent 50%); background-position: calc(100% - 18px) 21px, calc(100% - 13px) 21px; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; }
 .purchasing .modal .grid2 { align-items: start; }
 .purchasing .modal-actions button { min-height: 42px; border-radius: 8px; padding: 0 16px; font-size: 14px; }
-@media (max-width: 600px) { .modal { padding: 20px; } .item-mode { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .modal { padding: 20px; } .item-mode { grid-template-columns: 1fr; } .request-item-mode { grid-template-columns: 1fr; } }
 
 /* Purchase request modal: isolated from broad global form styles. */
 .overlay { padding: 24px; backdrop-filter: blur(3px); }
@@ -68,6 +78,7 @@
   .purchase-request-modal { width: 100%; max-height: calc(100vh - 20px); border-radius: 16px 16px 10px 10px; }
   .modal-heading { padding: 22px 20px 18px; }
   .purchase-request-modal > .item-mode { width: calc(100% - 40px); margin: 18px auto 15px; grid-template-columns: 1fr 1fr; }
+  .purchase-request-modal > .request-item-mode { grid-template-columns: 1fr; }
   .purchase-request-modal > label, .purchase-request-modal > .new-item-box, .purchase-request-modal > .request-details, .purchase-request-modal > .form-error { width: calc(100% - 40px); margin-left: auto; margin-right: auto; }
   .purchase-request-modal .grid2 { grid-template-columns: 1fr; gap: 14px; }
   .purchase-request-modal .modal-actions { padding: 16px 20px 20px; }

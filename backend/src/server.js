@@ -25,6 +25,7 @@ const accountingRoutes = require("./routes/accounting");
 const fleetProfitabilityRoutes = require("./routes/fleetProfitability");
 const realtimeRoutes = require("./routes/realtime");
 const auditRoutes = require("./routes/audit");
+const golacakRoutes = require("./routes/golacak");
 const { publishUpdate } = require("./realtime");
 const { auditTrail } = require("./middleware/auditTrail");
 const { authRequired } = require("./middleware/authRequired");
@@ -72,6 +73,9 @@ app.use(morgan("dev"));
 // mutation must originate from an explicitly allowed frontend.
 app.use((req, res, next) => {
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
+  // GOlacak is a server-to-server webhook without a browser Origin header.
+  // Its shared secret is validated by the integration route itself.
+  if (req.path === "/integrations/golacak/events" && req.get("Token")) return next();
   const origin = req.get("origin");
   const hasBearer = req.headers.authorization?.startsWith("Bearer ");
   if (process.env.NODE_ENV !== "production" && !origin) return next();
@@ -83,6 +87,7 @@ app.use(auditTrail);
 // Notify connected ERP clients after every successful data mutation.
 app.use((req, res, next) => {
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
+  if (req.path === "/integrations/golacak/events") return next();
   res.on("finish", () => {
     if (res.statusCode < 400 && !req.path.startsWith("/auth/")) {
       publishUpdate({ method: req.method, resource: req.path.split("/").filter(Boolean)[0] || "data" });
@@ -120,6 +125,7 @@ app.use("/accounting", accountingRoutes);
 app.use("/fleet-profitability", fleetProfitabilityRoutes);
 app.use("/events", realtimeRoutes);
 app.use("/audit", auditRoutes);
+app.use("/integrations/golacak", golacakRoutes);
 
 /**
  * ✅ Upload API should NOT be /uploads (conflicts with static).

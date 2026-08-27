@@ -522,6 +522,7 @@ export default function Inventory() {
     name: "",
     unit: "PCS",
     isSerialized: false,
+    category: "GENERAL_SPAREPART",
   });
 
   const [receiveForm, setReceiveForm] = useState({
@@ -805,11 +806,12 @@ export default function Inventory() {
           name: createItemForm.name.trim(),
           unit: createItemForm.unit.trim() || "PCS",
           isSerialized: !!createItemForm.isSerialized,
+          category: createItemForm.category,
         }),
       });
 
       setOpenCreateItem(false);
-      setCreateItemForm({ sku: "", name: "", unit: "PCS", isSerialized: false });
+      setCreateItemForm({ sku: "", name: "", unit: "PCS", isSerialized: false, category: "GENERAL_SPAREPART" });
       await loadItems();
     } catch (e) {
       setCreateItemError(String(e?.message || e));
@@ -825,6 +827,7 @@ export default function Inventory() {
       unit: item.unit || "PCS",
       isSerialized: Boolean(item.isSerialized),
       originalSerialized: Boolean(item.isSerialized),
+      category: item.category || "GENERAL_SPAREPART",
       totalStock: sumStocks(item.stocks),
     });
   }
@@ -842,6 +845,7 @@ export default function Inventory() {
           name: editItemForm.name.trim(),
           unit: editItemForm.unit.trim(),
           isSerialized: editItemForm.isSerialized,
+          category: editItemForm.category,
         }),
       });
       setEditItemForm(null);
@@ -1370,11 +1374,26 @@ export default function Inventory() {
               />
             </div>
 
+            <label style={{ display: "grid", gap: 6, gridColumn: "1 / -1", color: BRAND.text, fontWeight: 500 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>Kategori barang</span>
+              <select
+                style={{ ...selectPill, width: "100%" }}
+                value={createItemForm.category}
+                onChange={(e) => setCreateItemForm((p) => ({ ...p, category: e.target.value, isSerialized: e.target.value === "TIRE" ? true : p.isSerialized }))}
+              >
+                <option value="GENERAL_SPAREPART">Sparepart Umum</option>
+                <option value="TIRE">Ban</option>
+                <option value="BATTERY">Aki/Baterai</option>
+                <option value="OTHER">Lainnya</option>
+              </select>
+            </label>
+
             <label style={{ display: "flex", alignItems: "center", gap: 10, gridColumn: "1 / -1", color: BRAND.text, fontWeight: 500 }}>
               <input
                 type="checkbox"
                 checked={createItemForm.isSerialized}
                 onChange={(e) => setCreateItemForm((p) => ({ ...p, isSerialized: e.target.checked }))}
+                disabled={createItemForm.category === "TIRE"}
               />
               Serialized (unit-level tracking)
             </label>
@@ -1412,8 +1431,21 @@ export default function Inventory() {
                   />
                   {isSparepartAdmin && <div style={{ marginTop: 6, fontSize: 12, color: BRAND.textMuted }}>Nama barang hanya dapat diubah oleh Owner, Admin, atau Staf.</div>}
                 </div>
+                <label style={{ display: "grid", gap: 6, gridColumn: "1 / -1", color: BRAND.text, fontWeight: 500 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>Kategori barang</span>
+                  <select
+                    style={{ ...selectPill, width: "100%" }}
+                    value={editItemForm.category}
+                    onChange={(e) => setEditItemForm((p) => ({ ...p, category: e.target.value, isSerialized: e.target.value === "TIRE" ? true : p.isSerialized }))}
+                  >
+                    <option value="GENERAL_SPAREPART">Sparepart Umum</option>
+                    <option value="TIRE">Ban</option>
+                    <option value="BATTERY">Aki/Baterai</option>
+                    <option value="OTHER">Lainnya</option>
+                  </select>
+                </label>
                 <label style={{ display: "flex", alignItems: "center", gap: 10, gridColumn: "1 / -1", color: BRAND.text, fontWeight: 500 }}>
-                  <input type="checkbox" checked={editItemForm.isSerialized} onChange={(e) => setEditItemForm((p) => ({ ...p, isSerialized: e.target.checked }))} />
+                  <input type="checkbox" checked={editItemForm.isSerialized} disabled={editItemForm.category === "TIRE"} onChange={(e) => setEditItemForm((p) => ({ ...p, isSerialized: e.target.checked }))} />
                   Serialized — setiap unit memiliki nomor seri
                 </label>
               </div>
@@ -1817,6 +1849,7 @@ function ItemsTable({ items, loading, onUse, onEdit }) {
             <th style={th}>SKU</th>
             <th style={th}>Nama</th>
             <th style={th}>Unit</th>
+            <th style={th}>Kategori</th>
             <th style={th}>Serialized</th>
             <th style={th}>Total Stok</th>
             <th style={th}>Tindakan</th>
@@ -1828,6 +1861,7 @@ function ItemsTable({ items, loading, onUse, onEdit }) {
               <td style={td}>{it.sku || "-"}</td>
               <td style={td}>{it.name || "-"}</td>
               <td style={tdSoft}>{it.unit || "-"}</td>
+              <td style={tdSoft}>{({ GENERAL_SPAREPART: "Sparepart Umum", TIRE: "Ban", BATTERY: "Aki/Baterai", OTHER: "Lainnya" })[it.category] || "Sparepart Umum"}</td>
               <td style={tdSoft}>{it.isSerialized ? "Yes" : "No"}</td>
               <td style={td}>{sumStocks(it.stocks)}</td>
               <td style={td}>

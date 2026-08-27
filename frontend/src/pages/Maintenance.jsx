@@ -64,6 +64,12 @@ function fmtDateTime(d) {
   }
 }
 
+function installedDays(installedAt) {
+  const start = new Date(installedAt).getTime();
+  if (!Number.isFinite(start)) return null;
+  return Math.max(0, Math.floor((Date.now() - start) / 86400000));
+}
+
 //////////////////////
 // UI COMPONENTS
 //////////////////////
@@ -230,7 +236,6 @@ function SearchableItemPicker({ items, value, onChange, disabled, placeholder, t
 
   return (
     <div>
-      {selected && <div style={{ marginBottom: 7, fontSize: 12, color: BRAND.primary, fontWeight: 600 }}>Dipilih: {selected.sku} — {selected.name}</div>}
       <Input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -247,13 +252,80 @@ function SearchableItemPicker({ items, value, onChange, disabled, placeholder, t
             key={item.id}
             disabled={disabled}
             onClick={() => { onChange(item.id); setQuery(""); }}
-            style={{ display: "block", width: "100%", padding: "10px 12px", border: "none", borderBottom: `1px solid ${BRAND.border}`, background: item.id === value ? BRAND.secondary : BRAND.white, color: BRAND.text, textAlign: "left", cursor: disabled ? "not-allowed" : "pointer", fontSize: 13 }}
+            style={{ display: "block", width: "100%", padding: "10px 12px", border: "none", borderBottom: `1px solid ${BRAND.border}`, background: item.id === value ? BRAND.successBg : BRAND.white, boxShadow: item.id === value ? `inset 4px 0 0 ${BRAND.primary}` : "none", color: BRAND.text, textAlign: "left", cursor: disabled ? "not-allowed" : "pointer", fontSize: 13 }}
           >
-            <strong>{item.sku}</strong> — {item.name} <span style={{ color: BRAND.textMuted }}>({item.unit || "PCS"})</span>
+            {item.id === value && <strong style={{ color: BRAND.primary, marginRight: 7 }}>✓</strong>}<strong>{item.sku}</strong> — {item.name} <span style={{ color: BRAND.textMuted }}>({item.unit || "PCS"})</span>
           </button>
         ))}
       </div>
+      <div style={{ minHeight: 18, marginTop: 8, padding: "9px 11px", borderRadius: 6, border: `1px solid ${selected ? BRAND.primary : BRAND.border}`, background: selected ? BRAND.successBg : BRAND.secondary, fontSize: 12, color: selected ? BRAND.primary : BRAND.textMuted, fontWeight: selected ? 700 : 400 }}>
+        {selected ? `✓ DIPILIH: ${selected.sku} — ${selected.name}` : "Belum ada item dipilih."}
+      </div>
       {!query && items.length > 100 && <div style={{ marginTop: 6, fontSize: 12, color: BRAND.textMuted }}>Menampilkan 100 item pertama. Ketik SKU atau nama untuk mencari.</div>}
+    </div>
+  );
+}
+
+function SearchableStockUnitPicker({ units, value, onChange, disabled, placeholder, testId }) {
+  const [query, setQuery] = useState("");
+  const selected = units.find((unit) => unit.id === value) || null;
+  const filtered = useMemo(() => {
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return units.slice(0, 100);
+    return units.filter((unit) => `${unit.serialNumber || ""} ${unit.barcode || ""} ${unit.location?.name || ""}`.toLowerCase().includes(keyword)).slice(0, 100);
+  }, [units, query]);
+  const label = (unit) => `${unit.serialNumber || unit.barcode || unit.id.slice(0, 8)} • ${unit.location?.name || "Tanpa lokasi"}`;
+
+  return (
+    <div>
+      <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={placeholder} disabled={disabled} data-testid={testId} />
+      <div style={{ maxHeight: 190, overflowY: "auto", marginTop: 8, border: `1px solid ${BRAND.border}`, borderRadius: 6, background: BRAND.white }}>
+        {!filtered.length ? <div style={{ padding: 12, fontSize: 13, color: BRAND.textMuted }}>Tidak ada unit stok yang cocok.</div> : filtered.map((unit) => (
+          <button type="button" key={unit.id} disabled={disabled} onClick={() => { onChange(unit.id); setQuery(""); }} style={{ display: "block", width: "100%", padding: "10px 12px", border: "none", borderBottom: `1px solid ${BRAND.border}`, background: unit.id === value ? BRAND.successBg : BRAND.white, boxShadow: unit.id === value ? `inset 4px 0 0 ${BRAND.primary}` : "none", color: BRAND.text, textAlign: "left", cursor: disabled ? "not-allowed" : "pointer", fontSize: 13 }}>
+            {unit.id === value && <strong style={{ color: BRAND.primary, marginRight: 7 }}>✓</strong>}{label(unit)}
+          </button>
+        ))}
+      </div>
+      <div style={{ minHeight: 18, marginTop: 8, padding: "9px 11px", borderRadius: 6, border: `1px solid ${selected ? BRAND.primary : BRAND.border}`, background: selected ? BRAND.successBg : BRAND.secondary, fontSize: 12, color: selected ? BRAND.primary : BRAND.textMuted, fontWeight: selected ? 700 : 400 }}>
+        {selected ? `✓ UNIT BARU DIPILIH: ${label(selected)}` : "Pilih unit baru berdasarkan serial atau barcode."}
+      </div>
+    </div>
+  );
+}
+
+function SearchableInstalledUnitPicker({ assignments, value, onChange, disabled, loading, testId }) {
+  const [query, setQuery] = useState("");
+  const selected = assignments.find((assignment) => assignment.stockUnitId === value) || null;
+  const filtered = useMemo(() => {
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return assignments.slice(0, 100);
+    return assignments.filter((assignment) => {
+      const unit = assignment.stockUnit || {};
+      return `${unit.serialNumber || ""} ${unit.barcode || ""} ${unit.item?.sku || ""} ${unit.item?.name || ""}`.toLowerCase().includes(keyword);
+    }).slice(0, 100);
+  }, [assignments, query]);
+  const label = (assignment) => {
+    const unit = assignment.stockUnit || {};
+    const days = installedDays(assignment.installedAt);
+    return `${unit.serialNumber || unit.barcode || assignment.stockUnitId.slice(0, 8)} • ${days == null ? "umur tidak diketahui" : `${days} hari digunakan`}`;
+  };
+
+  return (
+    <div>
+      <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={loading ? "Memuat unit terpasang..." : "Cari unit lama untuk diganti (opsional)..."} disabled={disabled || loading} data-testid={testId} />
+      <div style={{ maxHeight: 190, overflowY: "auto", marginTop: 8, border: `1px solid ${BRAND.border}`, borderRadius: 6, background: BRAND.white }}>
+        <button type="button" disabled={disabled || loading} onClick={() => { onChange(""); setQuery(""); }} style={{ display: "block", width: "100%", padding: "10px 12px", border: "none", borderBottom: `1px solid ${BRAND.border}`, background: value ? BRAND.white : BRAND.successBg, boxShadow: value ? "none" : `inset 4px 0 0 ${BRAND.primary}`, color: value ? BRAND.textMuted : BRAND.primary, textAlign: "left", cursor: disabled ? "not-allowed" : "pointer", fontSize: 13, fontWeight: value ? 400 : 700 }}>
+          {!value && <span style={{ marginRight: 7 }}>✓</span>}Pasang baru — tidak mengganti unit lama
+        </button>
+        {!loading && !filtered.length ? <div style={{ padding: 12, fontSize: 13, color: BRAND.textMuted }}>Tidak ada unit terpasang yang cocok.</div> : filtered.map((assignment) => (
+          <button type="button" key={assignment.stockUnitId} disabled={disabled || loading} onClick={() => { onChange(assignment.stockUnitId); setQuery(""); }} style={{ display: "block", width: "100%", padding: "10px 12px", border: "none", borderBottom: `1px solid ${BRAND.border}`, background: assignment.stockUnitId === value ? BRAND.warningBg : BRAND.white, boxShadow: assignment.stockUnitId === value ? `inset 4px 0 0 ${BRAND.warning}` : "none", color: BRAND.text, textAlign: "left", cursor: disabled ? "not-allowed" : "pointer", fontSize: 13 }}>
+            {assignment.stockUnitId === value && <strong style={{ color: BRAND.warning, marginRight: 7 }}>✓</strong>}{label(assignment)}
+          </button>
+        ))}
+      </div>
+      <div style={{ minHeight: 18, marginTop: 8, padding: "9px 11px", borderRadius: 6, border: `1px solid ${selected ? BRAND.warning : BRAND.primary}`, background: selected ? BRAND.warningBg : BRAND.successBg, fontSize: 12, color: selected ? "#9A6700" : BRAND.primary, fontWeight: 700 }}>
+        {selected ? `⚠ AKAN DIGANTI: ${label(selected)}` : "✓ MODE PASANG BARU — tidak ada unit lama yang dilepas."}
+      </div>
     </div>
   );
 }
@@ -594,7 +666,7 @@ export default function Maintenance() {
     const data = await api(`/maintenance/${activeJob.id}/available-units?itemId=${encodeURIComponent(itemId)}`);
     const units = data.units || [];
     setAvailableUnits(units);
-    setUnitPick(units[0]?.id || "");
+    setUnitPick("");
   }
 
   async function loadAssignedUnits(itemId) {
@@ -1265,7 +1337,7 @@ export default function Maintenance() {
                     A) Assign Serialized Unit
                   </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 1.4fr) 1fr 1fr", gap: 10, marginBottom: 10 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(240px, 1fr))", gap: 12, marginBottom: 10, alignItems: "start", overflowX: "auto" }}>
                     <SearchableItemPicker
                       items={serializedItems}
                       value={assignItemId}
@@ -1284,40 +1356,27 @@ export default function Maintenance() {
                       testId="serialized-item-search"
                     />
 
-                    <Select
+                    <SearchableStockUnitPicker
+                      units={availableUnits}
                       value={unitPick}
-                      onChange={(e) => setUnitPick(e.target.value)}
-                      disabled
-                      data-testid="stock-unit-select"
-                    >
-                      <option value="">Unit FIFO akan dipilih otomatis</option>
-                      {availableUnits.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.serialNumber || u.barcode || u.id.slice(0, 8)} • {u.location?.name || "No location"}
-                        </option>
-                      ))}
-                    </Select>
-
-                    <Select
-                      value={replaceUnitId}
-                      onChange={(e) => setReplaceUnitId(e.target.value)}
+                      onChange={setUnitPick}
                       disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId}
-                      data-testid="replace-unit-select"
-                    >
-                      <option value="">
-                        {assignedLoading ? "Loading installed..." : "Replace installed (optional)"}
-                      </option>
-                      {(assignedUnits || []).map((u) => (
-                        <option key={u.stockUnitId} value={u.stockUnitId}>
-                          {u.stockUnit?.serialNumber || u.stockUnit?.barcode || u.stockUnitId.slice(0, 8)} • Installed{" "}
-                          {fmtDateTime(u.installedAt)}
-                        </option>
-                      ))}
-                    </Select>
+                      placeholder="Cari serial / barcode unit baru..."
+                      testId="stock-unit-search"
+                    />
+
+                    <SearchableInstalledUnitPicker
+                      assignments={assignedUnits || []}
+                      value={replaceUnitId}
+                      onChange={setReplaceUnitId}
+                      disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId}
+                      loading={assignedLoading}
+                      testId="replace-unit-search"
+                    />
                   </div>
 
                   <div style={{ marginTop: -2, marginBottom: 10, fontSize: 12, color: BRAND.textMuted }}>
-                    FIFO aktif: sistem otomatis menggunakan unit stok yang paling lama diterima.
+                    Pilih unit baru secara manual. Untuk replacement, cari unit lama berdasarkan serial/barcode; umur pemakaian dihitung dari tanggal pemasangan.
                   </div>
 
                   <Input
@@ -1447,7 +1506,7 @@ export default function Maintenance() {
                           <td style={{ padding: "12px 8px" }}>
                             {!a.removedAt && a.stockUnit?.status === "ASSIGNED" && activeJob.status === "OPEN" ? (
                               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                                <Button variant="secondary" onClick={() => startTireAction(a, "RETREAD")}>Lepas & Masak</Button>
+                                {a.stockUnit?.item?.category === "TIRE" && <Button variant="secondary" onClick={() => startTireAction(a, "RETREAD")}>Lepas & Masak</Button>}
                                 <Button variant="danger" onClick={() => startTireAction(a, "SCRAP")}>Lepas & Scrap</Button>
                               </div>
                             ) : (

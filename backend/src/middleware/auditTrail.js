@@ -28,6 +28,9 @@ function actionFor(req, path) {
 
 function auditTrail(req, res, next) {
   if (!MUTATION_METHODS.has(req.method)) return next();
+  // High-frequency GPS payloads are stored in GpsEvent and must not duplicate
+  // into the general user audit log.
+  if (req.originalUrl.split("?")[0] === "/integrations/golacak/events") return next();
 
   res.on("finish", () => {
     if (res.statusCode >= 400) return;

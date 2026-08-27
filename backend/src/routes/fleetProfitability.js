@@ -11,7 +11,8 @@ const round = (value, digits = 1) => Number((Number(value) || 0).toFixed(digits)
 const ratio = (value, total) => total > 0 ? round((value / total) * 100) : 0;
 
 function period(value) {
-  const match = /^(\d{4})-(\d{2})$/.exec(value || "");
+  const normalized = String(Array.isArray(value) ? value[0] : value ?? "").trim();
+  const match = /^(\d{4})-(\d{2})$/.exec(normalized);
   if (!match) throw new Error("Periode harus dalam format YYYY-MM");
   const year = Number(match[1]);
   const monthIndex = Number(match[2]) - 1;

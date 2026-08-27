@@ -46,6 +46,13 @@ enum StockMoveType {
   TRANSFER // moved between locations
 }
 
+enum ItemCategory {
+  GENERAL_SPAREPART
+  TIRE
+  BATTERY
+  OTHER
+}
+
 enum TruckStatus {
   INACTIVE
   READY
@@ -273,6 +280,10 @@ model PurchaseRequestItem {
   originalQty Float
   approvedQty Float?
   notes       String?
+  tireRetreadId String?
+  tireRetread   TireRetread? @relation("PurchaseRequestItemRetread", fields: [tireRetreadId], references: [id], onDelete: SetNull)
+
+  @@index([tireRetreadId])
 }
 
 model PurchaseOrder {
@@ -309,8 +320,12 @@ model PurchaseOrderItem {
   qty              Float
   unitPrice        Int
   receivedQty      Float              @default(0)
+  tireRetreadId    String?
+  tireRetread      TireRetread?       @relation("PurchaseOrderItemRetread", fields: [tireRetreadId], references: [id], onDelete: SetNull)
   receiptItems     GoodsReceiptItem[]
   inventoryBatches InventoryBatch[]
+
+  @@index([tireRetreadId])
 }
 
 model GoodsReceipt {
@@ -523,6 +538,12 @@ model Trip {
   arrivedAt       DateTime?
   completedAt     DateTime?
 
+  // Optional GPS destination used for automatic arrival detection.
+  destinationLat        Float?
+  destinationLng        Float?
+  arrivalRadiusM        Int       @default(400)
+  gpsArrivalCandidateAt DateTime?
+
   // snapshot fields (for historical correctness)
   plateNumberSnap String?
   driverNameSnap  String?
@@ -659,6 +680,14 @@ model Truck {
   availableForBackhaul Boolean   @default(false)
   idleSince            DateTime?
 
+  // GOlacak device mapping and latest reported GPS position.
+  gpsDeviceId      String?   @unique
+  gpsImei          String?   @unique
+  lastGpsLatitude  Float?
+  lastGpsLongitude Float?
+  lastGpsSpeed     Float?
+  lastGpsAt        DateTime?
+
   status    TruckStatus @default(READY)
   createdAt DateTime    @default(now())
 
@@ -671,11 +700,36 @@ model Truck {
   sparePartAssignments TruckSparePartAssignment[]
   monthlyCosts         TruckMonthlyCost[]
   expenses             Expense[]
+  gpsEvents            GpsEvent[]
 
   @@index([driverUserId])
   @@index([stnkExpiry])
   @@index([currentLocation])
   @@index([availableForBackhaul])
+}
+
+model GpsEvent {
+  id          String    @id @default(cuid())
+  fingerprint String    @unique
+  provider    String    @default("GOLACAK")
+  eventType   String?
+  deviceId    String?
+  imei        String?
+  latitude    Float?
+  longitude   Float?
+  speed       Float?
+  eventAt     DateTime?
+  receivedAt  DateTime  @default(now())
+  raw         Json
+
+  truckId String?
+  truck   Truck?  @relation(fields: [truckId], references: [id], onDelete: SetNull)
+
+  @@index([deviceId])
+  @@index([imei])
+  @@index([truckId])
+  @@index([eventAt])
+  @@index([receivedAt])
 }
 
 model TruckMonthlyCost {
@@ -802,6 +856,7 @@ model Item {
   name         String   @unique
   unit         String   @default("PCS")
   isSerialized Boolean  @default(false)
+  category     ItemCategory @default(GENERAL_SPAREPART)
   createdAt    DateTime @default(now())
 
   stocks               InventoryStock[]
@@ -812,6 +867,8 @@ model Item {
   inventoryBatches     InventoryBatch[]
   retreadsFrom         TireRetread[]       @relation("RetreadFromItem")
   retreadsTo           TireRetread[]       @relation("RetreadToItem")
+
+  @@index([category])
 }
 
 model TireRetread {
@@ -831,6 +888,8 @@ model TireRetread {
   notes       String?
   createdById String?
   createdBy   User?         @relation("TireRetreadCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  purchaseRequestItems PurchaseRequestItem[] @relation("PurchaseRequestItemRetread")
+  purchaseOrderItems   PurchaseOrderItem[]   @relation("PurchaseOrderItemRetread")
   createdAt   DateTime      @default(now())
 
   @@index([stockUnitId])
