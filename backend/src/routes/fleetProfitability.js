@@ -30,13 +30,28 @@ function tripDate(trip) {
 function allocatedRevenue(trip) {
   const invoice = trip.order?.invoice;
   if (!invoice || !["SENT", "PARTIALLY_PAID", "PAID"].includes(invoice.status)) return 0;
+  const deliveredQuantity = Math.max(0, Number(trip.qtyActual ?? trip.qtyPlanned ?? 0));
+  const orderedQuantity = Math.max(0, Number(trip.order.qty || 0));
+  if (orderedQuantity > 0) return invoice.total * deliveredQuantity / orderedQuantity;
+
+  // Legacy orders without an order quantity retain the previous proportional
+  // allocation so their historical profitability does not disappear.
   const eligible = trip.order.trips.filter(item => item.status !== "CANCELLED");
   if (!eligible.length) return 0;
-  const weights = eligible.map(item => Math.max(0, Number(item.qtyActual ?? item.qtyPlanned ?? 0)));
-  const totalWeight = weights.reduce((sum, value) => sum + value, 0);
+  const quantities = eligible.map(item => Math.max(0, Number(item.qtyActual ?? item.qtyPlanned ?? 0)));
+  const totalQuantity = quantities.reduce((sum, value) => sum + value, 0);
   const index = eligible.findIndex(item => item.id === trip.id);
   if (index < 0) return 0;
-  return totalWeight > 0 ? invoice.total * weights[index] / totalWeight : invoice.total / eligible.length;
+  return totalQuantity > 0 ? invoice.total * quantities[index] / totalQuantity : invoice.total / eligible.length;
+}
+
+function cargoLossValue(trip) {
+  const invoice = trip.order?.invoice;
+  const orderedQuantity = Math.max(0, Number(trip.order?.qty || 0));
+  if (!invoice || !["SENT", "PARTIALLY_PAID", "PAID"].includes(invoice.status) || orderedQuantity <= 0 || trip.qtyActual == null) return 0;
+  const plannedQuantity = Math.max(0, Number(trip.qtyPlanned || 0));
+  const deliveredQuantity = Math.max(0, Number(trip.qtyActual || 0));
+  return invoice.total * Math.max(0, plannedQuantity - deliveredQuantity) / orderedQuantity;
 }
 
 router.get("/", async (req, res) => {
@@ -78,6 +93,7 @@ router.get("/", async (req, res) => {
       const operationalTrips = truck.trips.filter(item => item.status !== "CANCELLED");
       const completedTrips = operationalTrips.filter(item => item.status === "COMPLETED").length;
       const revenue = Math.round(operationalTrips.reduce((sum, item) => sum + allocatedRevenue(item), 0));
+      const cargoLoss = Math.round(operationalTrips.reduce((sum, item) => sum + cargoLossValue(item), 0));
       const tripExpenses = operationalTrips.reduce((sum, item) => sum + item.expenses.reduce((cost, expense) => cost + expense.amount, 0), 0);
       const vehicleExpenses = truck.expenses.reduce((sum, expense) => sum + expense.amount, 0);
       const spareParts = truck.sparePartAssignments.reduce((sum, item) => sum + (item.installCost ?? item.stockUnit.purchasePrice ?? 0), 0);
@@ -92,6 +108,7 @@ router.get("/", async (req, res) => {
         const tripRevenue = Math.round(allocatedRevenue(item));
         const expenseTotal = item.expenses.reduce((sum, expense) => sum + expense.amount, 0);
         const invoiceTotal = item.order?.invoice?.total || 0;
+        const tripCargoLoss = Math.round(cargoLossValue(item));
         return {
           id: item.id,
           purpose: item.purpose,
@@ -106,6 +123,9 @@ router.get("/", async (req, res) => {
           allocatedRevenue: tripRevenue,
           allocationPercent: invoiceTotal > 0 ? round((tripRevenue / invoiceTotal) * 100) : 0,
           quantity: item.qtyActual ?? item.qtyPlanned ?? null,
+          orderedQuantity: item.order?.qty ?? null,
+          plannedQuantity: item.qtyPlanned ?? null,
+          cargoLoss: tripCargoLoss,
           unit: item.unitSnap || item.order?.unit || null,
           expenseTotal,
           netContribution: tripRevenue - expenseTotal,
@@ -122,7 +142,7 @@ router.get("/", async (req, res) => {
       return {
         truck: { id: truck.id, plateNumber: truck.plateNumber, brand: truck.brand, model: truck.model, status: truck.status },
         trips: { total: operationalTrips.length, completed: completedTrips, cancelled: truck.trips.length - operationalTrips.length },
-        revenue, tripExpenses, vehicleExpenses, spareParts, fixedCosts: Object.fromEntries(COST_FIELDS.map(field => [field, fixedCosts[field] || 0])),
+        revenue, cargoLoss, tripExpenses, vehicleExpenses, spareParts, fixedCosts: Object.fromEntries(COST_FIELDS.map(field => [field, fixedCosts[field] || 0])),
         fixedTotal, totalCost, profit, margin,
         tripDetails, sparePartDetails,
         vehicleExpenseDetails: truck.expenses.map(expense => ({ id: expense.id, reason: expense.reason, amount: expense.amount, status: expense.status, paidAt: expense.paidAt || expense.createdAt })),
@@ -134,9 +154,9 @@ router.get("/", async (req, res) => {
       };
     });
     const summary = rows.reduce((result, row) => ({
-      revenue: result.revenue + row.revenue, totalCost: result.totalCost + row.totalCost,
+      revenue: result.revenue + row.revenue, cargoLoss: result.cargoLoss + row.cargoLoss, totalCost: result.totalCost + row.totalCost,
       profit: result.profit + row.profit, trips: result.trips + row.trips.total,
-    }), { revenue: 0, totalCost: 0, profit: 0, trips: 0 });
+    }), { revenue: 0, cargoLoss: 0, totalCost: 0, profit: 0, trips: 0 });
     summary.margin = summary.revenue > 0 ? round((summary.profit / summary.revenue) * 100) : 0;
     rows.forEach(row => { row.revenueContribution = ratio(row.revenue, summary.revenue); });
     res.json({ ok: true, month, summary, rows });

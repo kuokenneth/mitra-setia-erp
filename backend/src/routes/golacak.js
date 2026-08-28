@@ -24,6 +24,13 @@ function date(value) {
   return Number.isNaN(result.getTime()) ? null : result;
 }
 
+function boolean(value) {
+  if (typeof value === "boolean") return value;
+  if (value === 1 || value === "1" || String(value).toLowerCase() === "true") return true;
+  if (value === 0 || value === "0" || String(value).toLowerCase() === "false") return false;
+  return null;
+}
+
 function first(source, keys) {
   for (const key of keys) {
     if (source?.[key] !== undefined && source[key] !== null && source[key] !== "") return source[key];
@@ -42,6 +49,7 @@ function normalize(raw) {
     latitude: number(first(source, ["latitude", "lat"]) ?? first(position, ["latitude", "lat"])),
     longitude: number(first(source, ["longitude", "lng", "lon"]) ?? first(position, ["longitude", "lng", "lon"])),
     speed: number(first(source, ["speed", "velocity"]) ?? first(position, ["speed", "velocity"])),
+    ignition: boolean(first(source, ["ignition", "engineOn", "engine_on"]) ?? first(position, ["ignition", "engineOn"])),
     eventAt: date(first(source, ["timestamp", "eventTime", "event_at", "gpsTime", "fixTime"]) ?? first(position, ["timestamp", "fixTime"])),
     upstreamId: clean(first(source, ["eventId", "event_id", "id", "positionId"])),
   };
@@ -83,6 +91,7 @@ function fingerprint(raw, event) {
     latitude: event.latitude,
     longitude: event.longitude,
     speed: event.speed,
+    ignition: event.ignition,
     eventAt: event.eventAt?.toISOString() || null,
     raw,
   })).digest("hex");
@@ -221,11 +230,15 @@ router.post("/events", async (req, res) => {
       throw error;
     }
     if (truck && validCoordinates(event.latitude, event.longitude)) {
+      const observedAt = event.eventAt || new Date();
+      const stoppedWithEngineOn = event.ignition === true && event.speed !== null && event.speed <= 1;
       await prisma.truck.update({
         where: { id: truck.id },
         data: {
           lastGpsLatitude: event.latitude, lastGpsLongitude: event.longitude,
-          lastGpsSpeed: event.speed, lastGpsAt: event.eventAt || new Date(),
+          lastGpsSpeed: event.speed, lastGpsAt: observedAt,
+          lastGpsIgnition: event.ignition,
+          gpsStoppedSince: stoppedWithEngineOn ? (truck.gpsStoppedSince || observedAt) : null,
         },
       });
     }

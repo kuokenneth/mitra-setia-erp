@@ -208,8 +208,8 @@ model User {
   ordersCreated               Order[]                    @relation("OrderCreatedBy")
   auditLogs                   AuditLog[]                 @relation("AuditLogActor")
   journalEntriesCreated       JournalEntry[]             @relation("JournalEntryCreatedBy")
-  tireRetreadsCreated        TireRetread[]              @relation("TireRetreadCreatedBy")
-  maintenanceNotesCreated    MaintenanceNote[]          @relation("MaintenanceNoteCreatedBy")
+  tireRetreadsCreated         TireRetread[]              @relation("TireRetreadCreatedBy")
+  maintenanceNotesCreated     MaintenanceNote[]          @relation("MaintenanceNoteCreatedBy")
 }
 
 model AuditLog {
@@ -273,16 +273,16 @@ model PurchaseRequest {
 }
 
 model PurchaseRequestItem {
-  id          String          @id @default(cuid())
-  requestId   String
-  request     PurchaseRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  itemId      String
-  item        Item            @relation(fields: [itemId], references: [id])
-  originalQty Float
-  approvedQty Float?
-  notes       String?
+  id            String          @id @default(cuid())
+  requestId     String
+  request       PurchaseRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  itemId        String
+  item          Item            @relation(fields: [itemId], references: [id])
+  originalQty   Float
+  approvedQty   Float?
+  notes         String?
   tireRetreadId String?
-  tireRetread   TireRetread? @relation("PurchaseRequestItemRetread", fields: [tireRetreadId], references: [id], onDelete: SetNull)
+  tireRetread   TireRetread?    @relation("PurchaseRequestItemRetread", fields: [tireRetreadId], references: [id], onDelete: SetNull)
 
   @@index([tireRetreadId])
 }
@@ -688,6 +688,8 @@ model Truck {
   lastGpsLongitude Float?
   lastGpsSpeed     Float?
   lastGpsAt        DateTime?
+  lastGpsIgnition  Boolean?
+  gpsStoppedSince  DateTime?
 
   status    TruckStatus @default(READY)
   createdAt DateTime    @default(now())
@@ -707,6 +709,22 @@ model Truck {
   @@index([stnkExpiry])
   @@index([currentLocation])
   @@index([availableForBackhaul])
+}
+
+model OperationalLocation {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  address   String?
+  type      String   @default("OTHER")
+  latitude  Float
+  longitude Float
+  radiusM   Int      @default(400)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([type])
 }
 
 model GpsEvent {
@@ -753,17 +771,17 @@ model TruckMonthlyCost {
 }
 
 model TruckMaintenance {
-  id         String            @id @default(cuid())
-  truckId    String
-  title      String
-  note       String?
-  odometerKm Int?
-  isOilChange Boolean           @default(false)
+  id           String            @id @default(cuid())
+  truckId      String
+  title        String
+  note         String?
+  odometerKm   Int?
+  isOilChange  Boolean           @default(false)
   oilChangedAt DateTime?
-  status     MaintenanceStatus @default(OPEN)
-  createdAt  DateTime          @default(now())
-  doneAt     DateTime?
-  photos     String[]          @default([])
+  status       MaintenanceStatus @default(OPEN)
+  createdAt    DateTime          @default(now())
+  doneAt       DateTime?
+  photos       String[]          @default([])
 
   truck     Truck           @relation(fields: [truckId], references: [id])
   movements StockMovement[]
@@ -802,20 +820,20 @@ model StockUnit {
   currency      String?   @default("IDR")
   purchasedAt   DateTime?
 
-  status     StockUnitStatus @default(IN_STOCK)
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
-  scrappedAt DateTime?
-  retreadCount     Int       @default(0)
+  status           StockUnitStatus @default(IN_STOCK)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  scrappedAt       DateTime?
+  retreadCount     Int             @default(0)
   lastRetreadAt    DateTime?
-  totalRetreadCost Int       @default(0)
+  totalRetreadCost Int             @default(0)
 
   item           Item               @relation(fields: [itemId], references: [id])
   location       InventoryLocation? @relation(fields: [locationId], references: [id])
   inventoryBatch InventoryBatch?    @relation(fields: [inventoryBatchId], references: [id], onDelete: SetNull)
 
-  assignments TruckSparePartAssignment[]
-  movements   StockMovement[]
+  assignments  TruckSparePartAssignment[]
+  movements    StockMovement[]
   tireRetreads TireRetread[]
 
   @@index([itemId])
@@ -856,13 +874,13 @@ model TruckSparePartAssignment {
 }
 
 model Item {
-  id           String   @id @default(cuid())
-  sku          String   @unique
-  name         String   @unique
-  unit         String   @default("PCS")
-  isSerialized Boolean  @default(false)
+  id           String       @id @default(cuid())
+  sku          String       @unique
+  name         String       @unique
+  unit         String       @default("PCS")
+  isSerialized Boolean      @default(false)
   category     ItemCategory @default(GENERAL_SPAREPART)
-  createdAt    DateTime @default(now())
+  createdAt    DateTime     @default(now())
 
   stocks               InventoryStock[]
   movements            StockMovement[]
@@ -870,32 +888,32 @@ model Item {
   purchaseRequestItems PurchaseRequestItem[]
   purchaseOrderItems   PurchaseOrderItem[]
   inventoryBatches     InventoryBatch[]
-  retreadsFrom         TireRetread[]       @relation("RetreadFromItem")
-  retreadsTo           TireRetread[]       @relation("RetreadToItem")
+  retreadsFrom         TireRetread[]         @relation("RetreadFromItem")
+  retreadsTo           TireRetread[]         @relation("RetreadToItem")
 
   @@index([category])
 }
 
 model TireRetread {
-  id          String        @id @default(cuid())
-  stockUnitId String
-  stockUnit   StockUnit     @relation(fields: [stockUnitId], references: [id], onDelete: Cascade)
-  fromItemId  String
-  fromItem    Item          @relation("RetreadFromItem", fields: [fromItemId], references: [id])
-  toItemId    String
-  toItem      Item          @relation("RetreadToItem", fields: [toItemId], references: [id])
-  supplierId  String?
-  supplier    Supplier?     @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  status      RetreadStatus @default(SENT)
-  cost        Int
-  sentAt      DateTime      @default(now())
-  completedAt DateTime?
-  notes       String?
-  createdById String?
-  createdBy   User?         @relation("TireRetreadCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  id                   String                @id @default(cuid())
+  stockUnitId          String
+  stockUnit            StockUnit             @relation(fields: [stockUnitId], references: [id], onDelete: Cascade)
+  fromItemId           String
+  fromItem             Item                  @relation("RetreadFromItem", fields: [fromItemId], references: [id])
+  toItemId             String
+  toItem               Item                  @relation("RetreadToItem", fields: [toItemId], references: [id])
+  supplierId           String?
+  supplier             Supplier?             @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  status               RetreadStatus         @default(SENT)
+  cost                 Int
+  sentAt               DateTime              @default(now())
+  completedAt          DateTime?
+  notes                String?
+  createdById          String?
+  createdBy            User?                 @relation("TireRetreadCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   purchaseRequestItems PurchaseRequestItem[] @relation("PurchaseRequestItemRetread")
   purchaseOrderItems   PurchaseOrderItem[]   @relation("PurchaseOrderItemRetread")
-  createdAt   DateTime      @default(now())
+  createdAt            DateTime              @default(now())
 
   @@index([stockUnitId])
   @@index([supplierId])

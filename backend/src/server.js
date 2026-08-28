@@ -26,6 +26,7 @@ const fleetProfitabilityRoutes = require("./routes/fleetProfitability");
 const realtimeRoutes = require("./routes/realtime");
 const auditRoutes = require("./routes/audit");
 const golacakRoutes = require("./routes/golacak");
+const operationalLocationRoutes = require("./routes/operationalLocations");
 const { publishUpdate } = require("./realtime");
 const { auditTrail } = require("./middleware/auditTrail");
 const { authRequired } = require("./middleware/authRequired");
@@ -126,6 +127,7 @@ app.use("/fleet-profitability", fleetProfitabilityRoutes);
 app.use("/events", realtimeRoutes);
 app.use("/audit", auditRoutes);
 app.use("/integrations/golacak", golacakRoutes);
+app.use("/operational-locations", operationalLocationRoutes);
 
 /**
  * ✅ Upload API should NOT be /uploads (conflicts with static).

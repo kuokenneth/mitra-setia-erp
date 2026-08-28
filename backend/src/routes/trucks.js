@@ -10,6 +10,15 @@ function isUniqueError(e) {
   return e && (e.code === "P2002" || String(e.message || "").includes("Unique constraint"));
 }
 
+function distanceMeters(lat1, lng1, lat2, lng2) {
+  const radians = (value) => value * Math.PI / 180;
+  const dLat = radians(lat2 - lat1);
+  const dLng = radians(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(radians(lat1)) * Math.cos(radians(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 /**
  * GET /trucks
  * List trucks + assigned driver (if any)
@@ -59,7 +68,35 @@ router.get(
         },
       });
 
-      res.json({ items: items.map(({ trips, ...truck }) => ({ ...truck, activeEmptyReturnTrip: trips[0] || null })) });
+      const gpsLocations = await prisma.operationalLocation.findMany({ where: { isActive: true } });
+      const stopWarningMinutes = Math.max(1, Number(process.env.GPS_STOP_WARNING_MINUTES || 30));
+
+      res.json({ items: items.map(({ trips, ...truck }) => {
+        let nearest = null;
+        if (Number.isFinite(truck.lastGpsLatitude) && Number.isFinite(truck.lastGpsLongitude)) {
+          for (const location of gpsLocations) {
+            const distance = distanceMeters(truck.lastGpsLatitude, truck.lastGpsLongitude, location.latitude, location.longitude);
+            if (distance <= location.radiusM && (!nearest || distance < nearest.distanceM)) nearest = { location, distanceM: distance };
+          }
+        }
+        const stoppedMinutes = truck.gpsStoppedSince
+          ? Math.max(0, Math.floor((now.getTime() - truck.gpsStoppedSince.getTime()) / 60000))
+          : 0;
+        return {
+          ...truck,
+          activeEmptyReturnTrip: trips[0] || null,
+          gpsLocation: nearest ? {
+            id: nearest.location.id,
+            name: nearest.location.name,
+            type: nearest.location.type,
+            distanceM: Math.round(nearest.distanceM),
+          } : null,
+          gpsStopWarning: truck.lastGpsIgnition === true && stoppedMinutes >= stopWarningMinutes ? {
+            since: truck.gpsStoppedSince,
+            durationMinutes: stoppedMinutes,
+          } : null,
+        };
+      }) });
     } catch (e) {
       console.error("GET /trucks failed", e);
       const migrationMissing = e?.code === "P2022" || String(e?.message || "").includes("does not exist");

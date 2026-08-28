@@ -444,6 +444,7 @@ router.patch("/:id/status", authRequired, async (req, res) => {
     const id = req.params.id;
     const nextStatus = str(req.body?.status);
     const ts = toDate(req.body?.timestamp) || new Date();
+    const submittedQtyActual = req.body?.qtyActual === "" || req.body?.qtyActual == null ? null : Number(req.body.qtyActual);
 
     if (!nextStatus) return res.status(400).json({ error: "status is required" });
 
@@ -465,6 +466,12 @@ router.patch("/:id/status", authRequired, async (req, res) => {
       const driver = isDriver(req.user);
 
       if (!writer && !driver) throw new Error("Forbidden");
+
+      const needsArrivalWeight = trip.purpose === "DELIVERY" && ["ARRIVED", "COMPLETED"].includes(nextStatus);
+      const resolvedQtyActual = submittedQtyActual ?? trip.qtyActual;
+      if (needsArrivalWeight && (!Number.isFinite(resolvedQtyActual) || resolvedQtyActual <= 0)) {
+        throw new Error("Berat tiba wajib diisi sebelum trip tiba atau selesai");
+      }
 
       if (driver) {
         if (trip.driverUserId !== req.user.id) throw new Error("Forbidden");
@@ -521,6 +528,10 @@ router.patch("/:id/status", authRequired, async (req, res) => {
 
       // timestamps + snapshots
       const data = { status: nextStatus };
+      if (submittedQtyActual !== null) {
+        if (!Number.isFinite(submittedQtyActual) || submittedQtyActual <= 0) throw new Error("Berat tiba harus lebih dari nol");
+        data.qtyActual = submittedQtyActual;
+      }
 
       if (nextStatus === "DISPATCHED") data.dispatchedAt = ts;
       if (nextStatus === "ARRIVED") data.arrivedAt = ts;
