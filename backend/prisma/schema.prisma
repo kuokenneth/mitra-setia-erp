@@ -50,6 +50,7 @@ enum ItemCategory {
   GENERAL_SPAREPART
   TIRE
   BATTERY
+  OIL
   OTHER
 }
 
@@ -757,6 +758,8 @@ model TruckMaintenance {
   title      String
   note       String?
   odometerKm Int?
+  isOilChange Boolean           @default(false)
+  oilChangedAt DateTime?
   status     MaintenanceStatus @default(OPEN)
   createdAt  DateTime          @default(now())
   doneAt     DateTime?
@@ -767,6 +770,8 @@ model TruckMaintenance {
 
   sparePartAssignments TruckSparePartAssignment[]
   notes                MaintenanceNote[]
+
+  @@index([truckId, isOilChange, oilChangedAt])
 }
 
 model MaintenanceNote {
@@ -954,6 +959,8 @@ model StockMovement {
   type      StockMoveType
   itemId    String
   qty       Float
+  unitPrice Int?
+  totalCost Int?
   note      String?
   createdAt DateTime      @default(now())
 

@@ -213,11 +213,14 @@ router.post(
       }
       const cleanSku = String(sku).trim();
       const cleanName = String(name).trim();
-      const cleanCategory = ["GENERAL_SPAREPART", "TIRE", "BATTERY", "OTHER"].includes(category)
+      const cleanCategory = ["GENERAL_SPAREPART", "TIRE", "BATTERY", "OIL", "OTHER"].includes(category)
         ? category
         : "GENERAL_SPAREPART";
       if (cleanCategory === "TIRE" && !Boolean(isSerialized)) {
         return res.status(400).json({ ok: false, error: "Item kategori Ban wajib menggunakan pelacakan serialized" });
+      }
+      if (cleanCategory === "OIL" && Boolean(isSerialized)) {
+        return res.status(400).json({ ok: false, error: "Item kategori Oli harus berupa barang non-serialized" });
       }
       const duplicateField = await getDuplicateItemField({ sku: cleanSku, name: cleanName });
       if (duplicateField) {
@@ -261,11 +264,14 @@ router.patch(
       });
       if (!existing) return res.status(404).json({ ok: false, error: "Barang tidak ditemukan" });
       const nextSerialized = isSerialized !== undefined ? Boolean(isSerialized) : existing.isSerialized;
-      const nextCategory = category !== undefined && ["GENERAL_SPAREPART", "TIRE", "BATTERY", "OTHER"].includes(category)
+      const nextCategory = category !== undefined && ["GENERAL_SPAREPART", "TIRE", "BATTERY", "OIL", "OTHER"].includes(category)
         ? category
         : existing.category;
       if (nextCategory === "TIRE" && !nextSerialized) {
         return res.status(400).json({ ok: false, error: "Item kategori Ban wajib menggunakan pelacakan serialized" });
+      }
+      if (nextCategory === "OIL" && nextSerialized) {
+        return res.status(400).json({ ok: false, error: "Item kategori Oli harus berupa barang non-serialized" });
       }
       const hasStockHistory = existing._count.stockUnits > 0 || existing._count.movements > 0 || existing.stocks.some((stock) => Number(stock.qty) !== 0);
       if (nextSerialized !== existing.isSerialized && hasStockHistory) {
@@ -478,7 +484,7 @@ router.post(
   requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     const createdById = req.user?.id || null;
-    const { itemId, locationId, qty, note, units } = req.body || {};
+    const { itemId, locationId, qty, note, units, totalPurchasePrice } = req.body || {};
 
     if (!itemId || !locationId) {
       return res.status(400).json({ ok: false, error: "itemId and locationId are required" });
@@ -573,10 +579,15 @@ router.post(
       if (!Number.isFinite(receivedQty) || receivedQty <= 0) {
         throw new Error("qty must be > 0 for non-serialized items");
       }
+      const totalPrice = totalPurchasePrice == null || totalPurchasePrice === "" ? null : Number(totalPurchasePrice);
+      if (totalPrice != null && (!Number.isFinite(totalPrice) || totalPrice < 0)) {
+        throw new Error("totalPurchasePrice must be a valid positive amount");
+      }
+      const unitPrice = totalPrice == null ? null : Math.round(totalPrice / receivedQty);
 
       const movement = await prisma.$transaction(async (tx) => {
         await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId, locationId } }, update: {}, create: { itemId, locationId, qty: 0 } });
-        await tx.inventoryBatch.create({ data: { itemId, locationId, receivedQty, remainingQty: receivedQty, receivedAt: new Date() } });
+        await tx.inventoryBatch.create({ data: { itemId, locationId, receivedQty, remainingQty: receivedQty, receivedAt: new Date(), unitPrice } });
         await tx.inventoryStock.update({
           where: { itemId_locationId: { itemId, locationId } },
           data: { qty: { increment: receivedQty } },
@@ -586,6 +597,8 @@ router.post(
             type: "IN",
             itemId,
             qty: receivedQty,
+            unitPrice,
+            totalCost: totalPrice == null ? null : Math.round(totalPrice),
             note: note ? String(note) : null,
             createdById,
             toLocationId: locationId,

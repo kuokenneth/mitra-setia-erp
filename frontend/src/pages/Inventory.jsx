@@ -925,6 +925,7 @@ export default function Inventory() {
         if (hasTotalPrice) payload.totalPurchasePrice = Number(totalRaw);
       } else {
         payload.qty = Number(receiveForm.qty || 0);
+        if (receiveForm.totalPurchasePrice !== "") payload.totalPurchasePrice = Number(receiveForm.totalPurchasePrice);
       }
 
       await api("/inventory/receive", {
@@ -1379,11 +1380,12 @@ export default function Inventory() {
               <select
                 style={{ ...selectPill, width: "100%" }}
                 value={createItemForm.category}
-                onChange={(e) => setCreateItemForm((p) => ({ ...p, category: e.target.value, isSerialized: e.target.value === "TIRE" ? true : p.isSerialized }))}
+                onChange={(e) => setCreateItemForm((p) => ({ ...p, category: e.target.value, isSerialized: e.target.value === "TIRE" ? true : e.target.value === "OIL" ? false : p.isSerialized }))}
               >
                 <option value="GENERAL_SPAREPART">Sparepart Umum</option>
                 <option value="TIRE">Ban</option>
                 <option value="BATTERY">Aki/Baterai</option>
+                <option value="OIL">Oli</option>
                 <option value="OTHER">Lainnya</option>
               </select>
             </label>
@@ -1393,7 +1395,7 @@ export default function Inventory() {
                 type="checkbox"
                 checked={createItemForm.isSerialized}
                 onChange={(e) => setCreateItemForm((p) => ({ ...p, isSerialized: e.target.checked }))}
-                disabled={createItemForm.category === "TIRE"}
+                disabled={createItemForm.category === "TIRE" || createItemForm.category === "OIL"}
               />
               Serialized (unit-level tracking)
             </label>
@@ -1436,16 +1438,17 @@ export default function Inventory() {
                   <select
                     style={{ ...selectPill, width: "100%" }}
                     value={editItemForm.category}
-                    onChange={(e) => setEditItemForm((p) => ({ ...p, category: e.target.value, isSerialized: e.target.value === "TIRE" ? true : p.isSerialized }))}
+                    onChange={(e) => setEditItemForm((p) => ({ ...p, category: e.target.value, isSerialized: e.target.value === "TIRE" ? true : e.target.value === "OIL" ? false : p.isSerialized }))}
                   >
                     <option value="GENERAL_SPAREPART">Sparepart Umum</option>
                     <option value="TIRE">Ban</option>
                     <option value="BATTERY">Aki/Baterai</option>
+                    <option value="OIL">Oli</option>
                     <option value="OTHER">Lainnya</option>
                   </select>
                 </label>
                 <label style={{ display: "flex", alignItems: "center", gap: 10, gridColumn: "1 / -1", color: BRAND.text, fontWeight: 500 }}>
-                  <input type="checkbox" checked={editItemForm.isSerialized} disabled={editItemForm.category === "TIRE"} onChange={(e) => setEditItemForm((p) => ({ ...p, isSerialized: e.target.checked }))} />
+                  <input type="checkbox" checked={editItemForm.isSerialized} disabled={editItemForm.category === "TIRE" || editItemForm.category === "OIL"} onChange={(e) => setEditItemForm((p) => ({ ...p, isSerialized: e.target.checked }))} />
                   Serialized — setiap unit memiliki nomor seri
                 </label>
               </div>
@@ -1547,7 +1550,7 @@ export default function Inventory() {
 
             {(() => {
               const item = receiveItems.find((x) => x.id === receiveForm.itemId) || items.find((x) => x.id === receiveForm.itemId);
-              if (!item?.isSerialized) return null;
+              if (!item) return null;
 
               return (
                 <div style={{ gridColumn: "1 / -1" }}>
@@ -1562,7 +1565,9 @@ export default function Inventory() {
                     placeholder="e.g. 20000000"
                   />
                   <div style={{ marginTop: 6, fontSize: 12, color: BRAND.textMuted }}>
-                    Use either per-unit price in lines OR this total price (not both).
+                    {item.isSerialized
+                      ? "Use either per-unit price in lines OR this total price (not both)."
+                      : `Harga per ${item.unit || "unit"} dihitung otomatis dari total harga ÷ jumlah.`}
                   </div>
                 </div>
               );
@@ -1861,7 +1866,7 @@ function ItemsTable({ items, loading, onUse, onEdit }) {
               <td style={td}>{it.sku || "-"}</td>
               <td style={td}>{it.name || "-"}</td>
               <td style={tdSoft}>{it.unit || "-"}</td>
-              <td style={tdSoft}>{({ GENERAL_SPAREPART: "Sparepart Umum", TIRE: "Ban", BATTERY: "Aki/Baterai", OTHER: "Lainnya" })[it.category] || "Sparepart Umum"}</td>
+              <td style={tdSoft}>{({ GENERAL_SPAREPART: "Sparepart Umum", TIRE: "Ban", BATTERY: "Aki/Baterai", OIL: "Oli", OTHER: "Lainnya" })[it.category] || "Sparepart Umum"}</td>
               <td style={tdSoft}>{it.isSerialized ? "Yes" : "No"}</td>
               <td style={td}>{sumStocks(it.stocks)}</td>
               <td style={td}>

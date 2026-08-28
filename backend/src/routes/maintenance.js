@@ -34,7 +34,17 @@ router.get("/trucks", authRequired, async (req, res) => {
       take: 200,
     });
 
-    res.json({ trucks });
+    const previousOilChanges = await prisma.truckMaintenance.findMany({
+      where: { truckId: { in: trucks.map((truck) => truck.id) }, isOilChange: true, status: "DONE" },
+      orderBy: [{ oilChangedAt: "desc" }, { createdAt: "desc" }],
+      select: { id: true, truckId: true, oilChangedAt: true, odometerKm: true, photos: true },
+    });
+    const previousByTruck = new Map();
+    for (const change of previousOilChanges) {
+      if (!previousByTruck.has(change.truckId)) previousByTruck.set(change.truckId, change);
+    }
+
+    res.json({ trucks: trucks.map((truck) => ({ ...truck, lastOilChange: previousByTruck.get(truck.id) || null })) });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Failed to load trucks" });
@@ -113,6 +123,7 @@ router.post("/", authRequired, async (req, res) => {
     const { truckId, title, note, odometerKm } = req.body || {};
     if (!truckId) return res.status(400).json({ error: "truckId is required" });
     if (!title || !String(title).trim()) return res.status(400).json({ error: "title is required" });
+    const nextOdometer = odometerKm != null && odometerKm !== "" ? num(odometerKm, null) : null;
 
     const truck = await prisma.truck.findUnique({ where: { id: truckId } });
     if (!truck) return res.status(404).json({ error: "Truck not found" });
@@ -127,7 +138,7 @@ router.post("/", authRequired, async (req, res) => {
           truckId,
           title: String(title).trim(),
           note: note ? String(note) : null,
-          odometerKm: odometerKm != null ? num(odometerKm, null) : null,
+          odometerKm: nextOdometer,
           status: "OPEN",
         },
         include: { truck: true },
@@ -179,11 +190,21 @@ router.get("/:id", authRequired, async (req, res) => {
     });
 
     if (!job) return res.status(404).json({ error: "Maintenance job not found" });
-    // ✅ totalCost (serialized assignments only for now)
-    const totalCost = (job.sparePartAssignments || []).reduce((sum, a) => {
+    job.previousOilChange = await prisma.truckMaintenance.findFirst({
+      where: { truckId: job.truckId, isOilChange: true, status: "DONE", id: { not: job.id } },
+      orderBy: [{ oilChangedAt: "desc" }, { createdAt: "desc" }],
+      select: { id: true, oilChangedAt: true, odometerKm: true, photos: true, movements: { where: { item: { category: "OIL" } }, include: { item: true } } },
+    });
+    const serializedCost = (job.sparePartAssignments || []).reduce((sum, a) => {
      const v = Number(a.installCost || 0);
      return sum + (Number.isFinite(v) ? v : 0);
     }, 0);
+    const nonSerializedCost = (job.movements || []).reduce((sum, movement) => {
+      if (movement.type !== "OUT" || movement.stockUnitId) return sum;
+      const value = Number(movement.totalCost || 0);
+      return sum + (Number.isFinite(value) ? value : 0);
+    }, 0);
+    const totalCost = serializedCost + nonSerializedCost;
 
     const currency =
       job.sparePartAssignments?.find((a) => a.currency)?.currency || "IDR";
@@ -268,6 +289,12 @@ router.patch("/:id/status", authRequired, async (req, res) => {
 
     const existing = await prisma.truckMaintenance.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: "Job not found" });
+    if (status === "DONE" && existing.isOilChange) {
+      const oilUsage = await prisma.stockMovement.count({
+        where: { maintenanceId: id, type: "OUT", item: { category: "OIL" } },
+      });
+      if (!oilUsage) return res.status(400).json({ error: "Pilih dan gunakan stok kategori Oli sebelum pekerjaan diselesaikan" });
+    }
 
     const job = await prisma.$transaction(async (tx) => {
       const updated = await tx.truckMaintenance.update({
@@ -674,7 +701,7 @@ router.post("/:id/use-stock", authRequired, async (req, res) => {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
 
     const maintenanceId = req.params.id;
-    const { itemId, locationId, qty, note } = req.body || {};
+    const { itemId, locationId, qty, note, oilChangedAt, odometerKm } = req.body || {};
 
     if (!itemId) return res.status(400).json({ error: "itemId is required" });
     if (!locationId) return res.status(400).json({ error: "locationId is required" });
@@ -692,6 +719,24 @@ router.post("/:id/use-stock", authRequired, async (req, res) => {
     const item = await prisma.item.findUnique({ where: { id: String(itemId) } });
     if (!item) return res.status(404).json({ error: "Item not found" });
     if (item.isSerialized) return res.status(400).json({ error: "Item is serialized. Use Assign Unit instead." });
+    let oilDate = null;
+    let oilOdometer = null;
+    if (item.category === "OIL") {
+      oilDate = oilChangedAt ? new Date(oilChangedAt) : null;
+      oilOdometer = odometerKm != null && odometerKm !== "" ? num(odometerKm, null) : null;
+      if (!oilDate || Number.isNaN(oilDate.getTime())) return res.status(400).json({ error: "Tanggal ganti oli wajib diisi" });
+      if (!Number.isInteger(oilOdometer) || oilOdometer < 0) return res.status(400).json({ error: "Odometer saat ganti oli wajib diisi dengan angka yang valid" });
+      const previous = await prisma.truckMaintenance.findFirst({
+        where: { truckId: job.truckId, isOilChange: true, status: "DONE", id: { not: job.id } },
+        orderBy: [{ oilChangedAt: "desc" }, { createdAt: "desc" }],
+      });
+      if (previous?.odometerKm != null && oilOdometer < previous.odometerKm) {
+        return res.status(400).json({ error: `Odometer baru tidak boleh lebih rendah dari riwayat terakhir (${previous.odometerKm} km)` });
+      }
+      if (previous?.oilChangedAt && oilDate < previous.oilChangedAt) {
+        return res.status(400).json({ error: "Tanggal ganti oli baru tidak boleh lebih awal dari riwayat terakhir" });
+      }
+    }
 
     const movement = await prisma.$transaction(async (tx) => {
       // ensure stock row exists
@@ -708,16 +753,45 @@ router.post("/:id/use-stock", authRequired, async (req, res) => {
       const current = row?.qty || 0;
       if (current < q) throw new Error(`Not enough stock. Available: ${current}, requested: ${q}`);
 
+      const batches = await tx.inventoryBatch.findMany({
+        where: { itemId: item.id, locationId: String(locationId), remainingQty: { gt: 0 } },
+        orderBy: [{ receivedAt: "asc" }, { createdAt: "asc" }],
+      });
+      let qtyToAllocate = q;
+      let allocatedCost = 0;
+      let fullyPriced = true;
+      for (const batch of batches) {
+        if (qtyToAllocate <= 0) break;
+        const taken = Math.min(Number(batch.remainingQty || 0), qtyToAllocate);
+        if (taken <= 0) continue;
+        if (batch.unitPrice == null) fullyPriced = false;
+        else allocatedCost += taken * Number(batch.unitPrice);
+        await tx.inventoryBatch.update({ where: { id: batch.id }, data: { remainingQty: { decrement: taken } } });
+        qtyToAllocate -= taken;
+      }
+      if (qtyToAllocate > 0.000001) fullyPriced = false;
+      const movementTotalCost = fullyPriced ? Math.round(allocatedCost) : null;
+      const movementUnitPrice = movementTotalCost == null ? null : Math.round(movementTotalCost / q);
+
       await tx.inventoryStock.update({
         where: { itemId_locationId: { itemId: item.id, locationId: String(locationId) } },
         data: { qty: current - q },
       });
+
+      if (item.category === "OIL") {
+        await tx.truckMaintenance.update({
+          where: { id: maintenanceId },
+          data: { isOilChange: true, oilChangedAt: oilDate, odometerKm: oilOdometer },
+        });
+      }
 
       return tx.stockMovement.create({
         data: {
           type: "OUT",
           itemId: item.id,
           qty: q,
+          unitPrice: movementUnitPrice,
+          totalCost: movementTotalCost,
           note: note ? String(note) : `Used in maintenance: ${job.title}`,
           createdById: req.user?.id || null,
           fromLocationId: String(locationId),

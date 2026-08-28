@@ -64,6 +64,34 @@ export default function Trucks() {
   const [stnkRenewal, setStnkRenewal] = useState(null);
   const [stnkSaving, setStnkSaving] = useState(false);
 
+  function gpsPosition(truck) {
+    if (
+      truck.lastGpsLatitude === null || truck.lastGpsLatitude === undefined || truck.lastGpsLatitude === "" ||
+      truck.lastGpsLongitude === null || truck.lastGpsLongitude === undefined || truck.lastGpsLongitude === ""
+    ) return null;
+    const lat = Number(truck.lastGpsLatitude);
+    const lng = Number(truck.lastGpsLongitude);
+    if (
+      !Number.isFinite(lat) || !Number.isFinite(lng) ||
+      lat < -90 || lat > 90 || lng < -180 || lng > 180 ||
+      (lat === 0 && lng === 0)
+    ) return null;
+    return {
+      label: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+      url: `https://www.google.com/maps?q=${encodeURIComponent(`${lat},${lng}`)}`,
+    };
+  }
+
+  function gpsUpdatedAt(value) {
+    if (!value) return "";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "";
+    return parsed.toLocaleString("id-ID", {
+      day: "2-digit", month: "short", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    });
+  }
+
   const [pageSize, setPageSize] = useState(() => {
     const saved = Number(window.localStorage.getItem("armada-page-size"));
     return [10, 25, 50].includes(saved) ? saved : 10;
@@ -480,6 +508,7 @@ export default function Trucks() {
             </thead>
             <tbody>
               {pagedItems.map((t) => {
+                const gps = gpsPosition(t);
                 return (
                   <tr
                     key={t.id}
@@ -518,14 +547,32 @@ export default function Trucks() {
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
                         <FiMapPin size={15} color={BRAND.primary} style={{ marginTop: 2, flexShrink: 0 }} />
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontWeight: 600 }}>{t.currentLocation || "Belum diatur"}</div>
+                          {gps ? (
+                            <a
+                              href={gps.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ fontWeight: 700, color: BRAND.primary, textDecoration: "none" }}
+                            >
+                              {gps.label}
+                            </a>
+                          ) : (
+                            <div style={{ fontWeight: 600 }}>{t.currentLocation || "Belum diatur"}</div>
+                          )}
                           <div style={s.smallMuted}>
-                            {t.availableForBackhaul
+                            {gps
+                              ? `GPS ${gpsUpdatedAt(t.lastGpsAt) || "terbaru"}${t.lastGpsSpeed != null ? ` · ${Number(t.lastGpsSpeed).toFixed(0)} km/jam` : ""}`
+                              : t.availableForBackhaul
                               ? `Menunggu ${formatIdle(t.idleSince)}`
                               : t.baseLocation
                                 ? `Base: ${t.baseLocation}`
                                 : "Base belum diatur"}
                           </div>
+                          {gps && (
+                            <div style={{ ...s.smallMuted, marginTop: 2 }}>
+                              Lokasi operasional: {t.currentLocation || "Belum diatur"}
+                            </div>
+                          )}
                         </div>
                         <button
                           type="button"

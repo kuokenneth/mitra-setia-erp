@@ -51,6 +51,16 @@ function validCoordinates(latitude, longitude) {
   return latitude !== null && longitude !== null && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
 }
 
+function activePlateNumber(deviceId) {
+  const value = clean(deviceId);
+  if (!value) return null;
+  return clean(value.split(/\s+-\s+/)[0]);
+}
+
+function normalizedPlate(value) {
+  return String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
 function authorized(req) {
   const expected = clean(process.env.GOLACAK_WEBHOOK_TOKEN);
   const supplied = clean(req.get("Token"));
@@ -85,9 +95,38 @@ function distanceMeters(lat1, lng1, lat2, lng2) {
 
 async function findTruck(event) {
   if (!event.deviceId && !event.imei) return null;
-  return prisma.truck.findFirst({
+  const mapped = await prisma.truck.findFirst({
     where: { OR: [event.deviceId ? { gpsDeviceId: event.deviceId } : null, event.imei ? { gpsImei: event.imei } : null].filter(Boolean) },
   });
+  if (mapped) return mapped;
+
+  // GOlacak uses the active plate as deviceId. Some devices include the old
+  // plate after " - ", for example "BK 8535 GD - BK 9677".
+  const plateNumber = activePlateNumber(event.deviceId);
+  if (!plateNumber) return null;
+  let truck = await prisma.truck.findFirst({
+    where: { plateNumber: { equals: plateNumber, mode: "insensitive" } },
+  });
+  if (!truck) {
+    const trucks = await prisma.truck.findMany();
+    truck = trucks.find((candidate) => normalizedPlate(candidate.plateNumber) === normalizedPlate(plateNumber)) || null;
+  }
+  if (!truck) return null;
+
+  // Persist the stable IMEI mapping so later events do not depend on a plate
+  // number that may change again. Keep an existing explicit mapping intact.
+  try {
+    return await prisma.truck.update({
+      where: { id: truck.id },
+      data: {
+        gpsDeviceId: truck.gpsDeviceId || event.deviceId,
+        gpsImei: truck.gpsImei || event.imei,
+      },
+    });
+  } catch (error) {
+    if (error.code !== "P2002") throw error;
+    return truck;
+  }
 }
 
 async function evaluateArrival(truck, event) {
@@ -188,6 +227,9 @@ router.post("/events", async (req, res) => {
     }
     results.push({ accepted: true, mapped: Boolean(truck), ...(await evaluateArrival(truck, event)) });
   }
+  if (results.some((result) => result.mapped)) {
+    publishUpdate({ method: "PATCH", resource: "trucks" });
+  }
   if (results.some((result) => result.arrived)) {
     publishUpdate({ method: "PATCH", resource: "trips" });
   }
@@ -224,5 +266,5 @@ router.put("/trips/:tripId/destination", authRequired, requireRole("OWNER", "ADM
   }
 });
 
-router._test = { distanceMeters, normalize, validCoordinates };
+router._test = { activePlateNumber, distanceMeters, normalize, normalizedPlate, validCoordinates };
 module.exports = router;

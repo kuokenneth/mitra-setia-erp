@@ -64,6 +64,11 @@ function fmtDateTime(d) {
   }
 }
 
+function localDateValue() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
 function installedDays(installedAt) {
   const start = new Date(installedAt).getTime();
   if (!Number.isFinite(start)) return null;
@@ -484,6 +489,8 @@ export default function Maintenance() {
   const [useLocationId, setUseLocationId] = useState("");
   const [useQty, setUseQty] = useState("");
   const [useNote, setUseNote] = useState("");
+  const [useOilDate, setUseOilDate] = useState(localDateValue());
+  const [useOilOdometer, setUseOilOdometer] = useState("");
   const [usingStock, setUsingStock] = useState(false);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [photoError, setPhotoError] = useState("");
@@ -555,6 +562,8 @@ export default function Maintenance() {
       setUseLocationId("");
       setUseQty("");
       setUseNote("");
+      setUseOilDate(localDateValue());
+      setUseOilOdometer("");
       setPhotoError("");
       setProgressNote("");
     } catch (e) {
@@ -619,6 +628,7 @@ export default function Maintenance() {
 
   const serializedItems = useMemo(() => (items || []).filter((i) => i.isSerialized), [items]);
   const nonSerializedItems = useMemo(() => (items || []).filter((i) => !i.isSerialized), [items]);
+  const selectedUseItem = useMemo(() => nonSerializedItems.find((item) => item.id === useItemId) || null, [nonSerializedItems, useItemId]);
 
   async function startCreate() {
     setErr("");
@@ -721,16 +731,26 @@ export default function Maintenance() {
     if (!useItemId) return setErr("Select item");
     if (!useLocationId) return setErr("Select location");
     if (!Number.isFinite(qty) || qty <= 0) return setErr("Qty must be > 0");
+    if (selectedUseItem?.category === "OIL" && !useOilDate) return setErr("Tanggal ganti oli wajib diisi");
+    if (selectedUseItem?.category === "OIL" && (!Number.isInteger(Number(useOilOdometer)) || Number(useOilOdometer) < 0)) return setErr("Odometer saat ganti oli wajib diisi");
 
     setUsingStock(true);
     setErr("");
     try {
       await api(`/maintenance/${activeJob.id}/use-stock`, {
         method: "POST",
-        body: JSON.stringify({ itemId: useItemId, locationId: useLocationId, qty, note: useNote || undefined }),
+        body: JSON.stringify({
+          itemId: useItemId,
+          locationId: useLocationId,
+          qty,
+          note: useNote || undefined,
+          oilChangedAt: selectedUseItem?.category === "OIL" ? useOilDate : undefined,
+          odometerKm: selectedUseItem?.category === "OIL" ? Number(useOilOdometer) : undefined,
+        }),
       });
       setUseQty("");
       setUseNote("");
+      if (selectedUseItem?.category === "OIL") setUseOilOdometer("");
       await refreshDetail();
       await load();
     } catch (e) {
@@ -1111,11 +1131,14 @@ export default function Maintenance() {
                 />
 
                 <Input
+                  type="number"
+                  min="0"
                   value={createForm.odometerKm}
                   onChange={(e) => setCreateForm((f) => ({ ...f, odometerKm: e.target.value }))}
                   placeholder="Odometer (km) optional"
                   data-testid="odometer-input"
                 />
+
 
                 <textarea
                   style={{
@@ -1211,7 +1234,7 @@ export default function Maintenance() {
                   }}
                 >
                   <div style={{ fontSize: 12, fontWeight: 500, color: BRAND.textMuted, marginBottom: 6 }}>
-                    Total parts cost (serialized)
+                    Total biaya suku cadang
                   </div>
                   <div style={{ fontSize: 24, fontWeight: 700, color: BRAND.primary }}>
                     {fmtMoney(activeJob.totalCost || 0, activeJob.currency || "IDR")}
@@ -1249,6 +1272,38 @@ export default function Maintenance() {
 
             <Card style={{ gridColumn: "1 / -1", gridRow: "2" }}>
               <div style={{ padding: 16 }}>
+                {activeJob.isOilChange && (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12, marginBottom: 18 }}>
+                    <div style={{ padding: 14, borderRadius: 6, border: `1px solid ${BRAND.primary}`, background: BRAND.successBg }}>
+                      <div style={{ fontWeight: 700, color: BRAND.primary }}>Ganti oli sekarang</div>
+                      <div style={{ marginTop: 6 }}>{fmtDateTime(activeJob.oilChangedAt)} • {Number(activeJob.odometerKm || 0).toLocaleString()} km</div>
+                      <div style={{ marginTop: 5, fontSize: 12, color: BRAND.textMuted }}>{(activeJob.photos || []).length} bukti foto</div>
+                    </div>
+                    <div style={{ padding: 14, borderRadius: 6, border: `1px solid ${BRAND.border}`, background: BRAND.secondary }}>
+                      <div style={{ fontWeight: 700, color: BRAND.text }}>Ganti oli sebelumnya</div>
+                      {activeJob.previousOilChange ? (
+                        <>
+                          <div style={{ marginTop: 6 }}>{fmtDateTime(activeJob.previousOilChange.oilChangedAt)} • {Number(activeJob.previousOilChange.odometerKm || 0).toLocaleString()} km</div>
+                          <div style={{ marginTop: 5, fontSize: 12, color: BRAND.textMuted }}>
+                            Selisih {Math.max(0, Number(activeJob.odometerKm || 0) - Number(activeJob.previousOilChange.odometerKm || 0)).toLocaleString()} km • {(activeJob.previousOilChange.photos || []).length} bukti foto
+                          </div>
+                        </>
+                      ) : <div style={{ marginTop: 6, color: BRAND.textMuted }}>Belum ada riwayat sebelumnya.</div>}
+                    </div>
+                    {!!activeJob.previousOilChange?.photos?.length && (
+                      <div style={{ gridColumn: "1 / -1" }}>
+                        <div style={{ marginBottom: 8, fontSize: 13, fontWeight: 700, color: BRAND.text }}>Bukti foto penggantian sebelumnya</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>
+                          {activeJob.previousOilChange.photos.map((photo, index) => (
+                            <div key={photo} style={{ height: 150, borderRadius: 6, overflow: "hidden", border: `1px solid ${BRAND.border}`, background: BRAND.white }}>
+                              <ProtectedImage url={photo} alt={`Bukti ganti oli sebelumnya ${index + 1}`} style={{ width: "100%", height: "150px", objectFit: "cover" }} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div style={{ fontWeight: 600, color: BRAND.text }}>Foto kondisi & servis</div>
                 <div style={{ marginTop: 5, marginBottom: 14, fontSize: 13, color: BRAND.textMuted }}>Unggah foto sparepart yang dipasang, komponen rusak, atau hasil pekerjaan. Maksimal 10 foto.</div>
                 {allowed && (
@@ -1437,6 +1492,28 @@ export default function Maintenance() {
                     </Select>
                   </div>
 
+                  {selectedUseItem?.category === "OIL" && (
+                    <div style={{ padding: 14, marginBottom: 10, borderRadius: 6, border: `1px solid ${BRAND.primary}`, background: BRAND.successBg }}>
+                      <div style={{ marginBottom: 10, fontWeight: 700, color: BRAND.primary }}>Data ganti oli</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                        <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
+                          Tanggal ganti oli
+                          <Input type="date" value={useOilDate} onChange={(e) => setUseOilDate(e.target.value)} disabled={!allowed || activeJob.status !== "OPEN"} />
+                        </label>
+                        <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
+                          Odometer saat ganti oli
+                          <Input type="number" min="0" value={useOilOdometer} onChange={(e) => setUseOilOdometer(e.target.value)} placeholder="km" disabled={!allowed || activeJob.status !== "OPEN"} />
+                        </label>
+                      </div>
+                      <div style={{ marginTop: 10, fontSize: 12, color: BRAND.textLight }}>
+                        {activeJob.previousOilChange
+                          ? `Terakhir: ${fmtDateTime(activeJob.previousOilChange.oilChangedAt)} • ${Number(activeJob.previousOilChange.odometerKm || 0).toLocaleString()} km`
+                          : "Belum ada riwayat ganti oli sebelumnya."}
+                      </div>
+                      <div style={{ marginTop: 5, fontSize: 12, color: BRAND.textMuted }}>Foto dokumentasi dapat diunggah secara opsional pada bagian foto maintenance.</div>
+                    </div>
+                  )}
+
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
                     <Input
                       value={useQty}
@@ -1528,7 +1605,7 @@ export default function Maintenance() {
 
                 {/* Movements Table */}
                 <div style={{ fontSize: 13, fontWeight: 600, color: BRAND.textMuted, marginBottom: 8 }}>
-                  Stock movements linked to this maintenance (includes qty usage)
+                  Non-serialized spareparts used
                 </div>
                 <div style={{ overflow: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
@@ -1538,12 +1615,14 @@ export default function Maintenance() {
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Jenis</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Barang</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Jumlah</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Harga/Unit</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Total Biaya</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Dari</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Catatan</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(activeJob.movements || []).map((m) => (
+                      {(activeJob.movements || []).filter((m) => m.type === "OUT" && !m.stockUnitId).map((m) => (
                         <tr key={m.id} style={{ borderBottom: `1px solid ${BRAND.border}` }}>
                           <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{fmtDateTime(m.createdAt)}</td>
                           <td style={{ padding: "12px 8px", fontWeight: 500, color: BRAND.text }}>{m.type}</td>
@@ -1551,14 +1630,16 @@ export default function Maintenance() {
                             {m.item?.sku} — {m.item?.name}
                           </td>
                           <td style={{ padding: "12px 8px", fontWeight: 600, color: BRAND.text }}>{m.qty}</td>
+                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{m.unitPrice == null ? "—" : fmtMoney(m.unitPrice)}</td>
+                          <td style={{ padding: "12px 8px", fontWeight: 600, color: BRAND.primary }}>{m.totalCost == null ? "—" : fmtMoney(m.totalCost)}</td>
                           <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{m.fromLocation?.name || "—"}</td>
                           <td style={{ padding: "12px 8px", color: BRAND.textMuted }}>{m.note || "—"}</td>
                         </tr>
                       ))}
-                      {(activeJob.movements || []).length === 0 && (
+                      {(activeJob.movements || []).filter((m) => m.type === "OUT" && !m.stockUnitId).length === 0 && (
                         <tr>
-                          <td colSpan={6} style={{ padding: 16, color: BRAND.textMuted, textAlign: "center" }}>
-                            No stock movements recorded yet.
+                          <td colSpan={8} style={{ padding: 16, color: BRAND.textMuted, textAlign: "center" }}>
+                            Belum ada suku cadang non-serialized yang digunakan.
                           </td>
                         </tr>
                       )}
