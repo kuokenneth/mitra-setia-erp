@@ -30,6 +30,8 @@ import Purchasing from "./pages/Purchasing";
 import Receivables from "./pages/Receivables";
 import Accounting from "./pages/Accounting";
 import FleetProfitability from "./pages/FleetProfitability";
+import FleetMap from "./pages/FleetMap";
+import OperationalLocations from "./pages/OperationalLocations";
 import AuditTrail from "./pages/AuditTrail";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -57,6 +59,8 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/users" element={<Users />} />
             <Route path="/trucks" element={<Trucks />} />
+            <Route path="/fleet-map" element={<FleetMap />} />
+            <Route path="/operational-locations" element={<OperationalLocations />} />
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/purchasing" element={<Purchasing />} />
             <Route path="/receivables" element={<Receivables />} />

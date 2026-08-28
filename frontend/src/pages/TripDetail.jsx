@@ -1,7 +1,7 @@
 // src/pages/TripDetail.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api, apiAssetUrl } from "../api";
+import { api, uploadFiles } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { openProtectedFile, ProtectedImage } from "../components/ProtectedFile";
@@ -203,6 +203,7 @@ export default function TripDetail() {
   const [saveErr, setSaveErr] = useState("");
   const [uploadingArrivalProofs, setUploadingArrivalProofs] = useState(false);
   const [arrivalProofErr, setArrivalProofErr] = useState("");
+  const [arrivalEntry, setArrivalEntry] = useState(null);
 
   async function load() {
     try {
@@ -252,20 +253,40 @@ export default function TripDetail() {
   const currentStatus = String(trip?.status || "PLANNED").toUpperCase();
   const currentStepIndex = Math.max(0, STATUS_STEPS.findIndex((step) => step.value === currentStatus));
 
-  async function setStatus(next) {
+  async function updateStatus(next, qtyActual = null) {
     try {
       setSaveErr("");
       setSaving(true);
       await api(`/trips/${id}/status`, {
         method: "PATCH",
-        body: JSON.stringify({ status: next }),
+        body: JSON.stringify({ status: next, ...(qtyActual !== null ? { qtyActual } : {}) }),
       });
       await load();
+      return true;
     } catch (e) {
       setSaveErr(e?.message || "Gagal memperbarui status");
+      return false;
     } finally {
       setSaving(false);
     }
+  }
+
+  function setStatus(next) {
+    const needsWeight = trip?.purpose === "DELIVERY" && (next === "ARRIVED" || (next === "COMPLETED" && trip.qtyActual == null));
+    if (needsWeight) {
+      setSaveErr("");
+      setArrivalEntry({ nextStatus: next, qtyActual: trip.qtyActual == null ? "" : String(trip.qtyActual) });
+      return;
+    }
+    updateStatus(next);
+  }
+
+  async function saveArrivalWeight(event) {
+    event.preventDefault();
+    const qtyActual = Number(arrivalEntry?.qtyActual);
+    if (!Number.isFinite(qtyActual) || qtyActual <= 0) return setSaveErr("Berat tiba harus lebih dari nol");
+    const saved = await updateStatus(arrivalEntry.nextStatus, qtyActual);
+    if (saved) setArrivalEntry(null);
   }
 
   if (loading && !trip) {
@@ -484,6 +505,22 @@ export default function TripDetail() {
             )}
 
           </div>
+          {arrivalEntry && (
+            <div onMouseDown={(event) => event.target === event.currentTarget && !saving && setArrivalEntry(null)} style={{ position: "fixed", inset: 0, zIndex: 1000, display: "grid", placeItems: "center", padding: 18, background: "rgba(10,30,20,.58)" }}>
+              <form onSubmit={saveArrivalWeight} style={{ width: "min(460px, 100%)", boxSizing: "border-box", padding: 24, borderRadius: 16, background: "#FFFFFF", boxShadow: "0 25px 70px rgba(0,0,0,.25)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" }}>
+                  <div><div style={{ color: "#0D7C3D", fontSize: 11, fontWeight: 800, letterSpacing: 1.2 }}>BARANG TIBA</div><h2 style={{ margin: "5px 0", fontSize: 22 }}>Masukkan Berat Tiba</h2><p style={{ margin: 0, color: "#718078", fontSize: 13 }}>{truck?.plateNumber || trip.plateNumberSnap} · Muatan rencana {trip.qtyPlanned ?? "—"} {trip.unitSnap || order?.unit || ""}</p></div>
+                  <button type="button" onClick={() => setArrivalEntry(null)} disabled={saving} style={{ ...btnGhost, width: 36, height: 36, padding: 0 }}><FiX/></button>
+                </div>
+                <label style={{ display: "grid", gap: 7, marginTop: 22, color: "#405148", fontSize: 13, fontWeight: 650 }}>Berat aktual di tujuan
+                  <div style={{ display: "flex", alignItems: "center", border: "1px solid #CEDBD3", borderRadius: 9, overflow: "hidden" }}><input autoFocus required type="number" min="0.001" step="0.001" value={arrivalEntry.qtyActual} onChange={(event) => setArrivalEntry((value) => ({ ...value, qtyActual: event.target.value }))} placeholder="Contoh: 29.5" style={{ flex: 1, minWidth: 0, border: 0, outline: 0, padding: "12px 13px", font: "inherit" }}/><span style={{ padding: "12px 13px", background: "#F4F8F5", color: "#647269" }}>{trip.unitSnap || order?.unit || "TON"}</span></div>
+                </label>
+                {arrivalEntry.qtyActual && trip.qtyPlanned != null && Number(arrivalEntry.qtyActual) < Number(trip.qtyPlanned) && <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: "#FFF7E6", color: "#9A5B00", fontSize: 13 }}>Selisih muatan: {(Number(trip.qtyPlanned) - Number(arrivalEntry.qtyActual)).toLocaleString("id-ID", { maximumFractionDigits: 3 })} {trip.unitSnap || order?.unit || ""}</div>}
+                {saveErr && <div style={{ marginTop: 12, color: "#B42318", fontSize: 13 }}>{saveErr}</div>}
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}><button type="button" style={btnGhost} disabled={saving} onClick={() => setArrivalEntry(null)}>Batal</button><button disabled={saving} style={{ ...btnGhost, border: 0, borderRadius: 9, background: "#0D7C3D", color: "white" }}>{saving ? "Menyimpan…" : arrivalEntry.nextStatus === "COMPLETED" ? "Simpan & Selesaikan" : "Simpan & Tandai Tiba"}</button></div>
+              </form>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
+import { CircleMarker, MapContainer, TileLayer } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
 import {
   FiPlus,
   FiRefreshCw,
@@ -14,7 +16,6 @@ import {
   FiCalendar,
   FiAlertTriangle,
   FiMapPin,
-  FiEdit2,
 } from "react-icons/fi";
 
 // Corporate Green Color Palette (matching Landing Page)
@@ -59,10 +60,9 @@ export default function Trucks() {
   const [movTo, setMovTo] = useState("");
   const [monthTotal, setMonthTotal] = useState(0);
   const [monthCurrency, setMonthCurrency] = useState("IDR");
-  const [locationEdit, setLocationEdit] = useState(null);
-  const [locationSaving, setLocationSaving] = useState(false);
   const [stnkRenewal, setStnkRenewal] = useState(null);
   const [stnkSaving, setStnkSaving] = useState(false);
+  const [locationPreview, setLocationPreview] = useState(null);
 
   function gpsPosition(truck) {
     if (
@@ -77,19 +77,11 @@ export default function Trucks() {
       (lat === 0 && lng === 0)
     ) return null;
     return {
+      lat,
+      lng,
       label: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
       url: `https://www.google.com/maps?q=${encodeURIComponent(`${lat},${lng}`)}`,
     };
-  }
-
-  function gpsUpdatedAt(value) {
-    if (!value) return "";
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return "";
-    return parsed.toLocaleString("id-ID", {
-      day: "2-digit", month: "short", year: "numeric",
-      hour: "2-digit", minute: "2-digit",
-    });
   }
 
   const [pageSize, setPageSize] = useState(() => {
@@ -313,50 +305,6 @@ export default function Trucks() {
     }
   }
 
-  async function advanceEmptyReturn(truck) {
-    const trip = truck.activeEmptyReturnTrip;
-    const next = { PLANNED: "DISPATCHED", DISPATCHED: "ARRIVED", ARRIVED: "COMPLETED" }[trip?.status];
-    if (!next) return;
-    const message = next === "DISPATCHED"
-      ? `Mulai perjalanan kembali kosong ${truck.plateNumber}?`
-      : next === "ARRIVED"
-        ? `Pastikan ${truck.plateNumber} sudah benar-benar sampai di ${trip.toText || "Medan"}.`
-        : `Selesaikan trip ${truck.plateNumber} dan ubah status armada menjadi Ready?`;
-    if (!confirm(message)) return;
-    setErr("");
-    try {
-      await api(`/trips/${trip.id}/status`, {
-        method: "PATCH",
-        body: JSON.stringify({ status: next, timestamp: new Date().toISOString() }),
-      });
-      await load({ resetPage: false });
-    } catch (e) {
-      setErr(e.message || "Gagal memperbarui perjalanan kembali kosong");
-    }
-  }
-
-  async function saveLocation(e) {
-    e.preventDefault();
-    if (!locationEdit) return;
-    setLocationSaving(true);
-    try {
-      await api(`/trucks/${locationEdit.id}/location`, {
-        method: "PUT",
-        body: JSON.stringify({
-          currentLocation: locationEdit.currentLocation,
-          baseLocation: locationEdit.baseLocation,
-          availableForBackhaul: locationEdit.availableForBackhaul,
-        }),
-      });
-      setLocationEdit(null);
-      await load({ resetPage: false });
-    } catch (e) {
-      alert(e.message || "Gagal memperbarui lokasi truk");
-    } finally {
-      setLocationSaving(false);
-    }
-  }
-
   function onPickTruck(truck) {
     setSelectedTruck(truck);
     setAssignments([]);
@@ -499,11 +447,9 @@ export default function Trucks() {
                 <th style={s.th}>Nomor Polisi</th>
                 <th style={s.th}>Kendaraan</th>
                 <th style={s.th}>Status</th>
-                <th style={s.th}>Kembali Kosong</th>
                 <th style={s.th}>Lokasi Armada</th>
                 <th style={s.th}>Pengemudi Bertugas</th>
                 <th style={s.th}>Masa Berlaku STNK</th>
-                <th style={s.th}>Dibuat</th>
               </tr>
             </thead>
             <tbody>
@@ -527,68 +473,34 @@ export default function Trucks() {
                       <span style={statusPill(t.status || "READY")}>{t.status || "READY"}</span>
                     </td>
                     <td style={s.td} onClick={(e) => e.stopPropagation()}>
-                      {t.activeEmptyReturnTrip ? (
-                        <div style={{ minWidth: 145 }}>
-                          <div style={{ fontWeight: 650, fontSize: 12 }}>
-                            {t.activeEmptyReturnTrip.status === "PLANNED" ? "Belum berangkat" : t.activeEmptyReturnTrip.status === "DISPATCHED" ? "Dalam perjalanan" : "Sudah sampai"}
-                          </div>
-                          <div style={{ ...s.smallMuted, marginTop: 3 }}>{t.activeEmptyReturnTrip.fromText || "—"} → {t.activeEmptyReturnTrip.toText || "Medan"}</div>
-                          <button
-                            type="button"
-                            style={{ ...s.iconBtn, width: "auto", marginTop: 7, padding: "6px 9px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", color: t.activeEmptyReturnTrip.status === "DISPATCHED" ? "#92400E" : BRAND.primary, background: t.activeEmptyReturnTrip.status === "DISPATCHED" ? BRAND.warningBg : BRAND.white }}
-                            onClick={() => advanceEmptyReturn(t)}
-                          >
-                            {t.activeEmptyReturnTrip.status === "PLANNED" ? "Berangkat" : t.activeEmptyReturnTrip.status === "DISPATCHED" ? "Sampai Medan" : "Selesaikan"}
-                          </button>
-                        </div>
-                      ) : <span style={s.smallMuted}>—</span>}
-                    </td>
-                    <td style={s.td} onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                        <FiMapPin size={15} color={BRAND.primary} style={{ marginTop: 2, flexShrink: 0 }} />
+                        <FiMapPin size={16} color={BRAND.primary} style={{ marginTop: 2, flexShrink: 0 }} />
                         <div style={{ minWidth: 0 }}>
                           {gps ? (
-                            <a
-                              href={gps.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{ fontWeight: 700, color: BRAND.primary, textDecoration: "none" }}
+                            <button
+                              type="button"
+                              title="Lihat lokasi truk"
+                              onClick={() => setLocationPreview({ truck: t, gps })}
+                              style={{ border: 0, padding: 0, background: "transparent", cursor: "pointer", fontSize: 15, lineHeight: 1.4, fontWeight: 700, color: BRAND.primary, textAlign: "left" }}
                             >
-                              {gps.label}
-                            </a>
-                          ) : (
-                            <div style={{ fontWeight: 600 }}>{t.currentLocation || "Belum diatur"}</div>
-                          )}
-                          <div style={s.smallMuted}>
+                              {t.gpsLocation?.name || "Dalam Perjalanan"}
+                            </button>
+                          ) : <div style={{ fontSize: 15, lineHeight: 1.4, fontWeight: 650 }}>Belum ada data GPS</div>}
+                          <div style={{ ...s.smallMuted, fontSize: 13, lineHeight: 1.45 }}>
                             {gps
-                              ? `GPS ${gpsUpdatedAt(t.lastGpsAt) || "terbaru"}${t.lastGpsSpeed != null ? ` · ${Number(t.lastGpsSpeed).toFixed(0)} km/jam` : ""}`
+                              ? (t.gpsLocation ? `Dalam radius ${t.gpsLocation.distanceM} m` : gps.label)
                               : t.availableForBackhaul
                               ? `Menunggu ${formatIdle(t.idleSince)}`
                               : t.baseLocation
                                 ? `Base: ${t.baseLocation}`
                                 : "Base belum diatur"}
                           </div>
-                          {gps && (
-                            <div style={{ ...s.smallMuted, marginTop: 2 }}>
-                              Lokasi operasional: {t.currentLocation || "Belum diatur"}
+                          {t.gpsStopWarning && (
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 5, padding: "3px 7px", borderRadius: 5, background: BRAND.warningBg, color: "#B45309", fontSize: 12, fontWeight: 700 }}>
+                              <FiAlertTriangle size={12} /> Berhenti lama · {formatStopDuration(t.gpsStopWarning.durationMinutes)}
                             </div>
                           )}
                         </div>
-                        <button
-                          type="button"
-                          style={s.iconBtn}
-                          title="Ubah lokasi"
-                          disabled={t.status === "DISPATCH"}
-                          onClick={() => setLocationEdit({
-                            id: t.id,
-                            plateNumber: t.plateNumber,
-                            currentLocation: t.currentLocation || "",
-                            baseLocation: t.baseLocation || "",
-                            availableForBackhaul: Boolean(t.availableForBackhaul),
-                          })}
-                        >
-                          <FiEdit2 size={13} />
-                        </button>
                       </div>
                     </td>
                     <td style={s.td} onClick={(e) => e.stopPropagation()}>
@@ -624,16 +536,13 @@ export default function Trucks() {
                         )}
                       </div>
                     </td>
-                    <td style={s.td}>
-                      {t.createdAt ? new Date(t.createdAt).toLocaleDateString() : "-"}
-                    </td>
                   </tr>
                 );
               })}
 
               {!loading && pagedItems.length === 0 && (
                 <tr>
-                  <td style={s.empty} colSpan={8}>Tidak ada kendaraan ditemukan.</td>
+                  <td style={s.empty} colSpan={6}>Tidak ada kendaraan ditemukan.</td>
                 </tr>
               )}
             </tbody>
@@ -796,14 +705,9 @@ export default function Trucks() {
                 <input type="date" style={s.input} value={form.stnkExpiry || ""} onChange={(e) => setForm((f) => ({ ...f, stnkExpiry: e.target.value }))} />
               </Field>
 
-              <div style={s.twoCol}>
-                <Field label="Base / Pool Utama">
-                  <input style={s.input} value={form.baseLocation} onChange={(e) => setForm((f) => ({ ...f, baseLocation: e.target.value }))} placeholder="Medan" />
-                </Field>
-                <Field label="Lokasi Saat Ini">
-                  <input style={s.input} value={form.currentLocation} onChange={(e) => setForm((f) => ({ ...f, currentLocation: e.target.value }))} placeholder="Medan" />
-                </Field>
-              </div>
+              <Field label="Base / Pool Utama">
+                <input style={s.input} value={form.baseLocation} onChange={(e) => setForm((f) => ({ ...f, baseLocation: e.target.value }))} placeholder="Medan" />
+              </Field>
 
               <Field label="Assign Driver (optional)">
                 <select style={s.select} value={form.driverUserId} onChange={(e) => setForm((f) => ({ ...f, driverUserId: e.target.value }))}>
@@ -872,33 +776,26 @@ export default function Trucks() {
         </div>
       )}
 
-      {locationEdit && (
-        <div style={s.modalOverlay} onClick={() => setLocationEdit(null)}>
-          <form style={{ ...s.modalCard, maxWidth: 480 }} onSubmit={saveLocation} onClick={(e) => e.stopPropagation()}>
+      {locationPreview && (
+        <div style={s.modalOverlay} onClick={() => setLocationPreview(null)} data-testid="truck-location-modal">
+          <div style={{ ...s.modalCard, width: "min(720px, calc(100vw - 32px))", maxWidth: 720 }} onClick={(e) => e.stopPropagation()}>
             <div style={s.modalHeader}>
               <div>
-                <h3 style={s.modalTitle}>Lokasi {locationEdit.plateNumber}</h3>
-                <p style={s.modalSubtitle}>Koreksi posisi armada atau tandai sedang menunggu muatan balik.</p>
+                <h3 style={s.modalTitle}>Lokasi {locationPreview.truck.plateNumber}</h3>
+                <p style={s.modalSubtitle}>{locationPreview.truck.gpsLocation?.name || "Dalam Perjalanan"} · {locationPreview.gps.label}</p>
               </div>
-              <button type="button" style={s.modalClose} onClick={() => setLocationEdit(null)}><FiX size={18} /></button>
+              <button type="button" style={s.modalClose} onClick={() => setLocationPreview(null)}><FiX size={18} /></button>
             </div>
-            <div style={s.form}>
-              <Field label="Base / Pool Utama">
-                <input style={s.input} required value={locationEdit.baseLocation} onChange={(e) => setLocationEdit((v) => ({ ...v, baseLocation: e.target.value }))} placeholder="Medan" />
-              </Field>
-              <Field label="Lokasi Saat Ini">
-                <input style={s.input} required value={locationEdit.currentLocation} onChange={(e) => setLocationEdit((v) => ({ ...v, currentLocation: e.target.value }))} placeholder="Banda Aceh" />
-              </Field>
-              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: BRAND.text }}>
-                <input type="checkbox" checked={locationEdit.availableForBackhaul} onChange={(e) => setLocationEdit((v) => ({ ...v, availableForBackhaul: e.target.checked }))} />
-                Tersedia dan sedang menunggu muatan balik
-              </label>
-              <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-                <button style={{ ...s.primaryBtn, flex: 1 }} disabled={locationSaving}>{locationSaving ? "Menyimpan…" : "Simpan Lokasi"}</button>
-                <button type="button" style={s.ghostBtn} onClick={() => setLocationEdit(null)}>Batal</button>
-              </div>
+            <div style={{ height: 430, overflow: "hidden", borderRadius: 8, border: `1px solid ${BRAND.border}` }}>
+              <MapContainer center={[locationPreview.gps.lat, locationPreview.gps.lng]} zoom={16} scrollWheelZoom style={{ width: "100%", height: "100%" }}>
+                <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" detectRetina maxNativeZoom={19} maxZoom={20} />
+                <CircleMarker center={[locationPreview.gps.lat, locationPreview.gps.lng]} radius={9} pathOptions={{ color: "white", weight: 3, fillColor: BRAND.primary, fillOpacity: 1 }} />
+              </MapContainer>
             </div>
-          </form>
+            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12, marginTop: 14 }}>
+              <a href={locationPreview.gps.url} target="_blank" rel="noreferrer" style={{ ...s.primaryBtn, textDecoration: "none" }}>Buka Google Maps</a>
+            </div>
+          </div>
         </div>
       )}
 
@@ -938,6 +835,14 @@ function formatIdle(value) {
   if (hours < 24) return `${hours} jam`;
   const days = Math.floor(hours / 24);
   return `${days} hari`;
+}
+
+function formatStopDuration(minutes) {
+  const value = Math.max(0, Number(minutes) || 0);
+  if (value < 60) return `${value} menit`;
+  const hours = Math.floor(value / 60);
+  const rest = value % 60;
+  return rest ? `${hours} jam ${rest} menit` : `${hours} jam`;
 }
 
 function normalizeDay(d) {

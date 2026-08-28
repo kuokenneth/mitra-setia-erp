@@ -14,6 +14,7 @@ import {
   FiLogOut,
   FiMenu,
   FiMap,
+  FiMapPin,
   FiShoppingCart,
   FiCreditCard,
   FiChevronDown,
@@ -138,12 +139,12 @@ export default function AppLayout() {
 
     return [
       { to: "/dashboard", label: "Dashboard", icon: FiBarChart2 },
-      { label: "Operasional", icon: FiTruck, items: [{ to: "/trucks", label: "Armada", icon: FiTruck }, { to: "/orders", label: "Pesanan", icon: FiFileText }, { to: "/trips", label: "Trips", icon: FiMap }] },
+      { label: "Operasional", icon: FiTruck, items: [{ to: "/trucks", label: "Armada", icon: FiTruck }, { to: "/fleet-map", label: "Peta Armada", icon: FiMap }, { to: "/operational-locations", label: "Master Lokasi", icon: FiMapPin }, { to: "/orders", label: "Pesanan", icon: FiFileText }, { to: "/trips", label: "Trips", icon: FiMap }] },
       { label: "Bengkel & Pembelian", icon: FiTool, items: [{ to: "/inventory", label: "Inventory", icon: FiBox }, { to: "/maintenance", label: "Servis", icon: FiTool }, { to: "/purchasing", label: "Pembelian", icon: FiShoppingCart }] },
       { label: "Keuangan", icon: FiDollarSign, items: [{ to: "/expenses", label: "Pengeluaran", icon: FiDollarSign }, { to: "/receivables", label: "Piutang", icon: FiCreditCard }, ...(isOwnerAdmin ? [{ to: "/fleet-profitability", label: "Profit Armada", icon: FiPieChart }, { to: "/accounting", label: "Accounting", icon: FiBookOpen }] : [])] },
       { label: "Administrasi", icon: FiShield, items: [...(isOwnerAdmin ? [{ to: "/users", label: "Pengguna", icon: FiUser }] : []), ...(canManageDrivers ? [{ to: "/drivers/new", label: "Tambah Pengemudi", icon: FiUserPlus }] : []), ...(role === "OWNER" ? [{ to: "/audit-trail", label: "Audit Trail", icon: FiShield }] : [])] },
     ];
-  }, [isDriver, isSparepartAdmin, isOwnerAdmin, canManageDrivers]);
+  }, [role, isDriver, isSparepartAdmin, isOwnerAdmin, canManageDrivers]);
 
   async function doLogout() {
     await logout();

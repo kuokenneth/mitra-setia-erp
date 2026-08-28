@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { FiActivity, FiDollarSign, FiEdit2, FiFileText, FiTruck, FiTrendingDown, FiTrendingUp, FiX } from "react-icons/fi";
+import { FiActivity, FiAlertTriangle, FiDollarSign, FiEdit2, FiFileText, FiTruck, FiTrendingDown, FiTrendingUp, FiX } from "react-icons/fi";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
@@ -69,6 +69,7 @@ export default function FleetProfitability() {
     {error && <div className="fp-error">{error}</div>}
     <section className="fp-summary">
       <article><FiDollarSign/><small>Pendapatan</small><strong>{money(data.summary.revenue)}</strong><span>{data.summary.trips || 0} trip bulan ini</span></article>
+      <article className="loss"><FiAlertTriangle/><small>Kehilangan Muatan</small><strong>{money(data.summary.cargoLoss)}</strong><span>Selisih nilai muatan rencana dan tiba</span></article>
       <article><FiActivity/><small>Total Biaya</small><strong>{money(data.summary.totalCost)}</strong><span>Operasional + sparepart + tetap</span></article>
       <article className={(data.summary.profit || 0) < 0 ? "loss" : "profit"}><FiTrendingUp/><small>Laba Bersih</small><strong>{money(data.summary.profit)}</strong><span>Margin {pct(data.summary.margin)}</span></article>
       <article><FiTruck/><small>Truk Terbaik</small><strong>{best?.truck.plateNumber || "—"}</strong><span>{best ? `${money(best.profit)} · ${pct(best.margin)}` : "Belum ada data"}</span></article>
@@ -80,7 +81,7 @@ export default function FleetProfitability() {
         {sortedRows.map(row => <tr key={row.truck.id} onClick={() => setSelected(row)} className="fp-clickable" title="Klik untuk melihat rincian laba rugi">
           <td><b>{row.truck.plateNumber}</b><small>{[row.truck.brand, row.truck.model].filter(Boolean).join(" ") || "Detail belum diisi"}</small></td>
           <td><b>{row.trips.total}</b><small>{row.trips.completed} selesai · {pct(row.completionRate)}</small></td>
-          <td><b>{money(row.revenue)}</b><small>Kontribusi {pct(row.revenueContribution)}</small></td>
+          <td><b>{money(row.revenue)}</b><small>Kontribusi {pct(row.revenueContribution)}</small>{row.cargoLoss > 0 && <small style={{ color: "#bf3434" }}>Kehilangan {money(row.cargoLoss)}</small>}</td>
           <td><b>{money(row.totalCost)}</b><small>Rasio {pct(row.costRatio)}</small></td>
           <td className={row.profit < 0 ? "negative" : "positive"}><b>{money(row.profit)}</b><small>Biaya tetap {money(row.fixedTotal)}</small></td>
           <td><span className={`fp-badge ${row.health.toLowerCase()}`}>{pct(row.margin)}</span><Bar value={row.margin} tone={row.health === "LOSS" ? "red" : row.health === "WATCH" ? "yellow" : "green"}/></td>
@@ -103,7 +104,7 @@ export default function FleetProfitability() {
 
         <div className="fp-detail-section"><div className="fp-detail-title"><div><FiTruck/><h3>Sumber Pendapatan & Biaya per Trip</h3></div><span>{selected.tripDetails?.length || 0} trip</span></div>
           <div className="fp-detail-table"><table><thead><tr><th>Tanggal / Trip</th><th>Rute</th><th>Dasar Pendapatan</th><th>Pendapatan</th><th>Pengeluaran</th><th>Kontribusi Bersih</th></tr></thead><tbody>
-            {(selected.tripDetails || []).map(trip => <tr key={trip.id}><td><b>{date(trip.date)}</b><small>{trip.purpose === "EMPTY_RETURN" ? "Kembali kosong" : trip.orderNo || "Tanpa nomor DO"}</small></td><td><b>{trip.fromText || "—"} → {trip.toText || "—"}</b><small>{trip.customerName || "Operasional internal"}</small></td><td>{trip.invoiceNumber ? <><b>{trip.invoiceNumber}</b><small>{pct(trip.allocationPercent)} dari invoice {money(trip.invoiceTotal)}{trip.quantity != null ? ` · ${trip.quantity} ${trip.unit || ""}` : ""}</small></> : <><b>Tidak ada pendapatan</b><small>{trip.purpose === "EMPTY_RETURN" ? "Trip kembali kosong" : "Invoice belum terkirim"}</small></>}</td><td className="positive"><b>{money(trip.allocatedRevenue)}</b></td><td className={trip.expenseTotal ? "negative" : ""}><b>{money(trip.expenseTotal)}</b>{trip.expenses?.map(expense => <small key={expense.id}>{expense.reason}: {money(expense.amount)}</small>)}</td><td className={trip.netContribution < 0 ? "negative" : "positive"}><b>{money(trip.netContribution)}</b></td></tr>)}
+            {(selected.tripDetails || []).map(trip => <tr key={trip.id}><td><b>{date(trip.date)}</b><small>{trip.purpose === "EMPTY_RETURN" ? "Kembali kosong" : trip.orderNo || "Tanpa nomor DO"}</small></td><td><b>{trip.fromText || "—"} → {trip.toText || "—"}</b><small>{trip.customerName || "Operasional internal"}</small></td><td>{trip.invoiceNumber ? <><b>{trip.invoiceNumber}</b><small>{pct(trip.allocationPercent)} dari invoice {money(trip.invoiceTotal)}{trip.quantity != null ? ` · Tiba ${trip.quantity}/${trip.orderedQuantity || "?"} ${trip.unit || ""}` : ""}</small>{trip.cargoLoss > 0 && <small style={{ color: "#bf3434" }}>Kehilangan {Math.max(0, Number(trip.plannedQuantity) - Number(trip.quantity)).toLocaleString("id-ID")} {trip.unit || ""} = {money(trip.cargoLoss)}</small>}</> : <><b>Tidak ada pendapatan</b><small>{trip.purpose === "EMPTY_RETURN" ? "Trip kembali kosong" : "Invoice belum terkirim"}</small></>}</td><td className="positive"><b>{money(trip.allocatedRevenue)}</b></td><td className={trip.expenseTotal ? "negative" : ""}><b>{money(trip.expenseTotal)}</b>{trip.expenses?.map(expense => <small key={expense.id}>{expense.reason}: {money(expense.amount)}</small>)}</td><td className={trip.netContribution < 0 ? "negative" : "positive"}><b>{money(trip.netContribution)}</b></td></tr>)}
             {!selected.tripDetails?.length && <tr><td colSpan="6" className="fp-none">Tidak ada trip pada bulan ini.</td></tr>}
           </tbody></table></div>
         </div>
