@@ -54,7 +54,11 @@ function validCoordinates(latitude, longitude) {
 function activePlateNumber(deviceId) {
   const value = clean(deviceId);
   if (!value) return null;
-  return clean(value.split(/\s+-\s+/)[0]);
+  // Prefer the first Indonesian plate pattern, independent of how GOlacak
+  // separates the old plate (" - ", "-", "/", etc.).
+  const match = value.toUpperCase().match(/^([A-Z]{1,2})\s*(\d{1,4})\s*([A-Z]{1,3})\b/);
+  if (match) return `${match[1]} ${match[2]} ${match[3]}`;
+  return clean(value.split(/\s*[-/]\s*/)[0]);
 }
 
 function normalizedPlate(value) {
