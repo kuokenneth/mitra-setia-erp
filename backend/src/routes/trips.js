@@ -98,7 +98,7 @@ async function updateTruckOperationalState(tx, trip, nextStatus, timestamp) {
     await tx.truck.update({
       where: { id: truck.id },
       data: {
-        status: awayFromBase ? "WAITING_BACKHAUL" : "READY",
+        status: "READY",
         baseLocation: truck.baseLocation || origin || undefined,
         currentLocation: finalLocation,
         locationUpdatedAt: timestamp,

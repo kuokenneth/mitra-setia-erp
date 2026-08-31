@@ -690,6 +690,8 @@ model Truck {
   lastGpsAt        DateTime?
   lastGpsIgnition  Boolean?
   gpsStoppedSince  DateTime?
+  gpsStopAnchorLatitude  Float?
+  gpsStopAnchorLongitude Float?
 
   status    TruckStatus @default(READY)
   createdAt DateTime    @default(now())

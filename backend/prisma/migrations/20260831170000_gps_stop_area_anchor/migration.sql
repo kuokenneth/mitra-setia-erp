@@ -1,0 +1,3 @@
+ALTER TABLE "Truck"
+ADD COLUMN "gpsStopAnchorLatitude" DOUBLE PRECISION,
+ADD COLUMN "gpsStopAnchorLongitude" DOUBLE PRECISION;

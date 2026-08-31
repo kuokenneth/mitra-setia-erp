@@ -186,6 +186,53 @@ async function evaluateArrival(truck, event) {
   return { arrived: result, tripId: trip.id, distance: Math.round(distance) };
 }
 
+async function syncTruckStatusWithoutActiveTrip(truck, event, observedAt) {
+  if (!truck || !validCoordinates(event.latitude, event.longitude)) return null;
+  if (["MAINTENANCE", "INACTIVE"].includes(truck.status)) return null;
+
+  const activeTrip = await prisma.trip.findFirst({
+    where: { truckId: truck.id, status: { in: ["DISPATCHED", "ARRIVED"] } },
+    select: { id: true },
+  });
+  if (activeTrip) return null;
+
+  const locations = await prisma.operationalLocation.findMany({
+    where: { isActive: true },
+    select: { id: true, name: true, type: true, latitude: true, longitude: true, radiusM: true },
+  });
+  let matchedLocation = null;
+  let matchedDistance = Infinity;
+  for (const location of locations) {
+    const distance = distanceMeters(event.latitude, event.longitude, location.latitude, location.longitude);
+    const warningPriority = location.type === "WARNING" && matchedLocation?.type !== "WARNING";
+    const samePriority = !matchedLocation || (location.type === "WARNING") === (matchedLocation.type === "WARNING");
+    if (distance <= location.radiusM && (warningPriority || (samePriority && distance < matchedDistance))) {
+      matchedLocation = location;
+      matchedDistance = distance;
+    }
+  }
+
+  const movingSpeedKph = Math.max(1, Number(process.env.GPS_MOVING_SPEED_KPH || 5));
+  const isMoving = event.speed !== null && event.speed > movingSpeedKph;
+  const isSafeStopLocation = matchedLocation && matchedLocation.type !== "WARNING";
+  const nextStatus = !isMoving && isSafeStopLocation ? "READY" : "DISPATCH";
+
+  await prisma.truck.update({
+    where: { id: truck.id },
+    data: {
+      status: nextStatus,
+      currentLocation: matchedLocation?.name || "Dalam perjalanan",
+      locationUpdatedAt: observedAt,
+    },
+  });
+  return {
+    status: nextStatus,
+    reason: matchedLocation ? matchedLocation.type : "IN_TRANSIT",
+    locationId: matchedLocation?.id || null,
+    distanceM: matchedLocation ? Math.round(matchedDistance) : null,
+  };
+}
+
 router.get("/events", (_req, res) => {
   res.json({ ok: true, service: "golacak-webhook", configured: Boolean(process.env.GOLACAK_WEBHOOK_TOKEN) });
 });
@@ -231,16 +278,33 @@ router.post("/events", async (req, res) => {
     }
     if (truck && validCoordinates(event.latitude, event.longitude)) {
       const observedAt = event.eventAt || new Date();
-      const isStopped = event.speed !== null && event.speed <= 1;
+      const stopRadiusM = Math.max(25, Number(process.env.GPS_STOP_AREA_RADIUS_METERS || 500));
+      const startMaxSpeed = Math.max(0, Number(process.env.GPS_STOP_START_MAX_SPEED_KPH || 5));
+      const hasPreviousPosition = validCoordinates(truck.lastGpsLatitude, truck.lastGpsLongitude);
+      const hasStoredAnchor = validCoordinates(truck.gpsStopAnchorLatitude, truck.gpsStopAnchorLongitude);
+      const anchorLatitude = hasStoredAnchor ? truck.gpsStopAnchorLatitude : (hasPreviousPosition ? truck.lastGpsLatitude : event.latitude);
+      const anchorLongitude = hasStoredAnchor ? truck.gpsStopAnchorLongitude : (hasPreviousPosition ? truck.lastGpsLongitude : event.longitude);
+      const distanceFromAnchor = distanceMeters(event.latitude, event.longitude, anchorLatitude, anchorLongitude);
+      const distanceFromPrevious = hasPreviousPosition
+        ? distanceMeters(event.latitude, event.longitude, truck.lastGpsLatitude, truck.lastGpsLongitude)
+        : null;
+      const remainsInStopArea = Boolean(truck.gpsStoppedSince) && distanceFromAnchor <= stopRadiusM;
+      const canStartStop = (event.speed !== null && event.speed <= startMaxSpeed)
+        || (distanceFromPrevious !== null && distanceFromPrevious <= stopRadiusM);
+      const startsNewStop = !remainsInStopArea && canStartStop;
+      const gpsStoppedSince = remainsInStopArea ? truck.gpsStoppedSince : (startsNewStop ? observedAt : null);
       await prisma.truck.update({
         where: { id: truck.id },
         data: {
           lastGpsLatitude: event.latitude, lastGpsLongitude: event.longitude,
           lastGpsSpeed: event.speed, lastGpsAt: observedAt,
           lastGpsIgnition: event.ignition,
-          gpsStoppedSince: isStopped ? (truck.gpsStoppedSince || observedAt) : null,
+          gpsStoppedSince,
+          gpsStopAnchorLatitude: gpsStoppedSince ? (remainsInStopArea ? anchorLatitude : event.latitude) : null,
+          gpsStopAnchorLongitude: gpsStoppedSince ? (remainsInStopArea ? anchorLongitude : event.longitude) : null,
         },
       });
+      await syncTruckStatusWithoutActiveTrip(truck, event, observedAt);
     }
     results.push({ accepted: true, mapped: Boolean(truck), ...(await evaluateArrival(truck, event)) });
   }

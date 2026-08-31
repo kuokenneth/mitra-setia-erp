@@ -68,8 +68,16 @@ router.get(
         },
       });
 
-      const gpsLocations = await prisma.operationalLocation.findMany({ where: { isActive: true } });
+      const [gpsLocations, activeTripRows] = await Promise.all([
+        prisma.operationalLocation.findMany({ where: { isActive: true } }),
+        prisma.trip.findMany({
+          where: { status: { in: ["DISPATCHED", "ARRIVED"] } },
+          select: { truckId: true },
+        }),
+      ]);
+      const activeTripTruckIds = new Set(activeTripRows.map((trip) => trip.truckId));
       const stopWarningMinutes = Math.max(1, Number(process.env.GPS_STOP_WARNING_MINUTES || 30));
+      const movingSpeedKph = Math.max(1, Number(process.env.GPS_MOVING_SPEED_KPH || 5));
 
       res.json({ items: items.map(({ trips, ...truck }) => {
         let nearest = null;
@@ -86,8 +94,21 @@ router.get(
         const stoppedMinutes = truck.gpsStoppedSince
           ? Math.max(0, Math.floor((now.getTime() - truck.gpsStoppedSince.getTime()) / 60000))
           : 0;
+        const hasGpsPosition = Number.isFinite(truck.lastGpsLatitude) && Number.isFinite(truck.lastGpsLongitude);
+        const specialStatus = ["MAINTENANCE", "INACTIVE"].includes(truck.status);
+        const hasActiveTrip = activeTripTruckIds.has(truck.id);
+        const isMoving = truck.lastGpsSpeed !== null && truck.lastGpsSpeed > movingSpeedKph;
+        const isSafeLocation = nearest && nearest.location.type !== "WARNING";
+        const effectiveStatus = specialStatus
+          ? truck.status
+          : hasActiveTrip
+            ? "DISPATCH"
+            : hasGpsPosition
+              ? (!isMoving && isSafeLocation ? "READY" : "DISPATCH")
+              : truck.status;
         return {
           ...truck,
+          status: effectiveStatus,
           activeEmptyReturnTrip: trips[0] || null,
           gpsLocation: nearest ? {
             id: nearest.location.id,
