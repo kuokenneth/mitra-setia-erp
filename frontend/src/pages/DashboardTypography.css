@@ -1,0 +1,41 @@
+.d3-header > div:first-child > span,
+.d3-utilization > div > span,
+.d3-profit > div > span,
+.d3-title span { font-size: 11px; }
+
+.d3-header h1 { font-size: 34px; }
+.d3-header p { font-size: 14px; }
+.d3-header-side time,
+.d3-header-side b { font-size: 12px; }
+.d3-ring strong { font-size: 30px; }
+.d3-ring span { font-size: 11px; }
+.d3-utilization h2 { font-size: 21px; }
+.d3-utilization p,
+.d3-profit p { font-size: 12px; }
+.d3-utilization button,
+.d3-profit button,
+.d3-gps-card > button { font-size: 12px; }
+.d3-metric small { font-size: 10px; }
+.d3-metric strong { font-size: 27px; }
+.d3-metric span { font-size: 11px; }
+.d3-profit > small { font-size: 11px; }
+.d3-profit > strong { font-size: 30px; }
+.d3-title h2 { font-size: 20px; }
+.d3-title > b { font-size: 11px; }
+.d3-alert-main strong { font-size: 16px; }
+.d3-alert-main b { font-size: 9px; }
+.d3-alert-main p { font-size: 12px; }
+.d3-alert-meta span { font-size: 12px; }
+.d3-alert-meta small { font-size: 10px; }
+.d3-empty { font-size: 13px; }
+.d3-gps-score strong { font-size: 38px; }
+.d3-gps-score span { font-size: 11px; }
+.d3-gps-details span { font-size: 11px; }
+.d3-gps-details span b { font-size: 12px; }
+.d3-action-card button span strong { font-size: 13px; }
+.d3-action-card button span small { font-size: 10px; }
+
+@media (max-width: 720px) {
+  .d3-header h1 { font-size: 27px; }
+  .d3-metrics { min-height: 230px; }
+}

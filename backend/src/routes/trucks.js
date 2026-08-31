@@ -76,7 +76,11 @@ router.get(
         if (Number.isFinite(truck.lastGpsLatitude) && Number.isFinite(truck.lastGpsLongitude)) {
           for (const location of gpsLocations) {
             const distance = distanceMeters(truck.lastGpsLatitude, truck.lastGpsLongitude, location.latitude, location.longitude);
-            if (distance <= location.radiusM && (!nearest || distance < nearest.distanceM)) nearest = { location, distanceM: distance };
+            const isHigherPriority = location.type === "WARNING" && nearest?.location.type !== "WARNING";
+            const isCloserAtSamePriority = nearest !== null
+              && (location.type === "WARNING") === (nearest.location.type === "WARNING")
+              && distance < nearest.distanceM;
+            if (distance <= location.radiusM && (!nearest || isHigherPriority || isCloserAtSamePriority)) nearest = { location, distanceM: distance };
           }
         }
         const stoppedMinutes = truck.gpsStoppedSince
@@ -91,9 +95,10 @@ router.get(
             type: nearest.location.type,
             distanceM: Math.round(nearest.distanceM),
           } : null,
-          gpsStopWarning: truck.lastGpsIgnition === true && stoppedMinutes >= stopWarningMinutes ? {
+          gpsStopWarning: stoppedMinutes >= stopWarningMinutes ? {
             since: truck.gpsStoppedSince,
             durationMinutes: stoppedMinutes,
+            severity: nearest?.location.type === "WARNING" ? "CRITICAL" : "WARNING",
           } : null,
         };
       }) });

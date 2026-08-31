@@ -231,14 +231,14 @@ router.post("/events", async (req, res) => {
     }
     if (truck && validCoordinates(event.latitude, event.longitude)) {
       const observedAt = event.eventAt || new Date();
-      const stoppedWithEngineOn = event.ignition === true && event.speed !== null && event.speed <= 1;
+      const isStopped = event.speed !== null && event.speed <= 1;
       await prisma.truck.update({
         where: { id: truck.id },
         data: {
           lastGpsLatitude: event.latitude, lastGpsLongitude: event.longitude,
           lastGpsSpeed: event.speed, lastGpsAt: observedAt,
           lastGpsIgnition: event.ignition,
-          gpsStoppedSince: stoppedWithEngineOn ? (truck.gpsStoppedSince || observedAt) : null,
+          gpsStoppedSince: isStopped ? (truck.gpsStoppedSince || observedAt) : null,
         },
       });
     }

@@ -455,10 +455,11 @@ export default function Trucks() {
             <tbody>
               {pagedItems.map((t) => {
                 const gps = gpsPosition(t);
+                const isCriticalStop = t.gpsStopWarning?.severity === "CRITICAL";
                 return (
                   <tr
                     key={t.id}
-                    style={{ ...s.tr, background: BRAND.white, cursor: "pointer" }}
+                    style={{ ...s.tr, background: isCriticalStop ? BRAND.errorBg : BRAND.white, cursor: "pointer" }}
                     onClick={() => onPickTruck(t)}
                     data-testid={`truck-row-${t.id}`}
                   >
@@ -474,14 +475,14 @@ export default function Trucks() {
                     </td>
                     <td style={s.td} onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                        <FiMapPin size={16} color={BRAND.primary} style={{ marginTop: 2, flexShrink: 0 }} />
+                        <FiMapPin size={16} color={t.gpsLocation?.type === "WARNING" ? BRAND.error : BRAND.primary} style={{ marginTop: 2, flexShrink: 0 }} />
                         <div style={{ minWidth: 0 }}>
                           {gps ? (
                             <button
                               type="button"
                               title="Lihat lokasi truk"
                               onClick={() => setLocationPreview({ truck: t, gps })}
-                              style={{ border: 0, padding: 0, background: "transparent", cursor: "pointer", fontSize: 15, lineHeight: 1.4, fontWeight: 700, color: BRAND.primary, textAlign: "left" }}
+                              style={{ border: 0, padding: 0, background: "transparent", cursor: "pointer", fontSize: 15, lineHeight: 1.4, fontWeight: 700, color: t.gpsLocation?.type === "WARNING" ? BRAND.error : BRAND.primary, textAlign: "left" }}
                             >
                               {t.gpsLocation?.name || "Dalam Perjalanan"}
                             </button>
@@ -496,8 +497,8 @@ export default function Trucks() {
                                 : "Base belum diatur"}
                           </div>
                           {t.gpsStopWarning && (
-                            <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 5, padding: "3px 7px", borderRadius: 5, background: BRAND.warningBg, color: "#B45309", fontSize: 12, fontWeight: 700 }}>
-                              <FiAlertTriangle size={12} /> Berhenti lama · {formatStopDuration(t.gpsStopWarning.durationMinutes)}
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 5, padding: "3px 7px", borderRadius: 5, background: isCriticalStop ? "#FEE2E2" : BRAND.warningBg, color: isCriticalStop ? "#B91C1C" : "#B45309", fontSize: 12, fontWeight: 700 }}>
+                              <FiAlertTriangle size={12} /> {isCriticalStop ? "PERHATIAN: berhenti di area warning" : "Berhenti lama"} · {formatStopDuration(t.gpsStopWarning.durationMinutes)}
                             </div>
                           )}
                         </div>

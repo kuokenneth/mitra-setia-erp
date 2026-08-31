@@ -6,7 +6,7 @@ const { requireRole } = require("../middleware/requireRole");
 const router = express.Router();
 router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF"));
 
-const TYPES = new Set(["BASE", "CUSTOMER", "WAREHOUSE", "PORT", "OTHER"]);
+const TYPES = new Set(["BASE", "CUSTOMER", "WAREHOUSE", "PORT", "WARNING", "OTHER"]);
 
 function payload(body) {
   const name = String(body?.name || "").trim();

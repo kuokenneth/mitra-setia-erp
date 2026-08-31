@@ -7,7 +7,7 @@ import "./OperationalLocations.css";
 
 const MEDAN = [3.5952, 98.6722];
 const EMPTY = { id: null, name: "", address: "", type: "OTHER", latitude: "", longitude: "", radiusM: 400, isActive: true };
-const TYPE_LABELS = { BASE: "Base", CUSTOMER: "Customer", WAREHOUSE: "Gudang", PORT: "Pelabuhan", OTHER: "Lainnya" };
+const TYPE_LABELS = { BASE: "Base", CUSTOMER: "Customer", WAREHOUSE: "Gudang", PORT: "Pelabuhan", WARNING: "Area Warning", OTHER: "Lainnya" };
 
 function PointPicker({ onPick }) {
   useMapEvents({ click: (event) => onPick(event.latlng) });
@@ -47,6 +47,7 @@ export default function OperationalLocations() {
     const lng = Number(form.longitude);
     return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && form.latitude !== "" && form.longitude !== "" ? [lat, lng] : null;
   }, [form.latitude, form.longitude]);
+  const isWarning = form.type === "WARNING";
 
   function edit(item) {
     setForm({ ...item, address: item.address || "" });
@@ -98,7 +99,7 @@ export default function OperationalLocations() {
                 <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" detectRetina maxNativeZoom={19} maxZoom={20} />
                 <PointPicker onPick={({ lat, lng }) => setForm((v) => ({ ...v, latitude: lat.toFixed(6), longitude: lng.toFixed(6) }))} />
                 <MoveMap position={selectedPosition} />
-                {selectedPosition && <><Circle center={selectedPosition} radius={Number(form.radiusM) || 400} pathOptions={{ color: "#0d7c3d", fillColor: "#10a050", fillOpacity: .12 }} /><CircleMarker center={selectedPosition} radius={7} pathOptions={{ color: "white", weight: 3, fillColor: "#0d7c3d", fillOpacity: 1 }} /></>}
+                {selectedPosition && <><Circle center={selectedPosition} radius={Number(form.radiusM) || 400} pathOptions={{ color: isWarning ? "#dc2626" : "#0d7c3d", fillColor: isWarning ? "#ef4444" : "#10a050", fillOpacity: .12 }} /><CircleMarker center={selectedPosition} radius={7} pathOptions={{ color: "white", weight: 3, fillColor: isWarning ? "#dc2626" : "#0d7c3d", fillOpacity: 1 }} /></>}
               </MapContainer>
             </div>
             <button className="location-save" disabled={saving}>{saving ? "Menyimpan…" : form.id ? "Simpan Perubahan" : "Tambah Lokasi"}</button>
@@ -108,8 +109,8 @@ export default function OperationalLocations() {
         <section className="location-list-card">
           <div className="location-card-title"><div><h2>Lokasi Tersimpan</h2><p>{items.length} lokasi tersedia.</p></div></div>
           <div className="location-list">
-            {items.map((item) => <article key={item.id} className={!item.isActive ? "inactive" : ""}>
-              <div className="location-pin"><FiMapPin /></div><div className="location-info"><div><strong>{item.name}</strong><span>{TYPE_LABELS[item.type] || item.type}</span></div><p>{item.address || `${item.latitude.toFixed(6)}, ${item.longitude.toFixed(6)}`}</p><small>Radius {item.radiusM} m · {item.isActive ? "Aktif" : "Nonaktif"}</small></div>
+            {items.map((item) => <article key={item.id} className={!item.isActive ? "inactive" : ""} style={item.type === "WARNING" ? { background: "#fff7f7", borderLeft: "4px solid #dc2626", paddingLeft: 12 } : undefined}>
+              <div className="location-pin" style={item.type === "WARNING" ? { background: "#fee2e2", color: "#dc2626" } : undefined}><FiMapPin /></div><div className="location-info"><div><strong>{item.name}</strong><span style={item.type === "WARNING" ? { background: "#fee2e2", color: "#b91c1c" } : undefined}>{TYPE_LABELS[item.type] || item.type}</span></div><p>{item.address || `${item.latitude.toFixed(6)}, ${item.longitude.toFixed(6)}`}</p><small>Radius {item.radiusM} m · {item.isActive ? "Aktif" : "Nonaktif"}</small></div>
               <div className="location-actions"><button title="Ubah" onClick={() => edit(item)}><FiEdit2 /></button><button className="danger" title="Hapus" onClick={() => remove(item)}><FiTrash2 /></button></div>
             </article>)}
             {!loading && !items.length && <div className="location-empty">Belum ada master lokasi. Pilih titik pada peta untuk menambahkan lokasi pertama.</div>}
