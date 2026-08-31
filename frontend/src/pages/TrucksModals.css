@@ -1,0 +1,97 @@
+.fleet-v2-search { position: relative; }
+.fleet-v2-search > div { min-width: 300px; }
+
+.fleet-v2-overlay {
+  padding: 24px !important;
+  background: rgba(20, 31, 24, .56) !important;
+  backdrop-filter: blur(6px);
+}
+
+.fleet-add-modal,
+.fleet-movement-modal {
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(255, 255, 255, .55) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 30px 90px rgba(11, 27, 17, .28) !important;
+}
+
+.fleet-add-modal { width: min(720px, calc(100vw - 32px)) !important; }
+
+.fleet-add-header,
+.fleet-modal-hero {
+  margin: 0 !important;
+  padding: 23px 25px !important;
+  border-bottom: 1px solid #e1e8e3 !important;
+  background:
+    radial-gradient(circle at 90% 0, rgba(107, 148, 120, .16), transparent 32%),
+    linear-gradient(135deg, #f5f8f6, #edf3ef);
+}
+
+.fleet-add-header h3,
+.fleet-modal-hero h2 { color: #263a2f !important; font-size: 22px !important; letter-spacing: -.02em; }
+.fleet-add-header p,
+.fleet-modal-hero p { margin-top: 5px !important; color: #718078 !important; font-size: 12px !important; }
+.fleet-add-header > button { width: 36px !important; height: 36px !important; border-radius: 9px !important; background: rgba(255,255,255,.75) !important; }
+
+.fleet-add-form {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr;
+  gap: 17px !important;
+  padding: 24px 25px 25px !important;
+  background: #fff;
+}
+
+.fleet-add-form > .fleet-form-field:first-child,
+.fleet-add-form > .fleet-form-field:nth-child(4),
+.fleet-add-form > .fleet-form-field:nth-child(5),
+.fleet-add-form > .fleet-form-field:nth-child(6),
+.fleet-add-form > div:nth-last-child(-n+2) { grid-column: 1 / -1; }
+.fleet-add-form > div[style*="display: grid"] { grid-column: 1 / -1; }
+.fleet-add-form > div[style*="display: flex"] { grid-column: 1 / -1; }
+.fleet-add-form > p { grid-column: 1 / -1; }
+
+.fleet-form-field label { display: block; margin-bottom: 7px !important; color: #526258 !important; font-size: 12px !important; font-weight: 750 !important; }
+.fleet-add-form input,
+.fleet-add-form select {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 43px;
+  padding: 10px 12px !important;
+  border: 1px solid #d8e1da !important;
+  border-radius: 9px !important;
+  background: #fbfcfb !important;
+  font-size: 14px !important;
+}
+.fleet-add-form input:focus,
+.fleet-add-form select:focus { border-color: #6d907a !important; box-shadow: 0 0 0 3px rgba(89,126,102,.11); }
+.fleet-add-form button { min-height: 43px; border-radius: 9px !important; }
+.fleet-add-form > p { margin: -4px 0 0 !important; padding: 10px 12px; border-radius: 8px; background: #f5f8f6; color: #78857d !important; }
+
+.fleet-movement-modal { background: #fff !important; }
+.fleet-modal-hero { align-items: center !important; }
+.fleet-modal-hero > div:last-child button { border-radius: 9px !important; }
+.fleet-movement-filters {
+  margin: 0 !important;
+  gap: 9px !important;
+  padding: 15px 20px !important;
+  border-bottom: 1px solid #e6ebe7;
+  background: #fafcfb;
+}
+.fleet-movement-filters > div:first-child { flex: 1; min-width: 240px; border-radius: 9px !important; }
+.fleet-movement-filters input { border-radius: 8px !important; }
+.fleet-movement-filters button { border-radius: 8px !important; }
+.fleet-movement-filters > span { margin-left: auto; padding: 9px 12px !important; border-radius: 8px !important; background: #eaf3ed !important; color: #476d56 !important; }
+.fleet-movement-table-wrap { margin: 18px 20px 20px !important; border-color: #dfe6e1 !important; border-radius: 11px !important; }
+.fleet-movement-table th { padding: 12px 14px !important; background: #f5f8f6 !important; color: #718078 !important; font-size: 10px !important; }
+.fleet-movement-table td { padding: 14px !important; border-color: #edf0ee !important; }
+.fleet-movement-table tbody tr:hover { background: #f9fbfa; }
+
+@media (max-width: 720px) {
+  .fleet-v2-overlay { padding: 12px !important; }
+  .fleet-v2-search > div { min-width: 0; }
+  .fleet-add-form { grid-template-columns: 1fr; padding: 20px !important; }
+  .fleet-add-form > * { grid-column: 1 !important; }
+  .fleet-movement-filters > span { width: 100%; margin-left: 0; box-sizing: border-box; }
+  .fleet-modal-hero { align-items: flex-start !important; }
+}

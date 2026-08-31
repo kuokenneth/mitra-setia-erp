@@ -5,6 +5,8 @@ import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { CircleMarker, MapContainer, TileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import "./TrucksRedesign.css";
+import "./TrucksModals.css";
 import {
   FiPlus,
   FiRefreshCw,
@@ -45,7 +47,7 @@ export default function Trucks() {
   const role = user?.role || "UNKNOWN";
   const allowed = role === "OWNER" || role === "ADMIN" || role === "STAFF";
 
-  const [items, setItems] = useState([]);
+  const [allItems, setAllItems] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
@@ -63,6 +65,19 @@ export default function Trucks() {
   const [stnkRenewal, setStnkRenewal] = useState(null);
   const [stnkSaving, setStnkSaving] = useState(false);
   const [locationPreview, setLocationPreview] = useState(null);
+
+  const items = useMemo(() => {
+    const keyword = q.trim().toLowerCase();
+    if (!keyword) return allItems;
+    return allItems.filter((truck) => [
+      truck.plateNumber,
+      truck.brand,
+      truck.model,
+      truck.vin,
+      truck.driverUser?.name,
+      truck.gpsLocation?.name,
+    ].some((value) => String(value || "").toLowerCase().includes(keyword)));
+  }, [allItems, q]);
 
   function gpsPosition(truck) {
     if (
@@ -116,11 +131,11 @@ export default function Trucks() {
 
   const assignedDriverIds = useMemo(() => {
     const set = new Set();
-    for (const t of items) {
+    for (const t of allItems) {
       if (t.driverUser?.id) set.add(t.driverUser.id);
     }
     return set;
-  }, [items]);
+  }, [allItems]);
 
   function optionsForTruck(truck) {
     const base = [{ id: "", name: "Unassigned" }];
@@ -139,16 +154,13 @@ export default function Trucks() {
     setLoading(true);
     setErr("");
     try {
-      const params = new URLSearchParams();
-      if (q.trim()) params.set("q", q.trim());
-
       const [t, d] = await Promise.all([
-        api(`/trucks?${params.toString()}`),
+        api("/trucks"),
         api("/drivers"),
       ]);
 
       const truckList = t.items || [];
-      setItems(truckList);
+      setAllItems(truckList);
       setDrivers(d.items || []);
 
       if (selectedTruck?.id) {
@@ -194,7 +206,15 @@ export default function Trucks() {
   useEffect(() => {
     if (!allowed) return;
     load();
-  }, []);
+  }, [allowed]);
+
+  useEffect(() => { setPage(1); }, [q]);
+
+  useEffect(() => {
+    if (!selectedTruck?.id) return;
+    const timer = window.setTimeout(() => loadAssignments(selectedTruck.id), movQ.trim() ? 300 : 0);
+    return () => window.clearTimeout(timer);
+  }, [movQ, movFrom, movTo, selectedTruck?.id]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -206,7 +226,7 @@ export default function Trucks() {
 
   function onSearch(e) {
     e.preventDefault();
-    load({ resetPage: true });
+    setPage(1);
   }
 
   async function onCreate(e) {
@@ -309,7 +329,6 @@ export default function Trucks() {
     setSelectedTruck(truck);
     setAssignments([]);
     setMovErr("");
-    loadAssignments(truck.id);
   }
 
   const totalPages = useMemo(() => {
@@ -326,6 +345,13 @@ export default function Trucks() {
     const start = (page - 1) * pageSize;
     return (items || []).slice(start, start + pageSize);
   }, [items, page, pageSize]);
+
+  const fleetSummary = useMemo(() => ({
+    active: allItems.filter((truck) => ["READY", "DISPATCH"].includes(truck.status)).length,
+    maintenance: allItems.filter((truck) => truck.status === "MAINTENANCE").length,
+    warnings: allItems.filter((truck) => truck.gpsStopWarning || truck.gpsLocation?.type === "WARNING").length,
+    gps: allItems.filter((truck) => truck.lastGpsLatitude != null && truck.lastGpsLongitude != null).length,
+  }), [allItems]);
 
   function changePageSize(value) {
     const nextSize = Number(value);
@@ -349,12 +375,13 @@ export default function Trucks() {
   }
 
   return (
-    <div data-testid="trucks-page">
+    <div data-testid="trucks-page" className="fleet-page-v2">
       {/* Header */}
-      <div style={s.headerRow}>
+      <div style={s.headerRow} className="fleet-v2-header">
         <div>
+          <span className="fleet-v2-eyebrow">FLEET OPERATIONS</span>
           <h1 style={s.title}>Armada</h1>
-          <p style={s.subtitle}>Kelola armada dan penugasan pengemudi</p>
+          <p style={s.subtitle}>Pantau kendaraan, lokasi GPS, pengemudi, dan dokumen dalam satu tampilan.</p>
         </div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -371,33 +398,37 @@ export default function Trucks() {
 
       {err && <div style={s.alertErr}>{err}</div>}
 
+      <div className="fleet-v2-summary">
+        <article><span><FiTruck /></span><div><small>TOTAL ARMADA</small><strong>{allItems.length}</strong><p>Kendaraan terdaftar</p></div></article>
+        <article><span><FiMapPin /></span><div><small>ARMADA AKTIF</small><strong>{fleetSummary.active}</strong><p>Siap dan berjalan</p></div></article>
+        <article className={fleetSummary.warnings ? "attention" : ""}><span><FiAlertTriangle /></span><div><small>WARNING</small><strong>{fleetSummary.warnings}</strong><p>Perlu diperhatikan</p></div></article>
+        <article><span><FiCalendar /></span><div><small>GPS TERDETEKSI</small><strong>{fleetSummary.gps}</strong><p>{fleetSummary.maintenance} dalam servis</p></div></article>
+      </div>
+
       {/* Fleet Card */}
-      <div style={s.card}>
-        <div style={s.cardHeaderRow}>
+      <div style={s.card} className="fleet-v2-card">
+        <div style={s.cardHeaderRow} className="fleet-v2-toolbar">
           <div>
             <h2 style={s.cardTitle}>Daftar Armada</h2>
             <p style={s.cardSubtitle}>Tekan baris kendaraan untuk melihat riwayat suku cadang.</p>
           </div>
 
-          <form onSubmit={onSearch} style={s.searchRow}>
+          <form onSubmit={onSearch} style={s.searchRow} className="fleet-v2-search">
             <div style={s.inputWrap}>
               <FiSearch size={16} color={BRAND.textMuted} />
               <input
                 style={s.searchInput}
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Search plate/brand/model…"
+                placeholder="Ketik BK, merek, atau model…"
                 data-testid="trucks-search-input"
               />
             </div>
-            <button type="submit" disabled={loading} style={s.searchBtn} data-testid="trucks-search-btn">
-              Search
-            </button>
           </form>
         </div>
 
         {/* Pagination Bar */}
-        <div style={s.paginationBar}>
+        <div style={s.paginationBar} className="fleet-v2-pagination">
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <span style={s.paginationText}>
               Menampilkan <strong>{pagedItems.length}</strong> dari <strong>{items.length}</strong> kendaraan
@@ -440,8 +471,8 @@ export default function Trucks() {
         </div>
 
         {/* Table */}
-        <div style={s.tableWrap}>
-          <table style={s.table}>
+        <div style={s.tableWrap} className="fleet-v2-table-wrap">
+          <table style={s.table} className="fleet-v2-table">
             <thead>
               <tr>
                 <th style={s.th}>Nomor Polisi</th>
@@ -459,6 +490,7 @@ export default function Trucks() {
                 return (
                   <tr
                     key={t.id}
+                    className={isCriticalStop ? "critical-row" : ""}
                     style={{ ...s.tr, background: isCriticalStop ? BRAND.errorBg : BRAND.white, cursor: "pointer" }}
                     onClick={() => onPickTruck(t)}
                     data-testid={`truck-row-${t.id}`}
@@ -557,14 +589,16 @@ export default function Trucks() {
       {selectedTruck && (
         <div
           style={s.modalOverlay}
+          className="fleet-v2-overlay"
           onClick={() => { setSelectedTruck(null); setAssignments([]); }}
           data-testid="sparepart-movements-modal"
         >
           <div
             style={{ ...s.modalCard, width: "min(1080px, calc(100vw - 32px))", maxWidth: 1080, maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}
+            className="fleet-movement-modal"
             onClick={(e) => e.stopPropagation()}
           >
-          <div style={{ ...s.movHeader, padding: "20px 22px", borderBottom: `1px solid ${BRAND.border}` }}>
+          <div style={{ ...s.movHeader, padding: "20px 22px", borderBottom: `1px solid ${BRAND.border}` }} className="fleet-modal-hero">
             <div>
               <h2 style={s.cardTitle}>
                 Pergerakan Suku Cadang — <strong>{selectedTruck.plateNumber}</strong>
@@ -582,7 +616,7 @@ export default function Trucks() {
             </div>
           </div>
 
-          <div style={{ ...s.movFilters, padding: "18px 22px" }}>
+          <div style={{ ...s.movFilters, padding: "18px 22px" }} className="fleet-movement-filters">
             <div style={s.inputWrap}>
               <FiSearch size={16} color={BRAND.textMuted} />
               <input
@@ -598,7 +632,6 @@ export default function Trucks() {
               <input type="date" style={s.dateInput} value={movTo} onChange={(e) => setMovTo(e.target.value)} />
             </div>
 
-            <button style={s.primaryBtnSmall} disabled={asgLoading} onClick={() => loadAssignments(selectedTruck.id)}>Terapkan</button>
             <button style={s.ghostBtn} disabled={asgLoading} onClick={() => { setMovQ(""); setMovFrom(""); setMovTo(""); loadAssignments(selectedTruck.id); }}>Atur Ulang</button>
 
             <span style={s.monthBadge}>
@@ -608,8 +641,8 @@ export default function Trucks() {
 
           {movErr && <div style={s.alertErr}>{movErr}</div>}
 
-          <div style={{ ...s.tableWrap, margin: "0 22px 22px" }}>
-            <table style={{ ...s.table, minWidth: 900 }}>
+          <div style={{ ...s.tableWrap, margin: "0 22px 22px" }} className="fleet-movement-table-wrap">
+            <table style={{ ...s.table, minWidth: 900 }} className="fleet-movement-table">
               <thead>
                 <tr>
                   <th style={s.th}>Dipasang</th>
@@ -659,9 +692,9 @@ export default function Trucks() {
 
       {/* Tambah Kendaraan Modal */}
       {showAdd && (
-        <div style={s.modalOverlay} onClick={() => setShowAdd(false)} data-testid="add-truck-modal">
-          <div style={s.modalCard} onClick={(e) => e.stopPropagation()}>
-            <div style={s.modalHeader}>
+        <div style={s.modalOverlay} className="fleet-v2-overlay" onClick={() => setShowAdd(false)} data-testid="add-truck-modal">
+          <div style={s.modalCard} className="fleet-add-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={s.modalHeader} className="fleet-add-header">
               <div>
                 <h3 style={s.modalTitle}>Tambah Kendaraan</h3>
                 <p style={s.modalSubtitle}>Tambahkan kendaraan baru ke armada perusahaan.</p>
@@ -671,7 +704,7 @@ export default function Trucks() {
               </button>
             </div>
 
-            <form onSubmit={onCreate} style={s.form}>
+            <form onSubmit={onCreate} style={s.form} className="fleet-add-form">
               <Field label="Plate Number *">
                 <input style={s.input} value={form.plateNumber} onChange={(e) => setForm((f) => ({ ...f, plateNumber: e.target.value }))} placeholder="BK 1234 XX" data-testid="plate-input" />
               </Field>
@@ -807,7 +840,7 @@ export default function Trucks() {
 /* Helpers */
 function Field({ label, children }) {
   return (
-    <div>
+    <div className="fleet-form-field">
       <label style={s.label}>{label}</label>
       {children}
     </div>
