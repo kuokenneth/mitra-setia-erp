@@ -1,7 +1,7 @@
 // src/pages/OrderDetail.jsx - Corporate Minimalist Design
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api, apiAssetUrl, openPrintDocument, uploadFiles } from "../api";
+import { api, openPrintDocument, uploadFiles } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { openProtectedFile, ProtectedFilePreview, ProtectedImage } from "../components/ProtectedFile";
@@ -21,6 +21,8 @@ import {
   FiUser,
   FiX,
 } from "react-icons/fi";
+import "./OrderDetailRedesign.css";
+import "./OrderDetailHeader.css";
 
 //////////////////////
 // THEME - CORPORATE MINIMALIST
@@ -303,6 +305,7 @@ function Modal({ open, title, subtitle, onClose, children, width = 1100 }) {
 function TabButton({ active, children, onClick }) {
   return (
     <button
+      className={active ? "order-detail-tab active" : "order-detail-tab"}
       onClick={onClick}
       style={{
         padding: "10px 16px",
@@ -410,15 +413,22 @@ export default function OrderDetail() {
   }
 
   async function loadTrucks(q) {
-    const data = await api(`/trucks${q ? `?q=${encodeURIComponent(q)}` : ""}`);
+    const [data, locationData] = await Promise.all([
+      api(`/trucks${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+      api("/operational-locations"),
+    ]);
     const items = data?.items || data || [];
-    const origin = String(order?.fromText || "").trim().toLowerCase();
-    const available = items
-      .filter((t) =>
-        ["READY", "WAITING_BACKHAUL"].includes(t.status)
-        && origin
-        && String(t.currentLocation || "").trim().toLowerCase() === origin
-      );
+    const normalize = (value) => String(value || "").trim().toLocaleLowerCase("id-ID");
+    const origin = normalize(order?.pickupLocation?.name || order?.fromText);
+    const bases = (locationData?.items || []).filter((location) => location.isActive && location.type === "BASE");
+    const namedMedanBases = bases.filter((location) => /medan/i.test(`${location.name} ${location.address || ""}`));
+    const medanBaseNames = new Set((namedMedanBases.length ? namedMedanBases : bases).map((location) => normalize(location.name)));
+    medanBaseNames.add("medan");
+    medanBaseNames.add("base medan");
+    const available = items.filter((truck) => {
+      const current = normalize(truck.gpsLocation?.name || truck.currentLocation);
+      return truck.status === "READY" && (current === origin || medanBaseNames.has(current));
+    });
     setTrucks(available);
   }
 
@@ -464,8 +474,6 @@ export default function OrderDetail() {
     try {
       setAssignErr("");
       setAssigning(true);
-
-      const truck = trucks.find((t) => t.id === selectedTruckId);
 
       if (!selectedTruckId) throw new Error("Please select a truck");
       if (!selectedDriverId) throw new Error("Please select a driver");
@@ -579,9 +587,10 @@ export default function OrderDetail() {
     : order.status === "COMPLETED" ? 100 : 0;
 
   return (
-    <div data-testid="order-detail-page">
+    <div className="order-detail-v3" data-testid="order-detail-page">
       {/* Header */}
       <div
+        className="order-detail-v3-head"
         style={{
           marginBottom: 24,
           display: "flex",
@@ -591,19 +600,10 @@ export default function OrderDetail() {
           gap: 16,
         }}
       >
-        <div>
-          <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: BRAND.text }}>
-            {order.orderNo} — {customerName}
-          </h1>
-          <p style={{ margin: "8px 0 0", fontSize: 14, color: BRAND.textMuted }}>
-            {route} • {cargo} • Planned: {fmtDate(order.plannedAt)}
-            {hasPlannedQty && (
-              <span style={{ fontWeight: 600, marginLeft: 8 }}>
-                • Remaining: {fmtNum(remaining)} {order.unit || ""}
-              </span>
-            )}
-          </p>
-          <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center" }}>
+        <div className="order-detail-v3-title">
+          <span className="order-detail-v3-eyebrow">PESANAN ANGKUTAN</span>
+          <div className="order-detail-v3-title-row">
+            <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: BRAND.text }}>{order.orderNo}</h1>
             <StatusBadge status={order.status} />
             {order.orderType && (
               <span
@@ -620,40 +620,44 @@ export default function OrderDetail() {
               </span>
             )}
           </div>
+          <h2 className="order-detail-v3-customer">{customerName}</h2>
+          <div className="order-detail-v3-route-line">
+            <span><FiMapPin /><small>MUAT</small><b>{order.fromText || "Belum dipilih"}</b></span>
+            <i>→</i>
+            <span><FiMapPin /><small>BONGKAR</small><b>{order.toText || "Belum dipilih"}</b></span>
+          </div>
+          <div className="order-detail-v3-meta-line">
+            <span><FiPackage /> {order.cargoName || "Muatan belum diisi"}{hasPlannedQty ? ` · ${fmtNum(order.qty)} ${order.unit || ""}` : ""}</span>
+            <span><FiCalendar /> Rencana {fmtDate(order.plannedAt)}</span>
+            {hasPlannedQty && <span><FiActivity /> Sisa {fmtNum(remaining)} {order.unit || ""}</span>}
+          </div>
         </div>
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Button variant="secondary" icon={FiArrowLeft} onClick={() => nav("/orders")}>
-            Back
+        <div className="order-detail-v3-actions" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <Button className="order-detail-back" variant="secondary" icon={FiArrowLeft} onClick={() => nav("/orders")}>
+            Kembali
           </Button>
 
           {canWrite && (
             <>
-              <Button variant="primary" icon={FiPlus} onClick={openAssignModal} disabled={order.status === "CANCELLED"}>
-                Assign Trip
+              <Button className="order-detail-create-trip" variant="primary" icon={FiPlus} onClick={openAssignModal} disabled={order.status === "CANCELLED"}>
+                Buat Trip
               </Button>
 
               {order.status === "CANCELLED" ? (
                 <Button variant="secondary" onClick={() => patchOrderStatus("DRAFT")}>
-                  Reopen
+                  Buka Kembali
                 </Button>
               ) : (
                 <>
-                  <Button
-                    variant="secondary"
-                    icon={FiCheck}
-                    onClick={() => patchOrderStatus("CONFIRMED")}
-                    disabled={order.status === "CONFIRMED" || order.status === "COMPLETED"}
-                  >
-                    Confirm
-                  </Button>
-                  <Button
+                  {order.status === "DRAFT" && <Button variant="secondary" icon={FiCheck} onClick={() => patchOrderStatus("CONFIRMED")}>Konfirmasi</Button>}
+                  <Button className="order-detail-cancel"
                     variant="danger"
                     icon={FiX}
                     onClick={() => patchOrderStatus("CANCELLED")}
                     disabled={order.status === "COMPLETED"}
                   >
-                    Cancel
+                    Batalkan
                   </Button>
                 </>
               )}
@@ -662,17 +666,24 @@ export default function OrderDetail() {
         </div>
       </div>
 
-      <Card>
+      <div className="order-detail-v3-overview">
+        <article><span><FiPackage /></span><div><small>ALOKASI MUATAN</small><strong>{hasPlannedQty ? `${fmtNum(usedPlanned)} / ${fmtNum(order.qty)} ${order.unit || ""}` : `${trips.length} trip`}</strong><i><b style={{ width: `${hasPlannedQty && Number(order.qty) > 0 ? Math.min(100, (usedPlanned / Number(order.qty)) * 100) : 0}%` }} /></i><em>{hasPlannedQty ? `${fmtNum(remaining)} ${order.unit || ""} belum dibuatkan trip` : "Jumlah mengikuti faktur muatan"}</em></div></article>
+        <article><span><FiMapPin /></span><div><small>LOKASI MUAT</small><strong>{order.pickupLocation?.name || order.fromText || "Belum dipilih"}</strong><em>{order.pickupLocation?.address || "Master Lokasi"}</em></div></article>
+        <article><span><FiMapPin /></span><div><small>TUJUAN BONGKAR</small><strong>{order.destinationLocation?.name || order.toText || "Belum dipilih"}</strong><em>{order.destinationLocation?.address || "Master Lokasi"}</em></div></article>
+        <article><span><FiActivity /></span><div><small>PROGRES TRIP</small><strong>{completedTrips} / {trips.length} selesai</strong><em>{trips.filter((trip) => ["PLANNED", "DISPATCHED", "ARRIVED"].includes(trip.status)).length} masih aktif</em></div></article>
+      </div>
+
+      <Card style={{ borderRadius: 16 }}>
         {/* Tabs */}
-        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${BRAND.border}`, display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <div className="order-detail-v3-tabs" style={{ padding: "16px 20px", borderBottom: `1px solid ${BRAND.border}`, display: "flex", gap: 10, flexWrap: "wrap" }}>
           <TabButton active={tab === "INFO"} onClick={() => setTab("INFO")}>
-            Info
+            Ringkasan
           </TabButton>
           <TabButton active={tab === "PROOFS"} onClick={() => setTab("PROOFS")}>
             Bukti ({proofs.length})
           </TabButton>
           <TabButton active={tab === "TRIPS"} onClick={() => setTab("TRIPS")}>
-            Trips ({trips.length})
+            Trip ({trips.length})
           </TabButton>
           <TabButton active={tab === "MATERIAL_INVOICES"} onClick={() => setTab("MATERIAL_INVOICES")}>
             Faktur Muatan ({materialInvoices.length})
@@ -680,7 +691,7 @@ export default function OrderDetail() {
         </div>
 
         {/* Tab Content */}
-        <div style={{ padding: 20 }}>
+        <div className="order-detail-v3-content" style={{ padding: 20 }}>
           {tab === "INFO" && (
             <div>
               <div style={{ padding: isNarrow ? 18 : 22, borderRadius: 12, background: "linear-gradient(135deg, #F5FAF7 0%, #EDF6F1 100%)", border: "1px solid #DFEBE4" }}>
@@ -832,7 +843,7 @@ export default function OrderDetail() {
                 </div>
               ) : (
                 trips.map((t) => (
-                  <div
+                  <div className="order-detail-v3-trip"
                     key={t.id}
                     style={{
                       padding: 16,
@@ -874,11 +885,11 @@ export default function OrderDetail() {
 
                     <div style={{ display: "flex", gap: 10 }}>
                       <Button variant="secondary" size="small" icon={FiExternalLink} onClick={() => nav(`/trips/${t.id}`)}>
-                        Open Trip
+                        Buka Trip
                       </Button>
                       {canWrite && (
                         <Button variant="primary" size="small" onClick={() => generateDispatch(t.id)}>
-                          {t.dispatchLetter ? "Buat Ulang" : "Generate"} Dispatch
+                          {t.dispatchLetter ? "Buat Ulang" : "Buat"} Surat Jalan
                         </Button>
                       )}
                     </div>
@@ -920,8 +931,8 @@ export default function OrderDetail() {
       {/* Assign Trip Modal */}
       <Modal
         open={showAssign}
-        title="Assign Truck & Driver"
-        subtitle="Truck must be READY. Driver must be ACTIVE and not on another active trip."
+        title="Rencanakan Trip"
+        subtitle="Pilih armada siap pakai dan pengemudi. Trip tidak dibuat otomatis dari pesanan."
         onClose={() => setShowAssign(false)}
       >
         {assignErr && (
@@ -940,12 +951,12 @@ export default function OrderDetail() {
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: isNarrow ? "1fr" : "1.15fr 0.85fr", gap: 20 }}>
+        <div className="order-detail-trip-builder" style={{ display: "grid", gridTemplateColumns: isNarrow ? "1fr" : "1.15fr 0.85fr", gap: 20 }}>
           {/* LEFT - Truck Picker */}
           <Card>
             <div style={{ padding: 16 }}>
-              <div style={{ fontWeight: 600, marginBottom: 8, color: BRAND.text }}>Pilih Kendaraan</div>
-              <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>Hanya kendaraan yang berada di lokasi asal <strong>{order?.fromText || "—"}</strong> yang dapat dipilih.</div>
+              <div style={{ fontWeight: 600, marginBottom: 8, color: BRAND.text }}>Pilih Armada Ready</div>
+              <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>Menampilkan armada READY di <strong>{order?.fromText || "lokasi muat"}</strong> serta armada READY di Base Medan.</div>
 
               <Input placeholder="Cari nomor polisi..." value={truckQ} onChange={(e) => setTruckQ(e.target.value)} />
 
@@ -974,14 +985,14 @@ export default function OrderDetail() {
                         {t.brand || "-"} {t.model ? `• ${t.model}` : ""} • {t.status}
                       </div>
                       <div style={{ fontSize: 12, color: BRAND.primary, marginTop: 4, fontWeight: 600 }}>
-                        Lokasi: {t.currentLocation || "Belum diatur"}
+                        Lokasi: {t.gpsLocation?.name || t.currentLocation || "Belum diatur"}
                       </div>
                     </div>
                   );
                 })}
 
                 {filteredTrucks.length === 0 && (
-                  <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>Tidak ada kendaraan siap pakai di {order?.fromText || "lokasi asal"}.</div>
+                  <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>Tidak ada kendaraan berstatus siap pakai.</div>
                 )}
               </div>
             </div>

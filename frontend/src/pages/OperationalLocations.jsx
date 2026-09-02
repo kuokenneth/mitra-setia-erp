@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FiEdit2, FiMapPin, FiPlus, FiRefreshCw, FiTrash2, FiX } from "react-icons/fi";
+import { FiActivity, FiAlertTriangle, FiEdit2, FiMapPin, FiPlus, FiRefreshCw, FiSearch, FiTrash2, FiX } from "react-icons/fi";
 import { api } from "../api";
 import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID, loadGoogleMaps } from "../googleMaps";
 import "./OperationalLocations.css";
@@ -92,7 +92,7 @@ function GoogleLocationPicker({ position, radius, warning, onPick, onError }) {
       } finally {
         if (requestId === searchRequestRef.current) setSearching(false);
       }
-    }, 350);
+    }, 180);
     return () => window.clearTimeout(timer);
   }, [query, ready]);
 
@@ -165,6 +165,7 @@ export default function OperationalLocations() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [listQuery, setListQuery] = useState("");
 
   async function load() {
     setLoading(true);
@@ -185,6 +186,18 @@ export default function OperationalLocations() {
     return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && form.latitude !== "" && form.longitude !== "" ? { lat, lng } : null;
   }, [form.latitude, form.longitude]);
   const isWarning = form.type === "WARNING";
+  const summary = useMemo(() => ({
+    total: items.length,
+    active: items.filter((item) => item.isActive).length,
+    operational: items.filter((item) => ["BASE", "CUSTOMER", "WAREHOUSE", "PORT"].includes(item.type)).length,
+    warning: items.filter((item) => item.type === "WARNING").length,
+  }), [items]);
+  const filteredItems = useMemo(() => {
+    const needle = listQuery.trim().toLowerCase();
+    if (!needle) return items;
+    return items.filter((item) => [item.name, item.address, TYPE_LABELS[item.type], item.type]
+      .filter(Boolean).some((value) => String(value).toLowerCase().includes(needle)));
+  }, [items, listQuery]);
 
   function edit(item) {
     setForm({ ...item, address: item.address || "" });
@@ -216,20 +229,29 @@ export default function OperationalLocations() {
   }
 
   return (
-    <main className="location-master-page">
+    <main className="location-master-page location-master-v3">
       <header className="location-master-head">
-        <div><span>OPERASIONAL</span><h1>Master Lokasi</h1><p>Simpan titik yang sering dikunjungi agar GPS armada menampilkan nama tempat.</p></div>
-        <button onClick={load} disabled={loading}><FiRefreshCw /> Perbarui</button>
+        <div><span>LOCATION CONTROL</span><h1>Master Lokasi</h1><p>Kelola titik operasional, radius GPS, dan area yang membutuhkan perhatian.</p></div>
+        <button onClick={load} disabled={loading}><FiRefreshCw className={loading ? "spinning" : ""} /> Sinkronkan</button>
       </header>
       {error && <div className="location-master-error">{error}<button onClick={() => setError("")}><FiX /></button></div>}
 
+      <section className="location-summary-strip">
+        <article><span className="location-summary-icon"><FiMapPin /></span><div><small>Total lokasi</small><strong>{summary.total}</strong><p>Titik tersimpan</p></div></article>
+        <article><span className="location-summary-icon active"><FiActivity /></span><div><small>Lokasi aktif</small><strong>{summary.active}</strong><p>Dipakai pencocokan GPS</p></div></article>
+        <article><span className="location-summary-icon operational"><FiMapPin /></span><div><small>Titik operasional</small><strong>{summary.operational}</strong><p>Base, customer & lainnya</p></div></article>
+        <article className="warning"><span className="location-summary-icon warning"><FiAlertTriangle /></span><div><small>Area warning</small><strong>{summary.warning}</strong><p>Perlu perhatian armada</p></div></article>
+      </section>
+
       <div className="location-master-grid">
         <section className="location-editor-card">
-          <div className="location-card-title"><div><h2>{form.id ? "Ubah Lokasi" : "Tambah Lokasi"}</h2><p>Masukkan koordinat atau klik langsung pada peta.</p></div>{form.id && <button onClick={() => setForm(EMPTY)}><FiPlus /> Baru</button>}</div>
+          <div className="location-card-title"><div><span>LOCATION EDITOR</span><h2>{form.id ? "Ubah Lokasi" : "Tambah Lokasi Baru"}</h2><p>Cari alamat atau tentukan titik langsung pada Google Maps.</p></div>{form.id && <button onClick={() => setForm(EMPTY)}><FiPlus /> Lokasi baru</button>}</div>
           <form onSubmit={save}>
+            <div className="location-form-caption"><span>01</span><div><strong>Informasi lokasi</strong><small>Nama, fungsi, dan jangkauan titik.</small></div></div>
             <div className="location-form-row"><label>Nama lokasi<input required value={form.name} onChange={(e) => setForm((v) => ({ ...v, name: e.target.value }))} placeholder="Contoh: Base Medan" /></label><label>Jenis<select value={form.type} onChange={(e) => setForm((v) => ({ ...v, type: e.target.value }))}>{Object.entries(TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
             <label>Alamat / keterangan<input value={form.address} onChange={(e) => setForm((v) => ({ ...v, address: e.target.value }))} placeholder="Contoh: Jl. Cemara No. 40" /></label>
             <div className="location-form-row three"><label>Latitude<input type="number" step="any" min="-90" max="90" required value={form.latitude} onChange={(e) => setForm((v) => ({ ...v, latitude: e.target.value }))} placeholder="Contoh: 3.595200" /></label><label>Longitude<input type="number" step="any" min="-180" max="180" required value={form.longitude} onChange={(e) => setForm((v) => ({ ...v, longitude: e.target.value }))} placeholder="Contoh: 98.672200" /></label><label>Radius (meter)<input type="number" min="50" max="5000" required value={form.radiusM} onChange={(e) => setForm((v) => ({ ...v, radiusM: e.target.value }))} /></label></div>
+            <div className="location-form-caption map"><span>02</span><div><strong>Tentukan titik GPS</strong><small>Lingkaran pada peta mengikuti radius yang diisi.</small></div></div>
             {GOOGLE_MAPS_API_KEY ? <GoogleLocationPicker position={selectedPosition} radius={form.radiusM} warning={isWarning} onPick={({ lat, lng }) => setForm((v) => ({ ...v, latitude: lat.toFixed(6), longitude: lng.toFixed(6) }))} onError={(message) => setError(message)} /> : <><label className="google-location-search-label">Cari lokasi<div className="google-location-search disabled"><FiMapPin /><input disabled placeholder="Google Maps belum dikonfigurasi" /></div></label><div className="location-picker-map"><div className="location-google-setup"><FiMapPin /><strong>Google Maps belum dikonfigurasi</strong><span>Tambahkan VITE_GOOGLE_MAPS_API_KEY pada environment frontend.</span></div></div></>}
             <label className="location-active"><input type="checkbox" checked={form.isActive} onChange={(e) => setForm((v) => ({ ...v, isActive: e.target.checked }))} /> Lokasi aktif untuk pencocokan GPS</label>
             <button className="location-save" disabled={saving}>{saving ? "Menyimpan…" : form.id ? "Simpan Perubahan" : "Tambah Lokasi"}</button>
@@ -237,13 +259,15 @@ export default function OperationalLocations() {
         </section>
 
         <section className="location-list-card">
-          <div className="location-card-title"><div><h2>Lokasi Tersimpan</h2><p>{items.length} lokasi tersedia.</p></div></div>
+          <div className="location-card-title"><div><span>DIRECTORY</span><h2>Lokasi Tersimpan</h2><p>{filteredItems.length} dari {items.length} lokasi ditampilkan.</p></div></div>
+          <label className="location-list-search"><FiSearch /><input value={listQuery} onChange={(event) => setListQuery(event.target.value)} placeholder="Cari nama, alamat, atau jenis…" />{listQuery && <button type="button" onClick={() => setListQuery("")}><FiX /></button>}</label>
           <div className="location-list">
-            {items.map((item) => <article key={item.id} className={!item.isActive ? "inactive" : ""} style={item.type === "WARNING" ? { background: "#fff7f7", borderLeft: "4px solid #dc2626", paddingLeft: 12 } : undefined}>
-              <div className="location-pin" style={item.type === "WARNING" ? { background: "#fee2e2", color: "#dc2626" } : undefined}><FiMapPin /></div><div className="location-info"><div><strong>{item.name}</strong><span style={item.type === "WARNING" ? { background: "#fee2e2", color: "#b91c1c" } : undefined}>{TYPE_LABELS[item.type] || item.type}</span></div><p>{item.address || `${item.latitude.toFixed(6)}, ${item.longitude.toFixed(6)}`}</p><small>Radius {item.radiusM} m · {item.isActive ? "Aktif" : "Nonaktif"}</small></div>
+            {filteredItems.map((item) => <article key={item.id} className={`${!item.isActive ? "inactive" : ""} ${item.type === "WARNING" ? "warning" : ""}`}>
+              <div className="location-pin"><FiMapPin /></div><div className="location-info"><div><strong>{item.name}</strong><span>{TYPE_LABELS[item.type] || item.type}</span></div><p>{item.address || `${item.latitude.toFixed(6)}, ${item.longitude.toFixed(6)}`}</p><small><i className={item.isActive ? "active" : ""} /> Radius {item.radiusM} m · {item.isActive ? "Aktif" : "Nonaktif"}</small></div>
               <div className="location-actions"><button title="Ubah" onClick={() => edit(item)}><FiEdit2 /></button><button className="danger" title="Hapus" onClick={() => remove(item)}><FiTrash2 /></button></div>
             </article>)}
             {!loading && !items.length && <div className="location-empty">Belum ada master lokasi. Pilih titik pada peta untuk menambahkan lokasi pertama.</div>}
+            {!loading && items.length > 0 && !filteredItems.length && <div className="location-empty">Tidak ada lokasi yang cocok dengan pencarian.</div>}
           </div>
         </section>
       </div>

@@ -6,17 +6,20 @@ import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { openProtectedFile, ProtectedImage } from "../components/ProtectedFile";
 import {
+  FiActivity,
   FiArrowLeft,
   FiCheck,
   FiClock,
   FiFileText,
   FiFlag,
   FiMapPin,
+  FiPackage,
   FiTruck,
   FiUploadCloud,
   FiUser,
   FiX,
 } from "react-icons/fi";
+import "./TripDetailRedesign.css";
 
 //////////////////////
 // THEME (match Orders / Maintenance)
@@ -115,6 +118,16 @@ const STATUS_STEPS = [
   { value: "COMPLETED", label: "Selesai", icon: FiFlag },
 ];
 
+const DELIVERY_PHASES = [
+  { value: "TO_PICKUP", label: "Menuju lokasi muat" },
+  { value: "AT_PICKUP", label: "Tiba & proses muat" },
+  { value: "TO_DESTINATION", label: "Mengantar muatan" },
+  { value: "AT_DESTINATION", label: "Tiba di tujuan" },
+  { value: "COMPLETED", label: "Selesai" },
+];
+const DELIVERY_PHASE_LABELS = Object.fromEntries(DELIVERY_PHASES.map((phase) => [phase.value, phase.label]));
+DELIVERY_PHASE_LABELS.SERVICE_AT_BASE = "Servis darurat di base";
+
 function InfoRow({ label, value, icon: Icon }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "28px minmax(105px, .7fr) 1.4fr", gap: 8, alignItems: "center", minHeight: 38, borderBottom: "1px solid #F0F3F1" }}>
@@ -135,6 +148,7 @@ function StatusStep({ step, index, currentIndex, currentStatus, enabled, saving,
 
   return (
     <button
+      className={`trip-detail-step ${done ? "done" : ""} ${active ? "active" : ""}`}
       type="button"
       disabled={!actionable}
       onClick={() => onClick(step.value)}
@@ -251,7 +265,13 @@ export default function TripDetail() {
   }, [trip?.status, canWrite, isDriver]);
 
   const currentStatus = String(trip?.status || "PLANNED").toUpperCase();
+  const currentPhase = String(trip?.phase || "PLANNED").toUpperCase();
+  const currentPhaseIndex = currentPhase === "SERVICE_AT_BASE" ? 2 : DELIVERY_PHASES.findIndex((phase) => phase.value === currentPhase);
   const currentStepIndex = Math.max(0, STATUS_STEPS.findIndex((step) => step.value === currentStatus));
+  const plannedWeight = trip?.qtyPlanned == null ? null : Number(trip.qtyPlanned);
+  const arrivalWeight = trip?.qtyActual == null ? null : Number(trip.qtyActual);
+  const cargoDifference = plannedWeight == null || arrivalWeight == null ? null : Math.max(0, plannedWeight - arrivalWeight);
+  const weightUnit = trip?.unitSnap || order?.unit || "TON";
 
   async function updateStatus(next, qtyActual = null) {
     try {
@@ -319,16 +339,16 @@ export default function TripDetail() {
   if (!trip) return null;
 
   return (
-    <div style={pageBg}>
-      <div style={container}>
-        <div style={panel}>
+    <div className="trip-detail-v3" style={pageBg}>
+      <div className="trip-detail-v3-container" style={container}>
+        <div className="trip-detail-v3-shell" style={panel}>
           {/* Header */}
-          <div style={headerRow}>
+          <div className="trip-detail-v3-head" style={headerRow}>
             <div style={{ minWidth: 0 }}>
-              <div style={{ color: "#0D7C3D", fontSize: 12, fontWeight: 650, letterSpacing: 1, marginBottom: 7 }}>DETAIL PERJALANAN</div>
+              <div className="trip-detail-v3-eyebrow" style={{ color: "#0D7C3D", fontSize: 12, fontWeight: 650, letterSpacing: 1, marginBottom: 7 }}>TRIP CONTROL</div>
               <h1 style={title}>{headline}</h1>
 
-              <div style={subTitle}>
+              <div className="trip-detail-v3-subtitle" style={subTitle}>
                 Order:{" "}
                 {order?.orderNo ? (
                   <span
@@ -344,7 +364,7 @@ export default function TripDetail() {
                 • {routeText} • Planned: {fmtDateTime(trip.plannedDepartAt)}
               </div>
 
-              <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <div className="trip-detail-v3-badges" style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 <span style={tripBadgeStyle(trip.status)}>{String(trip.status).replaceAll("_", " ")}</span>
                 {trip.purpose === "EMPTY_RETURN" && <span style={{ ...badgeBase, background: "#FFF7ED", color: "#C2410C" }}>KEMBALI KOSONG · PENDAPATAN RP0</span>}
                 <span style={{ ...badgeBase, background: "#FFFFFF" }}>{role}</span>
@@ -357,25 +377,25 @@ export default function TripDetail() {
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button style={{ ...btnGhost, display: "inline-flex", alignItems: "center", gap: 7 }} onClick={() => nav(-1)}>
+            <div className="trip-detail-v3-nav" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="trip-detail-v3-back" style={{ ...btnGhost, display: "inline-flex", alignItems: "center", gap: 7 }} onClick={() => nav(-1)}>
                 <FiArrowLeft size={15} /> Kembali
               </button>
             </div>
           </div>
 
-          <div style={divider} />
+          <div className="trip-detail-v3-divider" style={divider} />
 
           {saveErr ? (
             <div style={{ marginTop: 14, padding: "11px 13px", borderRadius: 9, background: "#FFF1F2", color: "#B42318", fontWeight: 500, fontSize: 13 }}>{saveErr}</div>
           ) : null}
 
           {(canWrite || isDriver) && currentStatus !== "CANCELLED" ? (
-            <section style={{ marginTop: 20, padding: 18, background: "#F8FBF9", border: "1px solid #E2EAE5", borderRadius: 13 }}>
+            <section className="trip-detail-v3-progress" style={{ marginTop: 20, padding: 18, background: "#F8FBF9", border: "1px solid #E2EAE5", borderRadius: 13 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 13, flexWrap: "wrap" }}>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 650, color: "#243A30" }}>Progress perjalanan</div>
-                  <div style={{ fontSize: 12, color: "#7A8780", marginTop: 3 }}>Pilih tahap untuk memperbarui status dan waktu perjalanan.</div>
+                  <div style={{ fontSize: 12, color: "#7A8780", marginTop: 3 }}>Keberangkatan dan kedatangan diperbarui otomatis dari GPS. Penyelesaian trip tetap dikonfirmasi manual.</div>
                 </div>
                 {canWrite ? (
                   <button
@@ -387,6 +407,25 @@ export default function TripDetail() {
                   </button>
                 ) : null}
               </div>
+              {trip.purpose === "DELIVERY" && (
+                <div style={{ marginBottom: 16, padding: 14, borderRadius: 12, border: "1px solid #DDE9E1", background: "#FFFFFF" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+                    <div><strong style={{ display: "block", fontSize: 13 }}>Tahap perjalanan</strong><span style={{ color: "#7A8780", fontSize: 11 }}>Satu trip · perjalanan kosong dan pengiriman tercatat dalam satu rangkaian.</span></div>
+                    {currentPhase === "AT_PICKUP" && <span style={{ padding: "8px 11px", borderRadius: 8, background: "#EAF7EF", color: "#176C40", fontSize: 11, fontWeight: 700 }}>Menunggu GPS keluar radius lokasi muat</span>}
+                  </div>
+                  {currentPhase === "SERVICE_AT_BASE" && <div style={{ marginBottom: 12, padding: "11px 12px", borderRadius: 9, background: "#FFF4E8", border: "1px solid #F2D6B5", color: "#9A541B", fontSize: 12 }}><strong>Pengiriman berhenti sementara untuk servis di base.</strong><span style={{ display: "block", marginTop: 3 }}>Trip, muatan, uang jalan, dan tujuan tetap sama. GPS akan otomatis melanjutkan pengiriman ketika mobil keluar dari radius base.</span></div>}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(105px, 1fr))", gap: 7, overflowX: "auto", paddingBottom: 2 }}>
+                    {DELIVERY_PHASES.map((phase, index) => {
+                      const done = currentPhase === "COMPLETED" || (currentPhaseIndex >= 0 && index < currentPhaseIndex);
+                      const active = phase.value === currentPhase;
+                      return <div key={phase.value} style={{ minWidth: 105, padding: "10px 9px", borderRadius: 9, border: `1px solid ${active ? "#55A778" : done ? "#CDE5D6" : "#E4EBE6"}`, background: active ? "#EAF7EF" : done ? "#F4FAF6" : "#FAFCFB", color: active || done ? "#176C40" : "#8A958F" }}><span style={{ display: "grid", placeItems: "center", width: 20, height: 20, marginBottom: 6, borderRadius: 999, background: active || done ? "#1B8B50" : "#DCE5DF", color: "white", fontSize: 10, fontWeight: 800 }}>{done ? "✓" : index + 1}</span><strong style={{ fontSize: 10, lineHeight: 1.25, display: "block" }}>{phase.label}</strong></div>;
+                    })}
+                  </div>
+                  {currentPhase === "TO_PICKUP" && <div style={{ marginTop: 10, color: "#6E7D74", fontSize: 11 }}>GPS akan otomatis menandai tiba ketika mobil masuk radius {trip.fromText || "lokasi muat"}.</div>}
+                  {currentPhase === "AT_PICKUP" && <div style={{ marginTop: 10, color: "#6E7D74", fontSize: 11 }}>Setelah proses muat, sistem otomatis memulai pengiriman ketika mobil bergerak keluar dari radius lokasi muat.</div>}
+                  {currentPhase === "TO_DESTINATION" && <div style={{ marginTop: 10, color: "#6E7D74", fontSize: 11 }}>Muatan sedang dikirim. GPS akan otomatis menandai tiba di {trip.toText || "tujuan"}.</div>}
+                </div>
+              )}
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 {STATUS_STEPS.map((step, index) => (
                   <StatusStep
@@ -395,7 +434,7 @@ export default function TripDetail() {
                     index={index}
                     currentIndex={currentStepIndex}
                     currentStatus={currentStatus}
-                    enabled={allowedNextStatuses.includes(step.value)}
+                    enabled={step.value === "COMPLETED" && currentStatus === "ARRIVED" && allowedNextStatuses.includes(step.value)}
                     saving={saving}
                     onClick={setStatus}
                   />
@@ -405,20 +444,27 @@ export default function TripDetail() {
           ) : null}
 
           {/* Content grid */}
-          <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(310px, 1fr))", gap: 14 }}>
+          <div className="trip-detail-v3-grid" style={{ marginTop: 18, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(310px, 1fr))", gap: 14 }}>
             {/* Trip info */}
-            <div style={{ ...panel, boxShadow: "none", borderRadius: 13, padding: 20 }}>
+            <div className="trip-detail-v3-card" style={{ ...panel, boxShadow: "none", borderRadius: 13, padding: 20 }}>
               <div style={{ fontWeight: 650, marginBottom: 10, fontSize: 16 }}>Informasi Perjalanan</div>
               <InfoRow label="Status" icon={FiFlag} value={<span style={tripBadgeStyle(trip.status)}>{String(trip.status).replaceAll("_", " ")}</span>} />
+              {trip.purpose === "DELIVERY" && <InfoRow label="Tahap aktif" icon={FiActivity} value={DELIVERY_PHASE_LABELS[currentPhase] || "Direncanakan"} />}
+              <InfoRow label="Muatan rencana" icon={FiPackage} value={plannedWeight == null ? "Belum diisi" : `${plannedWeight.toLocaleString("id-ID", { maximumFractionDigits: 3 })} ${weightUnit}`} />
+              <InfoRow label="Berat tiba" icon={FiPackage} value={arrivalWeight == null ? "Belum dicatat" : `${arrivalWeight.toLocaleString("id-ID", { maximumFractionDigits: 3 })} ${weightUnit}`} />
+              <InfoRow label="Selisih muatan" icon={FiActivity} value={cargoDifference == null ? "Menunggu berat tiba" : <span style={{ color: cargoDifference > 0 ? "#B45309" : "#0D7C3D", fontWeight: 700 }}>{cargoDifference.toLocaleString("id-ID", { maximumFractionDigits: 3 })} {weightUnit}{cargoDifference > 0 ? " · kehilangan tercatat" : " · sesuai"}</span>} />
               <InfoRow label="Direncanakan" icon={FiClock} value={fmtDateTime(trip.plannedDepartAt)} />
               <InfoRow label="Berangkat" icon={FiTruck} value={fmtDateTime(trip.dispatchedAt)} />
+              {trip.purpose === "DELIVERY" && <InfoRow label="Tiba lokasi muat" icon={FiMapPin} value={fmtDateTime(trip.pickupArrivedAt)} />}
+              {trip.purpose === "DELIVERY" && <InfoRow label="Mulai pengiriman" icon={FiTruck} value={fmtDateTime(trip.loadedAt)} />}
+              {(trip.serviceStops || []).map((stop, index) => <InfoRow key={stop.id} label={`Servis${(trip.serviceStops || []).length > 1 ? ` ${index + 1}` : ""}`} icon={FiActivity} value={`${stop.location?.name || "Base"} · ${fmtDateTime(stop.startedAt)}${stop.endedAt ? ` — ${fmtDateTime(stop.endedAt)}` : " · masih berlangsung"}`} />)}
               <InfoRow label="Tiba" icon={FiMapPin} value={fmtDateTime(trip.arrivedAt)} />
               <InfoRow label="Selesai" icon={FiCheck} value={fmtDateTime(trip.completedAt)} />
               <InfoRow label="Dibuat" icon={FiClock} value={fmtDateTime(trip.createdAt)} />
             </div>
 
             {/* Truck/Driver/Order */}
-            <div style={{ ...panel, boxShadow: "none", borderRadius: 13, padding: 20 }}>
+            <div className="trip-detail-v3-card" style={{ ...panel, boxShadow: "none", borderRadius: 13, padding: 20 }}>
               <div style={{ fontWeight: 650, marginBottom: 10, fontSize: 16 }}>Penugasan</div>
               <InfoRow label="Kendaraan" icon={FiTruck} value={`${truck?.plateNumber || trip.plateNumberSnap || "-"}${truck?.brand ? ` · ${truck.brand}` : ""}${truck?.model ? ` · ${truck.model}` : ""}`} />
               <InfoRow label="Pengemudi" icon={FiUser} value={driver?.name || trip.driverNameSnap || "-"} />
@@ -436,7 +482,7 @@ export default function TripDetail() {
           </div>
 
           {/* Trip-specific proof that the goods reached destination. */}
-          <div style={{ marginTop: 14 }}>
+          <div className="trip-detail-v3-proof" style={{ marginTop: 14 }}>
             <div style={{ fontWeight: 650, marginBottom: 4, fontSize: 16 }}>Bukti Timbangan / Barang Tiba</div>
             <div style={{ color: "#718078", fontSize: 13, marginBottom: 12 }}>Unggah surat timbang atau dokumen penerimaan dari lokasi tujuan.</div>
 
@@ -515,7 +561,7 @@ export default function TripDetail() {
                 <label style={{ display: "grid", gap: 7, marginTop: 22, color: "#405148", fontSize: 13, fontWeight: 650 }}>Berat aktual di tujuan
                   <div style={{ display: "flex", alignItems: "center", border: "1px solid #CEDBD3", borderRadius: 9, overflow: "hidden" }}><input autoFocus required type="number" min="0.001" step="0.001" value={arrivalEntry.qtyActual} onChange={(event) => setArrivalEntry((value) => ({ ...value, qtyActual: event.target.value }))} placeholder="Contoh: 29.5" style={{ flex: 1, minWidth: 0, border: 0, outline: 0, padding: "12px 13px", font: "inherit" }}/><span style={{ padding: "12px 13px", background: "#F4F8F5", color: "#647269" }}>{trip.unitSnap || order?.unit || "TON"}</span></div>
                 </label>
-                {arrivalEntry.qtyActual && trip.qtyPlanned != null && Number(arrivalEntry.qtyActual) < Number(trip.qtyPlanned) && <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: "#FFF7E6", color: "#9A5B00", fontSize: 13 }}>Selisih muatan: {(Number(trip.qtyPlanned) - Number(arrivalEntry.qtyActual)).toLocaleString("id-ID", { maximumFractionDigits: 3 })} {trip.unitSnap || order?.unit || ""}</div>}
+                {arrivalEntry.qtyActual && trip.qtyPlanned != null && Number(arrivalEntry.qtyActual) < Number(trip.qtyPlanned) && <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: "#FFF7E6", color: "#9A5B00", fontSize: 13 }}><strong>Selisih muatan: {(Number(trip.qtyPlanned) - Number(arrivalEntry.qtyActual)).toLocaleString("id-ID", { maximumFractionDigits: 3 })} {trip.unitSnap || order?.unit || ""}</strong><span style={{ display: "block", marginTop: 4 }}>Dicatat sebagai kehilangan pada tagihan/laporan. Order tetap dipenuhi berdasarkan muatan rencana.</span></div>}
                 {saveErr && <div style={{ marginTop: 12, color: "#B42318", fontSize: 13 }}>{saveErr}</div>}
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}><button type="button" style={btnGhost} disabled={saving} onClick={() => setArrivalEntry(null)}>Batal</button><button disabled={saving} style={{ ...btnGhost, border: 0, borderRadius: 9, background: "#0D7C3D", color: "white" }}>{saving ? "Menyimpan…" : arrivalEntry.nextStatus === "COMPLETED" ? "Simpan & Selesaikan" : "Simpan & Tandai Tiba"}</button></div>
               </form>

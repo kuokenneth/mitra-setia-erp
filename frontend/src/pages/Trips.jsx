@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiCalendar, FiChevronLeft, FiChevronRight, FiMapPin, FiSearch, FiTruck } from "react-icons/fi";
+import { FiActivity, FiCalendar, FiCheckCircle, FiChevronLeft, FiChevronRight, FiClock, FiMapPin, FiPackage, FiSearch, FiTruck, FiX } from "react-icons/fi";
 import { api } from "../api";
 import { useLiveRefresh } from "../liveUpdates";
+import "./TripsRedesign.css";
 
-const C = { green: "#0D7C3D", pale: "#F5F9F7", border: "#E2E8E5", text: "#18221E", muted: "#6B7771", white: "#FFFFFF", red: "#DC2626" };
 const statusLabel = { PLANNED: "Direncanakan", DISPATCHED: "Berangkat", ARRIVED: "Tiba", COMPLETED: "Selesai", CANCELLED: "Dibatalkan" };
 const statusColor = {
   PLANNED: { color: "#475569", background: "#F1F5F9" },
@@ -22,6 +22,7 @@ function dateTime(value) {
 export default function Trips() {
   const nav = useNavigate();
   const [items, setItems] = useState([]);
+  const searchRequestRef = useRef({ id: 0, controller: null });
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0, limit: 20 });
   const [filters, setFilters] = useState({ q: "", status: "", dateFrom: "", dateTo: "" });
   const [applied, setApplied] = useState({ q: "", status: "", dateFrom: "", dateTo: "" });
@@ -30,6 +31,10 @@ export default function Trips() {
   const [error, setError] = useState("");
 
   async function load(targetPage = page, active = applied) {
+    const requestId = searchRequestRef.current.id + 1;
+    searchRequestRef.current.controller?.abort();
+    const controller = new AbortController();
+    searchRequestRef.current = { id: requestId, controller };
     setLoading(true); setError("");
     try {
       const params = new URLSearchParams({ page: String(targetPage), limit: "20" });
@@ -37,61 +42,35 @@ export default function Trips() {
       if (active.status) params.set("status", active.status);
       if (active.dateFrom) params.set("dateFrom", new Date(`${active.dateFrom}T00:00:00`).toISOString());
       if (active.dateTo) params.set("dateTo", new Date(`${active.dateTo}T23:59:59.999`).toISOString());
-      const data = await api(`/trips?${params.toString()}`);
+      const data = await api(`/trips?${params.toString()}`, { signal: controller.signal });
+      if (searchRequestRef.current.id !== requestId) return;
       setItems(data.items || []);
       setPagination(data.pagination || { page: targetPage, totalPages: 1, total: (data.items || []).length, limit: 20 });
-    } catch (e) { setError(e.message || "Gagal memuat perjalanan"); }
-    finally { setLoading(false); }
+    } catch (e) { if (e?.name !== "AbortError") setError(e.message || "Gagal memuat perjalanan"); }
+    finally { if (searchRequestRef.current.id === requestId) setLoading(false); }
   }
 
   useEffect(() => { load(page, applied); }, [page, applied]);
   useLiveRefresh(() => load(page, applied));
 
-  function applyFilters(e) { e?.preventDefault(); setPage(1); setApplied({ ...filters }); }
   function resetFilters() { const empty = { q: "", status: "", dateFrom: "", dateTo: "" }; setFilters(empty); setPage(1); setApplied(empty); }
 
-  return <div style={{ minHeight: "100vh", background: C.pale, padding: 24, color: C.text }}>
-    <div style={{ maxWidth: 1380, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-end", flexWrap: "wrap" }}>
-        <div><div style={{ color: C.green, fontSize: 12, fontWeight: 800, letterSpacing: 1.4 }}>RIWAYAT OPERASIONAL</div><h1 style={{ margin: "6px 0 4px", fontSize: 30 }}>Semua Trips</h1><div style={{ color: C.muted, fontSize: 14 }}>Lihat seluruh perjalanan dan buka detail trip.</div></div>
-        <div style={{ padding: "8px 13px", borderRadius: 20, border: `1px solid ${C.border}`, background: C.white, color: C.muted, fontSize: 13 }}><strong style={{ color: C.text }}>{pagination.total}</strong> perjalanan</div>
-      </div>
+  useEffect(() => {
+    const timer = window.setTimeout(() => { setPage(1); setApplied({ ...filters }); }, filters.q.trim() ? 140 : 0);
+    return () => window.clearTimeout(timer);
+  }, [filters]);
 
-      <form className="trips-filter-grid" onSubmit={applyFilters} style={{ marginTop: 22, padding: 18, display: "grid", gridTemplateColumns: "minmax(220px, 1.5fr) repeat(3, minmax(150px, .7fr)) auto auto", gap: 10, alignItems: "end", border: `1px solid ${C.border}`, borderRadius: 12, background: C.white }}>
-        <label style={label}><span>Cari trip</span><div style={{ position: "relative" }}><FiSearch style={{ position: "absolute", left: 12, top: 13, color: C.muted }}/><input style={{ ...input, paddingLeft: 38 }} value={filters.q} onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))} placeholder="No. order, truk, sopir, tujuan..."/></div></label>
-        <label style={label}><span>Status</span><select style={input} value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}><option value="">Semua status</option>{Object.entries(statusLabel).map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label>
-        <label style={label}><span>Dari tanggal</span><span className={`date-placeholder-wrap ${filters.dateFrom ? "has-value" : ""}`} data-placeholder="Pilih tanggal awal"><input className="tablet-date-input" aria-label="Tanggal mulai trip" style={input} type="date" value={filters.dateFrom} onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}/></span></label>
-        <label style={label}><span>Sampai tanggal</span><span className={`date-placeholder-wrap ${filters.dateTo ? "has-value" : ""}`} data-placeholder="Pilih tanggal akhir"><input className="tablet-date-input" aria-label="Tanggal selesai trip" style={input} type="date" value={filters.dateTo} onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}/></span></label>
-        <button style={primary}>Terapkan</button><button type="button" style={secondary} onClick={resetFilters}>Reset</button>
-      </form>
+  const summary = useMemo(() => ({
+    active: items.filter((trip) => ["PLANNED", "DISPATCHED", "ARRIVED"].includes(trip.status)).length,
+    moving: items.filter((trip) => trip.status === "DISPATCHED").length,
+    arrived: items.filter((trip) => trip.status === "ARRIVED").length,
+    completed: items.filter((trip) => trip.status === "COMPLETED").length,
+  }), [items]);
 
-      {error && <div style={{ marginTop: 14, padding: 13, borderRadius: 9, color: C.red, background: "#FEF2F2" }}>{error}</div>}
-
-      <div style={{ marginTop: 16, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden", background: C.white }}>
-        <div style={{ overflowX: "auto" }}><table style={{ width: "100%", minWidth: 1050, borderCollapse: "collapse" }}><thead><tr>{["Trip / Order", "Truk & Sopir", "Rute", "Jadwal", "Status", "Qty", "Dokumen"].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
-          <tbody>{!loading && items.map((trip) => <tr key={trip.id} onClick={() => nav(`/trips/${trip.id}`)} style={{ cursor: "pointer" }}>
-            <td style={td}><strong>{trip.order?.orderNo || (trip.purpose === "EMPTY_RETURN" ? "Kembali Kosong" : "Tanpa Order")}</strong><div style={sub}>{trip.id}</div></td>
-            <td style={td}><div style={{ display: "flex", gap: 8, alignItems: "center" }}><FiTruck color={C.green}/><strong>{trip.truck?.plateNumber || trip.plateNumberSnap || "—"}</strong></div><div style={sub}>{trip.driverUser?.name || trip.driverNameSnap || "Tanpa sopir"}</div></td>
-            <td style={td}><div style={{ display: "flex", gap: 7, alignItems: "center" }}><FiMapPin color={C.green}/><span>{trip.order?.fromText || trip.fromText || "—"} → {trip.order?.toText || trip.toText || "—"}</span></div><div style={sub}>{trip.order?.customerName || "—"}</div></td>
-            <td style={td}><div style={{ display: "flex", gap: 7, alignItems: "center" }}><FiCalendar color={C.muted}/>{dateTime(trip.plannedDepartAt || trip.createdAt)}</div><div style={sub}>{trip.completedAt ? `Selesai ${dateTime(trip.completedAt)}` : ""}</div></td>
-            <td style={td}><span style={{ ...statusColor[trip.status], display: "inline-block", padding: "6px 10px", borderRadius: 7, fontSize: 12, fontWeight: 700 }}>{statusLabel[trip.status] || trip.status}</span></td>
-            <td style={td}>{trip.qtyActual ?? trip.qtyPlanned ?? "—"} {trip.unitSnap || ""}</td>
-            <td style={td}><div style={{ fontSize: 12 }}>{trip._count?.arrivalProofs || 0} bukti tiba</div><div style={sub}>{trip._count?.expenses || 0} expense</div></td>
-          </tr>)}
-          {loading && <tr><td colSpan="7" style={{ ...td, textAlign: "center", padding: 36, color: C.muted }}>Memuat perjalanan...</td></tr>}
-          {!loading && !items.length && <tr><td colSpan="7" style={{ ...td, textAlign: "center", padding: 36, color: C.muted }}>Tidak ada trip yang sesuai filter.</td></tr>}</tbody>
-        </table></div>
-        <div style={{ padding: 14, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, borderTop: `1px solid ${C.border}` }}><span style={{ color: C.muted, fontSize: 12 }}>Halaman {pagination.page} dari {pagination.totalPages} · 20 trip per halaman</span><div style={{ display: "flex", gap: 8 }}><button style={pager} disabled={page <= 1 || loading} onClick={() => setPage((p) => p - 1)}><FiChevronLeft/> Sebelumnya</button><button style={pager} disabled={page >= pagination.totalPages || loading} onClick={() => setPage((p) => p + 1)}>Berikutnya <FiChevronRight/></button></div></div>
-      </div>
-    </div>
+  return <div className="trips-v3-page"><header className="trips-v3-head"><div><span>TRIP CONTROL</span><h1>Perjalanan Armada</h1><p>Pantau penugasan, posisi workflow, muatan tiba, dan penyelesaian perjalanan.</p></div><b>{pagination.total} total trip</b></header>
+    <section className="trips-v3-summary"><article><FiActivity/><small>AKTIF</small><strong>{summary.active}</strong><span>Planned sampai tiba</span></article><article><FiTruck/><small>DALAM PERJALANAN</small><strong>{summary.moving}</strong><span>Status dispatched</span></article><article><FiMapPin/><small>SUDAH TIBA</small><strong>{summary.arrived}</strong><span>Menunggu penyelesaian</span></article><article><FiCheckCircle/><small>SELESAI</small><strong>{summary.completed}</strong><span>Pada halaman ini</span></article></section>
+    <section className="trips-v3-tools"><label><FiSearch/><input value={filters.q} onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))} placeholder="Cari order, nomor polisi, pengemudi, atau tujuan…"/>{loading && <small>Memuat…</small>}</label><select value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}><option value="">Semua status</option>{Object.entries(statusLabel).map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select><input aria-label="Tanggal mulai" type="date" value={filters.dateFrom} onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}/><input aria-label="Tanggal selesai" type="date" value={filters.dateTo} onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}/><button type="button" onClick={resetFilters}><FiX/> Reset</button></section>
+    {error && <div className="trips-v3-error">{error}</div>}
+    <section className="trips-v3-board"><header><div><span>DAFTAR OPERASIONAL</span><h2>Trip Aktif & Riwayat</h2></div><b>{items.length} ditampilkan</b></header><div className="trips-v3-list">{!loading && items.map((trip) => { const planned=trip.qtyPlanned==null?null:Number(trip.qtyPlanned);const actual=trip.qtyActual==null?null:Number(trip.qtyActual);const loss=planned==null||actual==null?null:Math.max(0,planned-actual);return <article key={trip.id} onClick={() => nav(`/trips/${trip.id}`)}><div className="trips-v3-id"><span style={statusColor[trip.status]}>{statusLabel[trip.status]||trip.status}</span><h3>{trip.order?.orderNo||(trip.purpose==="EMPTY_RETURN"?"Kembali Kosong":"Tanpa Order")}</h3><p>{trip.order?.customerName||"Operasional internal"}</p></div><div className="trips-v3-assignment"><FiTruck/><div><small>ARMADA & PENGEMUDI</small><strong>{trip.truck?.plateNumber||trip.plateNumberSnap||"—"}</strong><span>{trip.driverUser?.name||trip.driverNameSnap||"Tanpa pengemudi"}</span></div></div><div className="trips-v3-route"><FiMapPin/><div><small>RUTE</small><strong>{trip.order?.fromText||trip.fromText||"—"} <i>→</i> {trip.order?.toText||trip.toText||"—"}</strong><span><FiCalendar/> {dateTime(trip.plannedDepartAt||trip.createdAt)}</span></div></div><div className="trips-v3-load"><FiPackage/><div><small>MUATAN</small><strong>{actual??planned??"—"} {trip.unitSnap||""}</strong><span>{actual==null?`Rencana ${planned??"—"}`:`Tiba ${actual} dari ${planned??"—"}`}</span>{loss>0&&<em>Selisih {loss} {trip.unitSnap||""}</em>}</div></div><div className="trips-v3-docs"><span><b>{trip._count?.arrivalProofs||0}</b> bukti</span><span><b>{trip._count?.expenses||0}</b> biaya</span><FiChevronRight/></div></article>})}{loading&&<div className="trips-v3-state"><FiClock/> Memuat perjalanan…</div>}{!loading&&!items.length&&<div className="trips-v3-state">Tidak ada trip yang sesuai filter.</div>}</div><footer><span>Halaman {pagination.page} dari {pagination.totalPages}</span><div><button disabled={page<=1||loading} onClick={()=>setPage((p)=>p-1)}><FiChevronLeft/> Sebelumnya</button><button disabled={page>=pagination.totalPages||loading} onClick={()=>setPage((p)=>p+1)}>Berikutnya <FiChevronRight/></button></div></footer></section>
   </div>;
 }
-
-const label = { display: "grid", gap: 6, color: C.muted, fontSize: 12, fontWeight: 600 };
-const input = { width: "100%", height: 42, padding: "0 12px", boxSizing: "border-box", borderRadius: 8, border: `1px solid ${C.border}`, outline: "none", background: C.white, color: C.text };
-const primary = { height: 42, padding: "0 17px", border: 0, borderRadius: 8, background: C.green, color: C.white, fontWeight: 700, cursor: "pointer" };
-const secondary = { ...primary, border: `1px solid ${C.border}`, background: C.white, color: C.text };
-const th = { padding: "13px 15px", textAlign: "left", fontSize: 11, letterSpacing: .5, textTransform: "uppercase", color: C.muted, background: "#F8FAF9", borderBottom: `1px solid ${C.border}` };
-const td = { padding: "14px 15px", fontSize: 13, verticalAlign: "top", borderBottom: `1px solid #EEF2F0` };
-const sub = { marginTop: 4, color: C.muted, fontSize: 11 };
-const pager = { height: 34, padding: "0 11px", display: "inline-flex", alignItems: "center", gap: 5, borderRadius: 7, border: `1px solid ${C.border}`, background: C.white, color: C.text, cursor: "pointer" };

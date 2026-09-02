@@ -1,11 +1,14 @@
 // src/pages/Orders.jsx - Corporate Minimalist Design
-import { useEffect, useMemo, useState } from "react";
-import { api, apiAssetUrl, uploadFiles } from "../api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { api, uploadFiles } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { useNavigate } from "react-router-dom";
-import { FiFileText, FiPlus, FiSearch, FiTrash2, FiUploadCloud, FiX } from "react-icons/fi";
+import { FiArrowRight, FiCalendar, FiChevronRight, FiFileText, FiMapPin, FiPackage, FiPlus, FiRefreshCw, FiSearch, FiTrash2, FiUploadCloud, FiX } from "react-icons/fi";
 import { openProtectedFile, ProtectedImage } from "../components/ProtectedFile";
+import "./OrdersRedesign.css";
+import "./OrdersModalRedesign.css";
+import "./OrdersProgress.css";
 
 //////////////////////
 // THEME - CORPORATE MINIMALIST
@@ -196,7 +199,33 @@ function Select({ children, ...props }) {
   );
 }
 
-function Modal({ open, title, subtitle, onClose, children, width = 860 }) {
+function MasterLocationPicker({ label, locations, locationId, text, onChange, excludeId, placeholder }) {
+  const [open, setOpen] = useState(false);
+  const needle = String(text || "").trim().toLocaleLowerCase("id-ID");
+  const options = locations.filter((location) => location.id !== excludeId && (!needle || [location.name, location.address, location.type].some((value) => String(value || "").toLocaleLowerCase("id-ID").includes(needle)))).slice(0, 8);
+  return (
+    <label className="orders-location-picker">
+      <span>{label}</span>
+      <div className={locationId ? "selected" : ""}>
+        <FiMapPin />
+        <input value={text} onFocus={() => setOpen(true)} onBlur={() => window.setTimeout(() => setOpen(false), 150)} onChange={(event) => { onChange({ id: null, name: event.target.value }); setOpen(true); }} placeholder={placeholder} autoComplete="off" />
+        {locationId && <b>MASTER</b>}
+      </div>
+      {open && (
+        <section>
+          {options.length ? options.map((location) => (
+            <button key={location.id} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange({ id: location.id, name: location.name }); setOpen(false); }}>
+              <FiMapPin />
+              <span><strong>{location.name}</strong><small>{location.address || location.type} · Radius {location.radiusM} m</small></span>
+            </button>
+          )) : <p>Lokasi tidak ditemukan di Master Lokasi.</p>}
+        </section>
+      )}
+    </label>
+  );
+}
+
+function Modal({ open, title, subtitle, onClose, children, width = 860, className = "" }) {
   if (!open) return null;
   return (
     <div
@@ -210,9 +239,11 @@ function Modal({ open, title, subtitle, onClose, children, width = 860 }) {
         padding: 20,
         zIndex: 9999,
       }}
+      className="orders-v3-modal-overlay"
       onMouseDown={onClose}
     >
       <div
+        className={`orders-v3-modal ${className}`}
         style={{
           width: "100%",
           maxWidth: width,
@@ -224,6 +255,7 @@ function Modal({ open, title, subtitle, onClose, children, width = 860 }) {
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div
+          className="orders-v3-modal-head"
           style={{
             padding: "16px 20px",
             borderBottom: `1px solid ${BRAND.border}`,
@@ -236,11 +268,9 @@ function Modal({ open, title, subtitle, onClose, children, width = 860 }) {
             <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: BRAND.text }}>{title}</h3>
             {subtitle && <p style={{ margin: "4px 0 0", fontSize: 13, color: BRAND.textMuted }}>{subtitle}</p>}
           </div>
-          <Button variant="secondary" onClick={onClose}>
-            Close
-          </Button>
+          <button className="orders-v3-modal-close" type="button" onClick={onClose} aria-label="Tutup"><FiX /></button>
         </div>
-        <div style={{ padding: 20, maxHeight: "calc(100vh - 160px)", overflow: "auto" }}>{children}</div>
+        <div className="orders-v3-modal-body" style={{ padding: 20, maxHeight: "calc(100vh - 160px)", overflow: "auto" }}>{children}</div>
       </div>
     </div>
   );
@@ -253,6 +283,8 @@ export default function Orders() {
   const nav = useNavigate();
 
   const [items, setItems] = useState([]);
+  const searchRequestRef = useRef({ id: 0, controller: null });
+  const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
@@ -278,11 +310,12 @@ export default function Orders() {
     unit: "",
     fromText: "",
     toText: "",
+    pickupLocationId: "",
+    destinationLocationId: "",
     plannedAt: "",
     notes: "",
   });
 
-  const [proofUrl, setProofUrl] = useState("");
   const [proofs, setProofs] = useState([]);
 
   const statusOptions = useMemo(() => ["", "DRAFT", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED"], []);
@@ -303,23 +336,42 @@ export default function Orders() {
   }
 
   async function load() {
+    const requestId = searchRequestRef.current.id + 1;
+    searchRequestRef.current.controller?.abort();
+    const controller = new AbortController();
+    searchRequestRef.current = { id: requestId, controller };
     try {
       setErr("");
       setLoading(true);
-      const data = await api(`/orders${buildQuery()}`);
+      const data = await api(`/orders${buildQuery()}`, { signal: controller.signal });
+      if (searchRequestRef.current.id !== requestId) return;
       setItems(data?.items || []);
     } catch (e) {
+      if (e?.name === "AbortError") return;
       setErr(e?.message || "Gagal memuat orders");
     } finally {
-      setLoading(false);
+      if (searchRequestRef.current.id === requestId) setLoading(false);
     }
   }
 
   useEffect(() => {
-    load();
+    const timer = window.setTimeout(load, q.trim() || customer.trim() ? 140 : 0);
+    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, status, customer, dateFrom, dateTo]);
+  useEffect(() => {
+    let active = true;
+    api("/operational-locations").then((data) => { if (active) setLocations((data.items || []).filter((location) => location.isActive)); }).catch((error) => { if (active) setErr(error.message || "Gagal memuat Master Lokasi"); });
+    return () => { active = false; };
   }, []);
   useLiveRefresh(load);
+
+  const summary = useMemo(() => ({
+    total: items.length,
+    draft: items.filter((order) => order.status === "DRAFT").length,
+    active: items.filter((order) => ["CONFIRMED", "IN_PROGRESS"].includes(order.status)).length,
+    completed: items.filter((order) => order.status === "COMPLETED").length,
+  }), [items]);
 
   function resetCreate() {
     setCreateErr("");
@@ -331,22 +383,16 @@ export default function Orders() {
       unit: "",
       fromText: "",
       toText: "",
+      pickupLocationId: "",
+      destinationLocationId: "",
       plannedAt: "",
       notes: "",
     });
-    setProofUrl("");
     setProofs([]);
   }
 
   function update(k, v) {
     setForm((f) => ({ ...f, [k]: v }));
-  }
-
-  function addProof() {
-    const url = proofUrl.trim();
-    if (!url) return;
-    setProofs((p) => [...p, { url }]);
-    setProofUrl("");
   }
 
   function removeProof(idx) {
@@ -366,6 +412,8 @@ export default function Orders() {
         unit: form.cargoCategory === "MATERIAL" || !form.unit ? null : form.unit,
         fromText: form.fromText || null,
         toText: form.toText || null,
+        pickupLocationId: form.pickupLocationId || null,
+        destinationLocationId: form.destinationLocationId || null,
         plannedAt: form.plannedAt ? new Date(form.plannedAt).toISOString() : null,
         notes: form.notes || null,
         status: statusToSave,
@@ -389,250 +437,62 @@ export default function Orders() {
   }
 
   return (
-    <div data-testid="orders-page">
-      {/* Header */}
-      <div
-        style={{
-          marginBottom: 24,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          flexWrap: "wrap",
-          gap: 16,
-        }}
-      >
-        <div>
-          <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: BRAND.text }} data-testid="orders-title">
-            Orders
-          </h1>
-          <p style={{ margin: "8px 0 0", fontSize: 14, color: BRAND.textMuted }}>
-            Create orders, assign trips, and generate dispatch letters
-          </p>
-        </div>
+    <div className="orders-v3-page" data-testid="orders-page">
+      <header className="orders-v3-head">
+        <div><span>ORDER CONTROL</span><h1 data-testid="orders-title">Pesanan</h1><p>Kelola permintaan angkutan, pembagian trip, dan surat jalan dari satu tempat.</p></div>
+        {allowed ? <button className="orders-v3-create" onClick={() => { resetCreate(); setShowCreate(true); }} data-testid="new-order-btn"><FiPlus /> Pesanan Baru</button> : <span className="orders-v3-readonly">Akses hanya-baca</span>}
+      </header>
 
-        {allowed ? (
-          <Button
-            variant="primary"
-            icon={FiPlus}
-            onClick={() => {
-              resetCreate();
-              setShowCreate(true);
-            }}
-            data-testid="new-order-btn"
-          >
-            Pesanan Baru
-          </Button>
-        ) : (
-          <span style={{ fontSize: 13, color: BRAND.textMuted, fontWeight: 500 }}>Akses hanya-baca</span>
-        )}
-      </div>
+      <section className="orders-v3-summary">
+        <article><span><FiFileText /></span><div><small>TOTAL PESANAN</small><strong>{summary.total}</strong><p>Hasil sesuai filter</p></div></article>
+        <article><span><FiPackage /></span><div><small>DRAFT</small><strong>{summary.draft}</strong><p>Belum dikonfirmasi</p></div></article>
+        <article className="active"><span><FiRefreshCw /></span><div><small>SEDANG DIPROSES</small><strong>{summary.active}</strong><p>Confirmed & in progress</p></div></article>
+        <article className="done"><span><FiArrowRight /></span><div><small>SELESAI</small><strong>{summary.completed}</strong><p>Pesanan completed</p></div></article>
+      </section>
 
-      {/* Error Alert */}
-      {err && (
-        <div
-          style={{
-            marginBottom: 16,
-            padding: 12,
-            borderRadius: 6,
-            background: BRAND.dangerBg,
-            border: `1px solid ${BRAND.danger}20`,
-            color: BRAND.danger,
-            fontWeight: 500,
-            fontSize: 14,
-          }}
-        >
-          {err}
-        </div>
-      )}
+      {err && <div className="orders-v3-error">{err}</div>}
 
-      {/* Filters */}
-      <Card style={{ marginBottom: 24 }}>
-        <div style={{ padding: 20 }}>
-          <div className="orders-filter-grid" style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
-            <div style={{ flex: "1 1 280px", minWidth: 200 }}>
-              <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
-                Search
-              </label>
-              <Input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Cari nomor pesanan / tujuan / muatan..."
-                data-testid="search-input"
-              />
-            </div>
+      <section className="orders-v3-tools">
+        <label className="orders-v3-search"><FiSearch /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nomor pesanan, tujuan, atau muatan…" data-testid="search-input" />{loading && <span>Memuat…</span>}</label>
+        <Select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="status-filter"><option value="">Semua status</option>{statusOptions.filter(Boolean).map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</Select>
+        <Input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Nama customer" />
+        <span className={`date-placeholder-wrap ${dateFrom ? "has-value" : ""}`} data-placeholder="Dari tanggal"><Input className="tablet-date-input" aria-label="Tanggal mulai" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></span>
+        <span className={`date-placeholder-wrap ${dateTo ? "has-value" : ""}`} data-placeholder="Sampai tanggal"><Input className="tablet-date-input" aria-label="Tanggal selesai" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} /></span>
+        <button className="orders-v3-reset" onClick={() => { setQ(""); setStatus(""); setCustomer(""); setDateFrom(""); setDateTo(""); }} disabled={loading}><FiX /> Reset</button>
+      </section>
 
-            <div style={{ flex: "0 0 160px" }}>
-              <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
-                Status
-              </label>
-              <Select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="status-filter">
-                <option value="">Semua Status</option>
-                {statusOptions
-                  .filter((x) => x)
-                  .map((s) => (
-                    <option key={s} value={s}>
-                      {s.replaceAll("_", " ")}
-                    </option>
-                  ))}
-              </Select>
-            </div>
-
-            <div style={{ flex: "1 1 180px", minWidth: 140 }}>
-              <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
-                Customer
-              </label>
-              <Input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Customer" />
-            </div>
-
-            <div style={{ flex: "0 0 150px" }}>
-              <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
-                Dari tanggal
-              </label>
-              <span className={`date-placeholder-wrap ${dateFrom ? "has-value" : ""}`} data-placeholder="Pilih tanggal awal"><Input className="tablet-date-input" aria-label="Tanggal mulai" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></span>
-            </div>
-
-            <div style={{ flex: "0 0 150px" }}>
-              <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
-                Sampai tanggal
-              </label>
-              <span className={`date-placeholder-wrap ${dateTo ? "has-value" : ""}`} data-placeholder="Pilih tanggal akhir"><Input className="tablet-date-input" aria-label="Tanggal selesai" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} /></span>
-            </div>
-
-            <Button variant="primary" onClick={load} disabled={loading} data-testid="apply-btn">
-              {loading ? "Memuat..." : "Apply"}
-            </Button>
-
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setQ("");
-                setStatus("");
-                setCustomer("");
-                setDateFrom("");
-                setDateTo("");
-                setTimeout(load, 0);
-              }}
-              disabled={loading}
-            >
-              Reset
-            </Button>
-          </div>
-        </div>
-      </Card>
-
-      {/* Orders List */}
-      <Card>
-        {/* Table Header */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1.5fr 1.1fr 0.9fr 0.9fr 0.7fr",
-            gap: 12,
-            padding: "14px 20px",
-            background: BRAND.secondary,
-            borderBottom: `1px solid ${BRAND.border}`,
-            fontSize: 12,
-            fontWeight: 600,
-            color: BRAND.textMuted,
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-          }}
-        >
-          <div>Pesanan</div>
-          <div>Rute</div>
-          <div>Muatan</div>
-          <div>Rencana</div>
-          <div style={{ textAlign: "right" }}>Tindakan</div>
-        </div>
-
-        {/* Order Rows */}
-        <div style={{ padding: "8px 12px" }}>
-          {items.length === 0 && !loading && (
-            <div style={{ padding: 24, textAlign: "center", color: BRAND.textMuted, fontSize: 14 }}>
-              Tidak ada orders ditemukan. Try changing filters.
-            </div>
-          )}
-
-          {items.map((o) => {
-            const customerName = o.customer?.name || o.customerName || "-";
-            const route = `${o.fromText || "-"} → ${o.toText || "-"}`;
-            const total = o.qty != null ? Number(o.qty) : null;
-            const unit = o.unit || "";
-            const remaining = o.qtyRemaining != null ? Number(o.qtyRemaining) : null;
-
-            const cargo =
-              total == null
-                ? `${o.cargoName || "-"}`
-                : `${o.cargoName || "-"} • ${remaining != null ? remaining : "-"} / ${total} ${unit}`;
-
-            return (
-              <div
-                key={o.id}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1.5fr 1.1fr 0.9fr 0.9fr 0.7fr",
-                  gap: 12,
-                  padding: "16px 8px",
-                  borderBottom: `1px solid ${BRAND.border}`,
-                  alignItems: "center",
-                  cursor: "pointer",
-                  transition: "background 0.15s ease",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = BRAND.secondary)}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                onClick={() => nav(`/orders/${o.id}`)}
-                data-testid={`order-row-${o.id}`}
-              >
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: BRAND.text }}>
-                    {o.orderNo} — {customerName}
-                  </div>
-                  <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8 }}>
-                    <StatusBadge status={o.status} />
-                    {o?._count && (
-                      <span style={{ fontSize: 12, color: BRAND.textMuted }}>
-                        • Trip: {o._count.trips ?? 0} • Bukti: {o._count.proofs ?? 0}
-                      </span>
-                    )}
-                    <span style={{ fontSize: 12, color: BRAND.textMuted }}>
-                      • Dibuat oleh: {o.createdBy?.name || o.createdBy?.email || "Data lama"}
-                    </span>
-                  </div>
-                </div>
-
-                <div style={{ fontSize: 14, fontWeight: 500, color: BRAND.textLight }}>{route}</div>
-
-                <div style={{ fontSize: 14, fontWeight: 500, color: BRAND.textLight }}>{cargo}</div>
-
-                <div style={{ fontSize: 14, fontWeight: 600, color: BRAND.text }}>{fmtDate(o.plannedAt)}</div>
-
-                <div style={{ textAlign: "right" }}>
-                  <Button
-                    variant="secondary"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      nav(`/orders/${o.id}`);
-                    }}
-                  >
-                    Open
-                  </Button>
-                </div>
+      <section className="orders-v3-board">
+        <header><div><span>DAFTAR OPERASIONAL</span><h2>Pesanan Aktif & Riwayat</h2></div><b>{items.length} pesanan</b></header>
+        <div className="orders-v3-list">
+          {!items.length && !loading && <div className="orders-v3-empty"><FiFileText /><strong>Tidak ada pesanan ditemukan</strong><p>Coba ubah kata pencarian atau filter yang digunakan.</p></div>}
+          {items.map((order) => {
+            const customerName = order.customer?.name || order.customerName || "Tanpa customer";
+            const total = order.qty != null ? Number(order.qty) : null;
+            const remaining = order.qtyRemaining != null ? Number(order.qtyRemaining) : null;
+            const allocated = total == null ? null : Math.max(0, total - (remaining ?? total));
+            const allocatedPercent = total > 0 ? Math.min(100, Math.max(0, (allocated / total) * 100)) : 0;
+            const unit = order.unit || "";
+            return <article key={order.id} onClick={() => nav(`/orders/${order.id}`)} data-testid={`order-row-${order.id}`}>
+              <div className="orders-v3-identity"><StatusBadge status={order.status} /><h3>{order.orderNo}</h3><p>{customerName}</p><small>Dibuat oleh {order.createdBy?.name || order.createdBy?.email || "Data lama"}</small></div>
+              <div className="orders-v3-route"><span><FiMapPin /></span><div><small>RUTE PENGIRIMAN</small><p><b>{order.fromText || "Asal belum diisi"}</b><FiArrowRight /><b>{order.toText || "Tujuan belum diisi"}</b></p></div></div>
+              <div className="orders-v3-meta">
+                <div className="orders-v3-load"><FiPackage /><span><small>ALOKASI MUATAN</small>{total == null ? <><strong>{order.cargoName || "Muatan material"}</strong><em>Jumlah mengikuti faktur muatan</em></> : <><strong>{allocated} dari {total} {unit} siap diantar</strong><i><b style={{ width: `${allocatedPercent}%` }} /></i><em>{remaining ?? total} {unit} belum dibuatkan trip</em></>}</span></div>
+                <div><FiCalendar /><span><small>RENCANA</small><strong>{fmtDate(order.plannedAt)}</strong></span></div>
               </div>
-            );
+              <div className="orders-v3-counts"><span><b>{order._count?.trips ?? 0}</b> Trip</span><span><b>{order._count?.proofs ?? 0}</b> Bukti</span></div>
+              <button type="button" onClick={(event) => { event.stopPropagation(); nav(`/orders/${order.id}`); }} aria-label={`Buka ${order.orderNo}`}><FiChevronRight /></button>
+            </article>;
           })}
         </div>
-
-        <div style={{ padding: "12px 20px", borderTop: `1px solid ${BRAND.border}`, fontSize: 13, color: BRAND.textMuted }}>
-          Tip: Click an order row to view details, assign trips, and generate dispatch letters.
-        </div>
-      </Card>
+      </section>
 
       {/* Create Order Modal */}
       <Modal
         open={showCreate}
-        title="Create Pesanan Baru"
-        subtitle="Isi permintaan, lalu tetapkan kendaraan dan buat surat jalan."
+        title="Pesanan Baru"
+        subtitle="Lengkapi informasi customer, muatan, rute, dan jadwal pengiriman."
         onClose={() => !creating && setShowCreate(false)}
+        className="orders-v3-create-modal"
       >
         {createErr && (
           <div
@@ -650,26 +510,26 @@ export default function Orders() {
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div className="orders-v3-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <div>
             <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
-              Customer / Company name
+              Customer / perusahaan
             </label>
-            <Input value={form.customerName} onChange={(e) => update("customerName", e.target.value)} placeholder="Kepada Yth" />
+            <Input value={form.customerName} onChange={(e) => update("customerName", e.target.value)} placeholder="Contoh: PT Perkebunan Nusantara" />
           </div>
 
           <div style={{ gridColumn: "1 / -1" }}>
             <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
               Jenis angkutan
             </label>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10 }}>
+            <div className="orders-v3-category" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10 }}>
               {[
                 { value: "FERTILIZER", label: "Pupuk", note: "Berat wajib diisi" },
                 { value: "CANGKANG", label: "Cangkang", note: "Berat wajib diisi" },
                 { value: "MATERIAL", label: "Material / Ambang", note: "Berat dari faktur muatan" },
               ].map((option) => {
                 const active = form.cargoCategory === option.value;
-                return <button key={option.value} type="button" onClick={() => setForm((current) => ({ ...current, cargoCategory: option.value, ...(option.value === "MATERIAL" ? { qty: "", unit: "" } : {}) }))} style={{ padding: "12px 14px", borderRadius: 8, border: `1px solid ${active ? BRAND.primary : BRAND.border}`, background: active ? BRAND.accent : BRAND.white, color: BRAND.text, textAlign: "left", cursor: "pointer" }}><div style={{ fontWeight: 700, fontSize: 14 }}>{option.label}</div><div style={{ marginTop: 3, fontSize: 12, color: active ? BRAND.primary : BRAND.textMuted }}>{option.note}</div></button>;
+                return <button className={active ? "active" : ""} key={option.value} type="button" onClick={() => setForm((current) => ({ ...current, cargoCategory: option.value, ...(option.value === "MATERIAL" ? { qty: "", unit: "" } : {}) }))} style={{ padding: "12px 14px", borderRadius: 8, border: `1px solid ${active ? BRAND.primary : BRAND.border}`, background: active ? BRAND.accent : BRAND.white, color: BRAND.text, textAlign: "left", cursor: "pointer" }}><div style={{ fontWeight: 700, fontSize: 14 }}>{option.label}</div><div style={{ marginTop: 3, fontSize: 12, color: active ? BRAND.primary : BRAND.textMuted }}>{option.note}</div></button>;
               })}
             </div>
           </div>
@@ -678,7 +538,7 @@ export default function Orders() {
             <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
               Nama barang / material
             </label>
-            <Input value={form.cargoName} onChange={(e) => update("cargoName", e.target.value)} placeholder="Cargo name" />
+            <Input value={form.cargoName} onChange={(e) => update("cargoName", e.target.value)} placeholder="Contoh: Pupuk NPK" />
           </div>
 
           <div>
@@ -695,30 +555,20 @@ export default function Orders() {
             <Input disabled={form.cargoCategory === "MATERIAL"} value={form.unit} onChange={(e) => update("unit", e.target.value)} placeholder={form.cargoCategory === "MATERIAL" ? "Diisi dari faktur muatan" : "TON / M3 / UNIT"} />
           </div>
 
-          <div>
-            <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
-              From location
-            </label>
-            <Input value={form.fromText} onChange={(e) => update("fromText", e.target.value)} placeholder="Origin" />
-          </div>
+          <MasterLocationPicker label="Lokasi muat" locations={locations} locationId={form.pickupLocationId} text={form.fromText} excludeId={form.destinationLocationId} placeholder="Cari lokasi muat dari Master Lokasi…" onChange={(location) => setForm((current) => ({ ...current, pickupLocationId: location.id || "", fromText: location.name }))} />
+
+          <MasterLocationPicker label="Tujuan bongkar" locations={locations} locationId={form.destinationLocationId} text={form.toText} excludeId={form.pickupLocationId} placeholder="Cari tujuan dari Master Lokasi…" onChange={(location) => setForm((current) => ({ ...current, destinationLocationId: location.id || "", toText: location.name }))} />
 
           <div>
             <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
-              To destination
-            </label>
-            <Input value={form.toText} onChange={(e) => update("toText", e.target.value)} placeholder="Destination" />
-          </div>
-
-          <div>
-            <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
-              Planned date
+              Tanggal rencana
             </label>
             <Input type="date" value={form.plannedAt} onChange={(e) => update("plannedAt", e.target.value)} />
           </div>
 
           <div style={{ gridColumn: "1 / -1" }}>
             <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
-              Notes / special instructions
+              Catatan / instruksi khusus
             </label>
             <textarea
               style={{
@@ -737,13 +587,13 @@ export default function Orders() {
               }}
               value={form.notes}
               onChange={(e) => update("notes", e.target.value)}
-              placeholder="Notes..."
+              placeholder="Tambahkan instruksi untuk pengiriman ini…"
             />
           </div>
         </div>
 
         {/* Bukti Upload */}
-        <div style={{ marginTop: 20 }}>
+        <div className="orders-v3-upload" style={{ marginTop: 20 }}>
           <div style={{ fontWeight: 600, marginBottom: 10, color: BRAND.text }}>Upload Bukti — Gambar / PDF</div>
 
           {uploadErr && (
@@ -840,15 +690,15 @@ export default function Orders() {
         </div>
 
         {/* Actions */}
-        <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end", gap: 12 }}>
+        <div className="orders-v3-modal-actions" style={{ marginTop: 24, display: "flex", justifyContent: "flex-end", gap: 12 }}>
           <Button variant="secondary" onClick={() => !creating && setShowCreate(false)} disabled={creating}>
-            Cancel
+            Batal
           </Button>
           <Button variant="secondary" onClick={() => createOrder("DRAFT")} disabled={creating}>
-            {creating ? "Menyimpan..." : "Save Draft"}
+            {creating ? "Menyimpan..." : "Simpan Draft"}
           </Button>
           <Button variant="primary" onClick={() => createOrder("CONFIRMED")} disabled={creating}>
-            {creating ? "Menyimpan..." : "Confirm Order"}
+            {creating ? "Menyimpan..." : "Konfirmasi Pesanan"}
           </Button>
         </div>
       </Modal>

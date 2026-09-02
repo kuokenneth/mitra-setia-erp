@@ -19,14 +19,18 @@ function str(v) {
   return s.length ? s : null;
 }
 
-function sameLocation(a, b) {
-  const normalize = (v) => String(v || "").trim().toLocaleLowerCase("id-ID");
-  return Boolean(normalize(a) && normalize(a) === normalize(b));
-}
-
 function num(v, d = null) {
   const n = Number(v);
   return Number.isFinite(n) ? n : d;
+}
+
+function distanceMeters(lat1, lng1, lat2, lng2) {
+  const radians = (value) => value * Math.PI / 180;
+  const dLat = radians(lat2 - lat1);
+  const dLng = radians(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(radians(lat1)) * Math.cos(radians(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function toDate(v) {
@@ -125,6 +129,8 @@ router.get("/", authRequired, async (req, res) => {
       orderBy: [{ plannedAt: "desc" }, { createdAt: "desc" }],
       include: {
         customer: true,
+        pickupLocation: true,
+        destinationLocation: true,
         createdBy: { select: { id: true, name: true, email: true } },
         _count: { select: { trips: true, proofs: true } },
         trips: {
@@ -144,10 +150,17 @@ router.get("/", authRequired, async (req, res) => {
       // count how much has been "used" by trips
       // Rule:
       // - ignore CANCELLED trips
-      // - if qtyActual exists, use it; else use qtyPlanned
+      // Sisa order mengikuti qty yang sudah dialokasikan ke trip. Berat aktual
+      // tiba dipakai untuk mencatat kehilangan, bukan membuka kembali sisa order.
       const tripped = (o.trips || [])
         .filter((t) => t.status !== "CANCELLED")
+        .reduce((sum, t) => sum + (typeof t.qtyPlanned === "number" ? t.qtyPlanned : 0), 0);
+      const delivered = (o.trips || [])
+        .filter((t) => t.status === "COMPLETED")
         .reduce((sum, t) => sum + (typeof t.qtyActual === "number" ? t.qtyActual : (typeof t.qtyPlanned === "number" ? t.qtyPlanned : 0)), 0);
+      const cargoLoss = (o.trips || [])
+        .filter((t) => t.status === "COMPLETED")
+        .reduce((sum, t) => sum + Math.max(0, Number(t.qtyPlanned || 0) - Number(t.qtyActual ?? t.qtyPlanned ?? 0)), 0);
 
       const remaining = total == null ? null : Math.max(0, total - tripped);
 
@@ -158,6 +171,8 @@ router.get("/", authRequired, async (req, res) => {
         ...rest,
         qtyTripped: tripped,
         qtyRemaining: remaining,
+        qtyDelivered: delivered,
+        qtyCargoLoss: cargoLoss,
       };
     });
 
@@ -194,6 +209,12 @@ router.post("/", authRequired, async (req, res) => {
     if (cargoCategory !== "MATERIAL" && !(Number(orderQty) > 0)) {
       return res.status(400).json({ error: "Berat/jumlah wajib diisi untuk angkutan pupuk atau cangkang" });
     }
+    const locationIds = [body.pickupLocationId, body.destinationLocationId].filter(Boolean);
+    const locations = locationIds.length ? await prisma.operationalLocation.findMany({ where: { id: { in: locationIds }, isActive: true } }) : [];
+    const pickupLocation = locations.find((location) => location.id === body.pickupLocationId);
+    const destinationLocation = locations.find((location) => location.id === body.destinationLocationId);
+    if (!pickupLocation || !destinationLocation) return res.status(400).json({ error: "Lokasi muat dan tujuan wajib dipilih dari Master Lokasi aktif" });
+    if (pickupLocation.id === destinationLocation.id) return res.status(400).json({ error: "Lokasi muat dan tujuan harus berbeda" });
 
     const created = await prisma.$transaction(async (tx) => {
       const orderNo = await nextOrderNo(tx);
@@ -210,8 +231,10 @@ router.post("/", authRequired, async (req, res) => {
           cargoCategory,
           qty: cargoCategory === "MATERIAL" ? null : orderQty,
           unit: cargoCategory === "MATERIAL" ? null : (body.unit || null),
-          fromText: body.fromText || null,
-          toText: body.toText || null,
+          pickupLocationId: pickupLocation.id,
+          destinationLocationId: destinationLocation.id,
+          fromText: pickupLocation.name,
+          toText: destinationLocation.name,
           plannedAt: body.plannedAt ? new Date(body.plannedAt) : null,
           status: body.status || "DRAFT",
           createdById: req.user.id,
@@ -237,7 +260,7 @@ router.post("/", authRequired, async (req, res) => {
 
     const full = await prisma.order.findUnique({
       where: { id: created.id },
-      include: { customer: true, createdBy: { select: { id: true, name: true, email: true } }, proofs: true, trips: true },
+      include: { customer: true, pickupLocation: true, destinationLocation: true, createdBy: { select: { id: true, name: true, email: true } }, proofs: true, trips: true },
     });
 
     res.json(full);
@@ -259,6 +282,8 @@ router.get("/:id", authRequired, async (req, res) => {
       where: { id },
       include: {
         customer: true,
+        pickupLocation: true,
+        destinationLocation: true,
         createdBy: { select: { id: true, name: true, email: true } },
         proofs: { orderBy: { createdAt: "desc" } },
         materialInvoices: { orderBy: { issuedAt: "desc" }, include: { trip: { include: { truck: true } }, lines: { orderBy: { createdAt: "asc" } } } },
@@ -347,6 +372,19 @@ router.patch("/:id", authRequired, async (req, res) => {
 
     const id = req.params.id;
     const body = req.body || {};
+    const locationIds = [body.pickupLocationId, body.destinationLocationId].filter(Boolean);
+    const locations = locationIds.length
+      ? await prisma.operationalLocation.findMany({ where: { id: { in: locationIds }, isActive: true } })
+      : [];
+    const pickupLocation = body.pickupLocationId !== undefined
+      ? locations.find((location) => location.id === body.pickupLocationId)
+      : undefined;
+    const destinationLocation = body.destinationLocationId !== undefined
+      ? locations.find((location) => location.id === body.destinationLocationId)
+      : undefined;
+    if (body.pickupLocationId !== undefined && !pickupLocation) return res.status(400).json({ error: "Lokasi muat wajib dipilih dari Master Lokasi aktif" });
+    if (body.destinationLocationId !== undefined && !destinationLocation) return res.status(400).json({ error: "Tujuan wajib dipilih dari Master Lokasi aktif" });
+    if (pickupLocation && destinationLocation && pickupLocation.id === destinationLocation.id) return res.status(400).json({ error: "Lokasi muat dan tujuan harus berbeda" });
 
     const updated = await prisma.order.update({
       where: { id },
@@ -359,12 +397,14 @@ router.patch("/:id", authRequired, async (req, res) => {
         cargoName: body.cargoName ?? undefined,
         qty: body.qty !== undefined ? num(body.qty, null) : undefined,
         unit: body.unit ?? undefined,
-        fromText: body.fromText ?? undefined,
-        toText: body.toText ?? undefined,
+        pickupLocationId: pickupLocation?.id,
+        destinationLocationId: destinationLocation?.id,
+        fromText: pickupLocation?.name ?? body.fromText ?? undefined,
+        toText: destinationLocation?.name ?? body.toText ?? undefined,
         plannedAt: body.plannedAt !== undefined ? (body.plannedAt ? new Date(body.plannedAt) : null) : undefined,
         status: body.status ?? undefined,
       },
-      include: { customer: true, createdBy: { select: { id: true, name: true, email: true } }, proofs: true },
+      include: { customer: true, pickupLocation: true, destinationLocation: true, createdBy: { select: { id: true, name: true, email: true } }, proofs: true },
     });
 
     res.json(updated);
@@ -444,7 +484,7 @@ router.post("/:id/trips", authRequired, async (req, res) => {
     const activeTripStatuses = ["PLANNED", "DISPATCHED", "ARRIVED"];
 
     const trip = await prisma.$transaction(async (tx) => {
-      const order = await tx.order.findUnique({ where: { id: orderId } });
+      const order = await tx.order.findUnique({ where: { id: orderId }, include: { pickupLocation: true, destinationLocation: true } });
       if (!order) throw new Error("Order not found");
       if (order.status === "CANCELLED") throw new Error("Order is cancelled");
 
@@ -470,14 +510,25 @@ router.post("/:id/trips", authRequired, async (req, res) => {
 
       const truck = await tx.truck.findUnique({ where: { id: truckId } });
       if (!truck) throw new Error("Truck not found");
-      if (!["READY", "WAITING_BACKHAUL"].includes(truck.status)) {
-        throw new Error("Truck must be READY or WAITING_BACKHAUL");
+      if (truck.status !== "READY") throw new Error("Armada harus berstatus READY");
+      if (!order.pickupLocation || !order.destinationLocation) {
+        throw new Error("Lokasi muat dan tujuan order wajib dipilih dari Master Lokasi sebelum membuat trip");
       }
-      if (!order.fromText) throw new Error("Lokasi asal order wajib diisi sebelum memilih truk");
-      if (!sameLocation(truck.currentLocation, order.fromText)) {
-        throw new Error(
-          `Truk ${truck.plateNumber} berada di ${truck.currentLocation || "lokasi yang belum diatur"}, bukan di lokasi asal ${order.fromText}`
-        );
+      const normalizeLocation = (value) => String(value || "").trim().toLocaleLowerCase("id-ID");
+      const baseLocations = await tx.operationalLocation.findMany({ where: { isActive: true, type: "BASE" }, select: { name: true, address: true, latitude: true, longitude: true, radiusM: true } });
+      const namedMedanBases = baseLocations.filter((location) => /medan/i.test(`${location.name} ${location.address || ""}`));
+      const eligibleBaseLocations = namedMedanBases.length ? namedMedanBases : baseLocations;
+      const eligibleBaseNames = new Set(eligibleBaseLocations.map((location) => normalizeLocation(location.name)));
+      eligibleBaseNames.add("medan");
+      eligibleBaseNames.add("base medan");
+      const eligibleGpsLocations = [order.pickupLocation, ...eligibleBaseLocations];
+      const gpsMatchedLocation = Number.isFinite(truck.lastGpsLatitude) && Number.isFinite(truck.lastGpsLongitude)
+        ? eligibleGpsLocations.find((location) => distanceMeters(truck.lastGpsLatitude, truck.lastGpsLongitude, location.latitude, location.longitude) <= location.radiusM)
+        : null;
+      const truckLocation = normalizeLocation(gpsMatchedLocation?.name || truck.currentLocation);
+      const pickupName = normalizeLocation(order.pickupLocation.name);
+      if (truckLocation !== pickupName && !eligibleBaseNames.has(truckLocation)) {
+        throw new Error(`Armada harus berada di ${order.pickupLocation.name} atau Base Medan`);
       }
 
       const driver = await tx.user.findUnique({ where: { id: driverUserId } });
@@ -516,6 +567,12 @@ router.post("/:id/trips", authRequired, async (req, res) => {
           driverNameSnap: driver.name || null,
           fromText: order.fromText || null,
           toText: order.toText || null,
+          destinationLat: order.destinationLocation?.latitude ?? null,
+          destinationLng: order.destinationLocation?.longitude ?? null,
+          arrivalRadiusM: order.destinationLocation?.radiusM ?? 400,
+          pickupLat: order.pickupLocation?.latitude ?? null,
+          pickupLng: order.pickupLocation?.longitude ?? null,
+          pickupRadiusM: order.pickupLocation?.radiusM ?? 400,
         },
       });
 

@@ -61,7 +61,6 @@ async function updateTruckOperationalState(tx, trip, nextStatus, timestamp) {
   if (!truck || ["MAINTENANCE", "INACTIVE"].includes(truck.status)) return;
 
   const origin = str(trip.fromText);
-  const destination = str(trip.toText);
   const baseLocation = truck.baseLocation || origin || truck.currentLocation;
 
   if (nextStatus === "DISPATCHED") {
@@ -70,8 +69,6 @@ async function updateTruckOperationalState(tx, trip, nextStatus, timestamp) {
       data: {
         status: "DISPATCH",
         baseLocation: truck.baseLocation || origin || undefined,
-        currentLocation: origin || truck.currentLocation,
-        locationUpdatedAt: timestamp,
         availableForBackhaul: false,
         idleSince: null,
       },
@@ -85,23 +82,19 @@ async function updateTruckOperationalState(tx, trip, nextStatus, timestamp) {
       data: {
         status: "DISPATCH",
         baseLocation: truck.baseLocation || origin || undefined,
-        currentLocation: destination || truck.currentLocation,
-        locationUpdatedAt: timestamp,
       },
     });
     return;
   }
 
   if (nextStatus === "COMPLETED") {
-    const finalLocation = destination || truck.currentLocation;
-    const awayFromBase = Boolean(baseLocation && finalLocation && !sameLocation(baseLocation, finalLocation));
+    const gpsLocation = truck.currentLocation;
+    const awayFromBase = Boolean(baseLocation && gpsLocation && !sameLocation(baseLocation, gpsLocation));
     await tx.truck.update({
       where: { id: truck.id },
       data: {
         status: "READY",
         baseLocation: truck.baseLocation || origin || undefined,
-        currentLocation: finalLocation,
-        locationUpdatedAt: timestamp,
         availableForBackhaul: awayFromBase,
         idleSince: awayFromBase ? timestamp : null,
       },
@@ -169,11 +162,14 @@ async function recomputeOrderStatus(tx, orderId) {
   const allDone = trips.every((t) => t.status === "COMPLETED" || t.status === "CANCELLED");
   if (allDone) {
     const anyCompleted = trips.some((t) => t.status === "COMPLETED");
-    const completedQty = trips
+    // Kewajiban order dipenuhi dari qty yang ditugaskan pada trip selesai.
+    // qtyActual adalah realisasi tiba dan selisihnya tetap dicatat sebagai
+    // kehilangan muatan, bukan dikembalikan menjadi sisa order.
+    const fulfilledQty = trips
       .filter((t) => t.status === "COMPLETED")
-      .reduce((sum, t) => sum + Number(t.qtyActual ?? t.qtyPlanned ?? 0), 0);
+      .reduce((sum, t) => sum + Number(t.qtyPlanned ?? 0), 0);
     const orderedQty = order.qty == null ? null : Number(order.qty);
-    const quantityFulfilled = orderedQty == null || completedQty + 1e-9 >= orderedQty;
+    const quantityFulfilled = orderedQty == null || fulfilledQty + 1e-9 >= orderedQty;
 
     await tx.order.update({
       where: { id: orderId },
@@ -402,6 +398,7 @@ router.get("/:id", authRequired, async (req, res) => {
           },
         },
         arrivalProofs: { orderBy: { createdAt: "desc" } },
+        serviceStops: { include: { location: true }, orderBy: { startedAt: "desc" } },
         dispatchLetter: true,
       },
     });
@@ -433,6 +430,37 @@ router.post("/:id/arrival-proofs", authRequired, async (req, res) => {
     res.status(201).json({ arrivalProofs });
   } catch (e) {
     res.status(400).json({ error: e.message || "Gagal menyimpan bukti timbangan" });
+  }
+});
+
+/**
+ * POST /trips/:id/start-delivery
+ * Close the empty positioning leg after loading and start the loaded leg.
+ */
+router.post("/:id/start-delivery", authRequired, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const ts = toDate(req.body?.timestamp) || new Date();
+    const trip = await prisma.trip.findUnique({
+      where: { id },
+      include: { truck: true, driverUser: true, order: true },
+    });
+    if (!trip) return res.status(404).json({ error: "Trip not found" });
+    if (!canWrite(req.user) && !(isDriver(req.user) && trip.driverUserId === req.user.id)) return res.status(403).json({ error: "Forbidden" });
+    if (trip.purpose !== "DELIVERY") return res.status(400).json({ error: "Tahap muat hanya tersedia untuk trip pengiriman" });
+    if (trip.status !== "DISPATCHED" || trip.phase !== "AT_PICKUP") {
+      return res.status(400).json({ error: "Mobil harus tiba di lokasi muat sebelum memulai pengiriman" });
+    }
+
+    const saved = await prisma.trip.update({
+      where: { id },
+      data: { phase: "TO_DESTINATION", loadedAt: ts, gpsArrivalCandidateAt: null },
+      include: { truck: true, driverUser: true, order: true, dispatchLetter: true },
+    });
+    res.json(normalizeTrip(saved));
+  } catch (e) {
+    console.error(e);
+    res.status(400).json({ error: e.message || "Gagal memulai pengiriman" });
   }
 });
 
@@ -497,10 +525,8 @@ router.patch("/:id/status", authRequired, async (req, res) => {
       }
 
 
-      if (nextStatus === "DISPATCHED" && !sameLocation(trip.truck?.currentLocation, trip.fromText)) {
-        throw new Error(
-          `Truk berada di ${trip.truck?.currentLocation || "lokasi yang belum diatur"}, bukan di lokasi asal ${trip.fromText || "yang belum diatur"}`
-        );
+      if (nextStatus === "ARRIVED" && trip.purpose === "DELIVERY" && trip.phase !== "TO_DESTINATION" && trip.phase !== "AT_DESTINATION") {
+        throw new Error("Trip belum menjalani tahap pengiriman dari lokasi muat ke tujuan");
       }
 
       // double-book guard for becoming active
@@ -533,9 +559,15 @@ router.patch("/:id/status", authRequired, async (req, res) => {
         data.qtyActual = submittedQtyActual;
       }
 
-      if (nextStatus === "DISPATCHED") data.dispatchedAt = ts;
-      if (nextStatus === "ARRIVED") data.arrivedAt = ts;
-      if (nextStatus === "COMPLETED") data.completedAt = ts;
+      if (nextStatus === "DISPATCHED") {
+        data.dispatchedAt = ts;
+        if (trip.purpose === "DELIVERY") {
+          data.phase = sameLocation(trip.truck?.currentLocation, trip.fromText) ? "AT_PICKUP" : "TO_PICKUP";
+          if (data.phase === "AT_PICKUP") data.pickupArrivedAt = ts;
+        }
+      }
+      if (nextStatus === "ARRIVED") { data.arrivedAt = ts; data.phase = "AT_DESTINATION"; }
+      if (nextStatus === "COMPLETED") { data.completedAt = ts; data.phase = "COMPLETED"; }
 
       // ✅ ensure snapshots exist (helps search + display)
       if (!trip.plateNumberSnap && trip.truck?.plateNumber) data.plateNumberSnap = trip.truck.plateNumber;

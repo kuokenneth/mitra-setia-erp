@@ -22,7 +22,7 @@ export default function Receivables() {
   const [modal, setModal] = useState("");
   const [selected, setSelected] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [invoiceForm, setInvoiceForm] = useState({ orderId: "", customerName: "", customerPhone: "", billingAddress: "", dueAt: afterDays(30), subtotal: "", tax: 0, discount: 0, notes: "" });
+  const [invoiceForm, setInvoiceForm] = useState({ orderId: "", customerName: "", customerPhone: "", billingAddress: "", dueAt: afterDays(30), contractSubtotal: "", tax: 0, discount: 0, notes: "" });
   const [paymentForm, setPaymentForm] = useState({ amount: "", method: "BANK_TRANSFER", reference: "", receivedAt: new Date().toISOString().slice(0, 10), notes: "" });
 
   async function load() {
@@ -43,7 +43,7 @@ export default function Receivables() {
 
   function openInvoice() {
     const order = data.eligibleOrders[0];
-    setInvoiceForm({ orderId: order?.id || "", customerName: order?.customer?.name || order?.customerName || "", customerPhone: order?.customer?.phone || "", billingAddress: order?.customer?.address || "", dueAt: afterDays(30), subtotal: "", tax: 0, discount: 0, notes: "" });
+    setInvoiceForm({ orderId: order?.id || "", customerName: order?.customer?.name || order?.customerName || "", customerPhone: order?.customer?.phone || "", billingAddress: order?.customer?.address || "", dueAt: afterDays(30), contractSubtotal: "", tax: 0, discount: 0, notes: "" });
     setError(""); setModal("invoice");
   }
   function chooseOrder(orderId) {
@@ -79,8 +79,13 @@ export default function Receivables() {
     finally { setBusy(false); }
   }
 
-  const total = Number(invoiceForm.subtotal || 0) + Number(invoiceForm.tax || 0) - Number(invoiceForm.discount || 0);
   const invoiceOrder = data.eligibleOrders.find(order => order.id === invoiceForm.orderId);
+  const plannedQuantity = Number(invoiceOrder?.shipment?.planned || invoiceOrder?.qty || 0);
+  const deliveredQuantity = Number(invoiceOrder?.shipment?.delivered || 0);
+  const billableRatio = plannedQuantity > 0 ? Math.min(1, Math.max(0, deliveredQuantity / plannedQuantity)) : 1;
+  const billableSubtotal = Math.round(Number(invoiceForm.contractSubtotal || 0) * billableRatio);
+  const cargoLossAmount = Math.max(0, Number(invoiceForm.contractSubtotal || 0) - billableSubtotal);
+  const total = billableSubtotal + Number(invoiceForm.tax || 0) - Number(invoiceForm.discount || 0);
   return <div className="ar-page">
     <header className="ar-head"><div><span className="ar-eyebrow">INVOICE & PIUTANG</span><h1>Piutang Pelanggan</h1><p>Pantau penagihan dan pembayaran pelanggan.</p></div><button className="ar-primary" onClick={openInvoice} disabled={!data.eligibleOrders.length}><FiPlus/> Buat Invoice</button></header>
     <section className="ar-stats">
@@ -93,7 +98,7 @@ export default function Receivables() {
     <section className="ar-panel">
       <div className="ar-tools"><input className="ar-search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Cari nomor invoice, pesanan, atau pelanggan..."/><select className="ar-filter" value={filter} onChange={e => setFilter(e.target.value)}><option value="ALL">Semua Status</option><option value="DRAFT">Draft</option><option value="SENT">Terkirim</option><option value="PARTIALLY_PAID">Dibayar Sebagian</option><option value="PAID">Lunas</option><option value="OVERDUE">Jatuh Tempo</option><option value="VOID">Dibatalkan</option></select><button className="ar-refresh" onClick={load} aria-label="Muat ulang"><FiRefreshCw className={loading ? "ar-spin" : ""}/></button></div>
       <div className="ar-table-wrap"><table><thead><tr><th>Invoice</th><th>Pelanggan</th><th>Jatuh Tempo</th><th>Total</th><th>Dibayar</th><th>Sisa</th><th>Status</th><th>Tindakan</th></tr></thead><tbody>
-        {rows.map(invoice => <tr key={invoice.id}><td><b>{invoice.number}</b><small>{invoice.order?.orderNo}</small></td><td><b>{invoice.customerName}</b><small>{invoice.order?.fromText} → {invoice.order?.toText}</small></td><td>{tanggal(invoice.dueAt)}</td><td>{rupiah(invoice.total)}</td><td className="paid">{rupiah(invoice.paid)}</td><td><b>{rupiah(invoice.balance)}</b></td><td><span className={`ar-status ${invoice.displayStatus}`}>{statusLabel[invoice.displayStatus]}</span></td><td><div className="ar-actions">{invoice.status === "DRAFT" && <button onClick={() => sendInvoice(invoice)} disabled={busy}><FiSend/> Kirim</button>}{["SENT", "PARTIALLY_PAID"].includes(invoice.status) && <button onClick={() => openPayment(invoice)}><FiCreditCard/> Bayar</button>}{canVoid && !invoice.payments.length && !["PAID", "VOID"].includes(invoice.status) && <button className="void" onClick={() => voidInvoice(invoice)}>Batalkan</button>}</div></td></tr>)}
+        {rows.map(invoice => <tr key={invoice.id}><td><b>{invoice.number}</b><small>{invoice.order?.orderNo}</small>{invoice.order?.shipment?.loss > 0 && <small style={{ color: "#b45309" }}>Selisih {invoice.order.shipment.loss.toLocaleString("id-ID")} {invoice.order.shipment.unit || ""}</small>}</td><td><b>{invoice.customerName}</b><small>{invoice.order?.fromText} → {invoice.order?.toText}</small></td><td>{tanggal(invoice.dueAt)}</td><td>{rupiah(invoice.total)}</td><td className="paid">{rupiah(invoice.paid)}</td><td><b>{rupiah(invoice.balance)}</b></td><td><span className={`ar-status ${invoice.displayStatus}`}>{statusLabel[invoice.displayStatus]}</span></td><td><div className="ar-actions">{invoice.status === "DRAFT" && <button onClick={() => sendInvoice(invoice)} disabled={busy}><FiSend/> Kirim</button>}{["SENT", "PARTIALLY_PAID"].includes(invoice.status) && <button onClick={() => openPayment(invoice)}><FiCreditCard/> Bayar</button>}{canVoid && !invoice.payments.length && !["PAID", "VOID"].includes(invoice.status) && <button className="void" onClick={() => voidInvoice(invoice)}>Batalkan</button>}</div></td></tr>)}
       </tbody></table></div>
       {!loading && !rows.length && <div className="ar-empty"><FiFileText/><h3>Belum ada invoice</h3><p>{data.eligibleOrders.length ? "Buat invoice dari pesanan yang telah selesai." : "Selesaikan pesanan terlebih dahulu agar dapat ditagih."}</p></div>}
     </section>
@@ -104,7 +109,7 @@ export default function Receivables() {
         <section className="ar-form-section">
           <div className="ar-section-title"><span>1</span><div><strong>Pilih pesanan</strong><small>Hanya pesanan yang telah selesai dan belum memiliki invoice.</small></div></div>
           <label>Pesanan selesai<select required value={invoiceForm.orderId} onChange={e => chooseOrder(e.target.value)}><option value="">Pilih pesanan</option>{data.eligibleOrders.map(order => <option key={order.id} value={order.id}>{order.orderNo} — {order.customer?.name || order.customerName || "Tanpa nama"}</option>)}</select></label>
-          {invoiceOrder && <div className="ar-order-summary"><span><small>Rute pengiriman</small><strong>{invoiceOrder.fromText || "—"} → {invoiceOrder.toText || "—"}</strong></span><span><small>Nomor pesanan</small><strong>{invoiceOrder.orderNo}</strong></span></div>}
+          {invoiceOrder && <div className="ar-order-summary"><span><small>Rute pengiriman</small><strong>{invoiceOrder.fromText || "—"} → {invoiceOrder.toText || "—"}</strong></span><span><small>Realisasi muatan</small><strong>{invoiceOrder.shipment?.delivered ?? 0} / {invoiceOrder.shipment?.planned ?? invoiceOrder.qty ?? 0} {invoiceOrder.unit || ""}</strong>{invoiceOrder.shipment?.loss > 0 && <small style={{ color: "#b45309" }}>Kehilangan {invoiceOrder.shipment.loss.toLocaleString("id-ID")} {invoiceOrder.unit || ""}</small>}</span></div>}
         </section>
         <section className="ar-form-section">
           <div className="ar-section-title"><span>2</span><div><strong>Informasi pelanggan</strong><small>Data ini akan dicantumkan pada invoice.</small></div></div>
@@ -113,10 +118,11 @@ export default function Receivables() {
         </section>
         <section className="ar-form-section">
           <div className="ar-section-title"><span>3</span><div><strong>Rincian tagihan</strong><small>Isi nominal dalam Rupiah.</small></div></div>
-          <div className="ar-grid2"><label>Jatuh tempo<input required type="date" value={invoiceForm.dueAt} onChange={e => setInvoiceForm({...invoiceForm, dueAt:e.target.value})}/></label><label>Subtotal<input required min="1" type="number" inputMode="numeric" value={invoiceForm.subtotal} onChange={e => setInvoiceForm({...invoiceForm, subtotal:e.target.value})} placeholder="0"/></label></div>
+          <div className="ar-grid2"><label>Jatuh tempo<input required type="date" value={invoiceForm.dueAt} onChange={e => setInvoiceForm({...invoiceForm, dueAt:e.target.value})}/></label><label>Harga kontrak penuh<input required min="1" type="number" inputMode="numeric" value={invoiceForm.contractSubtotal} onChange={e => setInvoiceForm({...invoiceForm, contractSubtotal:e.target.value})} placeholder="Harga untuk muatan rencana"/></label></div>
+          {invoiceOrder && plannedQuantity > 0 && <div className="ar-order-summary"><span><small>PERHITUNGAN OTOMATIS</small><strong>{deliveredQuantity.toLocaleString("id-ID")} / {plannedQuantity.toLocaleString("id-ID")} × {rupiah(invoiceForm.contractSubtotal)}</strong></span><span><small>Subtotal dapat ditagih</small><strong>{rupiah(billableSubtotal)}</strong>{cargoLossAmount > 0 && <small style={{ color: "#b45309" }}>Pengurangan kehilangan: {rupiah(cargoLossAmount)}</small>}</span></div>}
           <div className="ar-grid2"><label>Pajak<input min="0" type="number" inputMode="numeric" value={invoiceForm.tax} onChange={e => setInvoiceForm({...invoiceForm, tax:e.target.value})}/></label><label>Diskon<input min="0" type="number" inputMode="numeric" value={invoiceForm.discount} onChange={e => setInvoiceForm({...invoiceForm, discount:e.target.value})}/></label></div>
           <label>Catatan <small className="ar-optional">Opsional</small><textarea rows="2" value={invoiceForm.notes} onChange={e => setInvoiceForm({...invoiceForm, notes:e.target.value})} placeholder="Keterangan tambahan untuk pelanggan"/></label>
-          <div className="ar-total"><span><small>TOTAL TAGIHAN</small>Total Invoice</span><strong>{rupiah(total)}</strong></div>
+          <div className="ar-total"><span><small>TOTAL TAGIHAN</small>Subtotal terkoreksi + pajak − diskon</span><strong>{rupiah(total)}</strong></div>
         </section>
       </div>
       <div className="ar-modal-actions"><button type="button" className="secondary" onClick={() => setModal("")}>Batal</button><button className="ar-primary" disabled={busy}>{busy ? "Menyimpan..." : "Simpan Invoice"}</button></div>

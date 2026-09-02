@@ -145,13 +145,117 @@ async function findTruck(event) {
 async function evaluateArrival(truck, event) {
   if (!truck || !validCoordinates(event.latitude, event.longitude)) return { arrived: false };
   const trip = await prisma.trip.findFirst({
-    where: { truckId: truck.id, status: "DISPATCHED", destinationLat: { not: null }, destinationLng: { not: null } },
-    orderBy: { dispatchedAt: "desc" },
+    where: { truckId: truck.id, status: { in: ["PLANNED", "DISPATCHED"] } },
+    orderBy: { createdAt: "desc" },
+    include: { serviceStops: { where: { endedAt: null }, include: { location: true }, take: 1 } },
   });
   if (!trip) return { arrived: false };
 
-  const distance = distanceMeters(event.latitude, event.longitude, trip.destinationLat, trip.destinationLng);
-  const inside = distance <= trip.arrivalRadiusM;
+  const observedAt = event.eventAt || new Date();
+  const departureSpeed = Math.max(0, Number(process.env.GOLACAK_DEPARTURE_MIN_SPEED_KPH || 5));
+  const previousDistance = validCoordinates(truck.lastGpsLatitude, truck.lastGpsLongitude)
+    ? distanceMeters(event.latitude, event.longitude, truck.lastGpsLatitude, truck.lastGpsLongitude)
+    : 0;
+  const isMoving = (event.speed !== null && event.speed > departureSpeed) || previousDistance >= 100;
+  const pickupCoordinatesValid = Number.isFinite(trip.pickupLat) && Number.isFinite(trip.pickupLng);
+  const pickupRadius = Number(trip.pickupRadiusM) || 400;
+  const currentPickupDistance = pickupCoordinatesValid ? distanceMeters(event.latitude, event.longitude, trip.pickupLat, trip.pickupLng) : Infinity;
+  const previousPickupDistance = pickupCoordinatesValid && validCoordinates(truck.lastGpsLatitude, truck.lastGpsLongitude)
+    ? distanceMeters(truck.lastGpsLatitude, truck.lastGpsLongitude, trip.pickupLat, trip.pickupLng)
+    : Infinity;
+  const locationWasPickup = String(truck.currentLocation || "").trim().toLocaleLowerCase("id-ID") === String(trip.fromText || "").trim().toLocaleLowerCase("id-ID");
+
+  if (trip.status === "PLANNED") {
+    if (!isMoving) return { arrived: false, tripId: trip.id, phase: trip.phase };
+    const wasAtPickup = locationWasPickup || previousPickupDistance <= pickupRadius;
+    const isAtPickup = currentPickupDistance <= pickupRadius;
+    const nextPhase = trip.purpose !== "DELIVERY" ? "TO_DESTINATION" : isAtPickup ? "AT_PICKUP" : wasAtPickup ? "TO_DESTINATION" : "TO_PICKUP";
+    const updated = await prisma.$transaction(async (tx) => {
+      const saved = await tx.trip.updateMany({
+        where: { id: trip.id, status: "PLANNED" },
+        data: {
+          status: "DISPATCHED",
+          phase: nextPhase,
+          dispatchedAt: observedAt,
+          pickupArrivedAt: (isAtPickup || wasAtPickup) ? observedAt : undefined,
+          loadedAt: nextPhase === "TO_DESTINATION" ? observedAt : undefined,
+          gpsArrivalCandidateAt: null,
+        },
+      });
+      if (saved.count) await tx.truck.update({ where: { id: truck.id }, data: { status: "DISPATCH", idleSince: null, availableForBackhaul: false } });
+      return Boolean(saved.count);
+    });
+    return { arrived: false, departed: updated, tripChanged: updated, tripId: trip.id, phase: nextPhase };
+  }
+
+  if (trip.phase === "AT_PICKUP" && isMoving && currentPickupDistance > pickupRadius + 50) {
+    const updated = await prisma.trip.updateMany({
+      where: { id: trip.id, status: "DISPATCHED", phase: "AT_PICKUP" },
+      data: { phase: "TO_DESTINATION", loadedAt: observedAt, gpsArrivalCandidateAt: null },
+    });
+    return { arrived: false, departed: Boolean(updated.count), tripChanged: Boolean(updated.count), tripId: trip.id, phase: "TO_DESTINATION" };
+  }
+
+  if (trip.purpose === "DELIVERY" && ["TO_DESTINATION", "SERVICE_AT_BASE"].includes(trip.phase)) {
+    const destinationDistance = Number.isFinite(trip.destinationLat) && Number.isFinite(trip.destinationLng)
+      ? distanceMeters(event.latitude, event.longitude, trip.destinationLat, trip.destinationLng)
+      : Infinity;
+    const insideDestination = destinationDistance <= (Number(trip.arrivalRadiusM) || 400);
+    const bases = await prisma.operationalLocation.findMany({
+      where: { isActive: true, type: "BASE" },
+      select: { id: true, name: true, latitude: true, longitude: true, radiusM: true },
+    });
+    const baseMatches = bases
+      .map((base) => ({ ...base, distance: distanceMeters(event.latitude, event.longitude, base.latitude, base.longitude) }))
+      .filter((base) => base.distance <= base.radiusM)
+      .sort((a, b) => a.distance - b.distance);
+    const matchedBase = baseMatches[0] || null;
+
+    if (trip.phase === "SERVICE_AT_BASE") {
+      const openStop = trip.serviceStops[0] || null;
+      const serviceBase = openStop?.location || bases.find((base) => base.id === trip.serviceCandidateBaseId) || null;
+      const serviceDistance = serviceBase ? distanceMeters(event.latitude, event.longitude, serviceBase.latitude, serviceBase.longitude) : Infinity;
+      const exitRadius = (Number(serviceBase?.radiusM) || 400) + 50;
+      if (isMoving && serviceDistance > exitRadius) {
+        const resumed = await prisma.$transaction(async (tx) => {
+          const updated = await tx.trip.updateMany({
+            where: { id: trip.id, status: "DISPATCHED", phase: "SERVICE_AT_BASE" },
+            data: { phase: "TO_DESTINATION", serviceCandidateAt: null, serviceCandidateBaseId: null, gpsArrivalCandidateAt: null },
+          });
+          if (openStop) await tx.tripServiceStop.updateMany({ where: { id: openStop.id, endedAt: null }, data: { endedAt: observedAt } });
+          return Boolean(updated.count);
+        });
+        return { arrived: false, resumed: resumed, tripChanged: resumed, tripId: trip.id, phase: "TO_DESTINATION" };
+      }
+      return { arrived: false, service: true, tripId: trip.id, phase: "SERVICE_AT_BASE" };
+    }
+
+    if (!insideDestination && matchedBase) {
+      const paused = await prisma.$transaction(async (tx) => {
+        const updated = await tx.trip.updateMany({
+          where: { id: trip.id, status: "DISPATCHED", phase: "TO_DESTINATION", loadedAt: { not: null } },
+          data: { phase: "SERVICE_AT_BASE", serviceCandidateAt: null, serviceCandidateBaseId: matchedBase.id, gpsArrivalCandidateAt: null },
+        });
+        if (updated.count) await tx.tripServiceStop.create({ data: { tripId: trip.id, locationId: matchedBase.id, startedAt: observedAt } });
+        return Boolean(updated.count);
+      });
+      return { arrived: false, service: paused, tripChanged: paused, tripId: trip.id, phase: paused ? "SERVICE_AT_BASE" : trip.phase, base: matchedBase.name };
+    }
+    if (trip.serviceCandidateAt || trip.serviceCandidateBaseId) {
+      await prisma.trip.update({ where: { id: trip.id }, data: { serviceCandidateAt: null, serviceCandidateBaseId: null } });
+    }
+  }
+
+  const headingToPickup = trip.purpose === "DELIVERY" && trip.phase === "TO_PICKUP";
+  const headingToDestination = trip.phase === "TO_DESTINATION" || (trip.purpose !== "DELIVERY" && trip.phase !== "AT_DESTINATION");
+  if (!headingToPickup && !headingToDestination) return { arrived: false, tripId: trip.id, phase: trip.phase };
+  const targetLat = headingToPickup ? trip.pickupLat : trip.destinationLat;
+  const targetLng = headingToPickup ? trip.pickupLng : trip.destinationLng;
+  const targetRadius = headingToPickup ? trip.pickupRadiusM : trip.arrivalRadiusM;
+  if (!Number.isFinite(targetLat) || !Number.isFinite(targetLng)) return { arrived: false, tripId: trip.id, phase: trip.phase };
+
+  const distance = distanceMeters(event.latitude, event.longitude, targetLat, targetLng);
+  const inside = distance <= targetRadius;
   const maxSpeed = Number(process.env.GOLACAK_ARRIVAL_MAX_SPEED_KPH || 10);
   const slowEnough = event.speed === null || event.speed <= maxSpeed;
   if (!inside || !slowEnough) {
@@ -161,7 +265,6 @@ async function evaluateArrival(truck, event) {
     return { arrived: false, tripId: trip.id, distance: Math.round(distance) };
   }
 
-  const observedAt = event.eventAt || new Date();
   if (!trip.gpsArrivalCandidateAt) {
     await prisma.trip.update({ where: { id: trip.id }, data: { gpsArrivalCandidateAt: observedAt } });
     return { arrived: false, candidate: true, tripId: trip.id, distance: Math.round(distance) };
@@ -172,18 +275,23 @@ async function evaluateArrival(truck, event) {
   }
 
   const result = await prisma.$transaction(async (tx) => {
-    const updated = await tx.trip.updateMany({
-      where: { id: trip.id, status: "DISPATCHED" },
-      data: { status: "ARRIVED", arrivedAt: observedAt },
-    });
+    const updated = headingToPickup
+      ? await tx.trip.updateMany({
+        where: { id: trip.id, status: "DISPATCHED", phase: "TO_PICKUP" },
+        data: { phase: "AT_PICKUP", pickupArrivedAt: observedAt, gpsArrivalCandidateAt: null },
+      })
+      : await tx.trip.updateMany({
+        where: { id: trip.id, status: "DISPATCHED", phase: "TO_DESTINATION" },
+        data: { status: "ARRIVED", phase: "AT_DESTINATION", arrivedAt: observedAt, gpsArrivalCandidateAt: null },
+      });
     if (!updated.count) return false;
     await tx.truck.update({
       where: { id: truck.id },
-      data: { currentLocation: trip.toText || truck.currentLocation, locationUpdatedAt: observedAt },
+      data: { currentLocation: (headingToPickup ? trip.fromText : trip.toText) || truck.currentLocation, locationUpdatedAt: observedAt },
     });
     return true;
   });
-  return { arrived: result, tripId: trip.id, distance: Math.round(distance) };
+  return { arrived: result, tripChanged: result, tripId: trip.id, distance: Math.round(distance), phase: headingToPickup ? "AT_PICKUP" : "AT_DESTINATION" };
 }
 
 async function syncTruckStatusWithoutActiveTrip(truck, event, observedAt) {
@@ -311,7 +419,7 @@ router.post("/events", async (req, res) => {
   if (results.some((result) => result.mapped)) {
     publishUpdate({ method: "PATCH", resource: "trucks" });
   }
-  if (results.some((result) => result.arrived)) {
+  if (results.some((result) => result.tripChanged || result.arrived)) {
     publishUpdate({ method: "PATCH", resource: "trips" });
   }
   res.status(202).json({ ok: true, processed: results.length, results });

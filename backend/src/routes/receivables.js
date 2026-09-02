@@ -8,7 +8,7 @@ const router = express.Router();
 router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF"));
 
 const invoiceInclude = {
-  order: { select: { id: true, orderNo: true, cargoName: true, qty: true, unit: true, fromText: true, toText: true } },
+  order: { select: { id: true, orderNo: true, cargoName: true, qty: true, unit: true, fromText: true, toText: true, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true } } } },
   customer: true,
   createdBy: { select: { name: true } },
   payments: { include: { createdBy: { select: { name: true } } }, orderBy: { receivedAt: "desc" } },
@@ -32,7 +32,14 @@ function summarize(invoice) {
   const paid = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
   const balance = Math.max(0, invoice.total - paid);
   const overdue = ["SENT", "PARTIALLY_PAID"].includes(invoice.status) && new Date(invoice.dueAt) < new Date();
-  return { ...invoice, paid, balance, displayStatus: overdue ? "OVERDUE" : invoice.status };
+  return { ...invoice, order: invoice.order ? { ...invoice.order, shipment: shipmentSummary(invoice.order) } : null, paid, balance, displayStatus: overdue ? "OVERDUE" : invoice.status };
+}
+
+function shipmentSummary(order) {
+  const trips = order?.trips || [];
+  const planned = trips.reduce((sum, trip) => sum + Number(trip.qtyPlanned || 0), 0);
+  const delivered = trips.reduce((sum, trip) => sum + Number(trip.qtyActual ?? trip.qtyPlanned ?? 0), 0);
+  return { planned, delivered, loss: Math.max(0, planned - delivered), unit: order?.unit || null };
 }
 
 router.get("/overview", async (_req, res) => {
@@ -41,7 +48,7 @@ router.get("/overview", async (_req, res) => {
       prisma.invoice.findMany({ include: invoiceInclude, orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }] }),
       prisma.order.findMany({
         where: { status: "COMPLETED", invoice: null },
-        include: { customer: true },
+        include: { customer: true, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true } } },
         orderBy: { updatedAt: "desc" },
       }),
     ]);
@@ -53,7 +60,7 @@ router.get("/overview", async (_req, res) => {
       if (invoice.displayStatus === "OVERDUE") acc.overdue += invoice.balance;
       return acc;
     }, { invoiced: 0, received: 0, outstanding: 0, overdue: 0 });
-    res.json({ ok: true, invoices: rows, eligibleOrders, stats });
+    res.json({ ok: true, invoices: rows, eligibleOrders: eligibleOrders.map(order => ({ ...order, shipment: shipmentSummary(order) })), stats });
   } catch (error) {
     res.status(400).json({ error: error.message || "Gagal memuat piutang" });
   }
@@ -62,25 +69,35 @@ router.get("/overview", async (_req, res) => {
 router.post("/invoices", async (req, res) => {
   try {
     const { orderId, customerName, customerPhone, billingAddress, dueAt, notes } = req.body;
-    const subtotal = amount(req.body.subtotal, "Subtotal");
+    const contractSubtotal = amount(req.body.contractSubtotal ?? req.body.subtotal, "Harga kontrak");
     const tax = amount(req.body.tax || 0, "Pajak");
     const discount = amount(req.body.discount || 0, "Diskon");
-    const total = subtotal + tax - discount;
     const dueDate = new Date(dueAt);
     if (!orderId || !customerName?.trim()) throw new Error("Pesanan dan nama pelanggan wajib diisi");
     if (Number.isNaN(dueDate.getTime())) throw new Error("Tanggal jatuh tempo tidak valid");
-    if (total <= 0) throw new Error("Total invoice harus lebih dari nol");
+    if (contractSubtotal <= 0) throw new Error("Harga kontrak harus lebih dari nol");
 
     const invoice = await prisma.$transaction(async (tx) => {
-      const order = await tx.order.findUnique({ where: { id: orderId }, include: { invoice: true } });
+      const order = await tx.order.findUnique({ where: { id: orderId }, include: { invoice: true, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true } } } });
       if (!order || order.status !== "COMPLETED") throw new Error("Invoice hanya dapat dibuat dari pesanan yang selesai");
       if (order.invoice) throw new Error("Pesanan ini sudah memiliki invoice");
+      const shipment = shipmentSummary(order);
+      const plannedQuantity = shipment.planned > 0 ? shipment.planned : Number(order.qty || 0);
+      const deliveredQuantity = shipment.delivered;
+      const billableRatio = plannedQuantity > 0 ? Math.min(1, Math.max(0, deliveredQuantity / plannedQuantity)) : 1;
+      const subtotal = Math.round(contractSubtotal * billableRatio);
+      const cargoLossAmount = Math.max(0, contractSubtotal - subtotal);
+      const total = subtotal + tax - discount;
+      if (total <= 0) throw new Error("Total invoice setelah penyesuaian harus lebih dari nol");
       const number = await nextNumber(tx, "invoice", "INV");
       return tx.invoice.create({
         data: {
           number, orderId, customerId: order.customerId, customerName: customerName.trim(),
           customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null,
-          dueAt: dueDate, subtotal, tax, discount, total, notes: notes?.trim() || null, createdById: req.user.id,
+          dueAt: dueDate, subtotal, contractSubtotal, plannedQuantity: plannedQuantity || null,
+          deliveredQuantity: plannedQuantity > 0 ? deliveredQuantity : null,
+          cargoLossQuantity: plannedQuantity > 0 ? shipment.loss : null,
+          cargoLossAmount, tax, discount, total, notes: notes?.trim() || null, createdById: req.user.id,
         },
         include: invoiceInclude,
       });

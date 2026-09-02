@@ -72,10 +72,11 @@ router.get(
         prisma.operationalLocation.findMany({ where: { isActive: true } }),
         prisma.trip.findMany({
           where: { status: { in: ["DISPATCHED", "ARRIVED"] } },
-          select: { truckId: true },
+          select: { truckId: true, phase: true, serviceStops: { where: { endedAt: null }, select: { startedAt: true, location: { select: { id: true, name: true, type: true } } }, take: 1 } },
         }),
       ]);
       const activeTripTruckIds = new Set(activeTripRows.map((trip) => trip.truckId));
+      const serviceTripByTruckId = new Map(activeTripRows.filter((trip) => trip.phase === "SERVICE_AT_BASE").map((trip) => [trip.truckId, trip]));
       const stopWarningMinutes = Math.max(1, Number(process.env.GPS_STOP_WARNING_MINUTES || 30));
       const movingSpeedKph = Math.max(1, Number(process.env.GPS_MOVING_SPEED_KPH || 5));
 
@@ -99,6 +100,8 @@ router.get(
         const hasActiveTrip = activeTripTruckIds.has(truck.id);
         const isMoving = truck.lastGpsSpeed !== null && truck.lastGpsSpeed > movingSpeedKph;
         const isSafeLocation = nearest && nearest.location.type !== "WARNING";
+        const serviceTrip = serviceTripByTruckId.get(truck.id);
+        const serviceStop = serviceTrip?.serviceStops?.[0] || null;
         const effectiveStatus = specialStatus
           ? truck.status
           : hasActiveTrip
@@ -108,6 +111,7 @@ router.get(
               : truck.status;
         return {
           ...truck,
+          currentLocation: nearest?.location.name || truck.currentLocation,
           status: effectiveStatus,
           activeEmptyReturnTrip: trips[0] || null,
           gpsLocation: nearest ? {
@@ -120,6 +124,11 @@ router.get(
             since: truck.gpsStoppedSince,
             durationMinutes: stoppedMinutes,
             severity: nearest?.location.type === "WARNING" ? "CRITICAL" : "WARNING",
+          } : null,
+          tripServiceWarning: serviceTrip ? {
+            since: serviceStop?.startedAt || null,
+            location: serviceStop?.location?.name || nearest?.location.name || "Base",
+            durationMinutes: serviceStop?.startedAt ? Math.max(0, Math.floor((now.getTime() - new Date(serviceStop.startedAt).getTime()) / 60000)) : 0,
           } : null,
         };
       }) });

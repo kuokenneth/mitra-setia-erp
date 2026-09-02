@@ -101,6 +101,16 @@ enum TripPurpose {
   EMPTY_RETURN
 }
 
+enum TripPhase {
+  PLANNED
+  TO_PICKUP
+  AT_PICKUP
+  TO_DESTINATION
+  SERVICE_AT_BASE
+  AT_DESTINATION
+  COMPLETED
+}
+
 enum ExpensePaymentMethod {
   BANK_TRANSFER
   CASH
@@ -427,6 +437,10 @@ model Order {
 
   fromText  String? // pickup / warehouse
   toText    String? // destination
+  pickupLocationId      String?
+  pickupLocation        OperationalLocation? @relation("OrderPickupLocation", fields: [pickupLocationId], references: [id], onDelete: SetNull)
+  destinationLocationId String?
+  destinationLocation   OperationalLocation? @relation("OrderDestinationLocation", fields: [destinationLocationId], references: [id], onDelete: SetNull)
   plannedAt DateTime?
 
   notes  String?
@@ -455,6 +469,8 @@ model Order {
   @@index([plannedAt])
   @@index([customerName])
   @@index([toText])
+  @@index([pickupLocationId])
+  @@index([destinationLocationId])
   @@index([backhaulOfOrderId])
   @@index([createdById])
 }
@@ -476,6 +492,11 @@ model Invoice {
   issuedAt       DateTime            @default(now())
   dueAt          DateTime
   subtotal       Int
+  contractSubtotal Int?
+  plannedQuantity  Float?
+  deliveredQuantity Float?
+  cargoLossQuantity Float?
+  cargoLossAmount   Int?
   tax            Int                 @default(0)
   discount       Int                 @default(0)
   total          Int
@@ -526,6 +547,7 @@ model Trip {
 
   status            TripStatus  @default(PLANNED)
   purpose           TripPurpose @default(DELIVERY)
+  phase             TripPhase   @default(PLANNED)
   operationalReason String?
 
   // ✅ quantity per trip (for contract decrement)
@@ -544,6 +566,13 @@ model Trip {
   destinationLng        Float?
   arrivalRadiusM        Int       @default(400)
   gpsArrivalCandidateAt DateTime?
+  pickupLat             Float?
+  pickupLng             Float?
+  pickupRadiusM         Int       @default(400)
+  pickupArrivedAt       DateTime?
+  loadedAt              DateTime?
+  serviceCandidateAt    DateTime?
+  serviceCandidateBaseId String?
 
   // snapshot fields (for historical correctness)
   plateNumberSnap String?
@@ -554,6 +583,7 @@ model Trip {
   dispatchLetter   DispatchLetter?
   materialInvoices MaterialInvoice[]
   arrivalProofs    TripArrivalProof[]
+  serviceStops     TripServiceStop[]
 
   expenses Expense[]
 
@@ -564,6 +594,22 @@ model Trip {
   @@index([truckId])
   @@index([driverUserId])
   @@index([status])
+}
+
+model TripServiceStop {
+  id         String              @id @default(cuid())
+  tripId     String
+  trip       Trip                @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  locationId String?
+  location   OperationalLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  startedAt  DateTime
+  endedAt    DateTime?
+  autoDetected Boolean           @default(true)
+  createdAt  DateTime            @default(now())
+
+  @@index([tripId])
+  @@index([locationId])
+  @@index([endedAt])
 }
 
 model TripArrivalProof {
@@ -724,6 +770,10 @@ model OperationalLocation {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  pickupOrders      Order[] @relation("OrderPickupLocation")
+  destinationOrders Order[] @relation("OrderDestinationLocation")
+  serviceStops      TripServiceStop[]
 
   @@index([isActive])
   @@index([type])

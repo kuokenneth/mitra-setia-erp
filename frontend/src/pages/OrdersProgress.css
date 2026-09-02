@@ -1,0 +1,35 @@
+.orders-v3-load {
+  align-items: flex-start !important;
+}
+
+.orders-v3-load > span {
+  min-width: 0;
+  width: 100%;
+}
+
+.orders-v3-load i {
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  height: 6px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: #e7ede9;
+}
+
+.orders-v3-load i b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #3c8b5d, #70ad84);
+  transition: width 0.3s ease;
+}
+
+.orders-v3-load em {
+  display: block;
+  margin-top: 5px;
+  color: #7d8981;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 650;
+}
