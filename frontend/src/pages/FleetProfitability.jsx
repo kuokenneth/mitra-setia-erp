@@ -3,6 +3,7 @@ import { FiActivity, FiAlertTriangle, FiDollarSign, FiEdit2, FiFileText, FiTruck
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
+import LoadingState from "../components/LoadingState";
 import "./FleetProfitability.css";
 
 const money = value => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value) || 0);
@@ -76,7 +77,7 @@ export default function FleetProfitability() {
     </section>
     <section className="fp-panel">
       <div className="fp-panel-head"><div><h2>Performa per Truk</h2><p>Hijau ≥ 20% margin, kuning 0–19,9%, merah berarti rugi.</p></div><label>Urutkan<select value={sortBy} onChange={event => setSortBy(event.target.value)}><option value="profit-desc">Paling untung</option><option value="profit-asc">Paling rugi</option><option value="margin-desc">Margin tertinggi</option><option value="margin-asc">Margin terendah</option><option value="trips-desc">Trip terbanyak</option></select></label></div>
-      {loading ? <div className="fp-state"><span className="fp-spinner"/>Menghitung profit armada…</div> : !data.rows.length ? <div className="fp-state">Belum ada armada.</div> :
+      {loading ? <LoadingState label="Menghitung profit armada" note="Merekonsiliasi pendapatan, biaya trip, dan sparepart…" rows={5} /> : !data.rows.length ? <div className="fp-state">Belum ada armada.</div> :
       <div className="fp-table-wrap"><table><thead><tr><th>Armada</th><th>Trip</th><th>Pendapatan</th><th>Biaya</th><th>Laba / Rugi</th><th>Margin</th><th>Kinerja</th><th /></tr></thead><tbody>
         {sortedRows.map(row => <tr key={row.truck.id} onClick={() => setSelected(row)} className="fp-clickable" title="Klik untuk melihat rincian laba rugi">
           <td><b>{row.truck.plateNumber}</b><small>{[row.truck.brand, row.truck.model].filter(Boolean).join(" ") || "Detail belum diisi"}</small></td>

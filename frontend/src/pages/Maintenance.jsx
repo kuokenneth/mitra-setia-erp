@@ -4,6 +4,7 @@ import { api, apiAssetUrl, getAccessToken, uploadFiles } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { ProtectedImage } from "../components/ProtectedFile";
+import LoadingState from "../components/LoadingState";
 import { FiTool, FiClock, FiCheck, FiX, FiPlus, FiRefreshCw } from "react-icons/fi";
 
 //////////////////////
@@ -1005,6 +1006,7 @@ export default function Maintenance() {
 
         {/* Job Rows */}
         <div style={{ padding: "8px 12px" }}>
+          {loading && (!jobs || jobs.length === 0) && <LoadingState compact label="Memuat bengkel" note="Mengambil pekerjaan, kendaraan, dan durasi servis…" rows={5} />}
           {(jobs || []).map((j) => {
             const createdMs = new Date(j.createdAt).getTime();
             const endMs = j.status === "OPEN" ? Date.now() : j.doneAt ? new Date(j.doneAt).getTime() : Date.now();
@@ -1076,9 +1078,7 @@ export default function Maintenance() {
               />
 
               <div style={{ marginTop: 12, maxHeight: 300, overflow: "auto" }}>
-                {trucksLoading && (
-                  <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>Memuat kendaraan...</div>
-                )}
+                {trucksLoading && <LoadingState compact label="Memuat kendaraan" note="Mencari armada yang tersedia…" rows={3} />}
                 {!trucksLoading && (filteredTrucks || []).length === 0 && (
                   <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>Tidak ada kendaraan ditemukan.</div>
                 )}
@@ -1183,7 +1183,7 @@ export default function Maintenance() {
       {/* DETAIL MODAL */}
       <Modal open={showDetail} title="Maintenance Detail" onClose={() => setShowDetail(false)} width={1280}>
         {detailLoading || !activeJob ? (
-          <div style={{ padding: 20, color: BRAND.textMuted, fontSize: 14 }}>Memuat...</div>
+          <LoadingState compact label="Memuat detail servis" note="Menyiapkan pekerjaan dan penggunaan sparepart…" rows={4} />
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "minmax(320px, 0.8fr) minmax(620px, 1.6fr)", gap: 20 }}>
             {/* LEFT - Job Info */}

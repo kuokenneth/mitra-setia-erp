@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
+import LoadingState from "../components/LoadingState";
 import { CircleMarker, MapContainer, TileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import "./TrucksRedesign.css";
@@ -484,6 +485,7 @@ export default function Trucks() {
               </tr>
             </thead>
             <tbody>
+              {loading && pagedItems.length === 0 && <tr><td colSpan={6} style={{ padding: 14 }}><LoadingState compact label="Memuat armada" note="Menyinkronkan kendaraan, GPS, dan pengemudi…" rows={4} /></td></tr>}
               {pagedItems.map((t) => {
                 const gps = gpsPosition(t);
                 const isCriticalStop = t.gpsStopWarning?.severity === "CRITICAL";

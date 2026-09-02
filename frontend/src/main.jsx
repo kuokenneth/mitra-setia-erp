@@ -33,6 +33,7 @@ import FleetProfitability from "./pages/FleetProfitability";
 import FleetMap from "./pages/FleetMap";
 import OperationalLocations from "./pages/OperationalLocations";
 import AuditTrail from "./pages/AuditTrail";
+import PageErrorBoundary from "./components/PageErrorBoundary";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -74,7 +75,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             <Route path="/orders/:id" element={<OrderDetail />} />
             <Route path="/drivers/new" element={<CreateDriver />} />
             <Route path="/trips/:id" element={<TripDetail />} />
-            <Route path="/trips" element={<Trips />} />
+            <Route path="/trips" element={<PageErrorBoundary><Trips /></PageErrorBoundary>} />
 
             {/* Driver */}
             <Route path="/driver" element={<DriverHome />} />

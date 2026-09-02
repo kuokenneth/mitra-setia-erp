@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, openPrintDocument } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
+import LoadingState from "../components/LoadingState";
 
 // Corporate Green Color Palette (matching Landing/Dashboard)
 const BRAND = {
@@ -1794,7 +1795,7 @@ export default function Inventory() {
 // TABLE COMPONENTS
 //////////////////////
 function BatchesTable({ batches, loading }) {
-  if (loading) return <div style={{ padding: 20, color: BRAND.textMuted }}>Memuat asal stok...</div>;
+  if (loading) return <LoadingState compact label="Memuat asal stok" note="Menelusuri batch dan lokasi persediaan…" rows={4} />;
   if (!batches.length) return <div style={{ padding: 20, color: BRAND.textMuted }}>Belum ada batch stok yang tercatat.</div>;
   return (
     <div style={tableWrap}>
@@ -1839,7 +1840,7 @@ function Pagination({ pagination, onChange }) {
 
 function ItemsTable({ items, loading, onUse, onEdit }) {
   if (loading) {
-    return <div style={{ padding: 20, color: BRAND.textMuted }}>Memuat...</div>;
+    return <LoadingState compact label="Memuat detail barang" note="Mengambil stok, unit, dan riwayat pergerakan…" rows={5} />;
   }
 
   if (items.length === 0) {
@@ -1948,7 +1949,7 @@ function UnitsTable({
       </div>
 
       {loading ? (
-        <div style={{ padding: 20, color: BRAND.textMuted }}>Memuat...</div>
+        <LoadingState compact label="Memuat unit stok" note="Mengambil serial dan status pemasangan…" rows={5} />
       ) : units.length === 0 ? (
         <div style={{ padding: 20, color: BRAND.textMuted }}>Unit tidak ditemukan.</div>
       ) : (
@@ -2048,7 +2049,7 @@ function MovementsTable({ movements, loading, from, to, onFromChange, onToChange
   );
 
   if (loading) {
-    return <>{filters}<div style={{ padding: 20, color: BRAND.textMuted }}>Memuat...</div></>;
+    return <>{filters}<LoadingState compact label="Memuat mutasi stok" note="Menelusuri penerimaan dan penggunaan barang…" rows={5} /></>;
   }
 
   if (movements.length === 0) {

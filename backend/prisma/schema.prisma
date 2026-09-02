@@ -125,6 +125,9 @@ enum ExpenseStatus {
 
 enum ExpenseCategory {
   TRIP_ALLOWANCE
+  REMAINING_TRIP_ALLOWANCE
+  UNLOADING_FEE
+  FUEL_LOAN
   DRIVER_SALARY
   FUEL
   TOLL_PARKING
@@ -220,6 +223,8 @@ model User {
   journalEntriesCreated       JournalEntry[]             @relation("JournalEntryCreatedBy")
   tireRetreadsCreated         TireRetread[]              @relation("TireRetreadCreatedBy")
   maintenanceNotesCreated     MaintenanceNote[]          @relation("MaintenanceNoteCreatedBy")
+  tripActionsCreated          TripOperationalAction[]    @relation("TripActionCreatedBy")
+  tripActionsAssigned         TripOperationalAction[]    @relation("TripActionAssignedTo")
 }
 
 model AuditLog {
@@ -435,13 +440,13 @@ model Order {
   qty           Float?
   unit          String? // "TON", "BAG", etc.
 
-  fromText  String? // pickup / warehouse
-  toText    String? // destination
+  fromText              String? // pickup / warehouse
+  toText                String? // destination
   pickupLocationId      String?
   pickupLocation        OperationalLocation? @relation("OrderPickupLocation", fields: [pickupLocationId], references: [id], onDelete: SetNull)
   destinationLocationId String?
   destinationLocation   OperationalLocation? @relation("OrderDestinationLocation", fields: [destinationLocationId], references: [id], onDelete: SetNull)
-  plannedAt DateTime?
+  plannedAt             DateTime?
 
   notes  String?
   status OrderStatus @default(DRAFT)
@@ -479,35 +484,35 @@ model Order {
 // INVOICE + RECEIVABLE
 ////////////////////////////////////////////////////
 model Invoice {
-  id             String              @id @default(cuid())
-  number         String              @unique
-  orderId        String              @unique
-  order          Order               @relation(fields: [orderId], references: [id])
-  customerId     String?
-  customer       Customer?           @relation(fields: [customerId], references: [id])
-  customerName   String
-  customerPhone  String?
-  billingAddress String?
-  status         InvoiceStatus       @default(DRAFT)
-  issuedAt       DateTime            @default(now())
-  dueAt          DateTime
-  subtotal       Int
-  contractSubtotal Int?
-  plannedQuantity  Float?
+  id                String              @id @default(cuid())
+  number            String              @unique
+  orderId           String              @unique
+  order             Order               @relation(fields: [orderId], references: [id])
+  customerId        String?
+  customer          Customer?           @relation(fields: [customerId], references: [id])
+  customerName      String
+  customerPhone     String?
+  billingAddress    String?
+  status            InvoiceStatus       @default(DRAFT)
+  issuedAt          DateTime            @default(now())
+  dueAt             DateTime
+  subtotal          Int
+  contractSubtotal  Int?
+  plannedQuantity   Float?
   deliveredQuantity Float?
   cargoLossQuantity Float?
   cargoLossAmount   Int?
-  tax            Int                 @default(0)
-  discount       Int                 @default(0)
-  total          Int
-  notes          String?
-  sentAt         DateTime?
-  paidAt         DateTime?
-  createdById    String
-  createdBy      User                @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
-  payments       ReceivablePayment[]
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+  tax               Int                 @default(0)
+  discount          Int                 @default(0)
+  total             Int
+  notes             String?
+  sentAt            DateTime?
+  paidAt            DateTime?
+  createdById       String
+  createdBy         User                @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+  payments          ReceivablePayment[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
   @@index([status])
   @@index([dueAt])
@@ -562,16 +567,16 @@ model Trip {
   completedAt     DateTime?
 
   // Optional GPS destination used for automatic arrival detection.
-  destinationLat        Float?
-  destinationLng        Float?
-  arrivalRadiusM        Int       @default(400)
-  gpsArrivalCandidateAt DateTime?
-  pickupLat             Float?
-  pickupLng             Float?
-  pickupRadiusM         Int       @default(400)
-  pickupArrivedAt       DateTime?
-  loadedAt              DateTime?
-  serviceCandidateAt    DateTime?
+  destinationLat         Float?
+  destinationLng         Float?
+  arrivalRadiusM         Int       @default(400)
+  gpsArrivalCandidateAt  DateTime?
+  pickupLat              Float?
+  pickupLng              Float?
+  pickupRadiusM          Int       @default(400)
+  pickupArrivedAt        DateTime?
+  loadedAt               DateTime?
+  serviceCandidateAt     DateTime?
   serviceCandidateBaseId String?
 
   // snapshot fields (for historical correctness)
@@ -580,10 +585,11 @@ model Trip {
   fromText        String?
   toText          String?
 
-  dispatchLetter   DispatchLetter?
-  materialInvoices MaterialInvoice[]
-  arrivalProofs    TripArrivalProof[]
-  serviceStops     TripServiceStop[]
+  dispatchLetter     DispatchLetter?
+  materialInvoices   MaterialInvoice[]
+  arrivalProofs      TripArrivalProof[]
+  serviceStops       TripServiceStop[]
+  operationalActions TripOperationalAction[]
 
   expenses Expense[]
 
@@ -596,16 +602,39 @@ model Trip {
   @@index([status])
 }
 
+model TripOperationalAction {
+  id           String    @id @default(cuid())
+  tripId       String
+  trip         Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  warningCode  String
+  actionType   String
+  note         String
+  amount       Int?
+  status       String    @default("OPEN")
+  assignedToId String?
+  assignedTo   User?     @relation("TripActionAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdById  String?
+  createdBy    User?     @relation("TripActionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  resolvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([tripId])
+  @@index([status])
+  @@index([assignedToId])
+  @@index([createdAt])
+}
+
 model TripServiceStop {
-  id         String              @id @default(cuid())
-  tripId     String
-  trip       Trip                @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  locationId String?
-  location   OperationalLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  startedAt  DateTime
-  endedAt    DateTime?
-  autoDetected Boolean           @default(true)
-  createdAt  DateTime            @default(now())
+  id           String               @id @default(cuid())
+  tripId       String
+  trip         Trip                 @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  locationId   String?
+  location     OperationalLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  startedAt    DateTime
+  endedAt      DateTime?
+  autoDetected Boolean              @default(true)
+  createdAt    DateTime             @default(now())
 
   @@index([tripId])
   @@index([locationId])
@@ -617,10 +646,11 @@ model TripArrivalProof {
   tripId String
   trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
-  url      String
-  fileName String?
-  mimeType String?
-  size     Int?
+  url       String
+  fileName  String?
+  mimeType  String?
+  size      Int?
+  proofType String  @default("ARRIVAL")
 
   createdAt DateTime @default(now())
 
@@ -728,14 +758,14 @@ model Truck {
   idleSince            DateTime?
 
   // GOlacak device mapping and latest reported GPS position.
-  gpsDeviceId      String?   @unique
-  gpsImei          String?   @unique
-  lastGpsLatitude  Float?
-  lastGpsLongitude Float?
-  lastGpsSpeed     Float?
-  lastGpsAt        DateTime?
-  lastGpsIgnition  Boolean?
-  gpsStoppedSince  DateTime?
+  gpsDeviceId            String?   @unique
+  gpsImei                String?   @unique
+  lastGpsLatitude        Float?
+  lastGpsLongitude       Float?
+  lastGpsSpeed           Float?
+  lastGpsAt              DateTime?
+  lastGpsIgnition        Boolean?
+  gpsStoppedSince        DateTime?
   gpsStopAnchorLatitude  Float?
   gpsStopAnchorLongitude Float?
 
@@ -771,8 +801,8 @@ model OperationalLocation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  pickupOrders      Order[] @relation("OrderPickupLocation")
-  destinationOrders Order[] @relation("OrderDestinationLocation")
+  pickupOrders      Order[]           @relation("OrderPickupLocation")
+  destinationOrders Order[]           @relation("OrderDestinationLocation")
   serviceStops      TripServiceStop[]
 
   @@index([isActive])

@@ -3,6 +3,7 @@ import { Navigate } from "react-router-dom";
 import { FiChevronLeft, FiChevronRight, FiSearch, FiShield } from "react-icons/fi";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
+import LoadingState from "../components/LoadingState";
 import "./AuditTrail.css";
 
 const actionLabel = { CREATE: "Tambah", UPDATE: "Ubah", DELETE: "Hapus", LOGIN: "Login", LOGOUT: "Logout", REGISTER: "Daftar" };
@@ -75,7 +76,7 @@ export default function AuditTrail() {
       {(dateFrom || dateTo) && <button className="audit-reset" type="button" onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }}>Hapus filter tanggal</button>}
     </section>
     {error && <div className="audit-error">{error}</div>}
-    <section className="audit-table-wrap"><table className="audit-table"><thead><tr><th>Waktu</th><th>User</th><th>Aksi</th><th>Modul</th><th>Target</th><th>Status</th></tr></thead><tbody>
+    <section className="audit-table-wrap">{loading && !data.items.length && <LoadingState label="Memuat audit trail" note="Mengambil aktivitas dan perubahan sistem…" rows={6} />}<table className="audit-table"><thead><tr><th>Waktu</th><th>User</th><th>Aksi</th><th>Modul</th><th>Target</th><th>Status</th></tr></thead><tbody>
       {!loading && !data.items.length && <tr><td colSpan="6" className="audit-empty">Belum ada riwayat audit.</td></tr>}
       {data.items.map((log) => { const displayAction = resolvedAction(log); return <tr key={log.id} onClick={() => setSelected(log)}><td>{formatDate(log.createdAt)}</td><td><strong>{actorLabel(log)}</strong><small>{log.actorRole || "—"}</small></td><td><span className={`audit-action ${displayAction.toLowerCase()}`}>{actionLabel[displayAction] || displayAction}</span></td><td>{resourceLabel(log)}</td><td><code>{log.entityId || log.path}</code></td><td>{log.statusCode}</td></tr>; })}
     </tbody></table></section>

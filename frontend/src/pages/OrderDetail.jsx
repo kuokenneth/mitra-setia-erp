@@ -5,6 +5,7 @@ import { api, openPrintDocument, uploadFiles } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { openProtectedFile, ProtectedFilePreview, ProtectedImage } from "../components/ProtectedFile";
+import LoadingState from "../components/LoadingState";
 import {
   FiActivity,
   FiArrowLeft,
@@ -539,9 +540,7 @@ export default function OrderDetail() {
   if (loading && !order) {
     return (
       <div data-testid="order-detail-loading">
-        <Card style={{ padding: 24 }}>
-          <div style={{ color: BRAND.textMuted }}>Memuat...</div>
-        </Card>
+        <LoadingState label="Menyiapkan detail pesanan" note="Mengambil trip, bukti, dan alokasi muatan…" rows={5} />
       </div>
     );
   }

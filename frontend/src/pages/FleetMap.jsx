@@ -3,6 +3,7 @@ import { FiActivity, FiAlertTriangle, FiChevronRight, FiMapPin, FiNavigation, Fi
 import { api } from "../api";
 import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID, loadGoogleMaps } from "../googleMaps";
 import { useLiveRefresh } from "../liveUpdates";
+import LoadingState from "../components/LoadingState";
 import "./FleetMap.css";
 import "./FleetMapGoogle.css";
 import "./FleetMapRedesign.css";
@@ -165,6 +166,7 @@ export default function FleetMap() {
       <section className="fleet-map-card google-map-card">
         <div className="fleet-map-toolbar"><div><h2>Live Position</h2><p>{visible.length} armada ditampilkan · pembaruan setiap 1 menit</p></div><div className="fleet-map-filters"><button className={mapFilter === "ALL" ? "active" : ""} onClick={() => setMapFilter("ALL")}><FiTruck/> Semua</button><button className={mapFilter === "MOVING" ? "active" : ""} onClick={() => setMapFilter("MOVING")}><FiNavigation/> Bergerak</button><button className={mapFilter === "ATTENTION" ? "attention active" : "attention"} onClick={() => setMapFilter("ATTENTION")}><FiActivity/> Perhatian</button></div><label><FiSearch /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari BK, pengemudi…" /></label></div>
         <div className="fleet-map-canvas">
+          {loading && <LoadingState variant="overlay" label="Menyiapkan peta armada" note="Menyinkronkan posisi GPS terbaru…" />}
           {GOOGLE_MAPS_API_KEY ? <GoogleFleetMap trucks={visible} focusTruckId={focusTruckId} onError={setMapError} /> : <div className="google-map-setup"><FiMapPin /><h3>Google Maps belum dikonfigurasi</h3><p>Tambahkan <code>VITE_GOOGLE_MAPS_API_KEY</code> pada environment frontend, lalu aktifkan Maps JavaScript API dan billing di Google Cloud.</p></div>}
           {!loading && GOOGLE_MAPS_API_KEY && moving.length > 0 && <aside className="moving-fleet-panel"><header><span><FiNavigation /></span><div><strong>Armada Bergerak</strong><small>{moving.length} kendaraan terdeteksi jalan</small></div></header><div className="moving-fleet-list">{moving.map((truck) => <button type="button" key={truck.id} className={focusTruckId === truck.id ? "active" : ""} onClick={() => setFocusTruckId(truck.id)}><i /><span><strong>{truck.plateNumber}</strong><small>{truck.gpsLocation?.name || "Dalam perjalanan"}</small></span><b>{Number(truck.lastGpsSpeed || 0).toFixed(0)}<small>km/j</small></b><FiChevronRight /></button>)}</div></aside>}
           {mapError && <div className="fleet-map-error google-map-runtime-error">{mapError}</div>}

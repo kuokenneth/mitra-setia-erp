@@ -3,6 +3,7 @@ import { FiAlertTriangle, FiArrowRight, FiBox, FiCheck, FiClock, FiDollarSign, F
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
+import LoadingState from "../components/LoadingState";
 import "./Dashboard.css";
 import "./DashboardTypography.css";
 
@@ -121,7 +122,7 @@ export default function Dashboard() {
       <section className="d3-grid">
         <div className="d3-card d3-alerts-card">
           <div className="d3-title"><div><span>REAL-TIME MONITORING</span><h2>Warning Armada</h2></div><b className={data.warnings.length ? "attention" : "safe"}>{data.warnings.length} aktif</b></div>
-          <div className="d3-alert-list" data-testid="alerts-list">{loading ? <div className="d3-empty">Memuat data GPS…</div> : data.warnings.length ? data.warnings.map((truck) => <AlertRow key={truck.id} truck={truck} />) : <div className="d3-empty safe"><FiCheck /><strong>Semua aman</strong><p>Tidak ada kendaraan di area warning atau berhenti lama.</p></div>}</div>
+          <div className="d3-alert-list" data-testid="alerts-list">{loading ? <LoadingState compact label="Memuat monitoring GPS" note="Memeriksa warning armada terbaru…" rows={3} /> : data.warnings.length ? data.warnings.map((truck) => <AlertRow key={truck.id} truck={truck} />) : <div className="d3-empty safe"><FiCheck /><strong>Semua aman</strong><p>Tidak ada kendaraan di area warning atau berhenti lama.</p></div>}</div>
         </div>
 
         <div className="d3-card d3-gps-card">

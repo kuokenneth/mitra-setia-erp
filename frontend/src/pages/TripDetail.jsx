@@ -5,15 +5,18 @@ import { api, uploadFiles } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { openProtectedFile, ProtectedImage } from "../components/ProtectedFile";
+import LoadingState from "../components/LoadingState";
 import {
   FiActivity,
   FiArrowLeft,
   FiCheck,
   FiClock,
+  FiDollarSign,
   FiFileText,
   FiFlag,
   FiMapPin,
   FiPackage,
+  FiPlus,
   FiTruck,
   FiUploadCloud,
   FiUser,
@@ -127,6 +130,20 @@ const DELIVERY_PHASES = [
 ];
 const DELIVERY_PHASE_LABELS = Object.fromEntries(DELIVERY_PHASES.map((phase) => [phase.value, phase.label]));
 DELIVERY_PHASE_LABELS.SERVICE_AT_BASE = "Servis darurat di base";
+const EXPENSE_CATEGORIES = [
+  ["TRIP_ALLOWANCE", "Panjar / uang jalan"],
+  ["REMAINING_TRIP_ALLOWANCE", "Sisa uang jalan"],
+  ["UNLOADING_FEE", "Uang bongkar"],
+  ["FUEL_LOAN", "Pinjaman minyak"],
+  ["DRIVER_SALARY", "Gaji / borongan pengemudi"],
+  ["FUEL", "BBM"],
+  ["TOLL_PARKING", "Tol & parkir"],
+  ["LOADING_UNLOADING", "Biaya muat / bongkar"],
+  ["REPAIR_MAINTENANCE", "Perbaikan darurat"],
+  ["SPAREPART", "Suku cadang"],
+  ["OTHER", "Lainnya"],
+];
+const EXPENSE_LABELS = Object.fromEntries(EXPENSE_CATEGORIES);
 
 function InfoRow({ label, value, icon: Icon }) {
   return (
@@ -200,6 +217,10 @@ function fmtDateTime(d) {
   return dt.toLocaleString("id-ID");
 }
 
+function money(value) {
+  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value || 0));
+}
+
 export default function TripDetail() {
   const { id } = useParams();
   const nav = useNavigate();
@@ -218,6 +239,10 @@ export default function TripDetail() {
   const [uploadingArrivalProofs, setUploadingArrivalProofs] = useState(false);
   const [arrivalProofErr, setArrivalProofErr] = useState("");
   const [arrivalEntry, setArrivalEntry] = useState(null);
+  const [expenseOpen, setExpenseOpen] = useState(false);
+  const [expenseBusy, setExpenseBusy] = useState(false);
+  const [expenseErr, setExpenseErr] = useState("");
+  const [expenseForm, setExpenseForm] = useState({ category: "TRIP_ALLOWANCE", reason: "", amount: "", paymentMethod: "BANK_TRANSFER", notes: "" });
 
   async function load() {
     try {
@@ -272,6 +297,8 @@ export default function TripDetail() {
   const arrivalWeight = trip?.qtyActual == null ? null : Number(trip.qtyActual);
   const cargoDifference = plannedWeight == null || arrivalWeight == null ? null : Math.max(0, plannedWeight - arrivalWeight);
   const weightUnit = trip?.unitSnap || order?.unit || "TON";
+  const loadingProofs = (trip?.arrivalProofs || []).filter((proof) => proof.proofType === "LOADING");
+  const arrivalProofs = (trip?.arrivalProofs || []).filter((proof) => proof.proofType !== "LOADING");
 
   async function updateStatus(next, qtyActual = null) {
     try {
@@ -309,11 +336,46 @@ export default function TripDetail() {
     if (saved) setArrivalEntry(null);
   }
 
+  async function saveExpense(event) {
+    event.preventDefault();
+    setExpenseBusy(true); setExpenseErr("");
+    try {
+      await api("/expenses", {
+        method: "POST",
+        body: JSON.stringify({ ...expenseForm, tripId: id, amount: Number(expenseForm.amount), currency: "IDR" }),
+      });
+      setExpenseForm({ category: "TRIP_ALLOWANCE", reason: "", amount: "", paymentMethod: "BANK_TRANSFER", notes: "" });
+      setExpenseOpen(false);
+      await load();
+    } catch (e) {
+      setExpenseErr(e?.message || "Gagal menambahkan pengeluaran trip");
+    } finally {
+      setExpenseBusy(false);
+    }
+  }
+
+  async function uploadTripProof(event, proofType) {
+    try {
+      setArrivalProofErr("");
+      const files = Array.from(event.target.files || []);
+      if (!files.length) return;
+      setUploadingArrivalProofs(true);
+      const uploaded = await uploadFiles(files);
+      await api(`/trips/${id}/arrival-proofs`, { method: "POST", body: JSON.stringify({ proofs: uploaded, proofType }) });
+      event.target.value = "";
+      await load();
+    } catch (error) {
+      setArrivalProofErr(error?.message || "Gagal mengunggah bukti timbangan");
+    } finally {
+      setUploadingArrivalProofs(false);
+    }
+  }
+
   if (loading && !trip) {
     return (
       <div style={pageBg}>
         <div style={container}>
-          <div style={panel}>Memuat...</div>
+          <LoadingState label="Menyiapkan detail perjalanan" note="Menyinkronkan tahap GPS, muatan, dan dokumen…" rows={5} />
         </div>
       </div>
     );
@@ -481,13 +543,41 @@ export default function TripDetail() {
             </div>
           </div>
 
+          <section className="trip-expense-panel">
+            <header>
+              <div><span>BIAYA PERJALANAN</span><h2>Pengeluaran Trip</h2><p>Semua biaya di bawah ini langsung terhubung dengan trip dan armada.</p></div>
+              <div className="trip-expense-head-actions"><strong>{money((trip.expenses || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))}</strong>{canWrite && !["COMPLETED", "CANCELLED"].includes(currentStatus) && <button type="button" onClick={() => { setExpenseErr(""); setExpenseOpen(true); }}><FiPlus/> Tambah pengeluaran</button>}</div>
+            </header>
+            <div className="trip-expense-list">
+              {(trip.expenses || []).map((item) => <article key={item.id}>
+                <i><FiDollarSign/></i>
+                <div><strong>{item.reason}</strong><span>{EXPENSE_LABELS[item.category] || item.category} · {fmtDateTime(item.createdAt)}</span><small>{item.notes || `Dibuat oleh ${item.createdBy?.name || "Sistem"}`}</small></div>
+                <div className="trip-expense-value"><strong>{money(item.amount)}</strong><span className={String(item.status).toLowerCase()}>{item.status === "SUBMITTED" ? "Menunggu persetujuan" : item.status === "APPROVED" ? "Disetujui" : "Dibayar"}</span></div>
+              </article>)}
+              {!(trip.expenses || []).length && <div className="trip-expense-empty"><FiDollarSign/><strong>Belum ada pengeluaran</strong><span>Panjar, borongan, BBM, dan biaya perjalanan akan tampil di sini.</span></div>}
+            </div>
+            {["COMPLETED", "CANCELLED"].includes(currentStatus) && <footer>Trip sudah ditutup. Pengeluaran baru tidak dapat ditambahkan.</footer>}
+          </section>
+
+          <div className="trip-detail-v3-proof trip-loading-proof" style={{ marginTop: 14 }}>
+            <div className="trip-proof-heading"><span>BUKTI MUATAN</span><h2>Bukti Timbangan Muat</h2><p>Unggah foto atau PDF timbangan dari lokasi muat.</p></div>
+            {(canWrite || isDriver) && ["DISPATCHED", "ARRIVED", "COMPLETED"].includes(currentStatus) && <label className="trip-proof-upload">
+              <span><FiUploadCloud size={20}/></span><span><strong>{uploadingArrivalProofs ? "Sedang mengunggah..." : "Tambah bukti timbangan muat"}</strong><small>Foto atau PDF · maksimal 15 MB per file</small></span>
+              <input type="file" multiple accept="image/*,application/pdf" disabled={uploadingArrivalProofs} onChange={(event) => uploadTripProof(event, "LOADING")}/>
+            </label>}
+            {currentStatus === "PLANNED" && <div className="trip-proof-locked">Upload tersedia setelah kendaraan tiba di lokasi muat.</div>}
+            {!loadingProofs.length ? <div className="trip-proof-empty">Belum ada bukti timbangan muat.</div> : <div className="trip-proof-grid">{loadingProofs.map((proof) => {
+              const isPdf = String(proof.mimeType || "").toLowerCase().includes("pdf") || String(proof.url || "").toLowerCase().includes(".pdf");
+              return <article key={proof.id}>{isPdf ? <button type="button" onClick={() => openProtectedFile(proof.url).catch((error) => setErr(error.message))}><FiFileText/> Buka PDF</button> : <ProtectedImage url={proof.url} alt={proof.fileName || "Bukti timbang muat"}/>}<strong>{proof.fileName || "Bukti timbang muat"}</strong><small>{fmtDateTime(proof.createdAt)}</small></article>;
+            })}</div>}
+          </div>
+
           {/* Trip-specific proof that the goods reached destination. */}
           <div className="trip-detail-v3-proof" style={{ marginTop: 14 }}>
-            <div style={{ fontWeight: 650, marginBottom: 4, fontSize: 16 }}>Bukti Timbangan / Barang Tiba</div>
-            <div style={{ color: "#718078", fontSize: 13, marginBottom: 12 }}>Unggah surat timbang atau dokumen penerimaan dari lokasi tujuan.</div>
+            <div className="trip-proof-heading"><span>BUKTI KEDATANGAN</span><h2>Bukti Timbangan Sampai</h2><p>Unggah foto atau PDF timbangan dari lokasi tujuan.</p></div>
 
             {(canWrite || isDriver) && ["DISPATCHED", "ARRIVED", "COMPLETED"].includes(currentStatus) ? (
-              <label style={{ display: "flex", alignItems: "center", gap: 13, padding: "14px 16px", marginBottom: 14, borderRadius: 12, border: `1.5px dashed ${uploadingArrivalProofs ? "#0D7C3D" : "#A9D2BA"}`, background: "linear-gradient(135deg, #F7FBF8 0%, #EEF7F1 100%)", cursor: uploadingArrivalProofs ? "not-allowed" : "pointer" }}>
+              <label className="trip-proof-upload" style={{ cursor: uploadingArrivalProofs ? "not-allowed" : "pointer" }}>
                 <span style={{ width: 40, height: 40, borderRadius: 10, display: "grid", placeItems: "center", color: "#0D7C3D", background: "#FFFFFF", boxShadow: "0 3px 10px rgba(13,124,61,.10)" }}><FiUploadCloud size={20}/></span>
                 <span><strong style={{ display: "block", color: "#173B2D", fontSize: 14 }}>{uploadingArrivalProofs ? "Sedang mengunggah..." : "Tambah bukti timbangan"}</strong><span style={{ color: "#718078", fontSize: 12 }}>Gambar atau PDF · maksimal 15 MB per file</span></span>
                 <input type="file" multiple accept="image/*,application/pdf" disabled={uploadingArrivalProofs} style={{ position: "absolute", width: 1, height: 1, opacity: 0 }} onChange={async (e) => {
@@ -497,7 +587,7 @@ export default function TripDetail() {
                     if (!files.length) return;
                     setUploadingArrivalProofs(true);
                     const uploaded = await uploadFiles(files);
-                    await api(`/trips/${id}/arrival-proofs`, { method: "POST", body: JSON.stringify({ proofs: uploaded }) });
+                    await api(`/trips/${id}/arrival-proofs`, { method: "POST", body: JSON.stringify({ proofs: uploaded, proofType: "ARRIVAL" }) });
                     e.target.value = "";
                     await load();
                   } catch (error) {
@@ -507,14 +597,14 @@ export default function TripDetail() {
                   }
                 }}/>
               </label>
-            ) : currentStatus === "PLANNED" ? <div style={{ marginBottom: 14, padding: "12px 14px", borderRadius: 10, background: "#F4F7F5", color: "#718078", fontSize: 12 }}>Upload tersedia setelah kendaraan berangkat.</div> : null}
+            ) : currentStatus === "PLANNED" ? <div className="trip-proof-locked">Upload tersedia setelah kendaraan tiba di tujuan.</div> : null}
             {arrivalProofErr ? <div style={{ marginBottom: 12, color: "#DC2626", fontSize: 13, fontWeight: 600 }}>{arrivalProofErr}</div> : null}
 
-            {(trip.arrivalProofs || []).length === 0 ? (
-              <div style={{ color: "#7A8780", fontWeight: 400, fontSize: 13, padding: "12px 0" }}>Belum ada bukti barang tiba yang diunggah.</div>
+            {arrivalProofs.length === 0 ? (
+              <div className="trip-proof-empty">Belum ada bukti timbangan sampai.</div>
             ) : (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-                {(trip.arrivalProofs || []).map((p) => {
+                {arrivalProofs.map((p) => {
                   const isPdf =
                     String(p.mimeType || "").toLowerCase().includes("pdf") ||
                     String(p.url || "").toLowerCase().includes(".pdf");
@@ -551,6 +641,22 @@ export default function TripDetail() {
             )}
 
           </div>
+          {expenseOpen && (
+            <div className="trip-expense-overlay" onMouseDown={(event) => event.target === event.currentTarget && !expenseBusy && setExpenseOpen(false)}>
+              <form className="trip-expense-modal" onSubmit={saveExpense}>
+                <header><div><span>PENGELUARAN TRIP</span><h2>Tambah biaya perjalanan</h2><p>{truck?.plateNumber || trip.plateNumberSnap} · {order?.orderNo || "Trip operasional"}</p></div><button type="button" disabled={expenseBusy} onClick={() => setExpenseOpen(false)}><FiX/></button></header>
+                <div className="trip-expense-form">
+                  <label><span>Jenis pengeluaran</span><select value={expenseForm.category} onChange={(event) => setExpenseForm((form) => ({ ...form, category: event.target.value }))}>{EXPENSE_CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                  <label><span>Metode pembayaran</span><select value={expenseForm.paymentMethod} onChange={(event) => setExpenseForm((form) => ({ ...form, paymentMethod: event.target.value }))}><option value="BANK_TRANSFER">Transfer bank</option><option value="CASH">Tunai</option><option value="OTHER">Lainnya</option></select></label>
+                  <label className="wide"><span>Pengeluaran untuk apa</span><input required value={expenseForm.reason} onChange={(event) => setExpenseForm((form) => ({ ...form, reason: event.target.value }))} placeholder="Contoh: Panjar borongan pengiriman ke Palmaris"/></label>
+                  <label className="wide"><span>Nominal</span><div className="trip-expense-money"><b>Rp</b><input required min="1" type="number" value={expenseForm.amount} onChange={(event) => setExpenseForm((form) => ({ ...form, amount: event.target.value }))} placeholder="0"/></div></label>
+                  <label className="wide"><span>Catatan <small>opsional</small></span><textarea rows="3" value={expenseForm.notes} onChange={(event) => setExpenseForm((form) => ({ ...form, notes: event.target.value }))} placeholder="Keterangan tambahan atau penerima dana…"/></label>
+                  {expenseErr && <div className="trip-expense-error wide">{expenseErr}</div>}
+                </div>
+                <footer><button type="button" className="secondary" disabled={expenseBusy} onClick={() => setExpenseOpen(false)}>Batal</button><button disabled={expenseBusy}>{expenseBusy ? "Menyimpan…" : "Simpan pengeluaran"}</button></footer>
+              </form>
+            </div>
+          )}
           {arrivalEntry && (
             <div onMouseDown={(event) => event.target === event.currentTarget && !saving && setArrivalEntry(null)} style={{ position: "fixed", inset: 0, zIndex: 1000, display: "grid", placeItems: "center", padding: 18, background: "rgba(10,30,20,.58)" }}>
               <form onSubmit={saveArrivalWeight} style={{ width: "min(460px, 100%)", boxSizing: "border-box", padding: 24, borderRadius: 16, background: "#FFFFFF", boxShadow: "0 25px 70px rgba(0,0,0,.25)" }}>

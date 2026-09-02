@@ -4,6 +4,7 @@ import { api } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { FiSearch, FiChevronLeft, FiChevronRight } from "react-icons/fi";
+import LoadingState from "../components/LoadingState";
 
 // Corporate Green Color Palette (matching Landing Page)
 const BRAND = {
@@ -223,6 +224,7 @@ export default function Users() {
               </tr>
             </thead>
             <tbody>
+              {loading && items.length === 0 && <tr><td colSpan={6} style={{ padding: 14 }}><LoadingState compact label="Memuat pengguna" note="Menyiapkan akun, peran, dan status akses…" rows={5} /></td></tr>}
               {items.map((u) => (
                 <tr key={u.id} style={s.tr}>
                   <td style={s.td}>

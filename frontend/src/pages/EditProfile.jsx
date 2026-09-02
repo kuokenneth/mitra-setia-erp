@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
+import LoadingState from "../components/LoadingState";
 
 export default function EditProfile() {
   const { user, setUser } = useAuth();
@@ -74,7 +75,7 @@ export default function EditProfile() {
       </div>
 
       {pageLoading ? (
-        <div style={s.loadingCard}>Loading profile…</div>
+        <LoadingState label="Memuat profil" note="Menyiapkan informasi akun dan akses Anda…" rows={4} />
       ) : (
         <div style={s.grid}>
           {/* LEFT: FORM */}

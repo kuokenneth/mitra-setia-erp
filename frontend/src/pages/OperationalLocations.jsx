@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { FiActivity, FiAlertTriangle, FiEdit2, FiMapPin, FiPlus, FiRefreshCw, FiSearch, FiTrash2, FiX } from "react-icons/fi";
 import { api } from "../api";
 import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID, loadGoogleMaps } from "../googleMaps";
+import LoadingState from "../components/LoadingState";
 import "./OperationalLocations.css";
 import "./OperationalLocationsGoogle.css";
 
@@ -262,6 +263,7 @@ export default function OperationalLocations() {
           <div className="location-card-title"><div><span>DIRECTORY</span><h2>Lokasi Tersimpan</h2><p>{filteredItems.length} dari {items.length} lokasi ditampilkan.</p></div></div>
           <label className="location-list-search"><FiSearch /><input value={listQuery} onChange={(event) => setListQuery(event.target.value)} placeholder="Cari nama, alamat, atau jenis…" />{listQuery && <button type="button" onClick={() => setListQuery("")}><FiX /></button>}</label>
           <div className="location-list">
+            {loading && !items.length && <LoadingState compact label="Memuat master lokasi" note="Mengambil titik dan radius GPS…" rows={4} />}
             {filteredItems.map((item) => <article key={item.id} className={`${!item.isActive ? "inactive" : ""} ${item.type === "WARNING" ? "warning" : ""}`}>
               <div className="location-pin"><FiMapPin /></div><div className="location-info"><div><strong>{item.name}</strong><span>{TYPE_LABELS[item.type] || item.type}</span></div><p>{item.address || `${item.latitude.toFixed(6)}, ${item.longitude.toFixed(6)}`}</p><small><i className={item.isActive ? "active" : ""} /> Radius {item.radiusM} m · {item.isActive ? "Aktif" : "Nonaktif"}</small></div>
               <div className="location-actions"><button title="Ubah" onClick={() => edit(item)}><FiEdit2 /></button><button className="danger" title="Hapus" onClick={() => remove(item)}><FiTrash2 /></button></div>

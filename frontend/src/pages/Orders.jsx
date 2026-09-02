@@ -6,6 +6,7 @@ import { useLiveRefresh } from "../liveUpdates";
 import { useNavigate } from "react-router-dom";
 import { FiArrowRight, FiCalendar, FiChevronRight, FiFileText, FiMapPin, FiPackage, FiPlus, FiRefreshCw, FiSearch, FiTrash2, FiUploadCloud, FiX } from "react-icons/fi";
 import { openProtectedFile, ProtectedImage } from "../components/ProtectedFile";
+import LoadingState, { LoadingMini } from "../components/LoadingState";
 import "./OrdersRedesign.css";
 import "./OrdersModalRedesign.css";
 import "./OrdersProgress.css";
@@ -453,7 +454,7 @@ export default function Orders() {
       {err && <div className="orders-v3-error">{err}</div>}
 
       <section className="orders-v3-tools">
-        <label className="orders-v3-search"><FiSearch /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nomor pesanan, tujuan, atau muatan…" data-testid="search-input" />{loading && <span>Memuat…</span>}</label>
+        <label className="orders-v3-search"><FiSearch /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nomor pesanan, tujuan, atau muatan…" data-testid="search-input" />{loading && <LoadingMini />}</label>
         <Select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="status-filter"><option value="">Semua status</option>{statusOptions.filter(Boolean).map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</Select>
         <Input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Nama customer" />
         <span className={`date-placeholder-wrap ${dateFrom ? "has-value" : ""}`} data-placeholder="Dari tanggal"><Input className="tablet-date-input" aria-label="Tanggal mulai" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></span>
@@ -464,6 +465,7 @@ export default function Orders() {
       <section className="orders-v3-board">
         <header><div><span>DAFTAR OPERASIONAL</span><h2>Pesanan Aktif & Riwayat</h2></div><b>{items.length} pesanan</b></header>
         <div className="orders-v3-list">
+          {loading && !items.length && <LoadingState label="Memuat pesanan" note="Menyiapkan alokasi, rute, dan progres terbaru…" rows={4} />}
           {!items.length && !loading && <div className="orders-v3-empty"><FiFileText /><strong>Tidak ada pesanan ditemukan</strong><p>Coba ubah kata pencarian atau filter yang digunakan.</p></div>}
           {items.map((order) => {
             const customerName = order.customer?.name || order.customerName || "Tanpa customer";

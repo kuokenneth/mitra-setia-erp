@@ -201,6 +201,11 @@ function normalizeTrip(t) {
 
   return {
     ...t,
+    truck: t.truck ? {
+      ...t.truck,
+      latitude: t.truck.lastGpsLatitude,
+      longitude: t.truck.lastGpsLongitude,
+    } : null,
     driver, // ✅ alias
     driverName, // ✅ convenience
     truckPlate, // ✅ convenience
@@ -381,6 +386,131 @@ router.post("/empty-return", authRequired, async (req, res) => {
 });
 
 /**
+ * GET /trips/control-center
+ * Unpaginated active trips for the dispatcher stage board.
+ */
+router.get("/control-center", authRequired, async (req, res) => {
+  try {
+    if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
+    const trips = await prisma.trip.findMany({
+      where: { status: { in: ACTIVE_TRIP_STATUSES } },
+      orderBy: [{ plannedDepartAt: "asc" }, { createdAt: "asc" }],
+      include: {
+        truck: true,
+        driverUser: true,
+        order: { select: { id: true, orderNo: true, customerName: true, fromText: true, toText: true, status: true } },
+        serviceStops: { where: { endedAt: null }, include: { location: true }, take: 1 },
+        operationalActions: {
+          orderBy: { createdAt: "desc" },
+          take: 5,
+          include: {
+            assignedTo: { select: { id: true, name: true } },
+            createdBy: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+    res.json({ items: trips.map(normalizeTrip), generatedAt: new Date() });
+  } catch (e) {
+    console.error(e);
+    res.status(400).json({ error: e.message || "Gagal memuat pusat kontrol trip" });
+  }
+});
+
+router.get("/control-center/pics", authRequired, async (req, res) => {
+  if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
+  const items = await prisma.user.findMany({
+    where: { isActive: true, role: { in: ["OWNER", "ADMIN", "STAFF"] } },
+    orderBy: [{ name: "asc" }, { email: "asc" }],
+    select: { id: true, name: true, email: true, role: true },
+  });
+  res.json({ items });
+});
+
+router.get("/:id/actions", authRequired, async (req, res) => {
+  try {
+    if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
+    const items = await prisma.tripOperationalAction.findMany({
+      where: { tripId: req.params.id },
+      orderBy: { createdAt: "desc" },
+      include: {
+        assignedTo: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true } },
+      },
+    });
+    res.json({ items });
+  } catch (e) {
+    console.error(e);
+    res.status(400).json({ error: e.message || "Gagal memuat tindak lanjut" });
+  }
+});
+
+router.post("/:id/actions", authRequired, async (req, res) => {
+  try {
+    if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
+    const actionType = str(req.body.actionType);
+    const warningCode = str(req.body.warningCode) || "OPERATIONAL_WARNING";
+    const note = str(req.body.note);
+    const assignedToId = str(req.body.assignedToId);
+    const expenseCategory = str(req.body.expenseCategory) || "TRIP_ALLOWANCE";
+    const amount = req.body.amount == null || req.body.amount === "" ? null : Math.round(Number(req.body.amount));
+    const allowedActions = ["HANDLE", "SEND_FUNDS", "REPORT_ISSUE", "CONTACT_DRIVER", "RESOLVE"];
+    const allowedExpenseCategories = ["TRIP_ALLOWANCE", "REMAINING_TRIP_ALLOWANCE", "UNLOADING_FEE", "FUEL_LOAN", "DRIVER_SALARY", "FUEL", "TOLL_PARKING", "LOADING_UNLOADING", "REPAIR_MAINTENANCE", "SPAREPART", "OTHER"];
+    if (!allowedActions.includes(actionType)) return res.status(400).json({ error: "Tindakan tidak valid" });
+    if (!note) return res.status(400).json({ error: "Catatan tindakan wajib diisi" });
+    if (actionType === "SEND_FUNDS" && (!Number.isFinite(amount) || amount <= 0)) return res.status(400).json({ error: "Nominal dana wajib lebih besar dari 0" });
+    if (actionType === "SEND_FUNDS" && !allowedExpenseCategories.includes(expenseCategory)) return res.status(400).json({ error: "Jenis pengeluaran tidak valid" });
+
+    const trip = await prisma.trip.findUnique({ where: { id: req.params.id }, select: { id: true, status: true } });
+    if (!trip) return res.status(404).json({ error: "Trip tidak ditemukan" });
+    if (assignedToId) {
+      const assignee = await prisma.user.findFirst({ where: { id: assignedToId, isActive: true }, select: { id: true } });
+      if (!assignee) return res.status(400).json({ error: "PIC tidak valid" });
+    }
+
+    const created = await prisma.$transaction(async (tx) => {
+      const action = await tx.tripOperationalAction.create({
+        data: {
+          tripId: trip.id,
+          warningCode,
+          actionType,
+          note,
+          amount: actionType === "SEND_FUNDS" ? amount : null,
+          status: actionType === "RESOLVE" ? "RESOLVED" : "OPEN",
+          assignedToId,
+          createdById: req.user?.id,
+          resolvedAt: actionType === "RESOLVE" ? new Date() : null,
+        },
+        include: {
+          assignedTo: { select: { id: true, name: true } },
+          createdBy: { select: { id: true, name: true } },
+        },
+      });
+      if (actionType === "SEND_FUNDS") {
+        await tx.expense.create({
+          data: {
+            status: "SUBMITTED",
+            paymentMethod: "BANK_TRANSFER",
+            amount,
+            currency: "IDR",
+            category: expenseCategory,
+            reason: `Dana operasional trip: ${note}`,
+            notes: `Dibuat dari Pusat Tindakan Warning (${warningCode})`,
+            tripId: trip.id,
+            createdById: req.user?.id,
+          },
+        });
+      }
+      return action;
+    });
+    res.status(201).json(created);
+  } catch (e) {
+    console.error(e);
+    res.status(400).json({ error: e.message || "Gagal menyimpan tindakan" });
+  }
+});
+
+/**
  * GET /trips/:id
  */
 router.get("/:id", authRequired, async (req, res) => {
@@ -399,6 +529,10 @@ router.get("/:id", authRequired, async (req, res) => {
         },
         arrivalProofs: { orderBy: { createdAt: "desc" } },
         serviceStops: { include: { location: true }, orderBy: { startedAt: "desc" } },
+        expenses: {
+          orderBy: { createdAt: "desc" },
+          include: { createdBy: { select: { id: true, name: true } } },
+        },
         dispatchLetter: true,
       },
     });
@@ -422,10 +556,12 @@ router.post("/:id/arrival-proofs", authRequired, async (req, res) => {
     if (!trip) return res.status(404).json({ error: "Trip not found" });
     if (!canWrite(req.user) && !(isDriver(req.user) && trip.driverUserId === req.user.id)) return res.status(403).json({ error: "Forbidden" });
     if (!["DISPATCHED", "ARRIVED", "COMPLETED"].includes(trip.status)) return res.status(400).json({ error: "Bukti timbangan dapat diunggah setelah kendaraan berangkat" });
+    const proofType = str(req.body?.proofType) || "ARRIVAL";
+    if (!["LOADING", "ARRIVAL"].includes(proofType)) return res.status(400).json({ error: "Jenis bukti timbangan tidak valid" });
     const proofs = Array.isArray(req.body?.proofs) ? req.body.proofs : [];
     const valid = proofs.filter((proof) => str(proof?.url)).slice(0, 10);
     if (!valid.length) return res.status(400).json({ error: "Pilih minimal satu bukti timbangan" });
-    await prisma.tripArrivalProof.createMany({ data: valid.map((proof) => ({ tripId: trip.id, url: str(proof.url), fileName: str(proof.fileName), mimeType: str(proof.mimeType), size: Number.isFinite(Number(proof.size)) ? Number(proof.size) : null })) });
+    await prisma.tripArrivalProof.createMany({ data: valid.map((proof) => ({ tripId: trip.id, proofType, url: str(proof.url), fileName: str(proof.fileName), mimeType: str(proof.mimeType), size: Number.isFinite(Number(proof.size)) ? Number(proof.size) : null })) });
     const arrivalProofs = await prisma.tripArrivalProof.findMany({ where: { tripId: trip.id }, orderBy: { createdAt: "desc" } });
     res.status(201).json({ arrivalProofs });
   } catch (e) {

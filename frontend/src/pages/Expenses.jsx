@@ -4,6 +4,7 @@ import { api, getAccessToken } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { ProtectedFilePreview } from "../components/ProtectedFile";
+import LoadingState from "../components/LoadingState";
 import "./Expenses.css";
 
 // Corporate Green Color Palette (matching Landing/Dashboard)
@@ -28,6 +29,9 @@ const BRAND = {
 
 const EXPENSE_CATEGORIES = {
   TRIP_ALLOWANCE: "Uang Jalan",
+  REMAINING_TRIP_ALLOWANCE: "Sisa Uang Jalan",
+  UNLOADING_FEE: "Uang Bongkar",
+  FUEL_LOAN: "Pinjaman Minyak",
   DRIVER_SALARY: "Gaji Sopir",
   FUEL: "BBM",
   TOLL_PARKING: "Tol & Parkir",
@@ -468,6 +472,7 @@ export default function Expenses() {
               </tr>
             </thead>
             <tbody>
+              {loading && items.length === 0 && <tr><td colSpan={10} style={{ padding: 14 }}><LoadingState compact label="Memuat pengeluaran" note="Mengambil transaksi dan status pembayaran…" rows={5} /></td></tr>}
               {items.map((x) => (
                 <tr key={x.id} style={s.rowClickable} onClick={() => openDetail(x)}>
                   <td style={s.td}>{x.createdAt ? new Date(x.createdAt).toLocaleDateString() : "-"}</td>

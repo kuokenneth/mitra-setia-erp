@@ -1,0 +1,1 @@
+ALTER TABLE "TripArrivalProof" ADD COLUMN "proofType" TEXT NOT NULL DEFAULT 'ARRIVAL';
