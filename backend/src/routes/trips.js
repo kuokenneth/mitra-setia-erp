@@ -54,6 +54,15 @@ function sameLocation(a, b) {
   return Boolean(normalize(a) && normalize(a) === normalize(b));
 }
 
+function distanceMeters(lat1, lng1, lat2, lng2) {
+  const radians = (value) => value * Math.PI / 180;
+  const dLat = radians(lat2 - lat1);
+  const dLng = radians(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(radians(lat1)) * Math.cos(radians(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 async function updateTruckOperationalState(tx, trip, nextStatus, timestamp) {
   if (!trip?.truckId) return;
 
@@ -152,10 +161,13 @@ async function recomputeOrderStatus(tx, orderId) {
 
   if (order.status === "CANCELLED") return;
 
-  const trips = await tx.trip.findMany({
+  const allocations = await tx.tripOrderAllocation.findMany({
     where: { orderId },
-    select: { status: true, qtyPlanned: true, qtyActual: true },
+    select: { qtyPlanned: true, qtyActual: true, trip: { select: { status: true } } },
   });
+  const trips = allocations.length
+    ? allocations.map((item) => ({ status: item.trip.status, qtyPlanned: item.qtyPlanned, qtyActual: item.qtyActual }))
+    : await tx.trip.findMany({ where: { orderId }, select: { status: true, qtyPlanned: true, qtyActual: true } });
 
   if (!trips.length) return;
 
@@ -326,6 +338,74 @@ router.get("/my", authRequired, async (req, res) => {
 });
 
 /**
+ * POST /trips/single
+ * Create an ad-hoc cargo trip without an Order. Weight is intentionally left
+ * empty and will be recorded later by the billing workflow.
+ */
+router.post("/single", authRequired, async (req, res) => {
+  try {
+    if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
+    const { truckId, driverUserId, pickupLocationId, destinationLocationId, plannedDepartAt, cargoName, reason } = req.body || {};
+    if (!truckId) return res.status(400).json({ error: "Truk wajib dipilih" });
+    if (!pickupLocationId || !destinationLocationId) return res.status(400).json({ error: "Lokasi muat dan tujuan wajib dipilih" });
+    if (pickupLocationId === destinationLocationId) return res.status(400).json({ error: "Lokasi muat dan tujuan harus berbeda" });
+
+    const created = await prisma.$transaction(async (tx) => {
+      const [truck, pickup, destination] = await Promise.all([
+        tx.truck.findUnique({ where: { id: truckId }, include: { driverUser: true } }),
+        tx.operationalLocation.findFirst({ where: { id: pickupLocationId, isActive: true } }),
+        tx.operationalLocation.findFirst({ where: { id: destinationLocationId, isActive: true } }),
+      ]);
+      if (!truck) throw new Error("Truk tidak ditemukan");
+      if (["MAINTENANCE", "INACTIVE"].includes(truck.status)) throw new Error("Truk sedang tidak tersedia untuk perjalanan");
+      if (!pickup || !destination) throw new Error("Master lokasi muat atau tujuan tidak ditemukan");
+
+      const selectedDriverId = driverUserId || truck.driverUserId;
+      if (!selectedDriverId) throw new Error("Pengemudi wajib dipilih");
+      const driver = await tx.user.findUnique({ where: { id: selectedDriverId } });
+      if (!driver || driver.role !== "DRIVER" || driver.status !== "ACTIVE") throw new Error("Pengemudi tidak aktif atau tidak valid");
+      const busy = await tx.trip.findFirst({
+        where: { OR: [{ truckId }, { driverUserId: selectedDriverId }], status: { in: ACTIVE_TRIP_STATUSES } },
+        select: { id: true },
+      });
+      if (busy) throw new Error("Truk atau pengemudi masih memiliki perjalanan aktif");
+
+      return tx.trip.create({
+        data: {
+          orderId: null,
+          truckId,
+          driverUserId: selectedDriverId,
+          status: "PLANNED",
+          phase: "PLANNED",
+          purpose: "SINGLE_TRIP",
+          operationalReason: str(reason) || str(cargoName) || "Trip tunggal tanpa pesanan",
+          plannedDepartAt: toDate(plannedDepartAt),
+          plateNumberSnap: truck.plateNumber,
+          driverNameSnap: driver.name,
+          fromText: pickup.name,
+          toText: destination.name,
+          pickupLat: pickup.latitude,
+          pickupLng: pickup.longitude,
+          pickupRadiusM: pickup.radiusM,
+          destinationLat: destination.latitude,
+          destinationLng: destination.longitude,
+          arrivalRadiusM: destination.radiusM,
+          qtyPlanned: null,
+          qtyActual: null,
+          unitSnap: null,
+        },
+      });
+    });
+
+    const full = await prisma.trip.findUnique({ where: { id: created.id }, include: { truck: true, driverUser: true, order: true } });
+    res.status(201).json(normalizeTrip(full));
+  } catch (e) {
+    console.error(e);
+    res.status(400).json({ error: e.message || "Gagal membuat trip tunggal" });
+  }
+});
+
+/**
  * POST /trips/empty-return
  * Create a non-revenue trip for a truck returning to its base without cargo.
  * The planned trip can be selected by Expenses before departure.
@@ -333,16 +413,21 @@ router.get("/my", authRequired, async (req, res) => {
 router.post("/empty-return", authRequired, async (req, res) => {
   try {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
-    const { truckId, driverUserId, plannedDepartAt, reason } = req.body || {};
+    const { truckId, driverUserId, destinationLocationId, plannedDepartAt, reason } = req.body || {};
     if (!truckId) return res.status(400).json({ error: "Truk wajib dipilih" });
 
     const created = await prisma.$transaction(async (tx) => {
       const truck = await tx.truck.findUnique({ where: { id: truckId }, include: { driverUser: true } });
       if (!truck) throw new Error("Truk tidak ditemukan");
-      if (truck.status !== "WAITING_BACKHAUL") throw new Error("Hanya truk yang menunggu backhaul yang dapat dibuatkan perjalanan kembali kosong");
-      if (!truck.currentLocation) throw new Error("Lokasi truk saat ini belum diisi");
-      if (!truck.baseLocation) throw new Error("Base / pool utama truk belum diisi");
-      if (sameLocation(truck.currentLocation, truck.baseLocation)) throw new Error("Truk sudah berada di base / pool utama");
+      if (["MAINTENANCE", "INACTIVE"].includes(truck.status)) throw new Error("Truk sedang tidak tersedia untuk perjalanan");
+      if (!Number.isFinite(truck.lastGpsLatitude) || !Number.isFinite(truck.lastGpsLongitude)) throw new Error("Posisi GPS truk belum tersedia");
+      const activeBases = await tx.operationalLocation.findMany({ where: { type: "BASE", isActive: true }, orderBy: { name: "asc" } });
+      const destination = destinationLocationId
+        ? activeBases.find(location => location.id === destinationLocationId)
+        : activeBases.find(location => sameLocation(location.name, truck.baseLocation)) || activeBases[0];
+      if (!destination) throw new Error("Master lokasi base tujuan tidak ditemukan atau tidak aktif");
+      const distanceToBase = distanceMeters(truck.lastGpsLatitude, truck.lastGpsLongitude, destination.latitude, destination.longitude);
+      if (distanceToBase <= destination.radiusM) throw new Error("Truk sudah berada di dalam radius base tujuan");
 
       const selectedDriverId = driverUserId || truck.driverUserId;
       if (!selectedDriverId) throw new Error("Pengemudi wajib dipilih");
@@ -366,8 +451,11 @@ router.post("/empty-return", authRequired, async (req, res) => {
           plannedDepartAt: toDate(plannedDepartAt),
           plateNumberSnap: truck.plateNumber,
           driverNameSnap: driver.name,
-          fromText: truck.currentLocation,
-          toText: truck.baseLocation,
+          fromText: truck.currentLocation || "Posisi GPS armada",
+          toText: destination.name,
+          destinationLat: destination.latitude,
+          destinationLng: destination.longitude,
+          arrivalRadiusM: destination.radiusM,
         },
       });
       await tx.truck.update({
@@ -510,6 +598,76 @@ router.post("/:id/actions", authRequired, async (req, res) => {
   }
 });
 
+router.get("/:id/allocation-candidates", authRequired, async (req, res) => {
+  try {
+    const trip = await prisma.trip.findUnique({
+      where: { id: req.params.id },
+      include: { order: true, orderAllocations: { select: { orderId: true } } },
+    });
+    if (!trip) return res.status(404).json({ error: "Trip not found" });
+    const excludedIds = [...new Set([trip.orderId, ...trip.orderAllocations.map((item) => item.orderId)].filter(Boolean))];
+    const items = await prisma.order.findMany({
+      where: {
+        id: { notIn: excludedIds },
+        status: { in: ["DRAFT", "CONFIRMED", "IN_PROGRESS"] },
+        pickupLocationId: trip.order?.pickupLocationId || undefined,
+        destinationLocationId: trip.order?.destinationLocationId || undefined,
+      },
+      include: { customer: true },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json({ items });
+  } catch (e) {
+    res.status(400).json({ error: e.message || "Gagal memuat kandidat muatan" });
+  }
+});
+
+router.post("/:id/allocations", authRequired, async (req, res) => {
+  try {
+    if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
+    const orderId = str(req.body?.orderId);
+    const qtyPlanned = Number(req.body?.qtyPlanned);
+    const unitSnap = str(req.body?.unit) || "TON";
+    if (!orderId) throw new Error("Order tambahan wajib dipilih");
+    if (!Number.isFinite(qtyPlanned) || qtyPlanned <= 0) throw new Error("Jumlah muatan tambahan harus lebih dari nol");
+
+    const allocation = await prisma.$transaction(async (tx) => {
+      const trip = await tx.trip.findUnique({
+        where: { id: req.params.id },
+        include: { truck: true, order: true, orderAllocations: true },
+      });
+      if (!trip) throw new Error("Trip tidak ditemukan");
+      if (!["PLANNED", "DISPATCHED"].includes(trip.status) || ["TO_DESTINATION", "AT_DESTINATION", "COMPLETED"].includes(trip.phase)) {
+        throw new Error("Muatan tambahan hanya dapat dimasukkan sebelum kendaraan selesai memuat");
+      }
+      const order = await tx.order.findUnique({ where: { id: orderId } });
+      if (!order || order.status === "CANCELLED" || order.status === "COMPLETED") throw new Error("Order tambahan tidak tersedia");
+      if (trip.order && (order.pickupLocationId !== trip.order.pickupLocationId || order.destinationLocationId !== trip.order.destinationLocationId)) {
+        throw new Error("Order tambahan harus memiliki lokasi muat dan tujuan yang sama dengan trip");
+      }
+      const allocatedTons = trip.orderAllocations.reduce((sum, item) => {
+        const unit = String(item.unitSnap || "").toUpperCase();
+        return sum + (unit === "TON" ? Number(item.qtyPlanned || 0) : unit === "KG" ? Number(item.qtyPlanned || 0) / 1000 : 0);
+      }, 0);
+      const requestedTons = unitSnap.toUpperCase() === "TON" ? qtyPlanned : unitSnap.toUpperCase() === "KG" ? qtyPlanned / 1000 : 0;
+      if (allocatedTons + requestedTons > Number(trip.truck.capacityTons || 30) + 1e-9) {
+        throw new Error(`Total muatan melebihi kapasitas ${trip.truck.capacityTons || 30} ton`);
+      }
+      const created = await tx.tripOrderAllocation.create({
+        data: { tripId: trip.id, orderId: order.id, qtyPlanned, unitSnap, isPrimary: false },
+        include: { order: { include: { customer: true } } },
+      });
+      if (!["IN_PROGRESS", "COMPLETED"].includes(order.status)) {
+        await tx.order.update({ where: { id: order.id }, data: { status: "IN_PROGRESS" } });
+      }
+      return created;
+    });
+    res.status(201).json(allocation);
+  } catch (e) {
+    res.status(e.code === "P2002" ? 409 : 400).json({ error: e.code === "P2002" ? "Order sudah dialokasikan ke trip ini" : e.message || "Gagal menambah muatan" });
+  }
+});
+
 /**
  * GET /trips/:id
  */
@@ -526,6 +684,10 @@ router.get("/:id", authRequired, async (req, res) => {
           include: {
             customer: true,
           },
+        },
+        orderAllocations: {
+          orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+          include: { order: { include: { customer: true, materialInvoices: { where: { tripId: id }, include: { lines: true } } } } },
         },
         arrivalProofs: { orderBy: { createdAt: "desc" } },
         serviceStops: { include: { location: true }, orderBy: { startedAt: "desc" } },
@@ -620,6 +782,7 @@ router.patch("/:id/status", authRequired, async (req, res) => {
         where: { id },
         include: {
           order: { select: { id: true } },
+          orderAllocations: true,
           truck: { select: { id: true, plateNumber: true, currentLocation: true } },
           driverUser: { select: { id: true, name: true } },
         },
@@ -717,7 +880,19 @@ router.patch("/:id/status", authRequired, async (req, res) => {
       // Keep the physical location and backhaul availability in sync with the trip.
       await updateTruckOperationalState(tx, trip, nextStatus, ts);
 
-      await recomputeOrderStatus(tx, trip.orderId);
+      if (["ARRIVED", "COMPLETED"].includes(nextStatus)) {
+        await tx.tripOrderAllocation.updateMany({
+          where: { tripId: trip.id, isPrimary: true },
+          data: { qtyActual: resolvedQtyActual },
+        });
+        if (nextStatus === "COMPLETED") {
+          for (const allocation of trip.orderAllocations.filter((item) => !item.isPrimary && item.qtyActual == null)) {
+            await tx.tripOrderAllocation.update({ where: { id: allocation.id }, data: { qtyActual: allocation.qtyPlanned } });
+          }
+        }
+      }
+      const affectedOrderIds = [...new Set([trip.orderId, ...trip.orderAllocations.map((item) => item.orderId)].filter(Boolean))];
+      for (const affectedOrderId of affectedOrderIds) await recomputeOrderStatus(tx, affectedOrderId);
 
       return saved;
     });

@@ -179,16 +179,22 @@ router.post("/trips/:tripId", authRequired, async (req, res) => {
     const result = await prisma.$transaction(async (tx) => {
       const trip = await tx.trip.findUnique({
         where: { id: tripId },
-        include: { truck: true, driverUser: true, order: true, dispatchLetter: true },
+        include: { truck: true, driverUser: true, order: true, dispatchLetter: true, orderAllocations: { include: { order: { include: { customer: true } } }, orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] } },
       });
       if (!trip) throw new Error("Trip not found");
 
       const order = trip.order;
 
-      const recipientName = order.customerName || "";
-      const cargoName = order.cargoName || "";
-      const qtyText =
-        order.qty != null ? `${Number(order.qty)} ${order.unit || ""}`.trim() : "";
+      const allocations = trip.orderAllocations || [];
+      const recipientName = allocations.length
+        ? [...new Set(allocations.map((item) => item.order.customer?.name || item.order.customerName).filter(Boolean))].join(" / ")
+        : order.customerName || "";
+      const cargoName = allocations.length
+        ? allocations.map((item) => `${item.order.cargoName || "Muatan"} (${item.order.orderNo})`).join("; ")
+        : order.cargoName || "";
+      const qtyText = allocations.length
+        ? allocations.map((item) => `${Number(item.qtyPlanned || 0)} ${item.unitSnap || ""}`.trim()).join("; ")
+        : (trip.qtyPlanned != null ? `${Number(trip.qtyPlanned)} ${trip.unitSnap || order.unit || ""}`.trim() : "");
 
       const driverName = trip.driverNameSnap || trip.driverUser?.name || "";
       const plateNumber = trip.plateNumberSnap || trip.truck?.plateNumber || "";

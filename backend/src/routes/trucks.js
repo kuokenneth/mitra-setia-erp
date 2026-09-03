@@ -19,6 +19,11 @@ function distanceMeters(lat1, lng1, lat2, lng2) {
   return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function positiveNumber(value, fallback, minimum = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(minimum, parsed) : fallback;
+}
+
 /**
  * GET /trucks
  * List trucks + assigned driver (if any)
@@ -78,8 +83,12 @@ router.get(
       const activeTripTruckIds = new Set(activeTripRows.map((trip) => trip.truckId));
       const plannedTripTruckIds = new Set(activeTripRows.filter((trip) => trip.status === "PLANNED").map((trip) => trip.truckId));
       const serviceTripByTruckId = new Map(activeTripRows.filter((trip) => trip.phase === "SERVICE_AT_BASE").map((trip) => [trip.truckId, trip]));
-      const stopWarningMinutes = Math.max(1, Number(process.env.GPS_STOP_WARNING_MINUTES || 30));
-      const movingSpeedKph = Math.max(1, Number(process.env.GPS_MOVING_SPEED_KPH || 5));
+      const dispatchedTripTruckIds = new Set(activeTripRows
+        .filter((trip) => trip.status === "DISPATCHED" && trip.phase !== "SERVICE_AT_BASE")
+        .map((trip) => trip.truckId));
+      const stopWarningMinutes = positiveNumber(process.env.GPS_STOP_WARNING_MINUTES, 30, 1);
+      const stopRadiusM = positiveNumber(process.env.GPS_STOP_AREA_RADIUS_METERS, 100, 25);
+      const telemetryMaxAgeMinutes = positiveNumber(process.env.GPS_WARNING_TELEMETRY_MAX_MINUTES, 15, 1);
 
       res.json({ items: items.map(({ trips, ...truck }) => {
         let nearest = null;
@@ -96,12 +105,36 @@ router.get(
         const stoppedMinutes = truck.gpsStoppedSince
           ? Math.max(0, Math.floor((now.getTime() - truck.gpsStoppedSince.getTime()) / 60000))
           : 0;
+        const gpsAgeMinutes = truck.lastGpsAt
+          ? Math.max(0, Math.floor((now.getTime() - truck.lastGpsAt.getTime()) / 60000))
+          : null;
         const hasGpsPosition = Number.isFinite(truck.lastGpsLatitude) && Number.isFinite(truck.lastGpsLongitude);
+        const hasConfirmedStop = Boolean(truck.gpsStoppedSince && truck.lastGpsAt
+          && truck.lastGpsAt.getTime() > truck.gpsStoppedSince.getTime());
+        const isWithinStopRadius = hasGpsPosition
+          && Number.isFinite(truck.gpsStopAnchorLatitude)
+          && Number.isFinite(truck.gpsStopAnchorLongitude)
+          && distanceMeters(
+            truck.lastGpsLatitude,
+            truck.lastGpsLongitude,
+            truck.gpsStopAnchorLatitude,
+            truck.gpsStopAnchorLongitude,
+          ) <= stopRadiusM;
+        const hasFreshGps = gpsAgeMinutes !== null && gpsAgeMinutes <= telemetryMaxAgeMinutes;
         const specialStatus = ["MAINTENANCE", "INACTIVE"].includes(truck.status);
         const hasActiveTrip = activeTripTruckIds.has(truck.id);
         const hasPlannedTrip = plannedTripTruckIds.has(truck.id);
-        const isMoving = truck.lastGpsSpeed !== null && truck.lastGpsSpeed > movingSpeedKph;
         const isSafeLocation = nearest && nearest.location.type !== "WARNING";
+        const isInWarningArea = nearest?.location.type === "WARNING";
+        // A long stop is actionable only while a delivery is actually in transit.
+        // Sparse GOlacak pushes are allowed: stop continuity is validated when
+        // events arrive using the stop anchor, distance, and reported speed.
+        const hasOperationalStopWarning = dispatchedTripTruckIds.has(truck.id)
+          && !specialStatus
+          && hasConfirmedStop
+          && isWithinStopRadius
+          && !isSafeLocation
+          && stoppedMinutes >= stopWarningMinutes;
         const serviceTrip = serviceTripByTruckId.get(truck.id);
         const serviceStop = serviceTrip?.serviceStops?.[0] || null;
         const effectiveStatus = specialStatus
@@ -109,7 +142,7 @@ router.get(
           : hasActiveTrip
             ? (hasPlannedTrip ? "PLANNED" : "DISPATCH")
             : hasGpsPosition
-              ? (!isMoving && isSafeLocation ? "READY" : "DISPATCH")
+              ? "READY"
               : truck.status;
         const returnWarning = serviceTrip ? {
           since: serviceStop?.startedAt || null,
@@ -128,10 +161,21 @@ router.get(
             type: nearest.location.type,
             distanceM: Math.round(nearest.distanceM),
           } : null,
-          gpsStopWarning: stoppedMinutes >= stopWarningMinutes ? {
+          gpsTelemetry: {
+            ageMinutes: gpsAgeMinutes,
+            fresh: hasFreshGps,
+          },
+          gpsAreaWarning: isInWarningArea ? {
+            location: nearest.location.name,
+            since: truck.lastGpsAt,
+            telemetryStale: !hasFreshGps,
+          } : null,
+          gpsStopWarning: hasOperationalStopWarning ? {
             since: truck.gpsStoppedSince,
             durationMinutes: stoppedMinutes,
-            severity: nearest?.location.type === "WARNING" ? "CRITICAL" : "WARNING",
+            severity: isInWarningArea ? "CRITICAL" : "WARNING",
+            reason: isInWarningArea ? "STOPPED_IN_WARNING_AREA" : "STOPPED_DURING_DISPATCH",
+            telemetryStale: !hasFreshGps,
           } : null,
           tripReturnWarning: returnWarning,
           // Compatibility for frontend versions that may still be cached during deploy.

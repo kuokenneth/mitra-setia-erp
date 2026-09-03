@@ -14,16 +14,20 @@ import {
   FiClock,
   FiExternalLink,
   FiFile,
+  FiAlertTriangle,
   FiMapPin,
   FiPackage,
   FiPlus,
   FiPrinter,
+  FiSearch,
+  FiTruck,
   FiUploadCloud,
   FiUser,
   FiX,
 } from "react-icons/fi";
 import "./OrderDetailRedesign.css";
 import "./OrderDetailHeader.css";
+import "./OrderTripModal.css";
 
 //////////////////////
 // THEME - CORPORATE MINIMALIST
@@ -253,7 +257,7 @@ function Select({ children, style = {}, ...props }) {
 function Modal({ open, title, subtitle, onClose, children, width = 1100 }) {
   if (!open) return null;
   return (
-    <div
+    <div className="order-trip-overlay"
       style={{
         position: "fixed",
         inset: 0,
@@ -266,7 +270,7 @@ function Modal({ open, title, subtitle, onClose, children, width = 1100 }) {
       }}
       onMouseDown={onClose}
     >
-      <div
+      <div className="order-trip-modal"
         style={{
           width: "100%",
           maxWidth: width,
@@ -280,7 +284,7 @@ function Modal({ open, title, subtitle, onClose, children, width = 1100 }) {
         }}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div
+        <div className="order-trip-modal-head"
           style={{
             padding: "16px 20px",
             borderBottom: `1px solid ${BRAND.border}`,
@@ -290,14 +294,13 @@ function Modal({ open, title, subtitle, onClose, children, width = 1100 }) {
           }}
         >
           <div>
+            <span className="order-trip-modal-eyebrow">TRIP OPERASIONAL</span>
             <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: BRAND.text }}>{title}</h3>
             {subtitle && <p style={{ margin: "4px 0 0", fontSize: 13, color: BRAND.textMuted }}>{subtitle}</p>}
           </div>
-          <Button variant="secondary" onClick={onClose}>
-            Close
-          </Button>
+          <button className="order-trip-modal-close" type="button" onClick={onClose} aria-label="Tutup"><FiX /></button>
         </div>
-        <div style={{ padding: 20, overflow: "auto", flex: 1 }}>{children}</div>
+        <div className="order-trip-modal-body" style={{ padding: 20, overflow: "auto", flex: 1 }}>{children}</div>
       </div>
     </div>
   );
@@ -358,7 +361,7 @@ export default function OrderDetail() {
   // proofs upload
   const [uploadingProofs, setUploadingProofs] = useState(false);
   const [uploadProofErr, setUploadProofErr] = useState("");
-  const [materialInvoiceForm, setMaterialInvoiceForm] = useState({ tripId: "", number: "", issuedAt: new Date().toISOString().slice(0, 10), notes: "" });
+  const [materialInvoiceForm, setMaterialInvoiceForm] = useState({ tripId: "", number: "", billingCustomerName: "", issuedAt: new Date().toISOString().slice(0, 10), notes: "" });
   const [materialInvoiceLines, setMaterialInvoiceLines] = useState([{ ppNumber: "", poNumber: "", itemName: "", qty: "", unit: "PCS", totalKg: "", totalAmount: "" }]);
   const [materialInvoiceProof, setMaterialInvoiceProof] = useState(null);
   const [savingMaterialInvoice, setSavingMaterialInvoice] = useState(false);
@@ -395,7 +398,7 @@ export default function OrderDetail() {
       const uploaded = materialInvoiceProof ? await uploadFiles([materialInvoiceProof]) : [];
       const proof = uploaded[0] ? { url: uploaded[0].url, fileName: uploaded[0].fileName, mimeType: uploaded[0].mimeType, size: uploaded[0].size } : undefined;
       await api(`/orders/${id}/material-invoices`, { method: "POST", body: JSON.stringify({ ...materialInvoiceForm, lines: materialInvoiceLines, proof }) });
-      setMaterialInvoiceForm((form) => ({ ...form, number: "", notes: "" }));
+      setMaterialInvoiceForm((form) => ({ ...form, number: "", billingCustomerName: "", notes: "" }));
       setMaterialInvoiceLines([{ ppNumber: "", poNumber: "", itemName: "", qty: "", unit: "PCS", totalKg: "", totalAmount: "" }]);
       setMaterialInvoiceProof(null);
       await load();
@@ -414,22 +417,16 @@ export default function OrderDetail() {
   }
 
   async function loadTrucks(q) {
-    const [data, locationData] = await Promise.all([
-      api(`/trucks${q ? `?q=${encodeURIComponent(q)}` : ""}`),
-      api("/operational-locations"),
-    ]);
+    const data = await api(`/trucks${q ? `?q=${encodeURIComponent(q)}` : ""}`);
     const items = data?.items || data || [];
     const normalize = (value) => String(value || "").trim().toLocaleLowerCase("id-ID");
     const origin = normalize(order?.pickupLocation?.name || order?.fromText);
-    const bases = (locationData?.items || []).filter((location) => location.isActive && location.type === "BASE");
-    const namedMedanBases = bases.filter((location) => /medan/i.test(`${location.name} ${location.address || ""}`));
-    const medanBaseNames = new Set((namedMedanBases.length ? namedMedanBases : bases).map((location) => normalize(location.name)));
-    medanBaseNames.add("medan");
-    medanBaseNames.add("base medan");
-    const available = items.filter((truck) => {
+    const available = items.filter((truck) => truck.status === "READY").map((truck) => {
       const current = normalize(truck.gpsLocation?.name || truck.currentLocation);
-      return truck.status === "READY" && (current === origin || medanBaseNames.has(current));
-    });
+      const atPickup = current === origin || (order?.pickupLocation?.id && truck.gpsLocation?.id === order.pickupLocation.id);
+      return { ...truck, atPickup };
+    }).sort((a, b) => Number(b.atPickup) - Number(a.atPickup)
+      || String(a.plateNumber || "").localeCompare(String(b.plateNumber || ""), "id-ID", { numeric: true }));
     setTrucks(available);
   }
 
@@ -904,6 +901,7 @@ export default function OrderDetail() {
               {canWrite && (trips.length ? (
                 <form onSubmit={createMaterialInvoice} style={{ padding: 16, border: `1px solid ${BRAND.border}`, borderRadius: 10, background: BRAND.secondary, marginBottom: 20 }}>
                   <div style={{ fontWeight: 650, color: BRAND.text, marginBottom: 14 }}>Tambah Faktur Muatan</div>
+                  <label style={{ display: "block", marginBottom: 14, fontSize: 12, color: BRAND.textMuted }}>Ditagihkan kepada / Customer Material<Input required value={materialInvoiceForm.billingCustomerName} onChange={(e) => setMaterialInvoiceForm((form) => ({ ...form, billingCustomerName: e.target.value }))} placeholder="Contoh: PT SSS" style={{ marginTop: 6 }} /></label>
                   <div style={{ display: "grid", gridTemplateColumns: isNarrow ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: 12 }}>
                     <label style={{ fontSize: 12, color: BRAND.textMuted }}>Truk<select required value={materialInvoiceForm.tripId} onChange={(e) => { const trip = trips.find((item) => item.id === e.target.value); setMaterialInvoiceForm((f) => ({ ...f, tripId: e.target.value, number: trip?.dispatchLetter?.number || "" })); }} style={{ width: "100%", marginTop: 6, height: 42, borderRadius: 6, border: `1px solid ${BRAND.border}`, padding: "0 10px" }}><option value="">Pilih truk</option>{trips.map((trip) => <option key={trip.id} value={trip.id}>{trip.truck?.plateNumber || trip.plateNumberSnap || "-"} · {trip.dispatchLetter?.number || "Surat jalan belum dibuat"}</option>)}</select></label>
                     <label style={{ fontSize: 12, color: BRAND.textMuted }}>No. Surat Jalan<Input readOnly value={materialInvoiceForm.number} placeholder="Pilih trip yang sudah memiliki surat jalan" style={{ marginTop: 6, background: BRAND.secondary, color: BRAND.primary, fontWeight: 700 }} /></label>
@@ -920,7 +918,7 @@ export default function OrderDetail() {
                   <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}><Button type="submit" variant="primary" disabled={savingMaterialInvoice}>{savingMaterialInvoice ? "Menyimpan..." : "Simpan Faktur"}</Button></div>
                 </form>
               ) : <div style={{ padding: 16, border: `1px dashed ${BRAND.border}`, color: BRAND.textMuted, borderRadius: 8, marginBottom: 18 }}>Tetapkan truk ke pesanan terlebih dahulu sebelum memasukkan faktur muatan.</div>)}
-              {materialInvoices.length ? <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}><thead><tr style={{ textAlign: "left", color: BRAND.textMuted, borderBottom: `1px solid ${BRAND.border}` }}><th style={{ padding: 10 }}>Tanggal</th><th style={{ padding: 10 }}>No. GRN / Surat Jalan</th><th style={{ padding: 10 }}>Truk</th><th style={{ padding: 10 }}>Rincian Muatan</th><th style={{ padding: 10 }}>Bukti</th><th style={{ padding: 10 }}>Catatan</th></tr></thead><tbody>{materialInvoices.map((invoice) => <tr key={invoice.id} style={{ borderBottom: `1px solid ${BRAND.border}` }}><td style={{ padding: 10, verticalAlign: "top" }}>{fmtDate(invoice.issuedAt)}</td><td style={{ padding: 10, fontWeight: 600, verticalAlign: "top" }}>{invoice.number}</td><td style={{ padding: 10, verticalAlign: "top" }}>{invoice.trip?.truck?.plateNumber || "-"}</td><td style={{ padding: 10 }}>{invoice.lines?.length ? <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}><thead><tr style={{ color: BRAND.textMuted }}><th style={{ textAlign: "left" }}>PP</th><th style={{ textAlign: "left" }}>PO</th><th style={{ textAlign: "left" }}>Barang</th><th style={{ textAlign: "right" }}>Qty</th><th style={{ textAlign: "right" }}>Kg</th><th style={{ textAlign: "right" }}>Rp</th></tr></thead><tbody>{invoice.lines.map((line) => <tr key={line.id}><td>{line.ppNumber || "-"}</td><td>{line.poNumber || "-"}</td><td>{line.itemName}</td><td style={{ textAlign: "right" }}>{fmtNum(line.qty)} {line.unit}</td><td style={{ textAlign: "right" }}>{line.totalKg != null ? fmtNum(line.totalKg) : "-"}</td><td style={{ textAlign: "right" }}>{line.totalAmount != null ? Number(line.totalAmount).toLocaleString("id-ID") : "-"}</td></tr>)}</tbody></table> : `${invoice.materialName} — ${fmtNum(invoice.qty)} ${invoice.unit}`}</td><td style={{ padding: 10, verticalAlign: "top" }}>{invoice.proofUrl ? <ProtectedFilePreview url={invoice.proofUrl} mimeType={invoice.proofMimeType} fileName={invoice.proofFileName || "Bukti faktur"} imageStyle={{ width: 110, height: 72, objectFit: "cover", borderRadius: 7 }} onError={(e) => setErr(e.message)} /> : "-"}</td><td style={{ padding: 10, color: BRAND.textMuted, verticalAlign: "top" }}>{invoice.notes || "-"}</td></tr>)}</tbody></table></div> : <div style={{ padding: 20, color: BRAND.textMuted, textAlign: "center" }}>Belum ada faktur muatan.</div>}
+              {materialInvoices.length ? <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}><thead><tr style={{ textAlign: "left", color: BRAND.textMuted, borderBottom: `1px solid ${BRAND.border}` }}><th style={{ padding: 10 }}>Tanggal</th><th style={{ padding: 10 }}>Customer Tagihan</th><th style={{ padding: 10 }}>No. GRN / Surat Jalan</th><th style={{ padding: 10 }}>Truk</th><th style={{ padding: 10 }}>Rincian Muatan</th><th style={{ padding: 10 }}>Bukti</th><th style={{ padding: 10 }}>Catatan</th></tr></thead><tbody>{materialInvoices.map((invoice) => <tr key={invoice.id} style={{ borderBottom: `1px solid ${BRAND.border}` }}><td style={{ padding: 10, verticalAlign: "top" }}>{fmtDate(invoice.issuedAt)}</td><td style={{ padding: 10, verticalAlign: "top", fontWeight: 650 }}>{invoice.billingCustomerName || order.customer?.name || order.customerName || "-"}</td><td style={{ padding: 10, fontWeight: 600, verticalAlign: "top" }}>{invoice.number}</td><td style={{ padding: 10, verticalAlign: "top" }}>{invoice.trip?.truck?.plateNumber || "-"}</td><td style={{ padding: 10 }}>{invoice.lines?.length ? <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}><thead><tr style={{ color: BRAND.textMuted }}><th style={{ textAlign: "left" }}>PP</th><th style={{ textAlign: "left" }}>PO</th><th style={{ textAlign: "left" }}>Barang</th><th style={{ textAlign: "right" }}>Qty</th><th style={{ textAlign: "right" }}>Kg</th><th style={{ textAlign: "right" }}>Rp</th></tr></thead><tbody>{invoice.lines.map((line) => <tr key={line.id}><td>{line.ppNumber || "-"}</td><td>{line.poNumber || "-"}</td><td>{line.itemName}</td><td style={{ textAlign: "right" }}>{fmtNum(line.qty)} {line.unit}</td><td style={{ textAlign: "right" }}>{line.totalKg != null ? fmtNum(line.totalKg) : "-"}</td><td style={{ textAlign: "right" }}>{line.totalAmount != null ? Number(line.totalAmount).toLocaleString("id-ID") : "-"}</td></tr>)}</tbody></table> : `${invoice.materialName} — ${fmtNum(invoice.qty)} ${invoice.unit}`}</td><td style={{ padding: 10, verticalAlign: "top" }}>{invoice.proofUrl ? <ProtectedFilePreview url={invoice.proofUrl} mimeType={invoice.proofMimeType} fileName={invoice.proofFileName || "Bukti faktur"} imageStyle={{ width: 110, height: 72, objectFit: "cover", borderRadius: 7 }} onError={(e) => setErr(e.message)} /> : "-"}</td><td style={{ padding: 10, color: BRAND.textMuted, verticalAlign: "top" }}>{invoice.notes || "-"}</td></tr>)}</tbody></table></div> : <div style={{ padding: 20, color: BRAND.textMuted, textAlign: "center" }}>Belum ada faktur muatan.</div>}
             </div>
           )}
 
@@ -950,21 +948,21 @@ export default function OrderDetail() {
           </div>
         )}
 
-        <div className="order-detail-trip-builder" style={{ display: "grid", gridTemplateColumns: isNarrow ? "1fr" : "1.15fr 0.85fr", gap: 20 }}>
+        <div className="order-detail-trip-builder" style={{ display: "grid", gridTemplateColumns: isNarrow ? "1fr" : "1.15fr 0.85fr", gap: 16 }}>
           {/* LEFT - Truck Picker */}
           <Card>
-            <div style={{ padding: 16 }}>
-              <div style={{ fontWeight: 600, marginBottom: 8, color: BRAND.text }}>Pilih Armada Ready</div>
-              <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>Menampilkan armada READY di <strong>{order?.fromText || "lokasi muat"}</strong> serta armada READY di Base Medan.</div>
-
-              <Input placeholder="Cari nomor polisi..." value={truckQ} onChange={(e) => setTruckQ(e.target.value)} />
+            <div className="order-trip-picker" style={{ padding: 16 }}>
+              <div className="order-trip-section-title"><div><span>LANGKAH 1</span><strong>Pilih Armada Ready</strong></div><b>{filteredTrucks.length}</b></div>
+              <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>Semua armada READY dapat dicari. Armada di luar radius <strong>{order?.fromText || "lokasi muat"}</strong> akan diberi warning.</div>
+              <label className="order-trip-search"><FiSearch/><Input placeholder="Cari BK atau nomor polisi…" value={truckQ} onChange={(e) => setTruckQ(e.target.value)} /></label>
 
               <div style={{ marginTop: 12, maxHeight: isNarrow ? 200 : 350, overflow: "auto" }}>
                 {filteredTrucks.map((t) => {
                   const active = selectedTruckId === t.id;
                   return (
-                    <div
+                    <button type="button"
                       key={t.id}
+                      className={`order-trip-truck ${active ? "active" : ""} ${!t.atPickup ? "warning" : ""}`}
                       style={{
                         padding: 14,
                         borderRadius: 6,
@@ -979,14 +977,15 @@ export default function OrderDetail() {
                         if (t.driverUserId) setSelectedDriverId(t.driverUserId);
                       }}
                     >
-                      <div style={{ fontSize: 16, fontWeight: 600, color: BRAND.text }}>{t.plateNumber}</div>
+                      <i className="order-trip-truck-icon"><FiTruck/></i><div className="order-trip-truck-main"><div style={{ fontSize: 16, fontWeight: 600, color: BRAND.text }}>{t.plateNumber}</div>
                       <div style={{ fontSize: 13, color: BRAND.textMuted, marginTop: 4 }}>
                         {t.brand || "-"} {t.model ? `• ${t.model}` : ""} • {t.status}
                       </div>
                       <div style={{ fontSize: 12, color: BRAND.primary, marginTop: 4, fontWeight: 600 }}>
-                        Lokasi: {t.gpsLocation?.name || t.currentLocation || "Belum diatur"}
+                        <FiMapPin/> {t.gpsLocation?.name || t.currentLocation || "Belum diatur"}
                       </div>
-                    </div>
+                      {!t.atPickup && <div className="order-trip-location-warning"><FiAlertTriangle/> Belum berada di lokasi asal muatan</div>}</div>
+                    </button>
                   );
                 })}
 
@@ -999,8 +998,8 @@ export default function OrderDetail() {
 
           {/* RIGHT - Informasi Perjalanan */}
           <Card>
-            <div style={{ padding: 16 }}>
-              <div style={{ fontWeight: 600, marginBottom: 8, color: BRAND.text }}>Informasi Perjalanan</div>
+            <div className="order-trip-details" style={{ padding: 16 }}>
+              <div className="order-trip-section-title"><div><span>LANGKAH 2</span><strong>Informasi Perjalanan</strong></div></div>
               <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>
                 {isMaterialShipment
                   ? "Untuk material/ambang, qty muatan belum wajib dan akan dicatat dari Faktur Muatan setelah barang dimuat."
@@ -1047,19 +1046,13 @@ export default function OrderDetail() {
                   onChange={(e) => setPlannedDepartAt(e.target.value)}
                 />
 
-                {selectedTruckId && (
-                  <div style={{ fontSize: 13, color: BRAND.textMuted }}>
-                    Selected truck:{" "}
-                    <span style={{ color: BRAND.text, fontWeight: 500 }}>
-                      {trucks.find((x) => x.id === selectedTruckId)?.plateNumber || "-"}
-                    </span>
-                  </div>
-                )}
+                {selectedTruckId && <div className="order-trip-route-summary"><span>RUTE TRIP</span><strong>{selectedTruck?.gpsLocation?.name || selectedTruck?.currentLocation || "Posisi armada"} <b>→</b> {order?.fromText || "Lokasi muat"} <b>→</b> {order?.toText || "Tujuan"}</strong><small>{selectedTruck?.atPickup ? "Armada sudah berada di lokasi muat" : "Perjalanan kosong ke lokasi muat akan tercatat dalam trip yang sama"}</small></div>}
+                {selectedTruck && !selectedTruck.atPickup && <div style={{ padding: "11px 12px", border: "1px solid #F0D29A", borderRadius: 8, background: "#FFF8E8", color: "#8A5600", fontSize: 13, lineHeight: 1.45 }}><strong>Armada tidak berada di lokasi asal.</strong><span style={{ display: "block", marginTop: 3 }}>Trip tetap dapat dibuat. Setelah bergerak, GPS akan mencatat perjalanan menuju {order?.fromText || "lokasi muat"} terlebih dahulu.</span></div>}
               </div>
 
-              <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              <div className="order-trip-actions" style={{ marginTop: 20, display: "flex", justifyContent: "flex-end", gap: 12 }}>
                 <Button variant="secondary" onClick={() => setShowAssign(false)} disabled={assigning}>
-                  Cancel
+                  Batal
                 </Button>
                 <Button
                   variant="primary"

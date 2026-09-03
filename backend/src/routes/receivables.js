@@ -8,7 +8,7 @@ const router = express.Router();
 router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF"));
 
 const invoiceInclude = {
-  order: { select: { id: true, orderNo: true, cargoName: true, qty: true, unit: true, fromText: true, toText: true, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true } } } },
+  order: { select: { id: true, orderNo: true, cargoName: true, qty: true, unit: true, fromText: true, toText: true, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true } }, tripAllocations: { where: { trip: { status: "COMPLETED" } }, select: { qtyPlanned: true, qtyActual: true } }, materialInvoices: { select: { lines: { select: { totalAmount: true } } } } } },
   customer: true,
   createdBy: { select: { name: true } },
   payments: { include: { createdBy: { select: { name: true } } }, orderBy: { receivedAt: "desc" } },
@@ -36,10 +36,15 @@ function summarize(invoice) {
 }
 
 function shipmentSummary(order) {
-  const trips = order?.trips || [];
+  const trips = order?.tripAllocations?.length ? order.tripAllocations : (order?.trips || []);
   const planned = trips.reduce((sum, trip) => sum + Number(trip.qtyPlanned || 0), 0);
   const delivered = trips.reduce((sum, trip) => sum + Number(trip.qtyActual ?? trip.qtyPlanned ?? 0), 0);
   return { planned, delivered, loss: Math.max(0, planned - delivered), unit: order?.unit || null };
+}
+
+function materialSubtotal(order) {
+  return (order?.materialInvoices || []).flatMap((invoice) => invoice.lines || [])
+    .reduce((sum, line) => sum + Number(line.totalAmount || 0), 0);
 }
 
 router.get("/overview", async (_req, res) => {
@@ -48,7 +53,7 @@ router.get("/overview", async (_req, res) => {
       prisma.invoice.findMany({ include: invoiceInclude, orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }] }),
       prisma.order.findMany({
         where: { status: "COMPLETED", invoice: null },
-        include: { customer: true, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true } } },
+        include: { customer: true, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true } }, tripAllocations: { where: { trip: { status: "COMPLETED" } }, select: { qtyPlanned: true, qtyActual: true } }, materialInvoices: { select: { lines: { select: { totalAmount: true } } } } },
         orderBy: { updatedAt: "desc" },
       }),
     ]);
@@ -60,7 +65,7 @@ router.get("/overview", async (_req, res) => {
       if (invoice.displayStatus === "OVERDUE") acc.overdue += invoice.balance;
       return acc;
     }, { invoiced: 0, received: 0, outstanding: 0, overdue: 0 });
-    res.json({ ok: true, invoices: rows, eligibleOrders: eligibleOrders.map(order => ({ ...order, shipment: shipmentSummary(order) })), stats });
+    res.json({ ok: true, invoices: rows, eligibleOrders: eligibleOrders.map(order => ({ ...order, shipment: shipmentSummary(order), materialSubtotal: materialSubtotal(order) })), stats });
   } catch (error) {
     res.status(400).json({ error: error.message || "Gagal memuat piutang" });
   }
@@ -75,18 +80,20 @@ router.post("/invoices", async (req, res) => {
     const dueDate = new Date(dueAt);
     if (!orderId || !customerName?.trim()) throw new Error("Pesanan dan nama pelanggan wajib diisi");
     if (Number.isNaN(dueDate.getTime())) throw new Error("Tanggal jatuh tempo tidak valid");
-    if (contractSubtotal <= 0) throw new Error("Harga kontrak harus lebih dari nol");
 
     const invoice = await prisma.$transaction(async (tx) => {
-      const order = await tx.order.findUnique({ where: { id: orderId }, include: { invoice: true, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true } } } });
+      const order = await tx.order.findUnique({ where: { id: orderId }, include: { invoice: true, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true } }, tripAllocations: { where: { trip: { status: "COMPLETED" } }, select: { qtyPlanned: true, qtyActual: true } }, materialInvoices: { select: { lines: { select: { totalAmount: true } } } } } });
       if (!order || order.status !== "COMPLETED") throw new Error("Invoice hanya dapat dibuat dari pesanan yang selesai");
       if (order.invoice) throw new Error("Pesanan ini sudah memiliki invoice");
       const shipment = shipmentSummary(order);
       const plannedQuantity = shipment.planned > 0 ? shipment.planned : Number(order.qty || 0);
       const deliveredQuantity = shipment.delivered;
       const billableRatio = plannedQuantity > 0 ? Math.min(1, Math.max(0, deliveredQuantity / plannedQuantity)) : 1;
-      const subtotal = Math.round(contractSubtotal * billableRatio);
-      const cargoLossAmount = Math.max(0, contractSubtotal - subtotal);
+      const extraMaterialSubtotal = materialSubtotal(order);
+      if (contractSubtotal <= 0 && extraMaterialSubtotal <= 0) throw new Error("Harga kontrak atau nilai Faktur Muatan harus lebih dari nol");
+      const baseSubtotal = Math.round(contractSubtotal * billableRatio);
+      const subtotal = baseSubtotal + extraMaterialSubtotal;
+      const cargoLossAmount = Math.max(0, contractSubtotal - baseSubtotal);
       const total = subtotal + tax - discount;
       if (total <= 0) throw new Error("Total invoice setelah penyesuaian harus lebih dari nol");
       const number = await nextNumber(tx, "invoice", "INV");
@@ -97,7 +104,7 @@ router.post("/invoices", async (req, res) => {
           dueAt: dueDate, subtotal, contractSubtotal, plannedQuantity: plannedQuantity || null,
           deliveredQuantity: plannedQuantity > 0 ? deliveredQuantity : null,
           cargoLossQuantity: plannedQuantity > 0 ? shipment.loss : null,
-          cargoLossAmount, tax, discount, total, notes: notes?.trim() || null, createdById: req.user.id,
+          cargoLossAmount, materialSubtotal: extraMaterialSubtotal, tax, discount, total, notes: notes?.trim() || null, createdById: req.user.id,
         },
         include: invoiceInclude,
       });

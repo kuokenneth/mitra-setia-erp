@@ -100,6 +100,21 @@ export default function Trucks() {
     };
   }
 
+  function formatLastGpsPush(value) {
+    if (!value) return "Belum ada data";
+    const timestamp = new Date(value);
+    if (Number.isNaN(timestamp.getTime())) return "Waktu tidak tersedia";
+    return timestamp.toLocaleString("id-ID", {
+      timeZone: "Asia/Jakarta",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).replace(" pukul", " ·") + " WIB";
+  }
+
   const [pageSize, setPageSize] = useState(() => {
     const saved = Number(window.localStorage.getItem("armada-page-size"));
     return [10, 25, 50].includes(saved) ? saved : 10;
@@ -489,6 +504,8 @@ export default function Trucks() {
               {pagedItems.map((t) => {
                 const gps = gpsPosition(t);
                 const isCriticalStop = t.gpsStopWarning?.severity === "CRITICAL";
+                const isInWarningArea = t.gpsLocation?.type === "WARNING";
+                const hasGpsWarning = Boolean(t.gpsStopWarning || isInWarningArea);
                 return (
                   <tr
                     key={t.id}
@@ -530,9 +547,15 @@ export default function Trucks() {
                                 ? `Base: ${t.baseLocation}`
                                 : "Base belum diatur"}
                           </div>
-                          {t.gpsStopWarning && (
-                            <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 5, padding: "3px 7px", borderRadius: 5, background: isCriticalStop ? "#FEE2E2" : BRAND.warningBg, color: isCriticalStop ? "#B91C1C" : "#B45309", fontSize: 12, fontWeight: 700 }}>
-                              <FiAlertTriangle size={12} /> {isCriticalStop ? "PERHATIAN: berhenti di area warning" : "Berhenti lama"} · {formatStopDuration(t.gpsStopWarning.durationMinutes)}
+                          {hasGpsWarning && (
+                            <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 3, marginTop: 5, padding: "5px 8px", borderRadius: 6, background: isCriticalStop ? "#FEE2E2" : BRAND.warningBg, color: isCriticalStop ? "#B91C1C" : "#B45309", fontSize: 12, fontWeight: 700 }}>
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                                <FiAlertTriangle size={12} />
+                                {t.gpsStopWarning
+                                  ? `${isCriticalStop ? "PERHATIAN: berhenti di area warning" : "Berhenti lama"} · ${formatStopDuration(t.gpsStopWarning.durationMinutes)}`
+                                  : "Berada di area warning"}
+                              </span>
+                              <small style={{ color: BRAND.textMuted, fontSize: 11, fontWeight: 600 }}>Push GPS: {formatLastGpsPush(t.lastGpsAt)}</small>
                             </div>
                           )}
                         </div>

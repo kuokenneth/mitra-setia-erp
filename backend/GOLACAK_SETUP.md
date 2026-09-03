@@ -21,12 +21,30 @@ accepted without being stored twice.
 ```env
 GOLACAK_WEBHOOK_TOKEN=<strong random shared secret>
 GPS_STOP_WARNING_MINUTES=30
-GPS_STOP_AREA_RADIUS_METERS=500
-GPS_STOP_START_MAX_SPEED_KPH=5
+GPS_WARNING_TELEMETRY_MAX_MINUTES=15
+GPS_STOP_AREA_RADIUS_METERS=100
+GPS_STOP_MOVEMENT_RADIUS_METERS=150
 GPS_MOVING_SPEED_KPH=5
 GOLACAK_ARRIVAL_DWELL_MINUTES=5
 GOLACAK_ARRIVAL_MAX_SPEED_KPH=10
 ```
+
+Warning "berhenti lama" hanya aktif untuk truk pada trip `DISPATCHED` dan di
+luar lokasi operasional yang aman. Trip terencana, truk yang sudah tiba, serta
+unit maintenance/inactive tidak dihitung sebagai stop operasional. Push GPS
+yang jarang atau tertunda tetap dapat membentuk warning karena kontinuitas stop
+divalidasi dari anchor posisi dan jarak antarpush tanpa bergantung pada speed
+atau ignition. Batas
+`GPS_WARNING_TELEMETRY_MAX_MINUTES` hanya menandai kualitas data sebagai fresh
+atau tertunda; batas ini tidak memblokir warning. Minimal dua observasi GPS
+dibutuhkan agar timestamp lama pada satu push pertama tidak langsung dianggap
+sebagai berhenti lama.
+
+Timer dipertahankan selama posisi berada dalam radius 100 meter dari anchor.
+Untuk meredam GPS jitter, timer baru di-reset apabila dua push berturut-turut
+berada sedikitnya 150 meter dari anchor. Posisi pada jarak 101–149 meter menjadi
+zona abu-abu dan tidak mereset timer. Event yang waktunya lebih lama atau sama
+dengan GPS terakhir disimpan sebagai histori, tetapi tidak mengubah state truk.
 
 Set the same shared secret with the GOlacak PIC and in Render. Never commit it
 to Git or place it in frontend code.

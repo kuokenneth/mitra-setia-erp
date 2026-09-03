@@ -85,8 +85,9 @@ export default function Receivables() {
   const deliveredQuantity = Number(invoiceOrder?.shipment?.delivered || 0);
   const billableRatio = plannedQuantity > 0 ? Math.min(1, Math.max(0, deliveredQuantity / plannedQuantity)) : 1;
   const billableSubtotal = Math.round(Number(invoiceForm.contractSubtotal || 0) * billableRatio);
+  const materialSubtotal = Number(invoiceOrder?.materialSubtotal || 0);
   const cargoLossAmount = Math.max(0, Number(invoiceForm.contractSubtotal || 0) - billableSubtotal);
-  const total = billableSubtotal + Number(invoiceForm.tax || 0) - Number(invoiceForm.discount || 0);
+  const total = billableSubtotal + materialSubtotal + Number(invoiceForm.tax || 0) - Number(invoiceForm.discount || 0);
   return <div className="ar-page">
     <header className="ar-head"><div><span className="ar-eyebrow">INVOICE & PIUTANG</span><h1>Piutang Pelanggan</h1><p>Pantau penagihan dan pembayaran pelanggan.</p></div><button className="ar-primary" onClick={openInvoice} disabled={!data.eligibleOrders.length}><FiPlus/> Buat Invoice</button></header>
     <section className="ar-stats">
@@ -119,11 +120,12 @@ export default function Receivables() {
         </section>
         <section className="ar-form-section">
           <div className="ar-section-title"><span>3</span><div><strong>Rincian tagihan</strong><small>Isi nominal dalam Rupiah.</small></div></div>
-          <div className="ar-grid2"><label>Jatuh tempo<input required type="date" value={invoiceForm.dueAt} onChange={e => setInvoiceForm({...invoiceForm, dueAt:e.target.value})}/></label><label>Harga kontrak penuh<input required min="1" type="number" inputMode="numeric" value={invoiceForm.contractSubtotal} onChange={e => setInvoiceForm({...invoiceForm, contractSubtotal:e.target.value})} placeholder="Harga untuk muatan rencana"/></label></div>
+          <div className="ar-grid2"><label>Jatuh tempo<input required type="date" value={invoiceForm.dueAt} onChange={e => setInvoiceForm({...invoiceForm, dueAt:e.target.value})}/></label><label>Harga kontrak utama<input required min="0" type="number" inputMode="numeric" value={invoiceForm.contractSubtotal} onChange={e => setInvoiceForm({...invoiceForm, contractSubtotal:e.target.value})} placeholder="0 jika hanya tagihan material"/></label></div>
           {invoiceOrder && plannedQuantity > 0 && <div className="ar-order-summary"><span><small>PERHITUNGAN OTOMATIS</small><strong>{deliveredQuantity.toLocaleString("id-ID")} / {plannedQuantity.toLocaleString("id-ID")} × {rupiah(invoiceForm.contractSubtotal)}</strong></span><span><small>Subtotal dapat ditagih</small><strong>{rupiah(billableSubtotal)}</strong>{cargoLossAmount > 0 && <small style={{ color: "#b45309" }}>Pengurangan kehilangan: {rupiah(cargoLossAmount)}</small>}</span></div>}
+          {materialSubtotal > 0 && <div className="ar-order-summary"><span><small>FAKTUR MUATAN</small><strong>Tambahan material</strong></span><span><small>Subtotal material</small><strong>{rupiah(materialSubtotal)}</strong></span></div>}
           <div className="ar-grid2"><label>Pajak<input min="0" type="number" inputMode="numeric" value={invoiceForm.tax} onChange={e => setInvoiceForm({...invoiceForm, tax:e.target.value})}/></label><label>Diskon<input min="0" type="number" inputMode="numeric" value={invoiceForm.discount} onChange={e => setInvoiceForm({...invoiceForm, discount:e.target.value})}/></label></div>
           <label>Catatan <small className="ar-optional">Opsional</small><textarea rows="2" value={invoiceForm.notes} onChange={e => setInvoiceForm({...invoiceForm, notes:e.target.value})} placeholder="Keterangan tambahan untuk pelanggan"/></label>
-          <div className="ar-total"><span><small>TOTAL TAGIHAN</small>Subtotal terkoreksi + pajak − diskon</span><strong>{rupiah(total)}</strong></div>
+          <div className="ar-total"><span><small>TOTAL TAGIHAN</small>Kontrak utama + Faktur Muatan + pajak − diskon</span><strong>{rupiah(total)}</strong></div>
         </section>
       </div>
       <div className="ar-modal-actions"><button type="button" className="secondary" onClick={() => setModal("")}>Batal</button><button className="ar-primary" disabled={busy}>{busy ? "Menyimpan..." : "Simpan Invoice"}</button></div>

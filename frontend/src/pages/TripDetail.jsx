@@ -217,6 +217,22 @@ function fmtDateTime(d) {
   return dt.toLocaleString("id-ID");
 }
 
+function elapsedTime(from, to) {
+  if (!from || !to) return null;
+  const start = new Date(from);
+  const end = new Date(to);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return null;
+  const totalMinutes = Math.floor((end.getTime() - start.getTime()) / 60000);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  return [
+    days ? `${days} hari` : "",
+    hours ? `${hours} jam` : "",
+    `${minutes} menit`,
+  ].filter(Boolean).join(" ");
+}
+
 function money(value) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value || 0));
 }
@@ -233,6 +249,9 @@ export default function TripDetail() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [trip, setTrip] = useState(null);
+  const [allocationCandidates, setAllocationCandidates] = useState([]);
+  const [allocationForm, setAllocationForm] = useState({ orderId: "", qtyPlanned: "", unit: "TON" });
+  const [allocationBusy, setAllocationBusy] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState("");
@@ -248,8 +267,12 @@ export default function TripDetail() {
     try {
       setErr("");
       setLoading(true);
-      const data = await api(`/trips/${id}`);
+      const [data, candidates] = await Promise.all([
+        api(`/trips/${id}`),
+        canWrite ? api(`/trips/${id}/allocation-candidates`).catch(() => ({ items: [] })) : Promise.resolve({ items: [] }),
+      ]);
       setTrip(data);
+      setAllocationCandidates(candidates?.items || []);
     } catch (e) {
       setErr(e?.message || "Gagal memuat trip");
     } finally {
@@ -354,6 +377,21 @@ export default function TripDetail() {
     }
   }
 
+  async function addOrderAllocation(event) {
+    event.preventDefault();
+    try {
+      setAllocationBusy(true);
+      setSaveErr("");
+      await api(`/trips/${id}/allocations`, { method: "POST", body: JSON.stringify(allocationForm) });
+      setAllocationForm({ orderId: "", qtyPlanned: "", unit: "TON" });
+      await load();
+    } catch (e) {
+      setSaveErr(e?.message || "Gagal menambahkan muatan order");
+    } finally {
+      setAllocationBusy(false);
+    }
+  }
+
   async function uploadTripProof(event, proofType) {
     try {
       setArrivalProofErr("");
@@ -421,7 +459,7 @@ export default function TripDetail() {
                     {order.orderNo}
                   </span>
                 ) : (
-                  trip.purpose === "EMPTY_RETURN" ? "Perjalanan operasional · tanpa muatan" : "-"
+                  trip.purpose === "EMPTY_RETURN" ? "Perjalanan operasional · tanpa muatan" : trip.purpose === "SINGLE_TRIP" ? "Trip tunggal · tanpa pesanan" : "-"
                 )}{" "}
                 • {routeText} • Planned: {fmtDateTime(trip.plannedDepartAt)}
               </div>
@@ -429,6 +467,7 @@ export default function TripDetail() {
               <div className="trip-detail-v3-badges" style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 <span style={tripBadgeStyle(trip.status)}>{String(trip.status).replaceAll("_", " ")}</span>
                 {trip.purpose === "EMPTY_RETURN" && <span style={{ ...badgeBase, background: "#FFF7ED", color: "#C2410C" }}>KEMBALI KOSONG · PENDAPATAN RP0</span>}
+                {trip.purpose === "SINGLE_TRIP" && <span style={{ ...badgeBase, background: "#EEF7FF", color: "#1769AA" }}>TRIP TUNGGAL · BERAT DI TAGIHAN</span>}
                 <span style={{ ...badgeBase, background: "#FFFFFF" }}>{role}</span>
 
                 {trip.qtyPlanned != null ? (
@@ -469,7 +508,7 @@ export default function TripDetail() {
                   </button>
                 ) : null}
               </div>
-              {trip.purpose === "DELIVERY" && (
+              {trip.purpose !== "EMPTY_RETURN" && (
                 <div style={{ marginBottom: 16, padding: 14, borderRadius: 12, border: "1px solid #DDE9E1", background: "#FFFFFF" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
                     <div><strong style={{ display: "block", fontSize: 13 }}>Tahap perjalanan</strong><span style={{ color: "#7A8780", fontSize: 11 }}>Satu trip · perjalanan kosong dan pengiriman tercatat dalam satu rangkaian.</span></div>
@@ -511,17 +550,20 @@ export default function TripDetail() {
             <div className="trip-detail-v3-card" style={{ ...panel, boxShadow: "none", borderRadius: 13, padding: 20 }}>
               <div style={{ fontWeight: 650, marginBottom: 10, fontSize: 16 }}>Informasi Perjalanan</div>
               <InfoRow label="Status" icon={FiFlag} value={<span style={tripBadgeStyle(trip.status)}>{String(trip.status).replaceAll("_", " ")}</span>} />
-              {trip.purpose === "DELIVERY" && <InfoRow label="Tahap aktif" icon={FiActivity} value={DELIVERY_PHASE_LABELS[currentPhase] || "Direncanakan"} />}
-              <InfoRow label="Muatan rencana" icon={FiPackage} value={plannedWeight == null ? "Belum diisi" : `${plannedWeight.toLocaleString("id-ID", { maximumFractionDigits: 3 })} ${weightUnit}`} />
-              <InfoRow label="Berat tiba" icon={FiPackage} value={arrivalWeight == null ? "Belum dicatat" : `${arrivalWeight.toLocaleString("id-ID", { maximumFractionDigits: 3 })} ${weightUnit}`} />
-              <InfoRow label="Selisih muatan" icon={FiActivity} value={cargoDifference == null ? "Menunggu berat tiba" : <span style={{ color: cargoDifference > 0 ? "#B45309" : "#0D7C3D", fontWeight: 700 }}>{cargoDifference.toLocaleString("id-ID", { maximumFractionDigits: 3 })} {weightUnit}{cargoDifference > 0 ? " · kehilangan tercatat" : " · sesuai"}</span>} />
+              {trip.purpose !== "EMPTY_RETURN" && <InfoRow label="Tahap aktif" icon={FiActivity} value={DELIVERY_PHASE_LABELS[currentPhase] || "Direncanakan"} />}
+              {trip.purpose === "SINGLE_TRIP" ? <InfoRow label="Berat muatan" icon={FiPackage} value="Diisi saat proses tagihan" /> : <>
+                <InfoRow label="Muatan rencana" icon={FiPackage} value={plannedWeight == null ? "Belum diisi" : `${plannedWeight.toLocaleString("id-ID", { maximumFractionDigits: 3 })} ${weightUnit}`} />
+                <InfoRow label="Berat tiba" icon={FiPackage} value={arrivalWeight == null ? "Belum dicatat" : `${arrivalWeight.toLocaleString("id-ID", { maximumFractionDigits: 3 })} ${weightUnit}`} />
+                <InfoRow label="Selisih muatan" icon={FiActivity} value={cargoDifference == null ? "Menunggu berat tiba" : <span style={{ color: cargoDifference > 0 ? "#B45309" : "#0D7C3D", fontWeight: 700 }}>{cargoDifference.toLocaleString("id-ID", { maximumFractionDigits: 3 })} {weightUnit}{cargoDifference > 0 ? " · kehilangan tercatat" : " · sesuai"}</span>} />
+              </>}
               <InfoRow label="Direncanakan" icon={FiClock} value={fmtDateTime(trip.plannedDepartAt)} />
               <InfoRow label="Berangkat" icon={FiTruck} value={fmtDateTime(trip.dispatchedAt)} />
-              {trip.purpose === "DELIVERY" && <InfoRow label="Tiba lokasi muat" icon={FiMapPin} value={fmtDateTime(trip.pickupArrivedAt)} />}
-              {trip.purpose === "DELIVERY" && <InfoRow label="Mulai pengiriman" icon={FiTruck} value={fmtDateTime(trip.loadedAt)} />}
+              {trip.purpose !== "EMPTY_RETURN" && <InfoRow label="Tiba lokasi muat" icon={FiMapPin} value={fmtDateTime(trip.pickupArrivedAt)} />}
+              {trip.purpose !== "EMPTY_RETURN" && <InfoRow label="Mulai pengiriman" icon={FiTruck} value={fmtDateTime(trip.loadedAt)} />}
               {(trip.serviceStops || []).map((stop, index) => <InfoRow key={stop.id} label={`Servis${(trip.serviceStops || []).length > 1 ? ` ${index + 1}` : ""}`} icon={FiActivity} value={`${stop.location?.name || "Base"} · ${fmtDateTime(stop.startedAt)}${stop.endedAt ? ` — ${fmtDateTime(stop.endedAt)}` : " · masih berlangsung"}`} />)}
               <InfoRow label="Tiba" icon={FiMapPin} value={fmtDateTime(trip.arrivedAt)} />
               <InfoRow label="Selesai" icon={FiCheck} value={fmtDateTime(trip.completedAt)} />
+              {trip.status === "COMPLETED" && <InfoRow label="Total waktu trip" icon={FiClock} value={elapsedTime(trip.dispatchedAt, trip.completedAt) || "Waktu berangkat belum tercatat"} />}
               <InfoRow label="Dibuat" icon={FiClock} value={fmtDateTime(trip.createdAt)} />
             </div>
 
@@ -542,6 +584,23 @@ export default function TripDetail() {
               />
             </div>
           </div>
+
+          {trip.purpose === "DELIVERY" && <section className="trip-detail-v3-card" style={{ ...panel, marginTop: 14, boxShadow: "none", borderRadius: 13, padding: 20 }}>
+            <div style={{ fontWeight: 650, marginBottom: 4, fontSize: 16 }}>Alokasi Order dalam Trip</div>
+            <p style={{ margin: "0 0 14px", color: "#718078", fontSize: 13 }}>Muatan beberapa customer dapat memakai kendaraan dan GPS yang sama, tetapi tetap ditagihkan per order.</p>
+            <div style={{ display: "grid", gap: 8 }}>
+              {(trip.orderAllocations || []).map((allocation) => <div key={allocation.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, padding: "10px 12px", border: "1px solid #E2EAE5", borderRadius: 9 }}>
+                <span><strong>{allocation.order?.orderNo}</strong> · {allocation.order?.customer?.name || allocation.order?.customerName || "Tanpa customer"}<small style={{ display: "block", color: "#718078", marginTop: 3 }}>{allocation.order?.cargoName || "Muatan"}{allocation.isPrimary ? " · order utama" : " · order tambahan"}</small></span>
+                <strong>{Number(allocation.qtyPlanned || 0).toLocaleString("id-ID")} {allocation.unitSnap || ""}</strong>
+              </div>)}
+            </div>
+            {canWrite && ["PLANNED", "DISPATCHED"].includes(currentStatus) && !["TO_DESTINATION", "AT_DESTINATION"].includes(currentPhase) && <form onSubmit={addOrderAllocation} style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
+              <select required value={allocationForm.orderId} onChange={(e) => setAllocationForm((form) => ({ ...form, orderId: e.target.value }))} style={{ flex: "1 1 280px", height: 40, border: "1px solid #DCE5E0", borderRadius: 8, padding: "0 10px" }}><option value="">Pilih order tambahan dengan rute sama</option>{allocationCandidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.orderNo} · {candidate.customer?.name || candidate.customerName || "Tanpa customer"} · {candidate.cargoName || "Muatan"}</option>)}</select>
+              <input required type="number" min="0.01" step="any" value={allocationForm.qtyPlanned} onChange={(e) => setAllocationForm((form) => ({ ...form, qtyPlanned: e.target.value }))} placeholder="Jumlah" style={{ width: 110, height: 38, border: "1px solid #DCE5E0", borderRadius: 8, padding: "0 10px" }} />
+              <select value={allocationForm.unit} onChange={(e) => setAllocationForm((form) => ({ ...form, unit: e.target.value }))} style={{ height: 40, border: "1px solid #DCE5E0", borderRadius: 8 }}><option>TON</option><option>KG</option><option>PCS</option></select>
+              <button type="submit" disabled={allocationBusy || !allocationCandidates.length} style={{ ...btnGhost, background: "#0D7C3D", color: "white" }}>{allocationBusy ? "Menyimpan…" : "Tambah"}</button>
+            </form>}
+          </section>}
 
           <section className="trip-expense-panel">
             <header>

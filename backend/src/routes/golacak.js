@@ -18,6 +18,11 @@ function number(value) {
   return Number.isFinite(result) ? result : null;
 }
 
+function configuredNumber(value, fallback, minimum) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(minimum, parsed) : fallback;
+}
+
 function date(value) {
   if (!value) return null;
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
@@ -137,6 +142,53 @@ function distanceMeters(lat1, lng1, lat2, lng2) {
   return 2 * earthRadius * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function calculateStopState({
+  truck,
+  event,
+  observedAt,
+  stopRadiusM,
+  movementRadiusM,
+}) {
+  const hasPreviousPosition = validCoordinates(truck.lastGpsLatitude, truck.lastGpsLongitude);
+  const hasStoredAnchor = validCoordinates(truck.gpsStopAnchorLatitude, truck.gpsStopAnchorLongitude);
+  const hasStopState = Boolean(truck.gpsStoppedSince && hasStoredAnchor);
+
+  // Every new sequence starts at the newest observation. Speed and ignition
+  // are intentionally not used because those fields are not reliable across
+  // all GOlacak devices.
+  if (!hasStopState) {
+    return {
+      gpsStoppedSince: observedAt,
+      anchorLatitude: event.latitude,
+      anchorLongitude: event.longitude,
+      remainsInStopArea: true,
+      movementConfirmed: false,
+      distanceFromAnchor: 0,
+    };
+  }
+
+  const anchorLatitude = truck.gpsStopAnchorLatitude;
+  const anchorLongitude = truck.gpsStopAnchorLongitude;
+  const distanceFromAnchor = distanceMeters(event.latitude, event.longitude, anchorLatitude, anchorLongitude);
+  const previousDistanceFromAnchor = hasPreviousPosition
+    ? distanceMeters(truck.lastGpsLatitude, truck.lastGpsLongitude, anchorLatitude, anchorLongitude)
+    : 0;
+  const remainsInStopArea = distanceFromAnchor <= stopRadiusM;
+  // Hysteresis: one noisy point does not reset the timer. Movement must be
+  // outside the wider radius in two consecutive observations.
+  const movementConfirmed = distanceFromAnchor >= movementRadiusM
+    && previousDistanceFromAnchor >= movementRadiusM;
+
+  return {
+    gpsStoppedSince: movementConfirmed ? observedAt : truck.gpsStoppedSince,
+    anchorLatitude: movementConfirmed ? event.latitude : anchorLatitude,
+    anchorLongitude: movementConfirmed ? event.longitude : anchorLongitude,
+    remainsInStopArea,
+    movementConfirmed,
+    distanceFromAnchor,
+  };
+}
+
 async function findTruck(event) {
   if (!event.deviceId && !event.imei) return null;
   const mapped = await prisma.truck.findFirst({
@@ -197,10 +249,17 @@ async function evaluateArrival(truck, event) {
   const locationWasPickup = String(truck.currentLocation || "").trim().toLocaleLowerCase("id-ID") === String(trip.fromText || "").trim().toLocaleLowerCase("id-ID");
 
   if (trip.status === "PLANNED") {
-    if (!isMoving) return { arrived: false, tripId: trip.id, phase: trip.phase };
     const wasAtPickup = locationWasPickup || previousPickupDistance <= pickupRadius;
     const isAtPickup = currentPickupDistance <= pickupRadius;
-    const nextPhase = trip.purpose !== "DELIVERY" ? "TO_DESTINATION" : isAtPickup ? "AT_PICKUP" : wasAtPickup ? "TO_DESTINATION" : "TO_PICKUP";
+    // A planned delivery that is already inside its pickup geofence has arrived
+    // for loading even when the truck is stationary or only moving slowly.
+    // Likewise, crossing beyond the geofence buffer is enough to confirm that a
+    // truck previously at pickup has departed; GPS speed must not block it.
+    const usesPickupWorkflow = trip.purpose !== "EMPTY_RETURN";
+    const isDeliveryAtPickup = usesPickupWorkflow && isAtPickup;
+    const hasLeftPickup = usesPickupWorkflow && wasAtPickup && currentPickupDistance > pickupRadius + 50;
+    if (!isMoving && !isDeliveryAtPickup && !hasLeftPickup) return { arrived: false, tripId: trip.id, phase: trip.phase };
+    const nextPhase = !usesPickupWorkflow ? "TO_DESTINATION" : isAtPickup ? "AT_PICKUP" : wasAtPickup ? "TO_DESTINATION" : "TO_PICKUP";
     const updated = await prisma.$transaction(async (tx) => {
       const saved = await tx.trip.updateMany({
         where: { id: trip.id, status: "PLANNED" },
@@ -219,7 +278,7 @@ async function evaluateArrival(truck, event) {
     return { arrived: false, departed: updated, tripChanged: updated, tripId: trip.id, phase: nextPhase };
   }
 
-  if (trip.phase === "AT_PICKUP" && isMoving && currentPickupDistance > pickupRadius + 50) {
+  if (trip.phase === "AT_PICKUP" && currentPickupDistance > pickupRadius + 50) {
     const updated = await prisma.trip.updateMany({
       where: { id: trip.id, status: "DISPATCHED", phase: "AT_PICKUP" },
       data: { phase: "TO_DESTINATION", loadedAt: observedAt, gpsArrivalCandidateAt: null },
@@ -227,7 +286,7 @@ async function evaluateArrival(truck, event) {
     return { arrived: false, departed: Boolean(updated.count), tripChanged: Boolean(updated.count), tripId: trip.id, phase: "TO_DESTINATION" };
   }
 
-  if (trip.purpose === "DELIVERY" && ["TO_DESTINATION", "SERVICE_AT_BASE"].includes(trip.phase)) {
+  if (trip.purpose !== "EMPTY_RETURN" && ["TO_DESTINATION", "SERVICE_AT_BASE"].includes(trip.phase)) {
     const destinationDistance = Number.isFinite(trip.destinationLat) && Number.isFinite(trip.destinationLng)
       ? distanceMeters(event.latitude, event.longitude, trip.destinationLat, trip.destinationLng)
       : Infinity;
@@ -277,8 +336,8 @@ async function evaluateArrival(truck, event) {
     }
   }
 
-  const headingToPickup = trip.purpose === "DELIVERY" && trip.phase === "TO_PICKUP";
-  const headingToDestination = trip.phase === "TO_DESTINATION" || (trip.purpose !== "DELIVERY" && trip.phase !== "AT_DESTINATION");
+  const headingToPickup = trip.purpose !== "EMPTY_RETURN" && trip.phase === "TO_PICKUP";
+  const headingToDestination = trip.phase === "TO_DESTINATION";
   if (!headingToPickup && !headingToDestination) return { arrived: false, tripId: trip.id, phase: trip.phase };
   const targetLat = headingToPickup ? trip.pickupLat : trip.destinationLat;
   const targetLng = headingToPickup ? trip.pickupLng : trip.destinationLng;
@@ -353,20 +412,21 @@ async function syncTruckStatusWithoutActiveTrip(truck, event, observedAt) {
 
   const movingSpeedKph = Math.max(1, Number(process.env.GPS_MOVING_SPEED_KPH || 5));
   const isMoving = event.speed !== null && event.speed > movingSpeedKph;
-  const isSafeStopLocation = matchedLocation && matchedLocation.type !== "WARNING";
-  const nextStatus = !isMoving && isSafeStopLocation ? "READY" : "DISPATCH";
+  // Operational availability is driven by trip assignment. A vehicle without
+  // an active trip remains READY even when its GPS happens to be moving.
+  const nextStatus = "READY";
 
   await prisma.truck.update({
     where: { id: truck.id },
     data: {
       status: nextStatus,
-      currentLocation: matchedLocation?.name || "Dalam perjalanan",
+      currentLocation: matchedLocation?.name || (isMoving ? "Dalam perjalanan" : "Di luar master lokasi"),
       locationUpdatedAt: observedAt,
     },
   });
   return {
     status: nextStatus,
-    reason: matchedLocation ? matchedLocation.type : "IN_TRANSIT",
+    reason: matchedLocation ? matchedLocation.type : (isMoving ? "MOVING_WITHOUT_TRIP" : "STOPPED_OUTSIDE_MASTER_LOCATION"),
     locationId: matchedLocation?.id || null,
     distanceM: matchedLocation ? Math.round(matchedDistance) : null,
   };
@@ -417,38 +477,25 @@ router.post("/events", async (req, res) => {
     }
     if (truck && validCoordinates(event.latitude, event.longitude)) {
       const observedAt = event.eventAt || new Date();
-      const stopRadiusM = Math.max(25, Number(process.env.GPS_STOP_AREA_RADIUS_METERS || 500));
-      const startMaxSpeed = Math.max(0, Number(process.env.GPS_STOP_START_MAX_SPEED_KPH || 5));
-      const hasPreviousPosition = validCoordinates(truck.lastGpsLatitude, truck.lastGpsLongitude);
-      const hasStoredAnchor = validCoordinates(truck.gpsStopAnchorLatitude, truck.gpsStopAnchorLongitude);
-      const anchorLatitude = hasStoredAnchor ? truck.gpsStopAnchorLatitude : (hasPreviousPosition ? truck.lastGpsLatitude : event.latitude);
-      const anchorLongitude = hasStoredAnchor ? truck.gpsStopAnchorLongitude : (hasPreviousPosition ? truck.lastGpsLongitude : event.longitude);
-      const distanceFromAnchor = distanceMeters(event.latitude, event.longitude, anchorLatitude, anchorLongitude);
-      const distanceFromPrevious = hasPreviousPosition
-        ? distanceMeters(event.latitude, event.longitude, truck.lastGpsLatitude, truck.lastGpsLongitude)
-        : null;
-      const continuityMinutes = Math.max(2, Number(process.env.GPS_STOP_CONTINUITY_MAX_MINUTES || 10));
-      const telemetryGapMs = hasPreviousPosition && truck.lastGpsAt
-        ? observedAt.getTime() - truck.lastGpsAt.getTime()
-        : Infinity;
-      const hasContinuousTelemetry = telemetryGapMs >= 0 && telemetryGapMs <= continuityMinutes * 60000;
-      const remainsInStopArea = Boolean(truck.gpsStoppedSince)
-        && hasContinuousTelemetry
-        && distanceFromAnchor <= stopRadiusM;
-      const canStartStop = event.speed !== null
-        ? event.speed <= startMaxSpeed
-        : distanceFromPrevious !== null && distanceFromPrevious <= 25;
-      const startsNewStop = !remainsInStopArea && canStartStop;
-      const gpsStoppedSince = remainsInStopArea ? truck.gpsStoppedSince : (startsNewStop ? observedAt : null);
+      const isOutOfOrder = truck.lastGpsAt && observedAt.getTime() <= truck.lastGpsAt.getTime();
+      if (isOutOfOrder) {
+        results.push({ accepted: true, mapped: true, ignoredOutOfOrder: true });
+        continue;
+      }
+      const stopRadiusM = configuredNumber(process.env.GPS_STOP_AREA_RADIUS_METERS, 100, 25);
+      const movementRadiusM = configuredNumber(process.env.GPS_STOP_MOVEMENT_RADIUS_METERS, 150, stopRadiusM + 1);
+      const stopState = calculateStopState({
+        truck, event, observedAt, stopRadiusM, movementRadiusM,
+      });
       await prisma.truck.update({
         where: { id: truck.id },
         data: {
           lastGpsLatitude: event.latitude, lastGpsLongitude: event.longitude,
           lastGpsSpeed: event.speed, lastGpsAt: observedAt,
           lastGpsIgnition: event.ignition,
-          gpsStoppedSince,
-          gpsStopAnchorLatitude: gpsStoppedSince ? (remainsInStopArea ? anchorLatitude : event.latitude) : null,
-          gpsStopAnchorLongitude: gpsStoppedSince ? (remainsInStopArea ? anchorLongitude : event.longitude) : null,
+          gpsStoppedSince: stopState.gpsStoppedSince,
+          gpsStopAnchorLatitude: stopState.anchorLatitude,
+          gpsStopAnchorLongitude: stopState.anchorLongitude,
         },
       });
       await syncTruckStatusWithoutActiveTrip(truck, event, observedAt);
@@ -494,5 +541,5 @@ router.put("/trips/:tripId/destination", authRequired, requireRole("OWNER", "ADM
   }
 });
 
-router._test = { activePlateNumber, date, distanceMeters, normalize, normalizedPlate, validCoordinates };
+router._test = { activePlateNumber, calculateStopState, date, distanceMeters, normalize, normalizedPlate, validCoordinates };
 module.exports = router;
