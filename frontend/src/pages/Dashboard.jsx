@@ -70,9 +70,9 @@ export default function Dashboard() {
   }, [month, revision]);
 
   const data = useMemo(() => {
-    const status = { READY: 0, DISPATCH: 0, MAINTENANCE: 0, INACTIVE: 0 };
+    const status = { READY: 0, PLANNED: 0, DISPATCH: 0, MAINTENANCE: 0, INACTIVE: 0 };
     trucks.forEach((truck) => { const key = String(truck.status || "INACTIVE").toUpperCase(); status[key] = (status[key] || 0) + 1; });
-    const active = status.READY + status.DISPATCH;
+    const active = status.READY + status.PLANNED + status.DISPATCH;
     const warnings = trucks.filter((truck) => truck.tripReturnWarning || truck.tripServiceWarning || truck.gpsStopWarning || truck.gpsLocation?.type === "WARNING").sort((a, b) => Number(b.gpsLocation?.type === "WARNING") - Number(a.gpsLocation?.type === "WARNING") || Number(Boolean(b.tripReturnWarning || b.tripServiceWarning)) - Number(Boolean(a.tripReturnWarning || a.tripServiceWarning)) || Number(b.gpsStopWarning?.durationMinutes || 0) - Number(a.gpsStopWarning?.durationMinutes || 0));
     const gpsMapped = trucks.filter((truck) => truck.gpsImei || truck.gpsDeviceId);
     const oneHourAgo = referenceTime - 60 * 60 * 1000;

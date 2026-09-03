@@ -348,7 +348,7 @@ export default function Trucks() {
   }, [items, page, pageSize]);
 
   const fleetSummary = useMemo(() => ({
-    active: allItems.filter((truck) => ["READY", "DISPATCH"].includes(truck.status)).length,
+    active: allItems.filter((truck) => ["READY", "PLANNED", "DISPATCH"].includes(truck.status)).length,
     maintenance: allItems.filter((truck) => truck.status === "MAINTENANCE").length,
     warnings: allItems.filter((truck) => truck.gpsStopWarning || truck.gpsLocation?.type === "WARNING").length,
     gps: allItems.filter((truck) => truck.lastGpsLatitude != null && truck.lastGpsLongitude != null).length,
@@ -941,6 +941,7 @@ function statusPill(status) {
     letterSpacing: "0.3px",
   };
   if (status === "READY") return { ...base, background: BRAND.successBg, color: BRAND.success };
+  if (status === "PLANNED") return { ...base, background: "#EEF2FF", color: "#4338CA" };
   if (status === "MAINTENANCE") return { ...base, background: BRAND.warningBg, color: BRAND.warning };
   if (status === "DISPATCH") return { ...base, background: BRAND.blueBg, color: BRAND.blue };
   if (status === "WAITING_BACKHAUL") return { ...base, background: "#FFF7ED", color: "#C2410C" };

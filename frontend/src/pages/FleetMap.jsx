@@ -21,6 +21,7 @@ function validPosition(truck) {
 function markerColor(truck) {
   if (truck.gpsLocation?.type === "WARNING" || truck.gpsStopWarning?.severity === "CRITICAL") return "#c2413b";
   if (truck.gpsStopWarning || truck.status === "MAINTENANCE") return "#d38219";
+  if (truck.status === "PLANNED") return "#6366f1";
   if (truck.status === "DISPATCH") return "#2563a8";
   return "#157347";
 }
