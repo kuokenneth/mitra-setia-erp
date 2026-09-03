@@ -20,8 +20,39 @@ function number(value) {
 
 function date(value) {
   if (!value) return null;
-  const result = new Date(value);
-  return Number.isNaN(result.getTime()) ? null : result;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value === "number") {
+    const milliseconds = value < 1e12 ? value * 1000 : value;
+    const result = new Date(milliseconds);
+    return Number.isNaN(result.getTime()) ? null : result;
+  }
+
+  const text = String(value).trim();
+  // GOlacak sends Indonesian wall-clock time without an offset. Node runs in
+  // UTC on Render, so `new Date("YYYY-MM-DD HH:mm:ss")` used to store it seven
+  // hours too far in the future. Explicit Z/+07:00 timestamps remain untouched.
+  const hasExplicitZone = /(?:z|[+-]\d{2}:?\d{2})$/i.test(text);
+  const localParts = !hasExplicitZone && text.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/);
+  let result;
+  if (localParts) {
+    const [, year, month, day, hour, minute, second = "0", fraction = "0"] = localParts;
+    const offsetMinutes = Number(process.env.GOLACAK_TIMEZONE_OFFSET_MINUTES || 420);
+    const milliseconds = Number(fraction.padEnd(3, "0"));
+    result = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second), milliseconds) - offsetMinutes * 60000);
+  } else {
+    result = new Date(text);
+  }
+  if (Number.isNaN(result.getTime())) return null;
+
+  // The current GOlacak feed labels its WIB wall-clock value with `Z`. Detect
+  // that provider quirk conservatively: only shift timestamps whose adjusted
+  // value lands close to the current server time. Correct UTC timestamps and
+  // small device clock drift are left unchanged.
+  const offsetMinutes = Number(process.env.GOLACAK_TIMEZONE_OFFSET_MINUTES || 420);
+  const clockSkewMs = result.getTime() - Date.now();
+  const looksLikeWibMarkedAsUtc = clockSkewMs > 30 * 60000
+    && clockSkewMs <= (offsetMinutes + 90) * 60000;
+  return looksLikeWibMarkedAsUtc ? new Date(result.getTime() - offsetMinutes * 60000) : result;
 }
 
 function boolean(value) {
@@ -396,9 +427,17 @@ router.post("/events", async (req, res) => {
       const distanceFromPrevious = hasPreviousPosition
         ? distanceMeters(event.latitude, event.longitude, truck.lastGpsLatitude, truck.lastGpsLongitude)
         : null;
-      const remainsInStopArea = Boolean(truck.gpsStoppedSince) && distanceFromAnchor <= stopRadiusM;
-      const canStartStop = (event.speed !== null && event.speed <= startMaxSpeed)
-        || (distanceFromPrevious !== null && distanceFromPrevious <= stopRadiusM);
+      const continuityMinutes = Math.max(2, Number(process.env.GPS_STOP_CONTINUITY_MAX_MINUTES || 10));
+      const telemetryGapMs = hasPreviousPosition && truck.lastGpsAt
+        ? observedAt.getTime() - truck.lastGpsAt.getTime()
+        : Infinity;
+      const hasContinuousTelemetry = telemetryGapMs >= 0 && telemetryGapMs <= continuityMinutes * 60000;
+      const remainsInStopArea = Boolean(truck.gpsStoppedSince)
+        && hasContinuousTelemetry
+        && distanceFromAnchor <= stopRadiusM;
+      const canStartStop = event.speed !== null
+        ? event.speed <= startMaxSpeed
+        : distanceFromPrevious !== null && distanceFromPrevious <= 25;
       const startsNewStop = !remainsInStopArea && canStartStop;
       const gpsStoppedSince = remainsInStopArea ? truck.gpsStoppedSince : (startsNewStop ? observedAt : null);
       await prisma.truck.update({
@@ -455,5 +494,5 @@ router.put("/trips/:tripId/destination", authRequired, requireRole("OWNER", "ADM
   }
 });
 
-router._test = { activePlateNumber, distanceMeters, normalize, normalizedPlate, validCoordinates };
+router._test = { activePlateNumber, date, distanceMeters, normalize, normalizedPlate, validCoordinates };
 module.exports = router;

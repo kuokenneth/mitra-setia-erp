@@ -18,7 +18,10 @@ export function AppBootLoader() {
     <main className="erp-boot-loader" role="status" aria-live="polite" aria-label="Memuat aplikasi">
       <div className="erp-boot-orb one" /><div className="erp-boot-orb two" />
       <section>
-        <div className="erp-boot-logo"><img src="/logo2.jpg" alt="CV Mitra Setia" /></div>
+        <div className="erp-boot-logo">
+          <img src="/logo2.jpg" alt="CV Mitra Setia" />
+          <span aria-hidden="true" />
+        </div>
         <span className="erp-boot-eyebrow">TRANSPORT &amp; LOGISTICS</span>
         <h1>Mitra Setia ERP</h1>
         <p>Menyiapkan ruang kerja operasional Anda</p>
