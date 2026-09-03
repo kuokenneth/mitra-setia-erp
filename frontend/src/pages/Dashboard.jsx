@@ -16,17 +16,17 @@ const stopTime = (minutes) => {
 
 function AlertRow({ truck }) {
   const critical = truck.gpsLocation?.type === "WARNING";
-  const service = Boolean(truck.tripServiceWarning);
+  const returnToBase = truck.tripReturnWarning || truck.tripServiceWarning;
   const stopped = Boolean(truck.gpsStopWarning);
   const hasGps = Number.isFinite(Number(truck.lastGpsLatitude)) && Number.isFinite(Number(truck.lastGpsLongitude));
   return (
     <article className={`d3-alert ${critical ? "critical" : "stopped"}`}>
       <i><FiAlertTriangle /></i>
       <div className="d3-alert-main">
-        <div><strong>{truck.plateNumber}</strong><b>{critical ? "AREA WARNING" : service ? "SERVIS DARURAT" : "BERHENTI LAMA"}</b></div>
-        <p><FiMapPin /> {service ? truck.tripServiceWarning.location : truck.gpsLocation?.name || "Di luar master lokasi"}</p>
+        <div><strong>{truck.plateNumber}</strong><b>{critical ? "AREA WARNING" : returnToBase ? "KEMBALI KE BASE" : "BERHENTI LAMA"}</b></div>
+        <p><FiMapPin /> {returnToBase ? `${returnToBase.location} · perlu tindakan` : truck.gpsLocation?.name || "Di luar master lokasi"}</p>
       </div>
-      <div className="d3-alert-meta"><span>{service ? stopTime(truck.tripServiceWarning.durationMinutes) : stopped ? stopTime(truck.gpsStopWarning.durationMinutes) : "Sedang berada di area"}</span><small>{truck.driverUser?.name || "Tanpa pengemudi"}</small></div>
+      <div className="d3-alert-meta"><span>{returnToBase ? stopTime(returnToBase.durationMinutes) : stopped ? stopTime(truck.gpsStopWarning.durationMinutes) : "Sedang berada di area"}</span><small>{truck.driverUser?.name || "Tanpa pengemudi"}</small></div>
       {hasGps && <a href={`https://www.google.com/maps?q=${truck.lastGpsLatitude},${truck.lastGpsLongitude}`} target="_blank" rel="noreferrer"><FiExternalLink /></a>}
     </article>
   );
@@ -73,7 +73,7 @@ export default function Dashboard() {
     const status = { READY: 0, DISPATCH: 0, MAINTENANCE: 0, INACTIVE: 0 };
     trucks.forEach((truck) => { const key = String(truck.status || "INACTIVE").toUpperCase(); status[key] = (status[key] || 0) + 1; });
     const active = status.READY + status.DISPATCH;
-    const warnings = trucks.filter((truck) => truck.tripServiceWarning || truck.gpsStopWarning || truck.gpsLocation?.type === "WARNING").sort((a, b) => Number(b.gpsLocation?.type === "WARNING") - Number(a.gpsLocation?.type === "WARNING") || Number(Boolean(b.tripServiceWarning)) - Number(Boolean(a.tripServiceWarning)) || Number(b.gpsStopWarning?.durationMinutes || 0) - Number(a.gpsStopWarning?.durationMinutes || 0));
+    const warnings = trucks.filter((truck) => truck.tripReturnWarning || truck.tripServiceWarning || truck.gpsStopWarning || truck.gpsLocation?.type === "WARNING").sort((a, b) => Number(b.gpsLocation?.type === "WARNING") - Number(a.gpsLocation?.type === "WARNING") || Number(Boolean(b.tripReturnWarning || b.tripServiceWarning)) - Number(Boolean(a.tripReturnWarning || a.tripServiceWarning)) || Number(b.gpsStopWarning?.durationMinutes || 0) - Number(a.gpsStopWarning?.durationMinutes || 0));
     const gpsMapped = trucks.filter((truck) => truck.gpsImei || truck.gpsDeviceId);
     const oneHourAgo = referenceTime - 60 * 60 * 1000;
     const gpsOnline = gpsMapped.filter((truck) => truck.lastGpsAt && new Date(truck.lastGpsAt).getTime() >= oneHourAgo).length;

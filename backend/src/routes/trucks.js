@@ -109,6 +109,12 @@ router.get(
             : hasGpsPosition
               ? (!isMoving && isSafeLocation ? "READY" : "DISPATCH")
               : truck.status;
+        const returnWarning = serviceTrip ? {
+          since: serviceStop?.startedAt || null,
+          location: serviceStop?.location?.name || nearest?.location.name || "Base",
+          durationMinutes: serviceStop?.startedAt ? Math.max(0, Math.floor((now.getTime() - new Date(serviceStop.startedAt).getTime()) / 60000)) : 0,
+          requiresAction: true,
+        } : null;
         return {
           ...truck,
           currentLocation: nearest?.location.name || truck.currentLocation,
@@ -125,11 +131,9 @@ router.get(
             durationMinutes: stoppedMinutes,
             severity: nearest?.location.type === "WARNING" ? "CRITICAL" : "WARNING",
           } : null,
-          tripServiceWarning: serviceTrip ? {
-            since: serviceStop?.startedAt || null,
-            location: serviceStop?.location?.name || nearest?.location.name || "Base",
-            durationMinutes: serviceStop?.startedAt ? Math.max(0, Math.floor((now.getTime() - new Date(serviceStop.startedAt).getTime()) / 60000)) : 0,
-          } : null,
+          tripReturnWarning: returnWarning,
+          // Compatibility for frontend versions that may still be cached during deploy.
+          tripServiceWarning: returnWarning,
         };
       }) });
     } catch (e) {

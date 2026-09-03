@@ -129,7 +129,7 @@ const DELIVERY_PHASES = [
   { value: "COMPLETED", label: "Selesai" },
 ];
 const DELIVERY_PHASE_LABELS = Object.fromEntries(DELIVERY_PHASES.map((phase) => [phase.value, phase.label]));
-DELIVERY_PHASE_LABELS.SERVICE_AT_BASE = "Servis darurat di base";
+DELIVERY_PHASE_LABELS.SERVICE_AT_BASE = "Kembali ke base — perlu tindakan";
 const EXPENSE_CATEGORIES = [
   ["TRIP_ALLOWANCE", "Panjar / uang jalan"],
   ["REMAINING_TRIP_ALLOWANCE", "Sisa uang jalan"],
@@ -475,7 +475,7 @@ export default function TripDetail() {
                     <div><strong style={{ display: "block", fontSize: 13 }}>Tahap perjalanan</strong><span style={{ color: "#7A8780", fontSize: 11 }}>Satu trip · perjalanan kosong dan pengiriman tercatat dalam satu rangkaian.</span></div>
                     {currentPhase === "AT_PICKUP" && <span style={{ padding: "8px 11px", borderRadius: 8, background: "#EAF7EF", color: "#176C40", fontSize: 11, fontWeight: 700 }}>Menunggu GPS keluar radius lokasi muat</span>}
                   </div>
-                  {currentPhase === "SERVICE_AT_BASE" && <div style={{ marginBottom: 12, padding: "11px 12px", borderRadius: 9, background: "#FFF4E8", border: "1px solid #F2D6B5", color: "#9A541B", fontSize: 12 }}><strong>Pengiriman berhenti sementara untuk servis di base.</strong><span style={{ display: "block", marginTop: 3 }}>Trip, muatan, uang jalan, dan tujuan tetap sama. GPS akan otomatis melanjutkan pengiriman ketika mobil keluar dari radius base.</span></div>}
+                  {currentPhase === "SERVICE_AT_BASE" && <div style={{ marginBottom: 12, padding: "11px 12px", borderRadius: 9, background: "#FFF4E8", border: "1px solid #F2D6B5", color: "#9A541B", fontSize: 12 }}><strong>Kendaraan kembali ke base dan memerlukan tindakan.</strong><span style={{ display: "block", marginTop: 3 }}>Periksa penyebabnya, misalnya servis darurat, menunggu uang jalan, dokumen, atau instruksi. Trip, muatan, dan tujuan tetap sama; perjalanan otomatis berlanjut ketika kendaraan keluar dari radius base.</span></div>}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(105px, 1fr))", gap: 7, overflowX: "auto", paddingBottom: 2 }}>
                     {DELIVERY_PHASES.map((phase, index) => {
                       const done = currentPhase === "COMPLETED" || (currentPhaseIndex >= 0 && index < currentPhaseIndex);

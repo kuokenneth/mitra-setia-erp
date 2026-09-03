@@ -56,9 +56,9 @@ const CONTROL_STAGES = [{
   icon: FiTruck
 }, {
   key: "SERVICE_AT_BASE",
-  label: "Servis darurat",
-  note: "Kembali ke base setelah muat",
-  icon: FiTool,
+  label: "Kembali ke base",
+  note: "Perlu tindakan operator",
+  icon: FiAlertTriangle,
   warning: true
 }, {
   key: "AT_DESTINATION",
@@ -109,7 +109,7 @@ function tripWarning(trip, now) {
   const gpsAge = minutesSince(trip.truck?.lastGpsAt, now);
   if (stage === "SERVICE_AT_BASE") return {
     level: "critical",
-    text: `Servis darurat di ${trip.serviceStops?.[0]?.location?.name || "base"}`
+    text: `Kembali ke ${trip.serviceStops?.[0]?.location?.name || "base"} — perlu tindakan`
   };
   if (trip.truck?.lastGpsAt && gpsAge >= 15) return {
     level: "critical",
