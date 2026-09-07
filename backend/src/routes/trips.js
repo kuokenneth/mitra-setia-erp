@@ -38,6 +38,16 @@ function endOfToday() {
 
 const ACTIVE_TRIP_STATUSES = ["PLANNED", "DISPATCHED", "ARRIVED"];
 
+async function nextSingleTripNumber(tx) {
+  const now = new Date();
+  const dateParts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now).map((part) => [part.type, part.value]));
+  const { year, day, month } = dateParts;
+  const prefix = `TRIP-${year}-${day}/${month}-`;
+  const last = await tx.trip.findFirst({ where: { tripNo: { startsWith: prefix } }, orderBy: { tripNo: "desc" }, select: { tripNo: true } });
+  const sequence = last?.tripNo ? Number(last.tripNo.slice(prefix.length)) + 1 : 1;
+  return `${prefix}${String(sequence).padStart(4, "0")}`;
+}
+
 /**
  * Truck status helpers
  */
@@ -275,6 +285,7 @@ router.get("/", authRequired, async (req, res) => {
           { driverUser: { is: { name: { contains: q, mode: "insensitive" } } } },
           { order: { is: { orderNo: { contains: q, mode: "insensitive" } } } },
           { order: { is: { toText: { contains: q, mode: "insensitive" } } } },
+          { tripNo: { contains: q, mode: "insensitive" } },
         ],
       };
 
@@ -327,6 +338,7 @@ router.get("/my", authRequired, async (req, res) => {
           select: { id: true, orderNo: true, customerName: true, cargoName: true, qty: true, unit: true, fromText: true, toText: true },
         },
         dispatchLetter: true,
+        materialInvoices: { include: { destinationLocation: true, lines: true }, orderBy: { stopSequence: "asc" } },
       },
     });
 
@@ -337,16 +349,77 @@ router.get("/my", authRequired, async (req, res) => {
   }
 });
 
+router.patch("/:id/material-stops/:invoiceId/complete", authRequired, async (req, res) => {
+  try {
+    if (!canWrite(req.user) && !isDriver(req.user)) return res.status(403).json({ error: "Forbidden" });
+    const invoice = await prisma.materialInvoice.findFirst({ where: { id: req.params.invoiceId, tripId: req.params.id }, include: { trip: true } });
+    if (!invoice) return res.status(404).json({ error: "Tujuan Faktur Muatan tidak ditemukan" });
+    if (!invoice.destinationArrivedAt) return res.status(400).json({ error: "Kendaraan belum terdeteksi tiba di tujuan ini" });
+    const saved = await prisma.$transaction(async (tx) => {
+      const updated = await tx.materialInvoice.update({ where: { id: invoice.id }, data: { destinationCompletedAt: new Date() } });
+      await tx.trip.update({ where: { id: invoice.tripId }, data: { gpsArrivalCandidateAt: null } });
+      return updated;
+    });
+    res.json(saved);
+  } catch (e) { res.status(400).json({ error: e.message || "Gagal menyelesaikan tujuan" }); }
+});
+
+router.post("/:id/material-invoices", authRequired, async (req, res) => {
+  try {
+    if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
+    const { billingCustomerName, destinationLocationId, stopSequence, issuedAt, notes, number, lines: inputLines } = req.body || {};
+    if (!str(billingCustomerName)) throw new Error("Customer tagihan wajib diisi");
+    if (!str(destinationLocationId)) throw new Error("Tujuan bongkar wajib dipilih");
+    const lines = Array.isArray(inputLines) ? inputLines.map((line) => ({
+      ppNumber: str(line.ppNumber), poNumber: str(line.poNumber), itemName: str(line.itemName),
+      qty: Number(line.qty), unit: str(line.unit) || "TON",
+      totalKg: line.totalKg === "" || line.totalKg == null ? null : Number(line.totalKg),
+      totalAmount: line.totalAmount === "" || line.totalAmount == null ? null : Number(line.totalAmount),
+    })) : [];
+    if (!lines.length || lines.some((line) => !line.itemName || !Number.isFinite(line.qty) || line.qty <= 0 || !line.unit)) throw new Error("Rincian barang, jumlah, dan satuan wajib diisi");
+    if (lines.some((line) => line.totalAmount == null || !Number.isFinite(line.totalAmount) || line.totalAmount < 0)) throw new Error("Total Rupiah setiap barang wajib diisi");
+
+    const trip = await prisma.trip.findUnique({ where: { id: req.params.id }, include: { truck: true, dispatchLetter: true } });
+    if (!trip || trip.purpose !== "SINGLE_TRIP" || trip.cargoCategorySnap !== "MATERIAL") throw new Error("Faktur Muatan langsung hanya tersedia untuk Trip Tunggal Ambang/Material");
+    if (["COMPLETED", "CANCELLED"].includes(trip.status)) throw new Error("Trip yang sudah ditutup tidak dapat ditambah Faktur Muatan");
+    const destination = await prisma.operationalLocation.findFirst({ where: { id: str(destinationLocationId), isActive: true } });
+    if (!destination) throw new Error("Tujuan bongkar tidak ditemukan atau tidak aktif");
+    const requestedSequence = Math.max(1, Math.round(Number(stopSequence) || 1));
+    const saved = await prisma.$transaction(async (tx) => {
+      await tx.materialInvoice.updateMany({ where: { tripId: trip.id, stopSequence: { gte: requestedSequence } }, data: { stopSequence: { increment: 1 } } });
+      const documentNumber = str(number) || trip.dispatchLetter?.number || `FM-${new Date().getFullYear()}-${Date.now().toString().slice(-7)}`;
+      return tx.materialInvoice.create({
+        data: {
+          orderId: null, tripId: trip.id, number: documentNumber,
+          materialName: lines.length === 1 ? lines[0].itemName : "Multiple materials",
+          qty: lines.reduce((sum, line) => sum + line.qty, 0), unit: lines.length === 1 ? lines[0].unit : "LINES",
+          billingCustomerName: str(billingCustomerName), destinationLocationId: destination.id, stopSequence: requestedSequence,
+          issuedAt: issuedAt ? new Date(issuedAt) : new Date(), notes: str(notes), lines: { create: lines },
+        },
+        include: { destinationLocation: true, lines: true },
+      });
+    });
+    res.status(201).json(saved);
+  } catch (e) { res.status(400).json({ error: e.message || "Gagal menyimpan Faktur Muatan" }); }
+});
+
 /**
  * POST /trips/single
- * Create an ad-hoc cargo trip without an Order. Weight is intentionally left
- * empty and will be recorded later by the billing workflow.
+ * Create an ad-hoc cargo trip without an Order.
  */
 router.post("/single", authRequired, async (req, res) => {
   try {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
-    const { truckId, driverUserId, pickupLocationId, destinationLocationId, plannedDepartAt, cargoName, reason } = req.body || {};
+    const { truckId, driverUserId, pickupLocationId, destinationLocationId, plannedDepartAt, cargoCategory, cargoName, qtyPlanned, unit, reason } = req.body || {};
+    const allowedCargoCategories = new Set(["FERTILIZER", "CANGKANG", "MATERIAL"]);
+    const selectedCargoCategory = str(cargoCategory) === "AMBANG" ? "MATERIAL" : str(cargoCategory);
+    const plannedQty = qtyPlanned === "" || qtyPlanned == null ? null : Number(qtyPlanned);
     if (!truckId) return res.status(400).json({ error: "Truk wajib dipilih" });
+    if (!allowedCargoCategories.has(selectedCargoCategory)) return res.status(400).json({ error: "Jenis muatan wajib dipilih" });
+    if (!str(cargoName)) return res.status(400).json({ error: "Nama barang/muatan wajib diisi" });
+    if (["FERTILIZER", "CANGKANG"].includes(selectedCargoCategory) && (!Number.isFinite(plannedQty) || plannedQty <= 0)) return res.status(400).json({ error: "Jumlah muatan wajib diisi untuk pupuk atau cangkang" });
+    if (plannedQty != null && (!Number.isFinite(plannedQty) || plannedQty <= 0)) return res.status(400).json({ error: "Jumlah muatan harus lebih dari nol" });
+    if (plannedQty != null && !str(unit)) return res.status(400).json({ error: "Satuan muatan wajib diisi" });
     if (!pickupLocationId || !destinationLocationId) return res.status(400).json({ error: "Lokasi muat dan tujuan wajib dipilih" });
     if (pickupLocationId === destinationLocationId) return res.status(400).json({ error: "Lokasi muat dan tujuan harus berbeda" });
 
@@ -359,7 +432,6 @@ router.post("/single", authRequired, async (req, res) => {
       if (!truck) throw new Error("Truk tidak ditemukan");
       if (["MAINTENANCE", "INACTIVE"].includes(truck.status)) throw new Error("Truk sedang tidak tersedia untuk perjalanan");
       if (!pickup || !destination) throw new Error("Master lokasi muat atau tujuan tidak ditemukan");
-
       const selectedDriverId = driverUserId || truck.driverUserId;
       if (!selectedDriverId) throw new Error("Pengemudi wajib dipilih");
       const driver = await tx.user.findUnique({ where: { id: selectedDriverId } });
@@ -370,8 +442,10 @@ router.post("/single", authRequired, async (req, res) => {
       });
       if (busy) throw new Error("Truk atau pengemudi masih memiliki perjalanan aktif");
 
+      const tripNo = await nextSingleTripNumber(tx);
       return tx.trip.create({
         data: {
+          tripNo,
           orderId: null,
           truckId,
           driverUserId: selectedDriverId,
@@ -379,6 +453,8 @@ router.post("/single", authRequired, async (req, res) => {
           phase: "PLANNED",
           purpose: "SINGLE_TRIP",
           operationalReason: str(reason) || str(cargoName) || "Trip tunggal tanpa pesanan",
+          cargoCategorySnap: selectedCargoCategory,
+          cargoNameSnap: str(cargoName),
           plannedDepartAt: toDate(plannedDepartAt),
           plateNumberSnap: truck.plateNumber,
           driverNameSnap: driver.name,
@@ -390,9 +466,9 @@ router.post("/single", authRequired, async (req, res) => {
           destinationLat: destination.latitude,
           destinationLng: destination.longitude,
           arrivalRadiusM: destination.radiusM,
-          qtyPlanned: null,
+          qtyPlanned: plannedQty,
           qtyActual: null,
-          unitSnap: null,
+          unitSnap: str(unit),
         },
       });
     });
@@ -611,12 +687,13 @@ router.get("/:id/allocation-candidates", authRequired, async (req, res) => {
         id: { notIn: excludedIds },
         status: { in: ["DRAFT", "CONFIRMED", "IN_PROGRESS"] },
         pickupLocationId: trip.order?.pickupLocationId || undefined,
-        destinationLocationId: trip.order?.destinationLocationId || undefined,
+        cargoCategory: trip.order?.cargoCategory || undefined,
+        NOT: { cargoCategory: "MATERIAL" },
       },
-      include: { customer: true },
+      include: { customer: true, destinationLocation: true, tripAllocations: { where: { trip: { status: { not: "CANCELLED" } } }, select: { qtyPlanned: true } } },
       orderBy: { createdAt: "desc" },
     });
-    res.json({ items });
+    res.json({ items: items.map((item) => ({ ...item, remainingQty: item.qty == null ? null : Math.max(0, Number(item.qty) - item.tripAllocations.reduce((sum, allocation) => sum + Number(allocation.qtyPlanned || 0), 0)), tripAllocations: undefined })) });
   } catch (e) {
     res.status(400).json({ error: e.message || "Gagal memuat kandidat muatan" });
   }
@@ -628,6 +705,7 @@ router.post("/:id/allocations", authRequired, async (req, res) => {
     const orderId = str(req.body?.orderId);
     const qtyPlanned = Number(req.body?.qtyPlanned);
     const unitSnap = str(req.body?.unit) || "TON";
+    const requestedSequence = Math.max(1, Math.round(Number(req.body?.stopSequence) || 1));
     if (!orderId) throw new Error("Order tambahan wajib dipilih");
     if (!Number.isFinite(qtyPlanned) || qtyPlanned <= 0) throw new Error("Jumlah muatan tambahan harus lebih dari nol");
 
@@ -640,22 +718,24 @@ router.post("/:id/allocations", authRequired, async (req, res) => {
       if (!["PLANNED", "DISPATCHED"].includes(trip.status) || ["TO_DESTINATION", "AT_DESTINATION", "COMPLETED"].includes(trip.phase)) {
         throw new Error("Muatan tambahan hanya dapat dimasukkan sebelum kendaraan selesai memuat");
       }
-      const order = await tx.order.findUnique({ where: { id: orderId } });
+      const order = await tx.order.findUnique({ where: { id: orderId }, include: { tripAllocations: { where: { trip: { status: { not: "CANCELLED" } } }, select: { qtyPlanned: true } } } });
       if (!order || order.status === "CANCELLED" || order.status === "COMPLETED") throw new Error("Order tambahan tidak tersedia");
-      if (trip.order && (order.pickupLocationId !== trip.order.pickupLocationId || order.destinationLocationId !== trip.order.destinationLocationId)) {
-        throw new Error("Order tambahan harus memiliki lokasi muat dan tujuan yang sama dengan trip");
+      if (trip.order && order.pickupLocationId !== trip.order.pickupLocationId) {
+        throw new Error("Order tambahan harus memiliki lokasi muat yang sama dengan trip");
       }
-      const allocatedTons = trip.orderAllocations.reduce((sum, item) => {
-        const unit = String(item.unitSnap || "").toUpperCase();
-        return sum + (unit === "TON" ? Number(item.qtyPlanned || 0) : unit === "KG" ? Number(item.qtyPlanned || 0) / 1000 : 0);
-      }, 0);
-      const requestedTons = unitSnap.toUpperCase() === "TON" ? qtyPlanned : unitSnap.toUpperCase() === "KG" ? qtyPlanned / 1000 : 0;
-      if (allocatedTons + requestedTons > Number(trip.truck.capacityTons || 30) + 1e-9) {
-        throw new Error(`Total muatan melebihi kapasitas ${trip.truck.capacityTons || 30} ton`);
+      if (trip.order && (order.cargoCategory !== trip.order.cargoCategory || order.cargoCategory === "MATERIAL")) {
+        throw new Error("Order tambahan harus merupakan muatan pupuk/cangkang dengan jenis yang sama");
       }
+      if (!['TON', 'KG'].includes(unitSnap.toUpperCase())) throw new Error("Muatan tambahan pupuk/cangkang harus menggunakan TON atau KG");
+      if (order.unit && order.unit.toUpperCase() !== unitSnap.toUpperCase()) throw new Error(`Satuan alokasi harus mengikuti order: ${order.unit}`);
+      const alreadyAllocated = order.tripAllocations.reduce((sum, item) => sum + Number(item.qtyPlanned || 0), 0);
+      if (order.qty != null && alreadyAllocated + qtyPlanned > Number(order.qty) + 1e-9) {
+        throw new Error(`Alokasi melebihi sisa order ${Math.max(0, Number(order.qty) - alreadyAllocated)} ${order.unit || unitSnap}`);
+      }
+      await tx.tripOrderAllocation.updateMany({ where: { tripId: trip.id, stopSequence: { gte: requestedSequence } }, data: { stopSequence: { increment: 1 } } });
       const created = await tx.tripOrderAllocation.create({
-        data: { tripId: trip.id, orderId: order.id, qtyPlanned, unitSnap, isPrimary: false },
-        include: { order: { include: { customer: true } } },
+        data: { tripId: trip.id, orderId: order.id, qtyPlanned, unitSnap, isPrimary: false, stopSequence: requestedSequence },
+        include: { order: { include: { customer: true, destinationLocation: true } } },
       });
       if (!["IN_PROGRESS", "COMPLETED"].includes(order.status)) {
         await tx.order.update({ where: { id: order.id }, data: { status: "IN_PROGRESS" } });
@@ -666,6 +746,30 @@ router.post("/:id/allocations", authRequired, async (req, res) => {
   } catch (e) {
     res.status(e.code === "P2002" ? 409 : 400).json({ error: e.code === "P2002" ? "Order sudah dialokasikan ke trip ini" : e.message || "Gagal menambah muatan" });
   }
+});
+
+router.patch("/:id/order-stops/:allocationId/complete", authRequired, async (req, res) => {
+  try {
+    if (!canWrite(req.user) && !isDriver(req.user)) return res.status(403).json({ error: "Forbidden" });
+    const allocation = await prisma.tripOrderAllocation.findFirst({ where: { id: req.params.allocationId, tripId: req.params.id }, include: { trip: true, order: { include: { destinationLocation: true } } } });
+    if (!allocation) return res.status(404).json({ error: "Tujuan order tidak ditemukan" });
+    if (allocation.order.cargoCategory === "MATERIAL") return res.status(400).json({ error: "Tujuan material diselesaikan melalui Faktur Muatan" });
+    if (!allocation.destinationArrivedAt) return res.status(400).json({ error: "Kendaraan belum terdeteksi tiba di tujuan order ini" });
+    const saved = await prisma.$transaction(async (tx) => {
+      const updated = await tx.tripOrderAllocation.update({ where: { id: allocation.id }, data: { destinationCompletedAt: new Date(), qtyActual: allocation.qtyActual ?? allocation.qtyPlanned } });
+      const [remainingOrders, remainingMaterials] = await Promise.all([
+        tx.tripOrderAllocation.count({ where: { tripId: allocation.tripId, destinationCompletedAt: null } }),
+        tx.materialInvoice.count({ where: { tripId: allocation.tripId, destinationLocationId: { not: null }, destinationCompletedAt: null } }),
+      ]);
+      await tx.trip.update({ where: { id: allocation.tripId }, data: remainingOrders === 0 && remainingMaterials === 0
+        ? { status: "ARRIVED", phase: "AT_DESTINATION", arrivedAt: new Date(), gpsArrivalCandidateAt: null }
+        : { gpsArrivalCandidateAt: null } });
+      if (remainingOrders === 0 && remainingMaterials === 0) await tx.truck.update({ where: { id: allocation.trip.truckId }, data: { currentLocation: allocation.order.destinationLocation?.name || allocation.order.toText, locationUpdatedAt: new Date() } });
+      await recomputeOrderStatus(tx, allocation.orderId);
+      return updated;
+    });
+    res.json(saved);
+  } catch (e) { res.status(400).json({ error: e.message || "Gagal menyelesaikan tujuan order" }); }
 });
 
 /**
@@ -687,7 +791,7 @@ router.get("/:id", authRequired, async (req, res) => {
         },
         orderAllocations: {
           orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-          include: { order: { include: { customer: true, materialInvoices: { where: { tripId: id }, include: { lines: true } } } } },
+          include: { order: { include: { customer: true, destinationLocation: true, materialInvoices: { where: { tripId: id }, include: { lines: true } } } } },
         },
         arrivalProofs: { orderBy: { createdAt: "desc" } },
         serviceStops: { include: { location: true }, orderBy: { startedAt: "desc" } },
@@ -782,12 +886,19 @@ router.patch("/:id/status", authRequired, async (req, res) => {
         where: { id },
         include: {
           order: { select: { id: true } },
-          orderAllocations: true,
+          orderAllocations: { include: { order: { select: { cargoCategory: true } } } },
+          materialInvoices: { select: { id: true, destinationLocationId: true, destinationCompletedAt: true } },
           truck: { select: { id: true, plateNumber: true, currentLocation: true } },
           driverUser: { select: { id: true, name: true } },
         },
       });
       if (!trip) throw new Error("Trip not found");
+      if (nextStatus === "COMPLETED" && trip.materialInvoices.some((invoice) => invoice.destinationLocationId && !invoice.destinationCompletedAt)) {
+        throw new Error("Selesaikan seluruh tujuan Faktur Muatan sebelum menutup trip");
+      }
+      if (nextStatus === "COMPLETED" && trip.orderAllocations.some((allocation) => allocation.order?.cargoCategory !== "MATERIAL" && !allocation.destinationCompletedAt)) {
+        throw new Error("Selesaikan bongkar seluruh order sebelum menutup trip");
+      }
 
       const writer = canWrite(req.user);
       const driver = isDriver(req.user);

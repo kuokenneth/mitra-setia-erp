@@ -1,0 +1,13 @@
+DROP INDEX IF EXISTS "Invoice_orderId_key";
+ALTER TABLE "Invoice" ALTER COLUMN "orderId" DROP NOT NULL;
+ALTER TABLE "Invoice" ADD COLUMN "singleTripId" TEXT;
+ALTER TABLE "Invoice" ADD COLUMN "billingKey" TEXT;
+ALTER TABLE "Invoice" ADD COLUMN "sourceType" TEXT NOT NULL DEFAULT 'ORDER';
+UPDATE "Invoice" SET "billingKey" = 'ORDER:' || "orderId" WHERE "billingKey" IS NULL;
+ALTER TABLE "Invoice" ALTER COLUMN "billingKey" SET NOT NULL;
+CREATE UNIQUE INDEX "Invoice_billingKey_key" ON "Invoice"("billingKey");
+CREATE UNIQUE INDEX "Invoice_singleTripId_key" ON "Invoice"("singleTripId");
+ALTER TABLE "Invoice" ADD CONSTRAINT "Invoice_singleTripId_fkey" FOREIGN KEY ("singleTripId") REFERENCES "Trip"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "MaterialInvoice" ADD COLUMN "billedInvoiceId" TEXT;
+CREATE INDEX "MaterialInvoice_billedInvoiceId_idx" ON "MaterialInvoice"("billedInvoiceId");
+ALTER TABLE "MaterialInvoice" ADD CONSTRAINT "MaterialInvoice_billedInvoiceId_fkey" FOREIGN KEY ("billedInvoiceId") REFERENCES "Invoice"("id") ON DELETE SET NULL ON UPDATE CASCADE;

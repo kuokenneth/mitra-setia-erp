@@ -250,8 +250,12 @@ export default function TripDetail() {
   const [err, setErr] = useState("");
   const [trip, setTrip] = useState(null);
   const [allocationCandidates, setAllocationCandidates] = useState([]);
-  const [allocationForm, setAllocationForm] = useState({ orderId: "", qtyPlanned: "", unit: "TON" });
+  const [allocationForm, setAllocationForm] = useState({ orderId: "", qtyPlanned: "", unit: "TON", stopSequence: 2 });
   const [allocationBusy, setAllocationBusy] = useState(false);
+  const [operationalLocations, setOperationalLocations] = useState([]);
+  const [singleMaterialOpen, setSingleMaterialOpen] = useState(false);
+  const [singleMaterialBusy, setSingleMaterialBusy] = useState(false);
+  const [singleMaterialForm, setSingleMaterialForm] = useState({ billingCustomerName: "", destinationLocationId: "", stopSequence: 1, issuedAt: new Date().toISOString().slice(0, 10), ppNumber: "", poNumber: "", itemName: "", qty: "", unit: "TON", totalKg: "", totalAmount: "", notes: "" });
 
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState("");
@@ -267,12 +271,14 @@ export default function TripDetail() {
     try {
       setErr("");
       setLoading(true);
-      const [data, candidates] = await Promise.all([
+      const [data, candidates, locationData] = await Promise.all([
         api(`/trips/${id}`),
         canWrite ? api(`/trips/${id}/allocation-candidates`).catch(() => ({ items: [] })) : Promise.resolve({ items: [] }),
+        api("/operational-locations").catch(() => ({ items: [] })),
       ]);
       setTrip(data);
       setAllocationCandidates(candidates?.items || []);
+      setOperationalLocations((locationData?.items || []).filter((location) => location.isActive));
     } catch (e) {
       setErr(e?.message || "Gagal memuat trip");
     } finally {
@@ -383,13 +389,44 @@ export default function TripDetail() {
       setAllocationBusy(true);
       setSaveErr("");
       await api(`/trips/${id}/allocations`, { method: "POST", body: JSON.stringify(allocationForm) });
-      setAllocationForm({ orderId: "", qtyPlanned: "", unit: "TON" });
+      setAllocationForm({ orderId: "", qtyPlanned: "", unit: "TON", stopSequence: (trip?.orderAllocations?.length || 1) + 1 });
       await load();
     } catch (e) {
       setSaveErr(e?.message || "Gagal menambahkan muatan order");
     } finally {
       setAllocationBusy(false);
     }
+  }
+
+  async function completeMaterialStop(invoiceId) {
+    try {
+      setSaveErr(""); setSaving(true);
+      await api(`/trips/${id}/material-stops/${invoiceId}/complete`, { method: "PATCH" });
+      await load();
+    } catch (e) { setSaveErr(e?.message || "Gagal menyelesaikan tujuan"); }
+    finally { setSaving(false); }
+  }
+
+  async function completeOrderStop(allocationId) {
+    try {
+      setSaveErr(""); setSaving(true);
+      await api(`/trips/${id}/order-stops/${allocationId}/complete`, { method: "PATCH" });
+      await load();
+    } catch (e) { setSaveErr(e.message || "Gagal menyelesaikan bongkar order"); }
+    finally { setSaving(false); }
+  }
+
+  async function createSingleMaterialInvoice(event) {
+    event.preventDefault();
+    try {
+      setSingleMaterialBusy(true); setSaveErr("");
+      const { ppNumber, poNumber, itemName, qty, unit, totalKg, totalAmount, ...invoice } = singleMaterialForm;
+      await api(`/trips/${id}/material-invoices`, { method: "POST", body: JSON.stringify({ ...invoice, lines: [{ ppNumber, poNumber, itemName, qty, unit, totalKg, totalAmount }] }) });
+      setSingleMaterialForm({ billingCustomerName: "", destinationLocationId: "", stopSequence: (trip?.materialInvoices?.length || 0) + 2, issuedAt: new Date().toISOString().slice(0, 10), ppNumber: "", poNumber: "", itemName: "", qty: "", unit: "TON", totalKg: "", totalAmount: "", notes: "" });
+      setSingleMaterialOpen(false);
+      await load();
+    } catch (e) { setSaveErr(e.message || "Gagal membuat Faktur Muatan"); }
+    finally { setSingleMaterialBusy(false); }
   }
 
   async function uploadTripProof(event, proofType) {
@@ -459,7 +496,7 @@ export default function TripDetail() {
                     {order.orderNo}
                   </span>
                 ) : (
-                  trip.purpose === "EMPTY_RETURN" ? "Perjalanan operasional · tanpa muatan" : trip.purpose === "SINGLE_TRIP" ? "Trip tunggal · tanpa pesanan" : "-"
+                  trip.purpose === "EMPTY_RETURN" ? "Perjalanan operasional · tanpa muatan" : trip.purpose === "SINGLE_TRIP" ? `${trip.tripNo || "Trip tanpa pesanan"} · tanpa pesanan` : "-"
                 )}{" "}
                 • {routeText} • Planned: {fmtDateTime(trip.plannedDepartAt)}
               </div>
@@ -467,7 +504,7 @@ export default function TripDetail() {
               <div className="trip-detail-v3-badges" style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 <span style={tripBadgeStyle(trip.status)}>{String(trip.status).replaceAll("_", " ")}</span>
                 {trip.purpose === "EMPTY_RETURN" && <span style={{ ...badgeBase, background: "#FFF7ED", color: "#C2410C" }}>KEMBALI KOSONG · PENDAPATAN RP0</span>}
-                {trip.purpose === "SINGLE_TRIP" && <span style={{ ...badgeBase, background: "#EEF7FF", color: "#1769AA" }}>TRIP TUNGGAL · BERAT DI TAGIHAN</span>}
+                {trip.purpose === "SINGLE_TRIP" && <span style={{ ...badgeBase, background: "#EEF7FF", color: "#1769AA" }}>{trip.tripNo || "TRIP TANPA PESANAN"} · BERAT DI TAGIHAN</span>}
                 <span style={{ ...badgeBase, background: "#FFFFFF" }}>{role}</span>
 
                 {trip.qtyPlanned != null ? (
@@ -551,7 +588,7 @@ export default function TripDetail() {
               <div style={{ fontWeight: 650, marginBottom: 10, fontSize: 16 }}>Informasi Perjalanan</div>
               <InfoRow label="Status" icon={FiFlag} value={<span style={tripBadgeStyle(trip.status)}>{String(trip.status).replaceAll("_", " ")}</span>} />
               {trip.purpose !== "EMPTY_RETURN" && <InfoRow label="Tahap aktif" icon={FiActivity} value={DELIVERY_PHASE_LABELS[currentPhase] || "Direncanakan"} />}
-              {trip.purpose === "SINGLE_TRIP" ? <InfoRow label="Berat muatan" icon={FiPackage} value="Diisi saat proses tagihan" /> : <>
+              {trip.purpose === "SINGLE_TRIP" ? <><InfoRow label="Kategori muatan" icon={FiPackage} value={{ FERTILIZER: "Pupuk", CANGKANG: "Cangkang", AMBANG: "Ambang / Material", MATERIAL: "Ambang / Material" }[trip.cargoCategorySnap] || trip.cargoCategorySnap || "-"} /><InfoRow label="Nama muatan" icon={FiPackage} value={trip.cargoNameSnap || trip.operationalReason || "-"} /><InfoRow label="Jumlah muatan" icon={FiPackage} value={plannedWeight == null ? "Diisi setelah proses muat" : `${plannedWeight.toLocaleString("id-ID", { maximumFractionDigits: 3 })} ${weightUnit}`} /></> : <>
                 <InfoRow label="Muatan rencana" icon={FiPackage} value={plannedWeight == null ? "Belum diisi" : `${plannedWeight.toLocaleString("id-ID", { maximumFractionDigits: 3 })} ${weightUnit}`} />
                 <InfoRow label="Berat tiba" icon={FiPackage} value={arrivalWeight == null ? "Belum dicatat" : `${arrivalWeight.toLocaleString("id-ID", { maximumFractionDigits: 3 })} ${weightUnit}`} />
                 <InfoRow label="Selisih muatan" icon={FiActivity} value={cargoDifference == null ? "Menunggu berat tiba" : <span style={{ color: cargoDifference > 0 ? "#B45309" : "#0D7C3D", fontWeight: 700 }}>{cargoDifference.toLocaleString("id-ID", { maximumFractionDigits: 3 })} {weightUnit}{cargoDifference > 0 ? " · kehilangan tercatat" : " · sesuai"}</span>} />
@@ -585,22 +622,50 @@ export default function TripDetail() {
             </div>
           </div>
 
-          {trip.purpose === "DELIVERY" && <section className="trip-detail-v3-card" style={{ ...panel, marginTop: 14, boxShadow: "none", borderRadius: 13, padding: 20 }}>
-            <div style={{ fontWeight: 650, marginBottom: 4, fontSize: 16 }}>Alokasi Order dalam Trip</div>
-            <p style={{ margin: "0 0 14px", color: "#718078", fontSize: 13 }}>Muatan beberapa customer dapat memakai kendaraan dan GPS yang sama, tetapi tetap ditagihkan per order.</p>
-            <div style={{ display: "grid", gap: 8 }}>
-              {(trip.orderAllocations || []).map((allocation) => <div key={allocation.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, padding: "10px 12px", border: "1px solid #E2EAE5", borderRadius: 9 }}>
-                <span><strong>{allocation.order?.orderNo}</strong> · {allocation.order?.customer?.name || allocation.order?.customerName || "Tanpa customer"}<small style={{ display: "block", color: "#718078", marginTop: 3 }}>{allocation.order?.cargoName || "Muatan"}{allocation.isPrimary ? " · order utama" : " · order tambahan"}</small></span>
+          {trip.purpose === "DELIVERY" && <section className="trip-detail-v3-card trip-allocation-card" style={{ ...panel, marginTop: 14, boxShadow: "none", borderRadius: 13, padding: 20 }}>
+            <header className="trip-allocation-head"><div><span>MUATAN TERBAGI</span><h2>Alokasi Order dalam Trip</h2><p>Beberapa customer memakai kendaraan dan GPS yang sama, tetapi tonase, tujuan, dan tagihannya tetap terpisah.</p></div></header>
+            <div className="trip-allocation-list">
+              {(trip.orderAllocations || []).map((allocation) => <div className={`trip-allocation-row ${allocation.destinationCompletedAt ? "completed" : ""}`} key={allocation.id} style={{ display: "grid", gridTemplateColumns: "34px 1fr auto auto", alignItems: "center", gap: 12, padding: "10px 12px", border: "1px solid #E2EAE5", borderRadius: 9 }}>
+                <b style={{ width: 28, height: 28, display: "grid", placeItems: "center", borderRadius: 8, color: "#0D7C3D", background: "#EDF6F0" }}>{allocation.stopSequence || 1}</b>
+                <span><strong>{allocation.order?.orderNo}</strong> · {allocation.order?.customer?.name || allocation.order?.customerName || "Tanpa customer"}<small style={{ display: "block", color: "#718078", marginTop: 3 }}>{allocation.order?.cargoName || "Muatan"} · tujuan {allocation.order?.destinationLocation?.name || allocation.order?.toText || "-"}{allocation.isPrimary ? " · order utama" : " · order tambahan"}</small></span>
                 <strong>{Number(allocation.qtyPlanned || 0).toLocaleString("id-ID")} {allocation.unitSnap || ""}</strong>
+                {allocation.order?.cargoCategory === "MATERIAL" ? <span style={{ color: "#718078", fontSize: 12 }}>Mengikuti Faktur Muatan</span> : allocation.destinationCompletedAt ? <strong style={{ color: "#0D7C3D", fontSize: 12 }}>Selesai</strong> : allocation.destinationArrivedAt ? <button type="button" disabled={saving} onClick={() => completeOrderStop(allocation.id)} style={{ ...btnGhost, height: 34, background: "#0D7C3D", color: "white" }}>Selesai bongkar</button> : <span style={{ color: "#718078", fontSize: 12 }}>Menunggu tiba</span>}
               </div>)}
             </div>
-            {canWrite && ["PLANNED", "DISPATCHED"].includes(currentStatus) && !["TO_DESTINATION", "AT_DESTINATION"].includes(currentPhase) && <form onSubmit={addOrderAllocation} style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
-              <select required value={allocationForm.orderId} onChange={(e) => setAllocationForm((form) => ({ ...form, orderId: e.target.value }))} style={{ flex: "1 1 280px", height: 40, border: "1px solid #DCE5E0", borderRadius: 8, padding: "0 10px" }}><option value="">Pilih order tambahan dengan rute sama</option>{allocationCandidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.orderNo} · {candidate.customer?.name || candidate.customerName || "Tanpa customer"} · {candidate.cargoName || "Muatan"}</option>)}</select>
+            {canWrite && ["PLANNED", "DISPATCHED"].includes(currentStatus) && !["TO_DESTINATION", "AT_DESTINATION"].includes(currentPhase) && <form className="trip-allocation-form" onSubmit={addOrderAllocation} style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
+              <select required value={allocationForm.orderId} onChange={(e) => { const candidate = allocationCandidates.find((item) => item.id === e.target.value); setAllocationForm((form) => ({ ...form, orderId: e.target.value, unit: candidate?.unit || form.unit })); }} style={{ flex: "1 1 280px", height: 40, border: "1px solid #DCE5E0", borderRadius: 8, padding: "0 10px" }}><option value="">Pilih order pupuk tambahan</option>{allocationCandidates.filter((candidate) => candidate.remainingQty == null || candidate.remainingQty > 0).map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.orderNo} · {candidate.customer?.name || candidate.customerName || "Tanpa customer"} · sisa {candidate.remainingQty ?? "-"} {candidate.unit || ""} → {candidate.destinationLocation?.name || candidate.toText}</option>)}</select>
               <input required type="number" min="0.01" step="any" value={allocationForm.qtyPlanned} onChange={(e) => setAllocationForm((form) => ({ ...form, qtyPlanned: e.target.value }))} placeholder="Jumlah" style={{ width: 110, height: 38, border: "1px solid #DCE5E0", borderRadius: 8, padding: "0 10px" }} />
-              <select value={allocationForm.unit} onChange={(e) => setAllocationForm((form) => ({ ...form, unit: e.target.value }))} style={{ height: 40, border: "1px solid #DCE5E0", borderRadius: 8 }}><option>TON</option><option>KG</option><option>PCS</option></select>
+              <select value={allocationForm.unit} onChange={(e) => setAllocationForm((form) => ({ ...form, unit: e.target.value }))} style={{ height: 40, border: "1px solid #DCE5E0", borderRadius: 8 }}><option>TON</option><option>KG</option></select>
+              <input aria-label="Urutan tujuan" title="Urutan tujuan" required type="number" min="1" value={allocationForm.stopSequence} onChange={(e) => setAllocationForm((form) => ({ ...form, stopSequence: e.target.value }))} placeholder="Urutan" style={{ width: 76, height: 38, border: "1px solid #DCE5E0", borderRadius: 8, padding: "0 10px" }} />
               <button type="submit" disabled={allocationBusy || !allocationCandidates.length} style={{ ...btnGhost, background: "#0D7C3D", color: "white" }}>{allocationBusy ? "Menyimpan…" : "Tambah"}</button>
             </form>}
           </section>}
+
+          {((trip.materialInvoices || []).length > 0 || (trip.purpose === "SINGLE_TRIP" && trip.cargoCategorySnap === "MATERIAL")) && <section className="trip-detail-v3-card" style={{ ...panel, marginTop: 14, boxShadow: "none", borderRadius: 13, padding: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}><div style={{ fontWeight: 650, fontSize: 16 }}>Tujuan Faktur Muatan</div>{canWrite && trip.purpose === "SINGLE_TRIP" && trip.cargoCategorySnap === "MATERIAL" && !["COMPLETED", "CANCELLED"].includes(currentStatus) && <button type="button" onClick={() => setSingleMaterialOpen(true)} style={{ ...btnGhost, background: "#0D7C3D", color: "white" }}><FiPlus /> Tambah Faktur Muatan</button>}</div>
+            <p style={{ color: "#718078", fontSize: 13 }}>Tujuan diproses sesuai urutan. Trip belum dapat selesai selama masih ada tujuan terbuka.</p>
+            {!(trip.materialInvoices || []).length && <div style={{ padding: 18, border: "1px dashed #CBDDD2", borderRadius: 10, color: "#718078", textAlign: "center" }}>Belum ada Faktur Muatan. Tambahkan customer yang ditagih dan tujuan bongkar.</div>}
+            {(trip.materialInvoices || []).map((invoice) => <div key={invoice.id} style={{ display: "grid", gridTemplateColumns: "36px 1fr auto", gap: 10, alignItems: "center", padding: "11px 0", borderTop: "1px solid #E2EAE5" }}><b style={{ width: 28, height: 28, display: "grid", placeItems: "center", borderRadius: 8, background: "#EDF6F0", color: "#0D7C3D" }}>{invoice.stopSequence || 1}</b><span><strong>{invoice.destinationLocation?.name || "Tujuan belum tersedia"}</strong><small style={{ display: "block", marginTop: 3, color: "#718078" }}>{invoice.billingCustomerName || "Customer material"} · {invoice.materialName}</small></span>{invoice.destinationCompletedAt ? <strong style={{ color: "#0D7C3D" }}>Selesai</strong> : invoice.destinationArrivedAt ? <button type="button" disabled={saving} onClick={() => completeMaterialStop(invoice.id)} style={{ ...btnGhost, background: "#0D7C3D", color: "white" }}>Selesai bongkar</button> : <span style={{ color: "#718078", fontSize: 12 }}>Menunggu tiba</span>}</div>)}
+          </section>}
+
+          {singleMaterialOpen && <div className="trip-material-overlay" onMouseDown={() => setSingleMaterialOpen(false)}><form className="trip-material-modal" onSubmit={createSingleMaterialInvoice} onMouseDown={(e) => e.stopPropagation()}>
+            <header><div><span>FAKTUR MUATAN · TRIP TUNGGAL</span><h2>Tambah muatan dan tujuan</h2><p>Customer tagihan boleh berbeda dari perusahaan pada lokasi tujuan.</p></div><button type="button" onClick={() => setSingleMaterialOpen(false)}><FiX /></button></header>
+            <div className="trip-material-form">
+              <label>Tujuan bongkar<select required value={singleMaterialForm.destinationLocationId} onChange={(e) => { const location = operationalLocations.find((item) => item.id === e.target.value); setSingleMaterialForm((form) => ({ ...form, destinationLocationId: e.target.value, billingCustomerName: form.billingCustomerName || String(location?.name || "").split(" - ")[0] })); }}><option value="">Pilih dari Master Lokasi</option>{operationalLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
+              <label>Customer yang ditagih<input required value={singleMaterialForm.billingCustomerName} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, billingCustomerName: e.target.value }))} placeholder="Contoh: PT SSS" /></label>
+              <label>Urutan tujuan<input required type="number" min="1" value={singleMaterialForm.stopSequence} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, stopSequence: e.target.value }))} /></label>
+              <label>Tanggal<input required type="date" value={singleMaterialForm.issuedAt} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, issuedAt: e.target.value }))} /></label>
+              <label>No. PP <small>Opsional</small><input value={singleMaterialForm.ppNumber} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, ppNumber: e.target.value }))} /></label>
+              <label>No. PO <small>Opsional</small><input value={singleMaterialForm.poNumber} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, poNumber: e.target.value }))} /></label>
+              <label className="wide">Nama barang<input required value={singleMaterialForm.itemName} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, itemName: e.target.value }))} placeholder="Ambang / material yang dibawa" /></label>
+              <label>Jumlah<input required type="number" min="0.01" step="any" value={singleMaterialForm.qty} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, qty: e.target.value }))} /></label>
+              <label>Satuan<select value={singleMaterialForm.unit} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, unit: e.target.value }))}><option>TON</option><option>KG</option><option>PCS</option><option>LOAD</option></select></label>
+              <label>Total berat (kg) <small>Opsional</small><input type="number" min="0" step="any" value={singleMaterialForm.totalKg} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, totalKg: e.target.value }))} /></label>
+              <label>Total tagihan (Rp)<input required type="number" min="0" step="1" value={singleMaterialForm.totalAmount} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, totalAmount: e.target.value }))} /></label>
+              <label className="wide">Catatan <small>Opsional</small><textarea rows="2" value={singleMaterialForm.notes} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, notes: e.target.value }))} /></label>
+            </div>
+            <footer><button type="button" className="secondary" onClick={() => setSingleMaterialOpen(false)}>Batal</button><button disabled={singleMaterialBusy}>{singleMaterialBusy ? "Menyimpan…" : "Simpan Faktur Muatan"}</button></footer>
+          </form></div>}
 
           <section className="trip-expense-panel">
             <header>

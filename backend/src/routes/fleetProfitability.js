@@ -28,7 +28,7 @@ function tripDate(trip) {
 }
 
 function allocatedRevenue(trip) {
-  const invoice = trip.order?.invoice;
+  const invoice = trip.order?.invoices?.find(item => item.sourceType === "ORDER" && item.status !== "VOID");
   if (!invoice || !["SENT", "PARTIALLY_PAID", "PAID"].includes(invoice.status)) return 0;
   const deliveredQuantity = Math.max(0, Number(trip.qtyActual ?? trip.qtyPlanned ?? 0));
   const orderedQuantity = Math.max(0, Number(trip.order.qty || 0));
@@ -46,7 +46,7 @@ function allocatedRevenue(trip) {
 }
 
 function cargoLossValue(trip) {
-  const invoice = trip.order?.invoice;
+  const invoice = trip.order?.invoices?.find(item => item.sourceType === "ORDER" && item.status !== "VOID");
   const orderedQuantity = Math.max(0, Number(trip.order?.qty || 0));
   if (!invoice || !["SENT", "PARTIALLY_PAID", "PAID"].includes(invoice.status) || orderedQuantity <= 0 || trip.qtyActual == null) return 0;
   const plannedQuantity = Math.max(0, Number(trip.qtyPlanned || 0));
@@ -74,7 +74,7 @@ router.get("/", async (req, res) => {
           },
           include: {
             expenses: { where: { status: { in: ["PAID", "APPROVED"] } }, orderBy: { createdAt: "asc" } },
-            order: { include: { invoice: true, trips: { select: { id: true, status: true, qtyActual: true, qtyPlanned: true } } } },
+            order: { include: { invoices: true, trips: { select: { id: true, status: true, qtyActual: true, qtyPlanned: true } } } },
           },
         },
         sparePartAssignments: { where: { installedAt: dateRange }, include: { stockUnit: { select: { purchasePrice: true, item: { select: { name: true, sku: true } } } } } },
@@ -107,7 +107,8 @@ router.get("/", async (req, res) => {
       const tripDetails = operationalTrips.map(item => {
         const tripRevenue = Math.round(allocatedRevenue(item));
         const expenseTotal = item.expenses.reduce((sum, expense) => sum + expense.amount, 0);
-        const invoiceTotal = item.order?.invoice?.total || 0;
+        const orderInvoice = item.order?.invoices?.find(invoice => invoice.sourceType === "ORDER" && invoice.status !== "VOID");
+        const invoiceTotal = orderInvoice?.total || 0;
         const tripCargoLoss = Math.round(cargoLossValue(item));
         return {
           id: item.id,
@@ -118,7 +119,7 @@ router.get("/", async (req, res) => {
           toText: item.toText || item.order?.toText,
           orderNo: item.order?.orderNo || null,
           customerName: item.order?.customerName || null,
-          invoiceNumber: item.order?.invoice?.number || null,
+          invoiceNumber: orderInvoice?.number || null,
           invoiceTotal,
           allocatedRevenue: tripRevenue,
           allocationPercent: invoiceTotal > 0 ? round((tripRevenue / invoiceTotal) * 100) : 0,

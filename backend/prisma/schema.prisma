@@ -466,7 +466,7 @@ model Order {
   tripAllocations  TripOrderAllocation[]
   proofs           OrderProof[]
   materialInvoices MaterialInvoice[]
-  invoice          Invoice?
+  invoices         Invoice[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -488,8 +488,12 @@ model Order {
 model Invoice {
   id                String              @id @default(cuid())
   number            String              @unique
-  orderId           String              @unique
-  order             Order               @relation(fields: [orderId], references: [id])
+  orderId           String?
+  order             Order?              @relation(fields: [orderId], references: [id])
+  singleTripId      String?             @unique
+  singleTrip        Trip?               @relation("SingleTripInvoice", fields: [singleTripId], references: [id])
+  billingKey        String              @unique
+  sourceType        String              @default("ORDER")
   customerId        String?
   customer          Customer?           @relation(fields: [customerId], references: [id])
   customerName      String
@@ -514,6 +518,7 @@ model Invoice {
   createdById       String
   createdBy         User                @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
   payments          ReceivablePayment[]
+  materialInvoices  MaterialInvoice[]   @relation("MaterialInvoiceBilling")
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
@@ -541,7 +546,8 @@ model ReceivablePayment {
 }
 
 model Trip {
-  id String @id @default(cuid())
+  id     String  @id @default(cuid())
+  tripNo String? @unique
 
   orderId String?
   order   Order?  @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -557,6 +563,8 @@ model Trip {
   purpose           TripPurpose @default(DELIVERY)
   phase             TripPhase   @default(PLANNED)
   operationalReason String?
+  cargoCategorySnap String?
+  cargoNameSnap     String?
 
   // ✅ quantity per trip (for contract decrement)
   qtyPlanned Float? // planned load for this trip
@@ -595,7 +603,8 @@ model Trip {
   serviceStops       TripServiceStop[]
   operationalActions TripOperationalAction[]
 
-  expenses Expense[]
+  expenses      Expense[]
+  singleInvoice Invoice?  @relation("SingleTripInvoice")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -604,18 +613,22 @@ model Trip {
   @@index([truckId])
   @@index([driverUserId])
   @@index([status])
+  @@index([tripNo])
 }
 
 model TripOrderAllocation {
-  id         String   @id @default(cuid())
-  tripId     String
-  orderId    String
-  qtyPlanned Float?
-  qtyActual  Float?
-  unitSnap   String?
-  isPrimary  Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                     String    @id @default(cuid())
+  tripId                 String
+  orderId                String
+  qtyPlanned             Float?
+  qtyActual              Float?
+  unitSnap               String?
+  isPrimary              Boolean   @default(false)
+  stopSequence           Int       @default(1)
+  destinationArrivedAt   DateTime?
+  destinationCompletedAt DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   trip  Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -623,6 +636,7 @@ model TripOrderAllocation {
   @@unique([tripId, orderId])
   @@index([tripId])
   @@index([orderId])
+  @@index([tripId, stopSequence])
 }
 
 model TripOperationalAction {
@@ -696,29 +710,38 @@ model OrderProof {
 }
 
 model MaterialInvoice {
-  id            String   @id @default(cuid())
-  orderId       String
-  tripId        String
-  number        String
-  materialName  String
-  qty           Float
-  unit          String
-  billingCustomerName String?
-  issuedAt      DateTime @default(now())
-  notes         String?
-  proofUrl      String?
-  proofFileName String?
-  proofMimeType String?
-  proofSize     Int?
-  createdAt     DateTime @default(now())
+  id                     String               @id @default(cuid())
+  orderId                String?
+  tripId                 String
+  number                 String
+  materialName           String
+  qty                    Float
+  unit                   String
+  billingCustomerName    String?
+  destinationLocationId  String?
+  destinationLocation    OperationalLocation? @relation(fields: [destinationLocationId], references: [id], onDelete: SetNull)
+  stopSequence           Int?
+  destinationArrivedAt   DateTime?
+  destinationCompletedAt DateTime?
+  issuedAt               DateTime             @default(now())
+  notes                  String?
+  proofUrl               String?
+  proofFileName          String?
+  proofMimeType          String?
+  proofSize              Int?
+  createdAt              DateTime             @default(now())
 
-  order Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  trip  Trip                  @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  lines MaterialInvoiceLine[]
+  order           Order?                @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  trip            Trip                  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  lines           MaterialInvoiceLine[]
+  billedInvoiceId String?
+  billedInvoice   Invoice?              @relation("MaterialInvoiceBilling", fields: [billedInvoiceId], references: [id], onDelete: SetNull)
 
   @@unique([orderId, number])
   @@index([orderId])
   @@index([tripId])
+  @@index([destinationLocationId])
+  @@index([billedInvoiceId])
 }
 
 model MaterialInvoiceLine {
@@ -826,9 +849,10 @@ model OperationalLocation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  pickupOrders      Order[]           @relation("OrderPickupLocation")
-  destinationOrders Order[]           @relation("OrderDestinationLocation")
-  serviceStops      TripServiceStop[]
+  pickupOrders         Order[]           @relation("OrderPickupLocation")
+  destinationOrders    Order[]           @relation("OrderDestinationLocation")
+  serviceStops         TripServiceStop[]
+  materialDestinations MaterialInvoice[]
 
   @@index([isActive])
   @@index([type])

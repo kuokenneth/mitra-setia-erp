@@ -26,8 +26,10 @@ import {
   FiX,
 } from "react-icons/fi";
 import "./OrderDetailRedesign.css";
+import "./OrdersProgress.css";
 import "./OrderDetailHeader.css";
 import "./OrderTripModal.css";
+import "./MaterialInvoice.css";
 
 //////////////////////
 // THEME - CORPORATE MINIMALIST
@@ -73,6 +75,11 @@ function fmtDateTime(d) {
   const dt = new Date(d);
   if (Number.isNaN(dt.getTime())) return "-";
   return dt.toLocaleString("id-ID");
+}
+
+function companyFromLocation(name) {
+  const value = String(name || "").trim();
+  return value.split(/\s+-\s+/)[0]?.trim() || value;
 }
 
 function fmtNum(n) {
@@ -361,7 +368,8 @@ export default function OrderDetail() {
   // proofs upload
   const [uploadingProofs, setUploadingProofs] = useState(false);
   const [uploadProofErr, setUploadProofErr] = useState("");
-  const [materialInvoiceForm, setMaterialInvoiceForm] = useState({ tripId: "", number: "", billingCustomerName: "", issuedAt: new Date().toISOString().slice(0, 10), notes: "" });
+  const [materialInvoiceForm, setMaterialInvoiceForm] = useState({ tripId: "", number: "", billingCustomerName: "", destinationLocationId: "", stopSequence: 1, issuedAt: new Date().toISOString().slice(0, 10), notes: "" });
+  const [materialDestinations, setMaterialDestinations] = useState([]);
   const [materialInvoiceLines, setMaterialInvoiceLines] = useState([{ ppNumber: "", poNumber: "", itemName: "", qty: "", unit: "PCS", totalKg: "", totalAmount: "" }]);
   const [materialInvoiceProof, setMaterialInvoiceProof] = useState(null);
   const [savingMaterialInvoice, setSavingMaterialInvoice] = useState(false);
@@ -376,8 +384,9 @@ export default function OrderDetail() {
     try {
       setErr("");
       setLoading(true);
-      const data = await api(`/orders/${id}`);
+      const [data, locationData] = await Promise.all([api(`/orders/${id}`), api("/operational-locations")]);
       setOrder(data);
+      setMaterialDestinations((locationData?.items || []).filter((location) => location.isActive));
     } catch (e) {
       setErr(e?.message || "Gagal memuat order");
     } finally {
@@ -398,7 +407,7 @@ export default function OrderDetail() {
       const uploaded = materialInvoiceProof ? await uploadFiles([materialInvoiceProof]) : [];
       const proof = uploaded[0] ? { url: uploaded[0].url, fileName: uploaded[0].fileName, mimeType: uploaded[0].mimeType, size: uploaded[0].size } : undefined;
       await api(`/orders/${id}/material-invoices`, { method: "POST", body: JSON.stringify({ ...materialInvoiceForm, lines: materialInvoiceLines, proof }) });
-      setMaterialInvoiceForm((form) => ({ ...form, number: "", billingCustomerName: "", notes: "" }));
+      setMaterialInvoiceForm((form) => ({ ...form, number: "", billingCustomerName: "", destinationLocationId: "", stopSequence: 1, notes: "" }));
       setMaterialInvoiceLines([{ ppNumber: "", poNumber: "", itemName: "", qty: "", unit: "PCS", totalKg: "", totalAmount: "" }]);
       setMaterialInvoiceProof(null);
       await load();
@@ -563,6 +572,9 @@ export default function OrderDetail() {
   const completedQty = trips
     .filter((t) => String(t.status || "").toUpperCase() === "COMPLETED")
     .reduce((sum, t) => sum + Number(t.qtyActual ?? t.qtyPlanned ?? 0), 0);
+  const processingQty = trips
+    .filter((t) => !["COMPLETED", "CANCELLED"].includes(String(t.status || "").toUpperCase()))
+    .reduce((sum, t) => sum + Number(t.qtyPlanned || 0), 0);
   const completedTrips = trips.filter((t) => String(t.status || "").toUpperCase() === "COMPLETED").length;
   const materialLines = materialInvoices.flatMap((invoice) =>
     invoice.lines?.length
@@ -581,6 +593,9 @@ export default function OrderDetail() {
   const completionPct = order.qty
     ? Math.max(0, Math.min(100, Math.round((completedQty / Number(order.qty)) * 100)))
     : order.status === "COMPLETED" ? 100 : 0;
+  const processingPct = order.qty
+    ? Math.max(0, Math.min(100 - completionPct, (processingQty / Number(order.qty)) * 100))
+    : 0;
 
   return (
     <div className="order-detail-v3" data-testid="order-detail-page">
@@ -663,7 +678,7 @@ export default function OrderDetail() {
       </div>
 
       <div className="order-detail-v3-overview">
-        <article><span><FiPackage /></span><div><small>ALOKASI MUATAN</small><strong>{hasPlannedQty ? `${fmtNum(usedPlanned)} / ${fmtNum(order.qty)} ${order.unit || ""}` : `${trips.length} trip`}</strong><i><b style={{ width: `${hasPlannedQty && Number(order.qty) > 0 ? Math.min(100, (usedPlanned / Number(order.qty)) * 100) : 0}%` }} /></i><em>{hasPlannedQty ? `${fmtNum(remaining)} ${order.unit || ""} belum dibuatkan trip` : "Jumlah mengikuti faktur muatan"}</em></div></article>
+        <article><span><FiPackage /></span><div><small>PROGRES MUATAN</small><strong>{hasPlannedQty ? `${fmtNum(completedQty)} / ${fmtNum(order.qty)} ${order.unit || ""} selesai` : `${trips.length} trip`}</strong><i className="order-load-progress"><b className="completed" style={{ width: `${completionPct}%` }} /><b className="processing" style={{ width: `${processingPct}%` }} /></i><em>{hasPlannedQty ? `${fmtNum(processingQty)} ${order.unit || ""} sedang diproses · ${fmtNum(remaining)} ${order.unit || ""} belum dialokasikan` : "Jumlah mengikuti faktur muatan"}</em></div></article>
         <article><span><FiMapPin /></span><div><small>LOKASI MUAT</small><strong>{order.pickupLocation?.name || order.fromText || "Belum dipilih"}</strong><em>{order.pickupLocation?.address || "Master Lokasi"}</em></div></article>
         <article><span><FiMapPin /></span><div><small>TUJUAN BONGKAR</small><strong>{order.destinationLocation?.name || order.toText || "Belum dipilih"}</strong><em>{order.destinationLocation?.address || "Master Lokasi"}</em></div></article>
         <article><span><FiActivity /></span><div><small>PROGRES TRIP</small><strong>{completedTrips} / {trips.length} selesai</strong><em>{trips.filter((trip) => ["PLANNED", "DISPATCHED", "ARRIVED"].includes(trip.status)).length} masih aktif</em></div></article>
@@ -706,11 +721,11 @@ export default function OrderDetail() {
                       <span>Realisasi muatan</span>
                       <span><strong style={{ color: BRAND.text }}>{fmtNum(completedQty)} / {fmtNum(order.qty)} {order.unit || ""}</strong> · {completionPct}%</span>
                     </div>
-                    <div style={{ height: 9, background: "#DCE9E1", borderRadius: 999, overflow: "hidden" }}>
-                      <div style={{ width: `${completionPct}%`, height: "100%", borderRadius: 999, background: completionPct >= 100 ? BRAND.success : BRAND.primary, transition: "width .3s ease" }} />
+                    <div className="order-load-progress order-load-progress-large">
+                      <b className="completed" style={{ width: `${completionPct}%` }} /><b className="processing" style={{ width: `${processingPct}%` }} />
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 8, fontSize: 12, color: BRAND.textMuted }}>
-                      <span>Dialokasikan: {fmtNum(usedPlanned)} {order.unit || ""}</span>
+                      <span><b style={{ color: BRAND.success }}>{fmtNum(completedQty)} selesai</b> · <b style={{ color: BRAND.warning }}>{fmtNum(processingQty)} diproses</b></span>
                       <span>Sisa: {fmtNum(remaining)} {order.unit || ""}</span>
                     </div>
                   </div>
@@ -896,17 +911,23 @@ export default function OrderDetail() {
           )}
 
           {tab === "MATERIAL_INVOICES" && (
-            <div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 18 }}><div style={{ color: BRAND.textMuted, fontSize: 14 }}>Khusus angkutan material/ambang. Input faktur setelah truk ditetapkan dan barang dimuat.</div>{materialInvoices.length > 0 && <Button type="button" variant="secondary" size="small" icon={FiPrinter} onClick={() => openPrintDocument(`/orders/${id}/material-invoices/print`).catch((error) => setErr(error.message))}>Cetak Semua Faktur</Button>}</div>
+            <div className="material-invoice-page">
+              <div className="material-invoice-hero"><div><span>FAKTUR MUATAN</span><h2>Muatan tambahan & tujuan bongkar</h2><p>Catat pemilik tagihan, tujuan, urutan pemberhentian, barang, dan nilai muatan.</p></div>{materialInvoices.length > 0 && <Button type="button" variant="secondary" size="small" icon={FiPrinter} onClick={() => openPrintDocument(`/orders/${id}/material-invoices/print`).catch((error) => setErr(error.message))}>Cetak Semua Faktur</Button>}</div>
               {canWrite && (trips.length ? (
-                <form onSubmit={createMaterialInvoice} style={{ padding: 16, border: `1px solid ${BRAND.border}`, borderRadius: 10, background: BRAND.secondary, marginBottom: 20 }}>
-                  <div style={{ fontWeight: 650, color: BRAND.text, marginBottom: 14 }}>Tambah Faktur Muatan</div>
+                <form className="material-invoice-form" onSubmit={createMaterialInvoice}>
+                  <div className="material-invoice-section-title"><span>1</span><div><strong>Customer dan tujuan</strong><small>Customer adalah pihak yang ditagih; tujuan adalah lokasi fisik bongkar.</small></div></div>
                   <label style={{ display: "block", marginBottom: 14, fontSize: 12, color: BRAND.textMuted }}>Ditagihkan kepada / Customer Material<Input required value={materialInvoiceForm.billingCustomerName} onChange={(e) => setMaterialInvoiceForm((form) => ({ ...form, billingCustomerName: e.target.value }))} placeholder="Contoh: PT SSS" style={{ marginTop: 6 }} /></label>
+                  <div style={{ display: "grid", gridTemplateColumns: isNarrow ? "1fr" : "2fr 1fr", gap: 12, marginBottom: 14 }}>
+                    <label style={{ fontSize: 12, color: BRAND.textMuted }}>Tujuan bongkar<select required value={materialInvoiceForm.destinationLocationId} onChange={(e) => { const location = materialDestinations.find((item) => item.id === e.target.value); setMaterialInvoiceForm((form) => ({ ...form, destinationLocationId: e.target.value, billingCustomerName: form.billingCustomerName || companyFromLocation(location?.name) })); }} style={{ width: "100%", marginTop: 6, height: 42, borderRadius: 6, border: `1px solid ${BRAND.border}`, padding: "0 10px" }}><option value="">Pilih tujuan dari Master Lokasi</option>{materialDestinations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
+                    <label style={{ fontSize: 12, color: BRAND.textMuted }}>Urutan tujuan<Input required type="number" min="1" step="1" value={materialInvoiceForm.stopSequence} onChange={(e) => setMaterialInvoiceForm((form) => ({ ...form, stopSequence: e.target.value }))} style={{ marginTop: 6 }} /></label>
+                  </div>
+                  <div className="material-invoice-section-title"><span>2</span><div><strong>Armada dan dokumen</strong><small>Pilih trip yang membawa muatan ini.</small></div></div>
                   <div style={{ display: "grid", gridTemplateColumns: isNarrow ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: 12 }}>
                     <label style={{ fontSize: 12, color: BRAND.textMuted }}>Truk<select required value={materialInvoiceForm.tripId} onChange={(e) => { const trip = trips.find((item) => item.id === e.target.value); setMaterialInvoiceForm((f) => ({ ...f, tripId: e.target.value, number: trip?.dispatchLetter?.number || "" })); }} style={{ width: "100%", marginTop: 6, height: 42, borderRadius: 6, border: `1px solid ${BRAND.border}`, padding: "0 10px" }}><option value="">Pilih truk</option>{trips.map((trip) => <option key={trip.id} value={trip.id}>{trip.truck?.plateNumber || trip.plateNumberSnap || "-"} · {trip.dispatchLetter?.number || "Surat jalan belum dibuat"}</option>)}</select></label>
                     <label style={{ fontSize: 12, color: BRAND.textMuted }}>No. Surat Jalan<Input readOnly value={materialInvoiceForm.number} placeholder="Pilih trip yang sudah memiliki surat jalan" style={{ marginTop: 6, background: BRAND.secondary, color: BRAND.primary, fontWeight: 700 }} /></label>
                     <label style={{ fontSize: 12, color: BRAND.textMuted }}>Tanggal<Input required type="date" value={materialInvoiceForm.issuedAt} onChange={(e) => setMaterialInvoiceForm((f) => ({ ...f, issuedAt: e.target.value }))} style={{ marginTop: 6 }} /></label>
                   </div>
+                  <div className="material-invoice-section-title"><span>3</span><div><strong>Rincian barang</strong><small>Masukkan kuantitas, berat, dan nilai yang akan ditagihkan.</small></div></div>
                   <div style={{ marginTop: 16, overflowX: "auto" }}>
                     <div style={{ fontWeight: 650, color: BRAND.text, marginBottom: 8 }}>Rincian barang dalam GRN</div>
                     <table style={{ width: "100%", minWidth: 860, borderCollapse: "collapse", fontSize: 12 }}><thead><tr style={{ textAlign: "left", color: BRAND.textMuted }}><th>NO. PP</th><th>NO. PO</th><th>Nama barang</th><th>Qty</th><th>Satuan</th><th>Total Kg</th><th>Total Rp</th><th></th></tr></thead><tbody>{materialInvoiceLines.map((line, index) => <tr key={index}><td><Input value={line.ppNumber} onChange={(e) => setMaterialInvoiceLines((lines) => lines.map((row, i) => i === index ? { ...row, ppNumber: e.target.value } : row))} placeholder="No. PP" /></td><td><Input value={line.poNumber} onChange={(e) => setMaterialInvoiceLines((lines) => lines.map((row, i) => i === index ? { ...row, poNumber: e.target.value } : row))} placeholder="No. PO" /></td><td><Input required value={line.itemName} onChange={(e) => setMaterialInvoiceLines((lines) => lines.map((row, i) => i === index ? { ...row, itemName: e.target.value } : row))} placeholder="Nama barang" /></td><td><Input required type="number" min="0.01" step="any" value={line.qty} onChange={(e) => setMaterialInvoiceLines((lines) => lines.map((row, i) => i === index ? { ...row, qty: e.target.value } : row))} /></td><td><Input required value={line.unit} onChange={(e) => setMaterialInvoiceLines((lines) => lines.map((row, i) => i === index ? { ...row, unit: e.target.value } : row))} /></td><td><Input type="number" min="0" step="any" value={line.totalKg} onChange={(e) => setMaterialInvoiceLines((lines) => lines.map((row, i) => i === index ? { ...row, totalKg: e.target.value } : row))} /></td><td><Input type="number" min="0" step="1" value={line.totalAmount} onChange={(e) => setMaterialInvoiceLines((lines) => lines.map((row, i) => i === index ? { ...row, totalAmount: e.target.value } : row))} /></td><td><Button type="button" variant="danger" size="small" disabled={materialInvoiceLines.length === 1} onClick={() => setMaterialInvoiceLines((lines) => lines.filter((_, i) => i !== index))}>×</Button></td></tr>)}</tbody></table>

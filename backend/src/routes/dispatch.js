@@ -179,7 +179,7 @@ router.post("/trips/:tripId", authRequired, async (req, res) => {
     const result = await prisma.$transaction(async (tx) => {
       const trip = await tx.trip.findUnique({
         where: { id: tripId },
-        include: { truck: true, driverUser: true, order: true, dispatchLetter: true, orderAllocations: { include: { order: { include: { customer: true } } }, orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] } },
+        include: { truck: true, driverUser: true, order: true, dispatchLetter: true, orderAllocations: { include: { order: { include: { customer: true, destinationLocation: true } } }, orderBy: [{ stopSequence: "asc" }, { createdAt: "asc" }] } },
       });
       if (!trip) throw new Error("Trip not found");
 
@@ -198,7 +198,9 @@ router.post("/trips/:tripId", authRequired, async (req, res) => {
 
       const driverName = trip.driverNameSnap || trip.driverUser?.name || "";
       const plateNumber = trip.plateNumberSnap || trip.truck?.plateNumber || "";
-      const destination = trip.toText || order.toText || "";
+      const destination = allocations.length
+        ? allocations.map((item) => `${item.stopSequence}. ${item.order.destinationLocation?.name || item.order.toText || "Tujuan"}`).join("; ")
+        : trip.toText || order.toText || "";
 
       const issuedAt = new Date();
       const dispatchNo = trip.dispatchLetter?.number || (await nextDispatchNo(tx));

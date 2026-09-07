@@ -230,11 +230,16 @@ async function evaluateArrival(truck, event) {
   const trip = await prisma.trip.findFirst({
     where: { truckId: truck.id, status: { in: ["PLANNED", "DISPATCHED"] } },
     orderBy: { createdAt: "desc" },
-    include: { serviceStops: { where: { endedAt: null }, include: { location: true }, take: 1 } },
+    include: {
+      serviceStops: { where: { endedAt: null }, include: { location: true }, take: 1 },
+      orderAllocations: { where: { destinationCompletedAt: null, order: { cargoCategory: { not: "MATERIAL" } } }, include: { order: { include: { destinationLocation: true } } }, orderBy: { stopSequence: "asc" } },
+      materialInvoices: { where: { destinationLocationId: { not: null }, destinationCompletedAt: null }, include: { destinationLocation: true }, orderBy: { stopSequence: "asc" } },
+    },
   });
   if (!trip) return { arrived: false };
 
   const observedAt = event.eventAt || new Date();
+  const activeOrderStop = trip.orderAllocations[0] || null;
   const departureSpeed = Math.max(0, Number(process.env.GOLACAK_DEPARTURE_MIN_SPEED_KPH || 5));
   const previousDistance = validCoordinates(truck.lastGpsLatitude, truck.lastGpsLongitude)
     ? distanceMeters(event.latitude, event.longitude, truck.lastGpsLatitude, truck.lastGpsLongitude)
@@ -287,10 +292,14 @@ async function evaluateArrival(truck, event) {
   }
 
   if (trip.purpose !== "EMPTY_RETURN" && ["TO_DESTINATION", "SERVICE_AT_BASE"].includes(trip.phase)) {
-    const destinationDistance = Number.isFinite(trip.destinationLat) && Number.isFinite(trip.destinationLng)
-      ? distanceMeters(event.latitude, event.longitude, trip.destinationLat, trip.destinationLng)
+    const serviceTarget = activeOrderStop?.order?.destinationLocation;
+    const serviceTargetLat = serviceTarget?.latitude ?? trip.destinationLat;
+    const serviceTargetLng = serviceTarget?.longitude ?? trip.destinationLng;
+    const serviceTargetRadius = serviceTarget?.radiusM ?? trip.arrivalRadiusM;
+    const destinationDistance = Number.isFinite(serviceTargetLat) && Number.isFinite(serviceTargetLng)
+      ? distanceMeters(event.latitude, event.longitude, serviceTargetLat, serviceTargetLng)
       : Infinity;
-    const insideDestination = destinationDistance <= (Number(trip.arrivalRadiusM) || 400);
+    const insideDestination = destinationDistance <= (Number(serviceTargetRadius) || 400);
     const bases = await prisma.operationalLocation.findMany({
       where: { isActive: true, type: "BASE" },
       select: { id: true, name: true, latitude: true, longitude: true, radiusM: true },
@@ -339,9 +348,13 @@ async function evaluateArrival(truck, event) {
   const headingToPickup = trip.purpose !== "EMPTY_RETURN" && trip.phase === "TO_PICKUP";
   const headingToDestination = trip.phase === "TO_DESTINATION";
   if (!headingToPickup && !headingToDestination) return { arrived: false, tripId: trip.id, phase: trip.phase };
-  const targetLat = headingToPickup ? trip.pickupLat : trip.destinationLat;
-  const targetLng = headingToPickup ? trip.pickupLng : trip.destinationLng;
-  const targetRadius = headingToPickup ? trip.pickupRadiusM : trip.arrivalRadiusM;
+  const activeMaterialStop = headingToDestination ? trip.materialInvoices[0] || null : null;
+  if (activeOrderStop?.destinationArrivedAt) return { arrived: false, awaitingUnload: true, tripId: trip.id, allocationId: activeOrderStop.id, destination: activeOrderStop.order?.destinationLocation?.name || activeOrderStop.order?.toText };
+  if (activeMaterialStop?.destinationArrivedAt) return { arrived: false, awaitingUnload: true, tripId: trip.id, materialInvoiceId: activeMaterialStop.id, destination: activeMaterialStop.destinationLocation?.name };
+  const orderDestination = activeOrderStop?.order?.destinationLocation;
+  const targetLat = headingToPickup ? trip.pickupLat : orderDestination?.latitude ?? activeMaterialStop?.destinationLocation?.latitude ?? trip.destinationLat;
+  const targetLng = headingToPickup ? trip.pickupLng : orderDestination?.longitude ?? activeMaterialStop?.destinationLocation?.longitude ?? trip.destinationLng;
+  const targetRadius = headingToPickup ? trip.pickupRadiusM : orderDestination?.radiusM ?? activeMaterialStop?.destinationLocation?.radiusM ?? trip.arrivalRadiusM;
   if (!Number.isFinite(targetLat) || !Number.isFinite(targetLng)) return { arrived: false, tripId: trip.id, phase: trip.phase };
 
   const distance = distanceMeters(event.latitude, event.longitude, targetLat, targetLng);
@@ -362,6 +375,30 @@ async function evaluateArrival(truck, event) {
   const dwellMinutes = Math.max(0, Number(process.env.GOLACAK_ARRIVAL_DWELL_MINUTES || 5));
   if (observedAt.getTime() - trip.gpsArrivalCandidateAt.getTime() < dwellMinutes * 60000) {
     return { arrived: false, candidate: true, tripId: trip.id, distance: Math.round(distance) };
+  }
+
+  if (activeOrderStop) {
+    const arrived = await prisma.$transaction(async (tx) => {
+      const updated = await tx.tripOrderAllocation.updateMany({ where: { id: activeOrderStop.id, destinationArrivedAt: null }, data: { destinationArrivedAt: observedAt } });
+      if (updated.count) {
+        await tx.trip.update({ where: { id: trip.id }, data: { gpsArrivalCandidateAt: null } });
+        await tx.truck.update({ where: { id: truck.id }, data: { currentLocation: orderDestination?.name || activeOrderStop.order?.toText || truck.currentLocation, locationUpdatedAt: observedAt } });
+      }
+      return Boolean(updated.count);
+    });
+    return { arrived: false, stopArrived: arrived, tripChanged: arrived, tripId: trip.id, allocationId: activeOrderStop.id, destination: orderDestination?.name || activeOrderStop.order?.toText };
+  }
+
+  if (activeMaterialStop) {
+    const arrived = await prisma.$transaction(async (tx) => {
+      const updated = await tx.materialInvoice.updateMany({ where: { id: activeMaterialStop.id, destinationArrivedAt: null }, data: { destinationArrivedAt: observedAt } });
+      if (updated.count) {
+        await tx.trip.update({ where: { id: trip.id }, data: { gpsArrivalCandidateAt: null } });
+        await tx.truck.update({ where: { id: truck.id }, data: { currentLocation: activeMaterialStop.destinationLocation?.name || truck.currentLocation, locationUpdatedAt: observedAt } });
+      }
+      return Boolean(updated.count);
+    });
+    return { arrived: false, stopArrived: arrived, tripChanged: arrived, tripId: trip.id, materialInvoiceId: activeMaterialStop.id, destination: activeMaterialStop.destinationLocation?.name };
   }
 
   const result = await prisma.$transaction(async (tx) => {

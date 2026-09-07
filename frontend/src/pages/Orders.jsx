@@ -472,13 +472,16 @@ export default function Orders() {
             const total = order.qty != null ? Number(order.qty) : null;
             const remaining = order.qtyRemaining != null ? Number(order.qtyRemaining) : null;
             const allocated = total == null ? null : Math.max(0, total - (remaining ?? total));
-            const allocatedPercent = total > 0 ? Math.min(100, Math.max(0, (allocated / total) * 100)) : 0;
+            const completed = Number(order.qtyDelivered || 0);
+            const inProgress = Number(order.qtyInProgress || 0);
+            const completedPercent = total > 0 ? Math.min(100, Math.max(0, (completed / total) * 100)) : 0;
+            const inProgressPercent = total > 0 ? Math.min(100 - completedPercent, Math.max(0, (inProgress / total) * 100)) : 0;
             const unit = order.unit || "";
             return <article key={order.id} onClick={() => nav(`/orders/${order.id}`)} data-testid={`order-row-${order.id}`}>
               <div className="orders-v3-identity"><StatusBadge status={order.status} /><h3>{order.orderNo}</h3><p>{customerName}</p><small>Dibuat oleh {order.createdBy?.name || order.createdBy?.email || "Data lama"}</small></div>
               <div className="orders-v3-route"><span><FiMapPin /></span><div><small>RUTE PENGIRIMAN</small><p><b>{order.fromText || "Asal belum diisi"}</b><FiArrowRight /><b>{order.toText || "Tujuan belum diisi"}</b></p></div></div>
               <div className="orders-v3-meta">
-                <div className="orders-v3-load"><FiPackage /><span><small>ALOKASI MUATAN</small>{total == null ? <><strong>{order.cargoName || "Muatan material"}</strong><em>Jumlah mengikuti faktur muatan</em></> : <><strong>{allocated} dari {total} {unit} siap diantar</strong><i><b style={{ width: `${allocatedPercent}%` }} /></i><em>{remaining ?? total} {unit} belum dibuatkan trip</em></>}</span></div>
+                <div className="orders-v3-load"><FiPackage /><span><small>PROGRES MUATAN</small>{total == null ? <><strong>{order.cargoName || "Muatan material"}</strong><em>Jumlah mengikuti faktur muatan</em></> : <><strong>{completed} dari {total} {unit} selesai</strong><i><b className="completed" style={{ width: `${completedPercent}%` }} /><b className="processing" style={{ width: `${inProgressPercent}%` }} /></i><em><span className="orders-progress-completed">{completed} {unit} selesai</span>{inProgress > 0 && <span className="orders-progress-processing">{inProgress} {unit} sedang diproses</span>}<span>{remaining ?? Math.max(0, total - allocated)} {unit} belum dibuatkan trip</span></em></>}</span></div>
                 <div><FiCalendar /><span><small>RENCANA</small><strong>{fmtDate(order.plannedAt)}</strong></span></div>
               </div>
               <div className="orders-v3-counts"><span><b>{order._count?.trips ?? 0}</b> Trip</span><span><b>{order._count?.proofs ?? 0}</b> Bukti</span></div>

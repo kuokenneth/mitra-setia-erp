@@ -34,21 +34,21 @@ function pad4(n) {
   return String(n).padStart(4, "0");
 }
 
-// Simple sequential orderNo generator for SQLite (good enough for internal ERP).
-// Format: ORD-YYYY-0001
+// Daily sequential order number in Jakarta time.
+// Format: ORD-YYYY-DD/MM-0001
 async function nextOrderNo(tx) {
-  const year = new Date().getFullYear();
-  const prefix = `ORD-${year}-`;
+  const dateParts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).map((part) => [part.type, part.value]));
+  const prefix = `ORD-${dateParts.year}-${dateParts.day}/${dateParts.month}-`;
 
   const last = await tx.order.findFirst({
     where: { orderNo: { startsWith: prefix } },
-    orderBy: { createdAt: "desc" },
+    orderBy: { orderNo: "desc" },
     select: { orderNo: true },
   });
 
   let nextSeq = 1;
   if (last?.orderNo) {
-    const tail = last.orderNo.replace(prefix, "");
+    const tail = last.orderNo.slice(prefix.length);
     const parsed = parseInt(tail, 10);
     if (Number.isFinite(parsed)) nextSeq = parsed + 1;
   }
@@ -153,6 +153,9 @@ router.get("/", authRequired, async (req, res) => {
       const delivered = shipmentTrips
         .filter((t) => t.status === "COMPLETED")
         .reduce((sum, t) => sum + (typeof t.qtyActual === "number" ? t.qtyActual : (typeof t.qtyPlanned === "number" ? t.qtyPlanned : 0)), 0);
+      const inProgress = shipmentTrips
+        .filter((t) => !["COMPLETED", "CANCELLED"].includes(t.status))
+        .reduce((sum, t) => sum + (typeof t.qtyPlanned === "number" ? t.qtyPlanned : 0), 0);
       const cargoLoss = shipmentTrips
         .filter((t) => t.status === "COMPLETED")
         .reduce((sum, t) => sum + Math.max(0, Number(t.qtyPlanned || 0) - Number(t.qtyActual ?? t.qtyPlanned ?? 0)), 0);
@@ -168,6 +171,7 @@ router.get("/", authRequired, async (req, res) => {
         qtyTripped: tripped,
         qtyRemaining: remaining,
         qtyDelivered: delivered,
+        qtyInProgress: inProgress,
         qtyCargoLoss: cargoLoss,
       };
     });
@@ -282,7 +286,7 @@ router.get("/:id", authRequired, async (req, res) => {
         destinationLocation: true,
         createdBy: { select: { id: true, name: true, email: true } },
         proofs: { orderBy: { createdAt: "desc" } },
-        materialInvoices: { orderBy: { issuedAt: "desc" }, include: { trip: { include: { truck: true } }, lines: { orderBy: { createdAt: "asc" } } } },
+        materialInvoices: { orderBy: { issuedAt: "desc" }, include: { destinationLocation: true, trip: { include: { truck: true } }, lines: { orderBy: { createdAt: "asc" } } } },
         trips: {
           orderBy: { createdAt: "desc" },
           include: {
@@ -349,9 +353,10 @@ router.post("/:id/material-invoices", authRequired, async (req, res) => {
   try {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
     const orderId = req.params.id;
-    const { tripId, number, materialName, qty, unit, billingCustomerName, issuedAt, notes, proof, lines: inputLines } = req.body || {};
+    const { tripId, number, materialName, qty, unit, billingCustomerName, destinationLocationId, stopSequence, issuedAt, notes, proof, lines: inputLines } = req.body || {};
     if (!tripId) return res.status(400).json({ error: "Trip wajib diisi" });
     if (!str(billingCustomerName)) return res.status(400).json({ error: "Customer tujuan tagihan wajib diisi" });
+    if (!str(destinationLocationId)) return res.status(400).json({ error: "Tujuan bongkar Faktur Muatan wajib dipilih" });
     const lines = Array.isArray(inputLines) && inputLines.length
       ? inputLines.map((line) => ({ ppNumber: str(line.ppNumber), poNumber: str(line.poNumber), itemName: String(line.itemName || "").trim(), qty: num(line.qty, 0), unit: String(line.unit || "").trim(), totalKg: num(line.totalKg, null), totalAmount: num(line.totalAmount, null) }))
       : [{ ppNumber: null, poNumber: null, itemName: String(materialName || "").trim(), qty: num(qty, 0), unit: String(unit || "").trim(), totalKg: null, totalAmount: null }];
@@ -364,6 +369,8 @@ router.post("/:id/material-invoices", authRequired, async (req, res) => {
     });
     if (!trip) return res.status(400).json({ error: "Tetapkan truk ke pesanan terlebih dahulu" });
     if (!trip.dispatchLetter?.number) return res.status(400).json({ error: "Buat Surat Jalan untuk trip ini terlebih dahulu" });
+    const destination = await prisma.operationalLocation.findFirst({ where: { id: String(destinationLocationId), isActive: true } });
+    if (!destination) return res.status(400).json({ error: "Tujuan bongkar tidak ditemukan atau tidak aktif" });
     const lineTons = lines.reduce((sum, line) => {
       if (line.totalKg != null) return sum + Number(line.totalKg) / 1000;
       if (String(line.unit).toUpperCase() === "TON") return sum + Number(line.qty);
@@ -375,16 +382,14 @@ router.post("/:id/material-invoices", authRequired, async (req, res) => {
     if (order.cargoCategory === "MATERIAL" && allocationTons > 0 && lineTons > allocationTons + 1e-9) {
       return res.status(400).json({ error: `Berat Faktur Muatan melebihi alokasi ${allocation.qtyPlanned} ${allocation.unitSnap || "TON"}` });
     }
-    if (order.cargoCategory !== "MATERIAL") {
-      const allocatedTons = trip.orderAllocations.filter((item) => String(item.unitSnap || "").toUpperCase() === "TON").reduce((sum, item) => sum + Number(item.qtyPlanned || 0), 0);
-      if (allocatedTons + lineTons > Number(trip.truck.capacityTons || 30) + 1e-9) {
-        return res.status(400).json({ error: `Total muatan melebihi kapasitas ${trip.truck.capacityTons || 30} ton` });
-      }
-    }
     const documentNumber = trip.dispatchLetter.number;
-    const invoice = await prisma.materialInvoice.create({
-      data: { orderId, tripId: trip.id, number: documentNumber, materialName: lines.length === 1 ? lines[0].itemName : "Multiple materials", qty: lines.reduce((sum, line) => sum + line.qty, 0), unit: lines.length === 1 ? lines[0].unit : "LINES", billingCustomerName: str(billingCustomerName), issuedAt: issuedAt ? new Date(issuedAt) : new Date(), notes: str(notes), proofUrl: str(proof?.url), proofFileName: str(proof?.fileName), proofMimeType: str(proof?.mimeType), proofSize: num(proof?.size, null), lines: { create: lines } },
-      include: { trip: { include: { truck: true } }, lines: true },
+    const requestedSequence = Math.max(1, Math.round(num(stopSequence, 1)));
+    const invoice = await prisma.$transaction(async (tx) => {
+      await tx.materialInvoice.updateMany({ where: { tripId: trip.id, stopSequence: { gte: requestedSequence } }, data: { stopSequence: { increment: 1 } } });
+      return tx.materialInvoice.create({
+        data: { orderId, tripId: trip.id, number: documentNumber, materialName: lines.length === 1 ? lines[0].itemName : "Multiple materials", qty: lines.reduce((sum, line) => sum + line.qty, 0), unit: lines.length === 1 ? lines[0].unit : "LINES", billingCustomerName: str(billingCustomerName), destinationLocationId: destination.id, stopSequence: requestedSequence, issuedAt: issuedAt ? new Date(issuedAt) : new Date(), notes: str(notes), proofUrl: str(proof?.url), proofFileName: str(proof?.fileName), proofMimeType: str(proof?.mimeType), proofSize: num(proof?.size, null), lines: { create: lines } },
+        include: { trip: { include: { truck: true } }, destinationLocation: true, lines: true },
+      });
     });
     res.json({ invoice });
   } catch (e) {
@@ -541,8 +546,6 @@ router.post("/:id/trips", authRequired, async (req, res) => {
       const truck = await tx.truck.findUnique({ where: { id: truckId } });
       if (!truck) throw new Error("Truck not found");
       if (truck.status !== "READY") throw new Error("Armada harus berstatus READY");
-      const plannedTons = String(order.unit || "").toUpperCase() === "TON" ? Number(tripQty || 0) : String(order.unit || "").toUpperCase() === "KG" ? Number(tripQty || 0) / 1000 : 0;
-      if (plannedTons > Number(truck.capacityTons || 30) + 1e-9) throw new Error(`Muatan melebihi kapasitas ${truck.capacityTons || 30} ton`);
       if (!order.pickupLocation || !order.destinationLocation) {
         throw new Error("Lokasi muat dan tujuan order wajib dipilih dari Master Lokasi sebelum membuat trip");
       }

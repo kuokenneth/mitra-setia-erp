@@ -177,7 +177,7 @@ router.get("/report", authRequired, async (req, res) => {
   const rows = items.map((x, index) => {
     const trip = x.trip || {};
     const truck = trip.truck || x.truck;
-    const tripNumber = trip.order?.orderNo || trip.id || "-";
+    const tripNumber = trip.order?.orderNo || trip.tripNo || trip.id || "-";
     const route = trip.order ? `${trip.order.fromText || "-"} → ${trip.order.toText || "-"}` : "Tidak terkait trip";
     const assignment = truck?.plateNumber ? `${truck.plateNumber}${trip.driverUser?.name ? ` · ${trip.driverUser.name}` : ""}` : "-";
     return `<tr><td class="center">${index + 1}</td><td>${fmtDate(x.createdAt)}</td><td>${esc(categories[x.category] || "Lainnya")}</td><td><b>${esc(x.reason || "-")}</b><br><span class="muted">${esc(tripNumber)} · ${esc(route)}</span></td><td>${esc(assignment)}</td><td>${esc(methods[x.paymentMethod] || x.paymentMethod || "-")}</td><td>${esc(x.createdBy?.name || "-")}</td><td>${esc(statuses[x.status] || x.status || "Diajukan")}</td><td class="right">${money(x.amount)}</td></tr>`;

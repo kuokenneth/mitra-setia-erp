@@ -4,6 +4,8 @@ import { api, openPrintDocument } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import LoadingState from "../components/LoadingState";
+import { FiArrowDownCircle, FiArrowUpCircle, FiBox, FiFileText, FiMapPin, FiPlus, FiSearch, FiX } from "react-icons/fi";
+import "./Inventory.css";
 
 // Corporate Green Color Palette (matching Landing/Dashboard)
 const BRAND = {
@@ -59,24 +61,6 @@ const wrapCard = {
   padding: 24,
 };
 
-const innerCard = {
-  background: BRAND.white,
-  borderRadius: 8,
-  border: `1px solid ${BRAND.border}`,
-  overflow: "hidden",
-};
-
-const controlRow = {
-  display: "flex",
-  gap: 16,
-  alignItems: "center",
-  flexWrap: "wrap",
-  justifyContent: "space-between",
-};
-
-const leftControls = { display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" };
-const rightControls = { display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" };
-
 function TruckSearchSelect({ trucks, value, onChange, placeholder = "Cari nomor polisi..." }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -86,6 +70,7 @@ function TruckSearchSelect({ trucks, value, onChange, placeholder = "Cari nomor 
   }, [trucks, value]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (selected) setQuery(selected.plateNumber || "");
   }, [selected]);
 
@@ -175,6 +160,7 @@ function ItemSearchSelect({ items, value, onChange }) {
   const selected = useMemo(() => (items || []).find((item) => item.id === value) || null, [items, value]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (selected) setQuery(`${selected.sku || ""} — ${selected.name || ""}`);
     if (!selected && !value) setQuery("");
   }, [selected, value]);
@@ -292,16 +278,6 @@ const btnDanger = {
   color: BRAND.danger,
 };
 
-const tabBtn = (active) => ({
-  ...btn,
-  height: 38,
-  padding: "0 14px",
-  background: active ? BRAND.primary : BRAND.white,
-  border: active ? `1px solid ${BRAND.primary}` : `1px solid ${BRAND.border}`,
-  color: active ? BRAND.white : BRAND.text,
-  fontWeight: 500,
-});
-
 const errorBox = {
   marginTop: 16,
   background: BRAND.dangerLight,
@@ -379,49 +355,20 @@ function Pill({ variant = "grey", children }) {
   return <span style={style}>{children}</span>;
 }
 
-function Modal({ open, title, onClose, children }) {
+function Modal({ open, title, eyebrow = "INVENTORY", description, tone = "green", onClose, children }) {
   if (!open) return null;
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0, 0, 0, 0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 999,
-        padding: 16,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "min(920px, 100%)",
-          background: BRAND.white,
-          borderRadius: 8,
-          border: `1px solid ${BRAND.border}`,
-          boxShadow: "0 20px 40px rgba(0, 0, 0, 0.15)",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            padding: 16,
-            borderBottom: `1px solid ${BRAND.border}`,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-          }}
-        >
-          <div style={{ fontSize: 18, fontWeight: 600, color: BRAND.text }}>{title}</div>
-          <Btn style={btn} onClick={onClose}>
-            Close
-          </Btn>
+    <div className="inventory-modal-overlay" onClick={onClose}>
+      <div className={`inventory-modal inventory-modal--${tone}`} onClick={(e) => e.stopPropagation()}>
+        <div className="inventory-modal-head">
+          <div className="inventory-modal-heading">
+            <span>{eyebrow}</span>
+            <h2>{title}</h2>
+            {description && <p>{description}</p>}
+          </div>
+          <button type="button" className="inventory-modal-close" onClick={onClose} aria-label="Tutup"><FiX /></button>
         </div>
-        <div style={{ padding: 20 }}>{children}</div>
+        <div className="inventory-modal-body">{children}</div>
       </div>
     </div>
   );
@@ -668,6 +615,8 @@ export default function Inventory() {
     return options;
   }
 
+  // Kept for the retread action flow that is conditionally exposed by unit status.
+  // eslint-disable-next-line no-unused-vars
   async function openRetreadUnit(unit) {
     setErr("");
     try {
@@ -1049,23 +998,22 @@ export default function Inventory() {
   const totalItems = itemPagination.total;
 
   return (
-    <div style={pageBg}>
-      <div style={container}>
+    <div className="inventory-page">
+      <div className="inventory-shell">
         {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <div>
-            <h1 style={headerTitle}>Persediaan</h1>
-            <div style={headerSub}>Kelola suku cadang, stok, unit, dan mutasi</div>
+        <div className="inventory-hero">
+          <div className="inventory-hero-copy">
+            <span className="inventory-eyebrow">GUDANG & SUKU CADANG</span>
+            <h1>Inventory</h1>
+            <p>Pantau ketersediaan barang, penerimaan, dan pemakaian stok dalam satu tempat.</p>
+            <div className="inventory-hero-meta"><span><FiBox /> {totalItems} jenis barang</span><span><FiMapPin /> {locations.length} lokasi stok</span></div>
           </div>
 
-          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <Pill variant="grey">{totalItems} items</Pill>
+          <div className="inventory-hero-actions">
 
             <div style={{ position: "relative", paddingBottom: printMenuOpen ? 8 : 0, marginBottom: printMenuOpen ? -8 : 0 }} onMouseEnter={() => setPrintMenuOpen(true)} onMouseLeave={() => setPrintMenuOpen(false)}>
-              <button type="button" aria-haspopup="menu" aria-expanded={printMenuOpen} onFocus={() => setPrintMenuOpen(true)} style={{ ...btn, height: 38, padding: "0 14px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none" }}>
-                <span style={{ fontSize: 15 }}>▣</span>
-                Cetak Laporan
-                <span style={{ marginLeft: 2, color: BRAND.textMuted, fontSize: 10 }}>▼</span>
+              <button className="inventory-action inventory-action--soft" type="button" aria-haspopup="menu" aria-expanded={printMenuOpen} onFocus={() => setPrintMenuOpen(true)}>
+                <FiFileText /> Cetak Laporan
               </button>
               {printMenuOpen ? <div role="menu" style={{ position: "absolute", top: "100%", right: 0, zIndex: 30, width: 310, padding: 10, borderRadius: 12, border: `1px solid ${BRAND.border}`, background: BRAND.white, boxShadow: "0 18px 45px rgba(17, 24, 39, .14)" }}>
                 <button type="button" onClick={() => openPrintDocument("/inventory/reports/stock?scope=overall").catch((e) => setErr(e.message))} style={{ width: "100%", display: "grid", gridTemplateColumns: "38px 1fr", gap: 11, alignItems: "center", padding: 11, border: 0, borderRadius: 9, background: BRAND.secondary, textAlign: "left", cursor: "pointer" }}>
@@ -1088,12 +1036,10 @@ export default function Inventory() {
               </div> : null}
             </div>
 
-            <Btn style={btn} onClick={() => { setCreateItemError(""); setOpenCreateItem(true); }}>
-              + New Item
-            </Btn>
+            <button className="inventory-action inventory-action--soft" onClick={() => { setCreateItemError(""); setOpenCreateItem(true); }}><FiPlus /> Tambah Item</button>
 
-            <Btn
-              style={btnDanger}
+            <button
+              className="inventory-action inventory-action--out"
               onClick={async () => {
                 try {
                   setErr("");
@@ -1104,11 +1050,11 @@ export default function Inventory() {
                 }
               }}
             >
-              Use Stock
-            </Btn>
+              <FiArrowUpCircle /> Gunakan Stok
+            </button>
 
-            <Btn
-              style={btnPrimary}
+            <button
+              className="inventory-action inventory-action--in"
               onClick={async () => {
                 try {
                   setErr("");
@@ -1121,33 +1067,24 @@ export default function Inventory() {
                 }
               }}
             >
-              Receive Stock
-            </Btn>
+              <FiArrowDownCircle /> Terima Stok
+            </button>
           </div>
         </div>
 
         {/* Main Card */}
-        <div style={wrapCard}>
+        <div className="inventory-workspace">
           {/* Tabs + Search */}
-          <div style={controlRow}>
-            <div style={leftControls}>
-              <Btn style={tabBtn(tab === "ITEMS")} onClick={() => setTab("ITEMS")}>
-                Items
-              </Btn>
-              <Btn style={tabBtn(tab === "UNITS")} onClick={() => setTab("UNITS")}>
-                Units
-              </Btn>
-              <Btn style={tabBtn(tab === "MOVEMENTS")} onClick={() => setTab("MOVEMENTS")}>
-                Movements
-              </Btn>
-              <Btn style={tabBtn(tab === "BATCHES")} onClick={() => setTab("BATCHES")}>
-                Asal Stok
-              </Btn>
+          <div className="inventory-toolbar">
+            <div className="inventory-tabs">
+              <button className={tab === "ITEMS" ? "active" : ""} onClick={() => setTab("ITEMS")}>Daftar Item</button>
+              <button className={tab === "UNITS" ? "active" : ""} onClick={() => setTab("UNITS")}>Unit Berseri</button>
+              <button className={tab === "MOVEMENTS" ? "active" : ""} onClick={() => setTab("MOVEMENTS")}>Pergerakan</button>
+              <button className={tab === "BATCHES" ? "active" : ""} onClick={() => setTab("BATCHES")}>Asal Stok</button>
             </div>
 
-            <div style={rightControls}>
+            <div className="inventory-search"><FiSearch />
               <input
-                style={{ ...inputPill, minWidth: 320 }}
                 value={q}
                 onChange={(e) => { setQ(e.target.value); setItemPage(1); setUnitPage(1); }}
                 placeholder="Cari berdasarkan nama / SKU / barcode..."
@@ -1342,7 +1279,7 @@ export default function Inventory() {
           </div>
         </Modal>
 
-        <Modal open={openCreateItem} title="Create Item (Sparepart Master)" onClose={() => setOpenCreateItem(false)}>
+        <Modal open={openCreateItem} eyebrow="MASTER BARANG" title="Tambah item baru" description="Buat identitas barang agar stok dapat diterima dan dilacak." onClose={() => setOpenCreateItem(false)}>
           {createItemError ? (
             <div style={{ ...errorBox, marginBottom: 14 }}>
               <div style={{ fontWeight: 600, color: BRAND.danger }}>Tidak dapat membuat item</div>
@@ -1398,16 +1335,16 @@ export default function Inventory() {
                 onChange={(e) => setCreateItemForm((p) => ({ ...p, isSerialized: e.target.checked }))}
                 disabled={createItemForm.category === "TIRE" || createItemForm.category === "OIL"}
               />
-              Serialized (unit-level tracking)
+              Gunakan nomor seri untuk setiap unit
             </label>
           </div>
 
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
             <Btn style={btn} onClick={() => setOpenCreateItem(false)}>
-              Cancel
+              Batal
             </Btn>
             <Btn style={btnPrimary} onClick={createItem}>
-              Create
+              Simpan Item
             </Btn>
           </div>
         </Modal>
@@ -1466,16 +1403,16 @@ export default function Inventory() {
           ) : null}
         </Modal>
 
-        <Modal open={openReceive} title="Receive Stock (IN)" onClose={() => setOpenReceive(false)}>
+        <Modal open={openReceive} eyebrow="STOK MASUK" title="Terima stok" description="Catat barang yang masuk, lokasi penyimpanan, jumlah, dan nilai pembelian." onClose={() => setOpenReceive(false)}>
           {locations.length === 0 ? (
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontWeight: 600, color: BRAND.text }}>Lokasi tidak ditemukan</div>
               <div style={{ marginTop: 6, color: BRAND.textMuted }}>
-                Create at least one location (e.g. Main Warehouse) before receiving stock.
+                Buat minimal satu lokasi gudang sebelum menerima stok.
               </div>
               <div style={{ marginTop: 12 }}>
                 <Btn style={btnPrimary} onClick={() => setOpenCreateLocation(true)}>
-                  + Create Location
+                  + Tambah Lokasi
                 </Btn>
               </div>
               <div style={{ marginTop: 12, height: 1, background: BRAND.border }} />
@@ -1494,14 +1431,14 @@ export default function Inventory() {
 
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>
-                Location{" "}
+                Lokasi penyimpanan{" "}
                 {locations.length > 0 ? (
                   <Btn
                     style={{ ...btn, height: 28, padding: "0 10px", marginLeft: 8, fontSize: 12 }}
                     type="button"
                     onClick={() => setOpenCreateLocation(true)}
                   >
-                    + New
+                    + Baru
                   </Btn>
                 ) : null}
               </div>
@@ -1545,7 +1482,7 @@ export default function Inventory() {
                 onChange={(e) => setReceiveForm((p) => ({ ...p, qty: e.target.value }))}
               />
               <div style={{ marginTop: 6, fontSize: 12, color: BRAND.textMuted }}>
-                For serialized items, Qty is ignored (units list required).
+                Untuk barang berseri, jumlah mengikuti daftar nomor seri di bawah.
               </div>
             </div>
 
@@ -1556,7 +1493,7 @@ export default function Inventory() {
               return (
                 <div style={{ gridColumn: "1 / -1" }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>
-                    Total Purchase Price (IDR) — optional
+                    Total harga pembelian (Rp) — opsional
                   </div>
                   <input
                     style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
@@ -1567,7 +1504,7 @@ export default function Inventory() {
                   />
                   <div style={{ marginTop: 6, fontSize: 12, color: BRAND.textMuted }}>
                     {item.isSerialized
-                      ? "Use either per-unit price in lines OR this total price (not both)."
+                      ? "Gunakan harga per unit pada daftar atau total harga ini—pilih salah satu."
                       : `Harga per ${item.unit || "unit"} dihitung otomatis dari total harga ÷ jumlah.`}
                   </div>
                 </div>
@@ -1576,14 +1513,14 @@ export default function Inventory() {
 
             <div style={{ gridColumn: "1 / -1" }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
-                Serialized Units {(() => {
+                Daftar unit berseri {(() => {
                   const item = receiveItems.find((x) => x.id === receiveForm.itemId) || items.find((x) => x.id === receiveForm.itemId);
-                  return item?.isSerialized ? "(required)" : "(optional)";
+                  return item?.isSerialized ? "(wajib)" : "(opsional)";
                 })()}
               </div>
 
               <div style={{ fontSize: 12, color: BRAND.textMuted, marginTop: 4 }}>
-                One per line: <code>serial,price</code>. Price can be blank if you fill Total Purchase Price.
+                Satu unit per baris: <code>nomor seri,harga</code>. Harga boleh kosong jika total harga diisi.
               </div>
 
               <textarea
@@ -1604,31 +1541,31 @@ export default function Inventory() {
                 }}
                 value={receiveForm.unitLines}
                 onChange={(e) => setReceiveForm((p) => ({ ...p, unitLines: e.target.value }))}
-                placeholder={`Example:\nSN001,2000000\nSN002,2000000`}
+                placeholder={`Contoh:\nSN001,2000000\nSN002,2000000`}
               />
             </div>
           </div>
 
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
             <Btn style={btn} onClick={() => setOpenReceive(false)}>
-              Cancel
+              Batal
             </Btn>
             <Btn style={btnPrimary} onClick={receiveStock} disabled={locations.length === 0}>
-              Receive
+              Simpan Stok Masuk
             </Btn>
           </div>
         </Modal>
 
-        <Modal open={openConsume} title="Use Stock (Consume / OUT)" onClose={() => setOpenConsume(false)}>
+        <Modal open={openConsume} eyebrow="STOK KELUAR" title="Gunakan stok" description="Pilih barang dan lokasi asal untuk mencatat pemakaian stok." tone="red" onClose={() => setOpenConsume(false)}>
           {locations.length === 0 ? (
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontWeight: 600, color: BRAND.text }}>Lokasi tidak ditemukan</div>
               <div style={{ marginTop: 6, color: BRAND.textMuted }}>
-                Create at least one location before using stock.
+                Buat minimal satu lokasi gudang sebelum menggunakan stok.
               </div>
               <div style={{ marginTop: 12 }}>
                 <Btn style={btnPrimary} onClick={() => setOpenCreateLocation(true)}>
-                  + Create Location
+                  + Tambah Lokasi
                 </Btn>
               </div>
               <div style={{ marginTop: 12, height: 1, background: BRAND.border }} />
@@ -1637,7 +1574,7 @@ export default function Inventory() {
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Item (non-serialized)</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Barang tanpa nomor seri</div>
               <select
                 style={{ ...selectPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 value={consumeForm.itemId}
@@ -1663,13 +1600,13 @@ export default function Inventory() {
 
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>
-                Location{" "}
+                Lokasi asal{" "}
                 <Btn
                   style={{ ...btn, height: 28, padding: "0 10px", marginLeft: 8, fontSize: 12 }}
                   type="button"
                   onClick={() => setOpenCreateLocation(true)}
                 >
-                  + New
+                  + Baru
                 </Btn>
               </div>
               <select
@@ -1711,10 +1648,10 @@ export default function Inventory() {
 
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
             <Btn style={btn} onClick={() => setOpenConsume(false)}>
-              Cancel
+              Batal
             </Btn>
             <Btn style={btnPrimary} onClick={consumeStock} disabled={locations.length === 0}>
-              Use Stock
+              Simpan Stok Keluar
             </Btn>
           </div>
         </Modal>
