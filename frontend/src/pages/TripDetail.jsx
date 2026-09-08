@@ -10,6 +10,7 @@ import {
   FiActivity,
   FiArrowLeft,
   FiCheck,
+  FiCheckCircle,
   FiClock,
   FiDollarSign,
   FiFileText,
@@ -246,7 +247,7 @@ export default function TripDetail() {
   const canWrite = ["OWNER", "ADMIN", "STAFF"].includes(role);
   const isDriver = role === "DRIVER";
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [trip, setTrip] = useState(null);
   const [allocationCandidates, setAllocationCandidates] = useState([]);
@@ -255,7 +256,9 @@ export default function TripDetail() {
   const [operationalLocations, setOperationalLocations] = useState([]);
   const [singleMaterialOpen, setSingleMaterialOpen] = useState(false);
   const [singleMaterialBusy, setSingleMaterialBusy] = useState(false);
-  const [singleMaterialForm, setSingleMaterialForm] = useState({ billingCustomerName: "", destinationLocationId: "", stopSequence: 1, issuedAt: new Date().toISOString().slice(0, 10), ppNumber: "", poNumber: "", itemName: "", qty: "", unit: "TON", totalKg: "", totalAmount: "", notes: "" });
+  const [materialCustomers, setMaterialCustomers] = useState([]);
+  const [materialAvailable, setMaterialAvailable] = useState([]);
+  const [singleMaterialForm, setSingleMaterialForm] = useState({ customerId: "", selected: {}, destinationLocationId: "", stopSequence: 1, notes: "" });
 
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState("");
@@ -271,14 +274,16 @@ export default function TripDetail() {
     try {
       setErr("");
       setLoading(true);
-      const [data, candidates, locationData] = await Promise.all([
+      const [data, candidates, locationData, customerData] = await Promise.all([
         api(`/trips/${id}`),
         canWrite ? api(`/trips/${id}/allocation-candidates`).catch(() => ({ items: [] })) : Promise.resolve({ items: [] }),
         api("/operational-locations").catch(() => ({ items: [] })),
+        canWrite ? api("/customers").catch(() => ({ items: [] })) : Promise.resolve({ items: [] }),
       ]);
       setTrip(data);
       setAllocationCandidates(candidates?.items || []);
       setOperationalLocations((locationData?.items || []).filter((location) => location.isActive));
+      setMaterialCustomers(customerData?.items || []);
     } catch (e) {
       setErr(e?.message || "Gagal memuat trip");
     } finally {
@@ -322,7 +327,7 @@ export default function TripDetail() {
   const currentPhase = String(trip?.phase || "PLANNED").toUpperCase();
   const currentPhaseIndex = currentPhase === "SERVICE_AT_BASE" ? 2 : DELIVERY_PHASES.findIndex((phase) => phase.value === currentPhase);
   const currentStepIndex = Math.max(0, STATUS_STEPS.findIndex((step) => step.value === currentStatus));
-  const plannedWeight = trip?.qtyPlanned == null ? null : Number(trip.qtyPlanned);
+  const plannedWeight = trip?.purpose === "SINGLE_TRIP" && trip?.cargoCategorySnap === "MATERIAL" ? null : trip?.qtyPlanned == null ? null : Number(trip.qtyPlanned);
   const arrivalWeight = trip?.qtyActual == null ? null : Number(trip.qtyActual);
   const cargoDifference = plannedWeight == null || arrivalWeight == null ? null : Math.max(0, plannedWeight - arrivalWeight);
   const weightUnit = trip?.unitSnap || order?.unit || "TON";
@@ -420,13 +425,60 @@ export default function TripDetail() {
     event.preventDefault();
     try {
       setSingleMaterialBusy(true); setSaveErr("");
-      const { ppNumber, poNumber, itemName, qty, unit, totalKg, totalAmount, ...invoice } = singleMaterialForm;
-      await api(`/trips/${id}/material-invoices`, { method: "POST", body: JSON.stringify({ ...invoice, lines: [{ ppNumber, poNumber, itemName, qty, unit, totalKg, totalAmount }] }) });
-      setSingleMaterialForm({ billingCustomerName: "", destinationLocationId: "", stopSequence: (trip?.materialInvoices?.length || 0) + 2, issuedAt: new Date().toISOString().slice(0, 10), ppNumber: "", poNumber: "", itemName: "", qty: "", unit: "TON", totalKg: "", totalAmount: "", notes: "" });
+      const selectedStocks = materialAvailable.filter((item) => singleMaterialForm.selected[item.key]?.checked);
+      if (!selectedStocks.length) throw new Error("Pilih minimal satu material");
+      const lines = selectedStocks.map((stock) => ({ itemName: stock.itemName, unit: stock.unit, locationId: stock.locationId, qty: Number(singleMaterialForm.selected[stock.key]?.qty) }));
+      if (lines.some((line) => !(line.qty > 0))) throw new Error("Jumlah setiap material terpilih wajib diisi");
+      await api("/material-stock/allocate", { method: "POST", body: JSON.stringify({
+        customerId: singleMaterialForm.customerId,
+        tripId: id,
+        destinationLocationId: singleMaterialForm.destinationLocationId,
+        stopSequence: singleMaterialForm.stopSequence,
+        notes: singleMaterialForm.notes,
+        lines,
+      }) });
+      setSingleMaterialForm({ customerId: "", selected: {}, destinationLocationId: "", stopSequence: (trip?.materialInvoices?.length || 0) + 2, notes: "" });
+      setMaterialAvailable([]);
       setSingleMaterialOpen(false);
       await load();
     } catch (e) { setSaveErr(e.message || "Gagal membuat Faktur Muatan"); }
     finally { setSingleMaterialBusy(false); }
+  }
+
+  async function selectMaterialCustomer(customerId) {
+    setSingleMaterialForm((form) => ({ ...form, customerId, selected: {} }));
+    setMaterialAvailable([]);
+    if (!customerId) return;
+    try {
+      const result = await api("/material-stock/available/" + customerId);
+      setMaterialAvailable(result?.groups || []);
+    } catch (e) {
+      setSaveErr(e.message || "Gagal memuat material customer");
+    }
+  }
+
+  function openSingleMaterialInvoice() {
+    setSaveErr("");
+    setMaterialAvailable([]);
+    setSingleMaterialForm({ customerId: "", selected: {}, destinationLocationId: "", stopSequence: (trip?.materialInvoices?.length || 0) + 1, notes: "" });
+    setSingleMaterialOpen(true);
+  }
+
+  function toggleMaterial(stock, checked) {
+    setSingleMaterialForm((form) => ({
+      ...form,
+      selected: {
+        ...form.selected,
+        [stock.key]: { checked, qty: checked ? (form.selected[stock.key]?.qty || "") : "" },
+      },
+    }));
+  }
+
+  function updateMaterialQty(stockKey, qty) {
+    setSingleMaterialForm((form) => ({
+      ...form,
+      selected: { ...form.selected, [stockKey]: { checked: true, qty } },
+    }));
   }
 
   async function uploadTripProof(event, proofType) {
@@ -473,7 +525,15 @@ export default function TripDetail() {
     );
   }
 
-  if (!trip) return null;
+  if (!trip) {
+    return (
+      <div style={pageBg}>
+        <div style={container}>
+          <LoadingState label="Menyiapkan detail perjalanan" note="Mengambil data trip dan muatan…" rows={5} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="trip-detail-v3" style={pageBg}>
@@ -642,29 +702,37 @@ export default function TripDetail() {
           </section>}
 
           {((trip.materialInvoices || []).length > 0 || (trip.purpose === "SINGLE_TRIP" && trip.cargoCategorySnap === "MATERIAL")) && <section className="trip-detail-v3-card" style={{ ...panel, marginTop: 14, boxShadow: "none", borderRadius: 13, padding: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}><div style={{ fontWeight: 650, fontSize: 16 }}>Tujuan Faktur Muatan</div>{canWrite && trip.purpose === "SINGLE_TRIP" && trip.cargoCategorySnap === "MATERIAL" && !["COMPLETED", "CANCELLED"].includes(currentStatus) && <button type="button" onClick={() => setSingleMaterialOpen(true)} style={{ ...btnGhost, background: "#0D7C3D", color: "white" }}><FiPlus /> Tambah Faktur Muatan</button>}</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}><div style={{ fontWeight: 650, fontSize: 16 }}>Tujuan Faktur Muatan</div>{canWrite && trip.purpose === "SINGLE_TRIP" && trip.cargoCategorySnap === "MATERIAL" && !["COMPLETED", "CANCELLED"].includes(currentStatus) && <button type="button" onClick={openSingleMaterialInvoice} style={{ ...btnGhost, background: "#0D7C3D", color: "white" }}><FiPlus /> Tambah Faktur Muatan</button>}</div>
             <p style={{ color: "#718078", fontSize: 13 }}>Tujuan diproses sesuai urutan. Trip belum dapat selesai selama masih ada tujuan terbuka.</p>
             {!(trip.materialInvoices || []).length && <div style={{ padding: 18, border: "1px dashed #CBDDD2", borderRadius: 10, color: "#718078", textAlign: "center" }}>Belum ada Faktur Muatan. Tambahkan customer yang ditagih dan tujuan bongkar.</div>}
             {(trip.materialInvoices || []).map((invoice) => <div key={invoice.id} style={{ display: "grid", gridTemplateColumns: "36px 1fr auto", gap: 10, alignItems: "center", padding: "11px 0", borderTop: "1px solid #E2EAE5" }}><b style={{ width: 28, height: 28, display: "grid", placeItems: "center", borderRadius: 8, background: "#EDF6F0", color: "#0D7C3D" }}>{invoice.stopSequence || 1}</b><span><strong>{invoice.destinationLocation?.name || "Tujuan belum tersedia"}</strong><small style={{ display: "block", marginTop: 3, color: "#718078" }}>{invoice.billingCustomerName || "Customer material"} · {invoice.materialName}</small></span>{invoice.destinationCompletedAt ? <strong style={{ color: "#0D7C3D" }}>Selesai</strong> : invoice.destinationArrivedAt ? <button type="button" disabled={saving} onClick={() => completeMaterialStop(invoice.id)} style={{ ...btnGhost, background: "#0D7C3D", color: "white" }}>Selesai bongkar</button> : <span style={{ color: "#718078", fontSize: 12 }}>Menunggu tiba</span>}</div>)}
           </section>}
 
           {singleMaterialOpen && <div className="trip-material-overlay" onMouseDown={() => setSingleMaterialOpen(false)}><form className="trip-material-modal" onSubmit={createSingleMaterialInvoice} onMouseDown={(e) => e.stopPropagation()}>
-            <header><div><span>FAKTUR MUATAN · TRIP TUNGGAL</span><h2>Tambah muatan dan tujuan</h2><p>Customer tagihan boleh berbeda dari perusahaan pada lokasi tujuan.</p></div><button type="button" onClick={() => setSingleMaterialOpen(false)}><FiX /></button></header>
+            <header><div><span>FAKTUR MUATAN · TRIP TUNGGAL</span><h2>Pilih material yang akan diangkut</h2><p>Material diambil dari saldo penerimaan milik customer.</p></div><button type="button" onClick={() => setSingleMaterialOpen(false)}><FiX /></button></header>
             <div className="trip-material-form">
-              <label>Tujuan bongkar<select required value={singleMaterialForm.destinationLocationId} onChange={(e) => { const location = operationalLocations.find((item) => item.id === e.target.value); setSingleMaterialForm((form) => ({ ...form, destinationLocationId: e.target.value, billingCustomerName: form.billingCustomerName || String(location?.name || "").split(" - ")[0] })); }}><option value="">Pilih dari Master Lokasi</option>{operationalLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
-              <label>Customer yang ditagih<input required value={singleMaterialForm.billingCustomerName} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, billingCustomerName: e.target.value }))} placeholder="Contoh: PT SSS" /></label>
+              <label className="wide">Customer pemilik &amp; yang ditagih<select required value={singleMaterialForm.customerId} onChange={(e) => selectMaterialCustomer(e.target.value)}><option value="">Pilih dari Master Customer</option>{materialCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+              <div className="wide trip-material-picker">
+                <div className="trip-material-picker-head"><span>Material tersedia</span><small>{materialAvailable.filter((item) => singleMaterialForm.selected[item.key]?.checked).length} dipilih</small></div>
+                {!singleMaterialForm.customerId ? <div className="trip-material-picker-empty">Pilih customer terlebih dahulu.</div> : !materialAvailable.length ? <div className="trip-material-picker-empty">Customer ini belum memiliki saldo material.</div> :
+                  <div className="trip-material-picker-table">
+                    <div className="trip-material-picker-row heading"><span></span><span>Material</span><span>Tersedia</span><span>Jumlah diangkut</span></div>
+                    {materialAvailable.map((item) => {
+                      const chosen = Boolean(singleMaterialForm.selected[item.key]?.checked);
+                      return <label className={"trip-material-picker-row " + (chosen ? "selected" : "")} key={item.key}>
+                        <input type="checkbox" checked={chosen} onChange={(e) => toggleMaterial(item, e.target.checked)} />
+                        <span><strong>{item.itemName}</strong><small>{item.location?.name || "Tanpa lokasi"}</small></span>
+                        <b>{Number(item.availableQty).toLocaleString("id-ID")} {item.unit}</b>
+                        <input aria-label={"Jumlah " + item.itemName} disabled={!chosen} required={chosen} type="number" min="0.01" step="any" max={item.availableQty} value={singleMaterialForm.selected[item.key]?.qty || ""} onChange={(e) => updateMaterialQty(item.key, e.target.value)} placeholder="0" />
+                      </label>;
+                    })}
+                  </div>}
+              </div>
+              <label>Tujuan bongkar<select required value={singleMaterialForm.destinationLocationId} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, destinationLocationId: e.target.value }))}><option value="">Pilih dari Master Lokasi</option>{operationalLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
               <label>Urutan tujuan<input required type="number" min="1" value={singleMaterialForm.stopSequence} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, stopSequence: e.target.value }))} /></label>
-              <label>Tanggal<input required type="date" value={singleMaterialForm.issuedAt} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, issuedAt: e.target.value }))} /></label>
-              <label>No. PP <small>Opsional</small><input value={singleMaterialForm.ppNumber} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, ppNumber: e.target.value }))} /></label>
-              <label>No. PO <small>Opsional</small><input value={singleMaterialForm.poNumber} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, poNumber: e.target.value }))} /></label>
-              <label className="wide">Nama barang<input required value={singleMaterialForm.itemName} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, itemName: e.target.value }))} placeholder="Ambang / material yang dibawa" /></label>
-              <label>Jumlah<input required type="number" min="0.01" step="any" value={singleMaterialForm.qty} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, qty: e.target.value }))} /></label>
-              <label>Satuan<select value={singleMaterialForm.unit} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, unit: e.target.value }))}><option>TON</option><option>KG</option><option>PCS</option><option>LOAD</option></select></label>
-              <label>Total berat (kg) <small>Opsional</small><input type="number" min="0" step="any" value={singleMaterialForm.totalKg} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, totalKg: e.target.value }))} /></label>
-              <label>Total tagihan (Rp)<input required type="number" min="0" step="1" value={singleMaterialForm.totalAmount} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, totalAmount: e.target.value }))} /></label>
               <label className="wide">Catatan <small>Opsional</small><textarea rows="2" value={singleMaterialForm.notes} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, notes: e.target.value }))} /></label>
             </div>
-            <footer><button type="button" className="secondary" onClick={() => setSingleMaterialOpen(false)}>Batal</button><button disabled={singleMaterialBusy}>{singleMaterialBusy ? "Menyimpan…" : "Simpan Faktur Muatan"}</button></footer>
+            <footer><button type="button" className="secondary" onClick={() => setSingleMaterialOpen(false)}>Batal</button><button disabled={singleMaterialBusy || !Object.values(singleMaterialForm.selected).some((item) => item.checked)}>{singleMaterialBusy ? "Menyimpan…" : "Masukkan ke Trip"}</button></footer>
           </form></div>}
 
           <section className="trip-expense-panel">

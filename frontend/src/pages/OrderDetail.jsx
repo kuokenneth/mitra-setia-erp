@@ -368,10 +368,11 @@ export default function OrderDetail() {
   // proofs upload
   const [uploadingProofs, setUploadingProofs] = useState(false);
   const [uploadProofErr, setUploadProofErr] = useState("");
-  const [materialInvoiceForm, setMaterialInvoiceForm] = useState({ tripId: "", number: "", billingCustomerName: "", destinationLocationId: "", stopSequence: 1, issuedAt: new Date().toISOString().slice(0, 10), notes: "" });
+  const [materialInvoiceForm, setMaterialInvoiceForm] = useState({ tripId: "", number: "", customerId: "", destinationLocationId: "", stopSequence: 1, notes: "" });
   const [materialDestinations, setMaterialDestinations] = useState([]);
-  const [materialInvoiceLines, setMaterialInvoiceLines] = useState([{ ppNumber: "", poNumber: "", itemName: "", qty: "", unit: "PCS", totalKg: "", totalAmount: "" }]);
-  const [materialInvoiceProof, setMaterialInvoiceProof] = useState(null);
+  const [materialCustomers, setMaterialCustomers] = useState([]);
+  const [materialAvailable, setMaterialAvailable] = useState([]);
+  const [materialSelected, setMaterialSelected] = useState({});
   const [savingMaterialInvoice, setSavingMaterialInvoice] = useState(false);
   const [materialInvoiceError, setMaterialInvoiceError] = useState("");
 
@@ -384,9 +385,10 @@ export default function OrderDetail() {
     try {
       setErr("");
       setLoading(true);
-      const [data, locationData] = await Promise.all([api(`/orders/${id}`), api("/operational-locations")]);
+      const [data, locationData, customerData] = await Promise.all([api(`/orders/${id}`), api("/operational-locations"), api("/customers")]);
       setOrder(data);
       setMaterialDestinations((locationData?.items || []).filter((location) => location.isActive));
+      setMaterialCustomers(customerData?.items || []);
     } catch (e) {
       setErr(e?.message || "Gagal memuat order");
     } finally {
@@ -404,18 +406,45 @@ export default function OrderDetail() {
     setMaterialInvoiceError("");
     setSavingMaterialInvoice(true);
     try {
-      const uploaded = materialInvoiceProof ? await uploadFiles([materialInvoiceProof]) : [];
-      const proof = uploaded[0] ? { url: uploaded[0].url, fileName: uploaded[0].fileName, mimeType: uploaded[0].mimeType, size: uploaded[0].size } : undefined;
-      await api(`/orders/${id}/material-invoices`, { method: "POST", body: JSON.stringify({ ...materialInvoiceForm, lines: materialInvoiceLines, proof }) });
-      setMaterialInvoiceForm((form) => ({ ...form, number: "", billingCustomerName: "", destinationLocationId: "", stopSequence: 1, notes: "" }));
-      setMaterialInvoiceLines([{ ppNumber: "", poNumber: "", itemName: "", qty: "", unit: "PCS", totalKg: "", totalAmount: "" }]);
-      setMaterialInvoiceProof(null);
+      const selectedStocks = materialAvailable.filter((item) => materialSelected[item.key]?.checked);
+      if (!selectedStocks.length) throw new Error("Pilih minimal satu material");
+      const lines = selectedStocks.map((stock) => ({ itemName: stock.itemName, unit: stock.unit, locationId: stock.locationId, qty: Number(materialSelected[stock.key]?.qty) }));
+      if (lines.some((line) => !(line.qty > 0))) throw new Error("Jumlah setiap material terpilih wajib diisi");
+      await api("/material-stock/allocate", { method: "POST", body: JSON.stringify({
+        customerId: materialInvoiceForm.customerId, tripId: materialInvoiceForm.tripId, orderId: id,
+        destinationLocationId: materialInvoiceForm.destinationLocationId, stopSequence: materialInvoiceForm.stopSequence,
+        notes: materialInvoiceForm.notes, lines,
+      }) });
+      setMaterialInvoiceForm((form) => ({ ...form, number: "", customerId: "", destinationLocationId: "", stopSequence: 1, notes: "" }));
+      setMaterialAvailable([]);
+      setMaterialSelected({});
       await load();
     } catch (error) {
       setMaterialInvoiceError(error.message || "Gagal menyimpan faktur muatan");
     } finally {
       setSavingMaterialInvoice(false);
     }
+  }
+
+  async function selectOrderMaterialCustomer(customerId) {
+    setMaterialInvoiceForm((form) => ({ ...form, customerId }));
+    setMaterialAvailable([]);
+    setMaterialSelected({});
+    if (!customerId) return;
+    try {
+      const result = await api("/material-stock/available/" + customerId);
+      setMaterialAvailable(result?.groups || []);
+    } catch (error) {
+      setMaterialInvoiceError(error.message || "Gagal memuat material customer");
+    }
+  }
+
+  function toggleOrderMaterial(stock, checked) {
+    setMaterialSelected((selected) => ({ ...selected, [stock.key]: { checked, qty: checked ? (selected[stock.key]?.qty || "") : "" } }));
+  }
+
+  function updateOrderMaterialQty(stockKey, qty) {
+    setMaterialSelected((selected) => ({ ...selected, [stockKey]: { checked: true, qty } }));
   }
 
   async function loadDrivers() {
@@ -916,9 +945,9 @@ export default function OrderDetail() {
               {canWrite && (trips.length ? (
                 <form className="material-invoice-form" onSubmit={createMaterialInvoice}>
                   <div className="material-invoice-section-title"><span>1</span><div><strong>Customer dan tujuan</strong><small>Customer adalah pihak yang ditagih; tujuan adalah lokasi fisik bongkar.</small></div></div>
-                  <label style={{ display: "block", marginBottom: 14, fontSize: 12, color: BRAND.textMuted }}>Ditagihkan kepada / Customer Material<Input required value={materialInvoiceForm.billingCustomerName} onChange={(e) => setMaterialInvoiceForm((form) => ({ ...form, billingCustomerName: e.target.value }))} placeholder="Contoh: PT SSS" style={{ marginTop: 6 }} /></label>
+                  <label style={{ display: "block", marginBottom: 14, fontSize: 12, color: BRAND.textMuted }}>Customer pemilik &amp; yang ditagih<select required className="material-invoice-control" value={materialInvoiceForm.customerId} onChange={(e) => selectOrderMaterialCustomer(e.target.value)}><option value="">Pilih dari Master Customer</option>{materialCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
                   <div style={{ display: "grid", gridTemplateColumns: isNarrow ? "1fr" : "2fr 1fr", gap: 12, marginBottom: 14 }}>
-                    <label style={{ fontSize: 12, color: BRAND.textMuted }}>Tujuan bongkar<select required value={materialInvoiceForm.destinationLocationId} onChange={(e) => { const location = materialDestinations.find((item) => item.id === e.target.value); setMaterialInvoiceForm((form) => ({ ...form, destinationLocationId: e.target.value, billingCustomerName: form.billingCustomerName || companyFromLocation(location?.name) })); }} style={{ width: "100%", marginTop: 6, height: 42, borderRadius: 6, border: `1px solid ${BRAND.border}`, padding: "0 10px" }}><option value="">Pilih tujuan dari Master Lokasi</option>{materialDestinations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
+                    <label style={{ fontSize: 12, color: BRAND.textMuted }}>Tujuan bongkar<select required className="material-invoice-control" value={materialInvoiceForm.destinationLocationId} onChange={(e) => setMaterialInvoiceForm((form) => ({ ...form, destinationLocationId: e.target.value }))}><option value="">Pilih tujuan dari Master Lokasi</option>{materialDestinations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
                     <label style={{ fontSize: 12, color: BRAND.textMuted }}>Urutan tujuan<Input required type="number" min="1" step="1" value={materialInvoiceForm.stopSequence} onChange={(e) => setMaterialInvoiceForm((form) => ({ ...form, stopSequence: e.target.value }))} style={{ marginTop: 6 }} /></label>
                   </div>
                   <div className="material-invoice-section-title"><span>2</span><div><strong>Armada dan dokumen</strong><small>Pilih trip yang membawa muatan ini.</small></div></div>
@@ -927,14 +956,15 @@ export default function OrderDetail() {
                     <label style={{ fontSize: 12, color: BRAND.textMuted }}>No. Surat Jalan<Input readOnly value={materialInvoiceForm.number} placeholder="Pilih trip yang sudah memiliki surat jalan" style={{ marginTop: 6, background: BRAND.secondary, color: BRAND.primary, fontWeight: 700 }} /></label>
                     <label style={{ fontSize: 12, color: BRAND.textMuted }}>Tanggal<Input required type="date" value={materialInvoiceForm.issuedAt} onChange={(e) => setMaterialInvoiceForm((f) => ({ ...f, issuedAt: e.target.value }))} style={{ marginTop: 6 }} /></label>
                   </div>
-                  <div className="material-invoice-section-title"><span>3</span><div><strong>Rincian barang</strong><small>Masukkan kuantitas, berat, dan nilai yang akan ditagihkan.</small></div></div>
-                  <div style={{ marginTop: 16, overflowX: "auto" }}>
-                    <div style={{ fontWeight: 650, color: BRAND.text, marginBottom: 8 }}>Rincian barang dalam GRN</div>
-                    <table style={{ width: "100%", minWidth: 860, borderCollapse: "collapse", fontSize: 12 }}><thead><tr style={{ textAlign: "left", color: BRAND.textMuted }}><th>NO. PP</th><th>NO. PO</th><th>Nama barang</th><th>Qty</th><th>Satuan</th><th>Total Kg</th><th>Total Rp</th><th></th></tr></thead><tbody>{materialInvoiceLines.map((line, index) => <tr key={index}><td><Input value={line.ppNumber} onChange={(e) => setMaterialInvoiceLines((lines) => lines.map((row, i) => i === index ? { ...row, ppNumber: e.target.value } : row))} placeholder="No. PP" /></td><td><Input value={line.poNumber} onChange={(e) => setMaterialInvoiceLines((lines) => lines.map((row, i) => i === index ? { ...row, poNumber: e.target.value } : row))} placeholder="No. PO" /></td><td><Input required value={line.itemName} onChange={(e) => setMaterialInvoiceLines((lines) => lines.map((row, i) => i === index ? { ...row, itemName: e.target.value } : row))} placeholder="Nama barang" /></td><td><Input required type="number" min="0.01" step="any" value={line.qty} onChange={(e) => setMaterialInvoiceLines((lines) => lines.map((row, i) => i === index ? { ...row, qty: e.target.value } : row))} /></td><td><Input required value={line.unit} onChange={(e) => setMaterialInvoiceLines((lines) => lines.map((row, i) => i === index ? { ...row, unit: e.target.value } : row))} /></td><td><Input type="number" min="0" step="any" value={line.totalKg} onChange={(e) => setMaterialInvoiceLines((lines) => lines.map((row, i) => i === index ? { ...row, totalKg: e.target.value } : row))} /></td><td><Input type="number" min="0" step="1" value={line.totalAmount} onChange={(e) => setMaterialInvoiceLines((lines) => lines.map((row, i) => i === index ? { ...row, totalAmount: e.target.value } : row))} /></td><td><Button type="button" variant="danger" size="small" disabled={materialInvoiceLines.length === 1} onClick={() => setMaterialInvoiceLines((lines) => lines.filter((_, i) => i !== index))}>×</Button></td></tr>)}</tbody></table>
-                    <Button type="button" variant="secondary" size="small" onClick={() => setMaterialInvoiceLines((lines) => [...lines, { ppNumber: "", poNumber: "", itemName: "", qty: "", unit: "PCS", totalKg: "", totalAmount: "" }])} style={{ marginTop: 10 }}>+ Tambah baris barang</Button>
+                  <div className="material-invoice-section-title"><span>3</span><div><strong>Pilih material masuk</strong><small>Centang material yang tersedia dan isi jumlah yang akan diangkut.</small></div></div>
+                  <div className="order-material-picker">
+                    <div className="order-material-picker-head"><strong>Material tersedia</strong><span>{Object.values(materialSelected).filter((item) => item.checked).length} dipilih</span></div>
+                    {!materialInvoiceForm.customerId ? <div className="order-material-picker-empty">Pilih customer terlebih dahulu.</div> : !materialAvailable.length ? <div className="order-material-picker-empty">Customer ini belum memiliki saldo material.</div> : <div className="order-material-picker-list">
+                      <div className="order-material-picker-row heading"><span></span><span>Material</span><span>Tersedia</span><span>Jumlah diangkut</span></div>
+                      {materialAvailable.map((item) => { const chosen = Boolean(materialSelected[item.key]?.checked); return <label className={"order-material-picker-row " + (chosen ? "selected" : "")} key={item.key}><input type="checkbox" checked={chosen} onChange={(e) => toggleOrderMaterial(item, e.target.checked)} /><span><strong>{item.itemName}</strong><small>{item.location?.name || "Tanpa lokasi"}</small></span><b>{fmtNum(item.availableQty)} {item.unit}</b><input disabled={!chosen} required={chosen} type="number" min="0.01" step="any" max={item.availableQty} value={materialSelected[item.key]?.qty || ""} onChange={(e) => updateOrderMaterialQty(item.key, e.target.value)} placeholder="0" /></label> })}
+                    </div>}
                   </div>
                   <label style={{ display: "block", marginTop: 12, fontSize: 12, color: BRAND.textMuted }}>Catatan<Input value={materialInvoiceForm.notes} onChange={(e) => setMaterialInvoiceForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Catatan opsional" style={{ marginTop: 6 }} /></label>
-                  <label style={{ display: "block", marginTop: 12, fontSize: 12, color: BRAND.textMuted }}>Bukti Delivery Order / Faktur (PDF atau gambar)<input type="file" accept="image/*,application/pdf" onChange={(e) => setMaterialInvoiceProof(e.target.files?.[0] || null)} style={{ display: "block", marginTop: 6, fontSize: 13 }} />{materialInvoiceProof && <span style={{ display: "block", marginTop: 5, color: BRAND.primary }}>{materialInvoiceProof.name}</span>}</label>
                   {materialInvoiceError && <div style={{ marginTop: 10, color: BRAND.danger, fontSize: 13 }}>{materialInvoiceError}</div>}
                   <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}><Button type="submit" variant="primary" disabled={savingMaterialInvoice}>{savingMaterialInvoice ? "Menyimpan..." : "Simpan Faktur"}</Button></div>
                 </form>

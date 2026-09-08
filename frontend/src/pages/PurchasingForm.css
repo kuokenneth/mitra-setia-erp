@@ -84,6 +84,69 @@
   .purchase-request-modal .modal-actions { padding: 16px 20px 20px; }
 }
 
+/* The loading placeholder replaces the active table instead of stacking above it. */
+.purchasing .p-panel.initial-loading > :not(.erp-loading) {
+  display: none;
+}
+
+/* Isolate the redesigned request dialog from the generic 560px modal rules. */
+.purchasing .overlay .modal.purchase-request-modal.request-redesign-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(1040px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+.purchasing .request-redesign-modal .request-modal-body {
+  display: grid;
+  grid-template-columns: minmax(480px, 1.15fr) minmax(370px, .85fr);
+  align-items: start;
+  gap: 18px;
+  width: 100%;
+  min-height: 0;
+  padding: 22px 24px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.purchasing .request-redesign-modal .request-form-section {
+  width: 100%;
+  min-width: 0;
+}
+.purchasing .request-redesign-modal .request-item-mode {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+}
+.purchasing .request-redesign-modal .request-item-mode button {
+  min-width: 0;
+  white-space: normal;
+  line-height: 1.25;
+}
+.purchasing .request-redesign-modal > .modal-actions {
+  flex: 0 0 auto;
+  margin: 0;
+}
+@media (max-width: 920px) {
+  .purchasing .overlay .modal.purchase-request-modal.request-redesign-modal {
+    width: min(650px, calc(100vw - 24px));
+    max-height: calc(100vh - 24px);
+  }
+  .purchasing .request-redesign-modal .request-modal-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 560px) {
+  .purchasing .overlay .modal.purchase-request-modal.request-redesign-modal {
+    width: calc(100vw - 14px);
+    max-height: calc(100vh - 14px);
+  }
+  .purchasing .request-redesign-modal .request-item-mode {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* Penerimaan barang: ringkas, mudah dipindai, dan tetap nyaman saat banyak item. */
 .purchasing .transaction-modal:not(.payment-modal) {
   width: min(840px, calc(100vw - 40px));

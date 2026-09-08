@@ -33,6 +33,7 @@ import FleetProfitability from "./pages/FleetProfitability";
 import FleetMap from "./pages/FleetMap";
 import OperationalLocations from "./pages/OperationalLocations";
 import AuditTrail from "./pages/AuditTrail";
+import MaterialStock from "./pages/MaterialStock";
 import PageErrorBoundary from "./components/PageErrorBoundary";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -62,6 +63,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             <Route path="/trucks" element={<Trucks />} />
             <Route path="/fleet-map" element={<FleetMap />} />
             <Route path="/operational-locations" element={<OperationalLocations />} />
+            <Route path="/material-stock" element={<MaterialStock />} />
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/purchasing" element={<Purchasing />} />
             <Route path="/receivables" element={<Receivables />} />
@@ -74,7 +76,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             <Route path="/orders/new" element={<OrderCreate />} />
             <Route path="/orders/:id" element={<OrderDetail />} />
             <Route path="/drivers/new" element={<CreateDriver />} />
-            <Route path="/trips/:id" element={<TripDetail />} />
+            <Route path="/trips/:id" element={<PageErrorBoundary><TripDetail /></PageErrorBoundary>} />
             <Route path="/trips" element={<PageErrorBoundary><Trips /></PageErrorBoundary>} />
 
             {/* Driver */}

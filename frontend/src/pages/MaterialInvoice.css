@@ -11,3 +11,22 @@
 .material-invoice-section-title strong { color: #173b2d; font-size: 14px; }
 .material-invoice-section-title small { margin-top: 2px; color: #718078; font-size: 11px; }
 @media(max-width:700px){.material-invoice-hero{align-items:flex-start;flex-direction:column}.material-invoice-form{padding:14px}}
+.material-invoice-control{box-sizing:border-box;width:100%;height:44px;margin-top:6px;padding:0 36px 0 12px;border:1px solid #d5e1d9;border-radius:9px;background:#fff;color:#263a2e;font:inherit;font-size:13px}
+.order-material-picker{overflow:hidden;margin-top:12px;border:1px solid #dce7e0;border-radius:12px;background:#fff}
+.order-material-picker-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #e5ece7;background:#f4f9f6}
+.order-material-picker-head strong{font-size:13px;color:#274333}
+.order-material-picker-head span{padding:5px 9px;border-radius:999px;background:#e1f1e7;color:#277449;font-size:10px;font-weight:800}
+.order-material-picker-list{max-height:320px;overflow:auto}
+.order-material-picker-row{display:grid;grid-template-columns:24px minmax(180px,1fr) 150px 150px;gap:10px;align-items:center;padding:10px 13px;border-bottom:1px solid #edf1ee;cursor:pointer}
+.order-material-picker-row:last-child{border-bottom:0}
+.order-material-picker-row.heading{position:sticky;top:0;z-index:1;padding-top:8px;padding-bottom:8px;background:#fff;color:#829087;font-size:9px;font-weight:800;text-transform:uppercase;cursor:default}
+.order-material-picker-row.selected{background:#f0f8f3}
+.order-material-picker-row>input[type="checkbox"]{width:16px;height:16px;accent-color:#168348}
+.order-material-picker-row>span strong,.order-material-picker-row>span small{display:block}
+.order-material-picker-row>span strong{font-size:12px;color:#2b4034}
+.order-material-picker-row>span small{margin-top:3px;color:#829087;font-size:9px}
+.order-material-picker-row>b{font-size:11px;color:#397052}
+.order-material-picker-row>input[type="number"]{box-sizing:border-box;width:100%;height:38px;padding:0 10px;border:1px solid #d5e1d9;border-radius:8px}
+.order-material-picker-row>input[type="number"]:disabled{background:#f1f4f2;color:#a8b1ab}
+.order-material-picker-empty{padding:34px;text-align:center;color:#829087;font-size:12px}
+@media(max-width:700px){.order-material-picker-row{grid-template-columns:22px minmax(120px,1fr) 100px}.order-material-picker-row>input[type="number"]{grid-column:2/-1}.order-material-picker-row.heading span:last-child{display:none}}

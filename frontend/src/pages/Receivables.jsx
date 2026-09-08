@@ -11,7 +11,7 @@ const tanggal = value => value ? new Date(value).toLocaleDateString("id-ID", { d
 const statusLabel = { DRAFT: "Draft", SENT: "Terkirim", PARTIALLY_PAID: "Dibayar Sebagian", PAID: "Lunas", OVERDUE: "Jatuh Tempo", VOID: "Dibatalkan" };
 const initialData = { invoices: [], eligibleOrders: [], eligibleSources: [], stats: { invoiced: 0, received: 0, outstanding: 0, overdue: 0 } };
 const afterDays = days => { const d = new Date(); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10); };
-const customerKey = source => `name:${String(source?.customerName || "").trim().toLocaleLowerCase("id-ID")}`;
+const customerKey = source => source?.customerId ? `id:${source.customerId}` : `name:${String(source?.customerName || "").trim().toLocaleLowerCase("id-ID")}`;
 
 export default function Receivables() {
   const { user } = useAuth();
@@ -24,8 +24,9 @@ export default function Receivables() {
   const [modal, setModal] = useState("");
   const [selected, setSelected] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [invoiceForm, setInvoiceForm] = useState({ billingCustomerKey: "", sourceKey: "", sourceType: "ORDER", orderId: "", materialInvoiceIds: [], singleTripId: "", singleTripIds: [], ratePerKg: "", customerName: "", customerPhone: "", billingAddress: "", dueAt: afterDays(30), contractSubtotal: "", tax: 0, discount: 0, notes: "" });
+  const [invoiceForm, setInvoiceForm] = useState({ billingCustomerKey: "", sourceKey: "", sourceType: "ORDER", orderId: "", customerId: "", materialInvoiceIds: [], materialLineAmounts: {}, singleTripId: "", singleTripIds: [], ratePerKg: "", customerName: "", customerPhone: "", billingAddress: "", dueAt: afterDays(30), contractSubtotal: "", tax: 0, discount: 0, notes: "" });
   const [paymentForm, setPaymentForm] = useState({ amount: "", method: "BANK_TRANSFER", reference: "", receivedAt: new Date().toISOString().slice(0, 10), notes: "" });
+  const [pricingForm, setPricingForm] = useState({ contractSubtotal: "", ratePerKg: "", materialLineRates: {}, tax: 0, discount: 0, dueAt: afterDays(30), notes: "" });
 
   async function load() {
     setLoading(true); setError("");
@@ -44,16 +45,16 @@ export default function Receivables() {
   }), [data.invoices, filter, query]);
 
   function openInvoice() {
-    setInvoiceForm({ billingCustomerKey: "", sourceKey: "", sourceType: "ORDER", orderId: "", materialInvoiceIds: [], singleTripId: "", singleTripIds: [], ratePerKg: "", customerName: "", customerPhone: "", billingAddress: "", dueAt: afterDays(30), contractSubtotal: "", tax: 0, discount: 0, notes: "" });
+    setInvoiceForm({ billingCustomerKey: "", sourceKey: "", sourceType: "ORDER", orderId: "", customerId: "", materialInvoiceIds: [], materialLineAmounts: {}, singleTripId: "", singleTripIds: [], ratePerKg: "", customerName: "", customerPhone: "", billingAddress: "", dueAt: afterDays(30), contractSubtotal: "", tax: 0, discount: 0, notes: "" });
     setError(""); setModal("invoice");
   }
   function chooseCustomer(key) {
     const source = data.eligibleSources.find(item => customerKey(item) === key);
-    setInvoiceForm(form => ({ ...form, billingCustomerKey: key, sourceKey: "", sourceType: "ORDER", orderId: "", materialInvoiceIds: [], singleTripId: "", singleTripIds: [], ratePerKg: "", customerName: source?.customerName || "", customerPhone: source?.customerPhone || "", billingAddress: source?.billingAddress || "", contractSubtotal: "" }));
+    setInvoiceForm(form => ({ ...form, billingCustomerKey: key, sourceKey: "", sourceType: "ORDER", orderId: "", customerId: source?.customerId || "", materialInvoiceIds: [], materialLineAmounts: {}, singleTripId: "", singleTripIds: [], ratePerKg: "", customerName: source?.customerName || "", customerPhone: source?.customerPhone || "", billingAddress: source?.billingAddress || "", contractSubtotal: "" }));
   }
   function chooseOrder(sourceKey) {
     const source = data.eligibleSources.find(item => `${item.type}:${item.id}` === sourceKey);
-    setInvoiceForm(form => ({ ...form, sourceKey, sourceType: source?.type || "ORDER", orderId: source?.type === "ORDER" ? source.id : "", materialInvoiceIds: source?.materialInvoiceIds || [], singleTripId: source?.singleTripId || "", singleTripIds: source?.singleTripIds || [], ratePerKg: "", customerName: source?.customerName || "", customerPhone: source?.customerPhone || "", billingAddress: source?.billingAddress || "", contractSubtotal: ["MATERIAL", "SINGLE_TRIP_GROUP"].includes(source?.type) ? "0" : "" }));
+    setInvoiceForm(form => ({ ...form, sourceKey, sourceType: source?.type || "ORDER", orderId: source?.type === "ORDER" ? source.id : "", customerId: source?.customerId || "", materialInvoiceIds: source?.materialInvoiceIds || [], materialLineAmounts: {}, singleTripId: source?.singleTripId || "", singleTripIds: source?.singleTripIds || [], ratePerKg: "", customerName: source?.customerName || "", customerPhone: source?.customerPhone || "", billingAddress: source?.billingAddress || "", contractSubtotal: ["MATERIAL", "SINGLE_TRIP_GROUP"].includes(source?.type) ? "0" : "" }));
   }
   async function createInvoice(event) {
     event.preventDefault(); setBusy(true); setError("");
@@ -64,6 +65,19 @@ export default function Receivables() {
   async function sendInvoice(invoice) {
     setBusy(true); setError("");
     try { await api(`/receivables/invoices/${invoice.id}/send`, { method: "PATCH" }); await load(); }
+    catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  }
+  function openInvoiceDetail(invoice) {
+    const rates = {};
+    (invoice.materialInvoices || []).flatMap(row => row.lines || []).forEach(line => { rates[line.id] = line.qty > 0 && line.totalAmount > 0 ? String(Math.round(line.totalAmount / line.qty)) : ""; });
+    setSelected(invoice);
+    setPricingForm({ contractSubtotal: invoice.contractSubtotal > 0 ? String(invoice.contractSubtotal) : "", ratePerKg: invoice.singleTripLines?.[0]?.ratePerKg > 0 ? String(invoice.singleTripLines[0].ratePerKg) : "", materialLineRates: rates, tax: invoice.tax || 0, discount: invoice.discount || 0, dueAt: String(invoice.dueAt || "").slice(0, 10) || afterDays(30), notes: invoice.notes || "" });
+    setError(""); setModal("invoice-detail");
+  }
+  async function saveInvoicePricing(event) {
+    event.preventDefault(); setBusy(true); setError("");
+    try { await api(`/receivables/invoices/${selected.id}/draft`, { method: "PATCH", body: JSON.stringify(pricingForm) }); setModal(""); setSelected(null); await load(); }
     catch (err) { setError(err.message); }
     finally { setBusy(false); }
   }
@@ -112,7 +126,7 @@ export default function Receivables() {
   const selectedMaterialInvoices = selectedSource?.type === "MATERIAL"
     ? (selectedSource.invoices || []).filter(invoice => invoiceForm.materialInvoiceIds.includes(invoice.id))
     : [];
-  const selectedMaterialSubtotal = selectedMaterialInvoices.flatMap(invoice => invoice.lines || []).reduce((sum, line) => sum + Number(line.totalAmount || 0), 0);
+  const selectedMaterialSubtotal = selectedMaterialInvoices.flatMap(invoice => invoice.lines || []).reduce((sum, line) => sum + (invoiceForm.materialLineAmounts[line.id] !== undefined ? Number(line.qty || 0) * Number(invoiceForm.materialLineAmounts[line.id] || 0) : Number(line.totalAmount || 0)), 0);
   const materialSubtotal = selectedSource?.type === "MATERIAL" ? selectedMaterialSubtotal : Number(invoiceOrder?.materialSubtotal ?? 0);
   const selectedSingleTrips = selectedSource?.type === "SINGLE_TRIP_GROUP" ? (selectedSource.trips || []).filter(trip => invoiceForm.singleTripIds.includes(trip.id)) : [];
   const tripWeightKg = trip => String(trip.unitSnap || "").toUpperCase() === "TON" ? Number(trip.qtyActual || 0) * 1000 : Number(trip.qtyActual || 0);
@@ -120,7 +134,7 @@ export default function Receivables() {
   const singleTripSubtotal = Math.round(selectedSingleWeightKg * Number(invoiceForm.ratePerKg || 0));
   const cargoLossAmount = Math.max(0, Number(invoiceForm.contractSubtotal || 0) - billableSubtotal);
   const total = (selectedSource?.type === "SINGLE_TRIP_GROUP" ? singleTripSubtotal : billableSubtotal + materialSubtotal) + Number(invoiceForm.tax || 0) - Number(invoiceForm.discount || 0);
-  const invoiceBlockReason = !invoiceForm.billingCustomerKey ? "Pilih customer tagihan terlebih dahulu" : !selectedSource ? "Pilih sumber tagihan customer ini" : selectedSource.type === "MATERIAL" && !invoiceForm.materialInvoiceIds.length ? "Pilih minimal satu Faktur Muatan" : selectedSource.type === "SINGLE_TRIP_GROUP" && !invoiceForm.singleTripIds.length ? "Pilih minimal satu Trip Tunggal" : selectedSource.type === "SINGLE_TRIP_GROUP" && Number(invoiceForm.ratePerKg) <= 0 ? "Masukkan harga per kg" : selectedSource.type === "ORDER" && Number(invoiceForm.contractSubtotal) <= 0 && materialSubtotal <= 0 ? "Masukkan harga kontrak utama" : total <= 0 ? "Total tagihan harus lebih dari nol" : "";
+  const invoiceBlockReason = !invoiceForm.billingCustomerKey ? "Pilih customer tagihan terlebih dahulu" : !selectedSource ? "Pilih sumber tagihan customer ini" : selectedSource.type === "MATERIAL" && !invoiceForm.materialInvoiceIds.length ? "Pilih minimal satu Faktur Muatan" : selectedSource.type === "SINGLE_TRIP_GROUP" && !invoiceForm.singleTripIds.length ? "Pilih minimal satu Trip Tunggal" : "";
   const canSaveInvoice = !busy && !invoiceBlockReason;
   return <div className="ar-page">
     <header className="ar-head"><div><span className="ar-eyebrow">INVOICE & PIUTANG</span><h1>Piutang Pelanggan</h1><p>Pantau penagihan dan pembayaran pelanggan.</p></div><button className="ar-primary ar-create-invoice" onClick={openInvoice}><FiPlus/> Buat Invoice</button></header>
@@ -134,12 +148,12 @@ export default function Receivables() {
     <section className="ar-panel">
       <div className="ar-tools"><input className="ar-search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Cari nomor invoice, pesanan, atau pelanggan..."/><select className="ar-filter" value={filter} onChange={e => setFilter(e.target.value)}><option value="ALL">Semua Status</option><option value="DRAFT">Draft</option><option value="SENT">Terkirim</option><option value="PARTIALLY_PAID">Dibayar Sebagian</option><option value="PAID">Lunas</option><option value="OVERDUE">Jatuh Tempo</option><option value="VOID">Dibatalkan</option></select><button className="ar-refresh" onClick={load} aria-label="Muat ulang"><FiRefreshCw className={loading ? "ar-spin" : ""}/></button></div>
       <div className="ar-table-wrap">{loading && !rows.length && <LoadingState label="Memuat piutang" note="Menghitung invoice, pembayaran, dan sisa tagihan…" rows={5} />}<table><thead><tr><th>Invoice</th><th>Pelanggan</th><th>Jatuh Tempo</th><th>Total</th><th>Dibayar</th><th>Sisa</th><th>Status</th><th>Tindakan</th></tr></thead><tbody>
-        {rows.map(invoice => <tr key={invoice.id}><td><b>{invoice.number}</b><small>{invoice.order?.orderNo || (invoice.materialInvoices?.length ? `${invoice.materialInvoices.length} Faktur Muatan` : invoice.singleTrip?.tripNo)}</small>{invoice.order?.shipment?.loss > 0 && <small style={{ color: "#b45309" }}>Selisih {invoice.order.shipment.loss.toLocaleString("id-ID")} {invoice.order.shipment.unit || ""}</small>}</td><td><b>{invoice.customerName}</b><small>{invoice.order?.fromText} {invoice.order && "→"} {invoice.order?.toText}</small></td><td>{tanggal(invoice.dueAt)}</td><td>{rupiah(invoice.total)}</td><td className="paid">{rupiah(invoice.paid)}</td><td><b>{rupiah(invoice.balance)}</b></td><td><span className={`ar-status ${invoice.displayStatus}`}>{statusLabel[invoice.displayStatus]}</span></td><td><div className="ar-actions"><button onClick={() => printInvoice(invoice)}><FiPrinter/> Cetak</button>{invoice.status === "DRAFT" && <button onClick={() => sendInvoice(invoice)} disabled={busy}><FiSend/> Kirim</button>}{["SENT", "PARTIALLY_PAID"].includes(invoice.status) && <button onClick={() => openPayment(invoice)}><FiCreditCard/> Bayar</button>}{canVoid && !invoice.payments.length && !["PAID", "VOID"].includes(invoice.status) && <button className="void" onClick={() => voidInvoice(invoice)}>Batalkan</button>}</div></td></tr>)}
+        {rows.map(invoice => <tr key={invoice.id}><td><b>{invoice.number}</b><small>{invoice.order?.orderNo || (invoice.materialInvoices?.length ? `${invoice.materialInvoices.length} Faktur Muatan` : invoice.singleTrip?.tripNo)}</small>{invoice.order?.shipment?.loss > 0 && <small style={{ color: "#b45309" }}>Selisih {invoice.order.shipment.loss.toLocaleString("id-ID")} {invoice.order.shipment.unit || ""}</small>}</td><td><b>{invoice.customerName}</b><small>{invoice.order?.fromText} {invoice.order && "→"} {invoice.order?.toText}</small></td><td>{tanggal(invoice.dueAt)}</td><td>{rupiah(invoice.total)}</td><td className="paid">{rupiah(invoice.paid)}</td><td><b>{rupiah(invoice.balance)}</b></td><td><span className={`ar-status ${invoice.displayStatus}`}>{statusLabel[invoice.displayStatus]}</span></td><td><div className="ar-actions">{invoice.status === "DRAFT" && <button onClick={() => openInvoiceDetail(invoice)}><FiFileText/> Detail & Harga</button>}<button onClick={() => printInvoice(invoice)}><FiPrinter/> Cetak</button>{invoice.status === "DRAFT" && <button onClick={() => sendInvoice(invoice)} disabled={busy || invoice.total <= 0} title={invoice.total <= 0 ? "Lengkapi harga terlebih dahulu" : "Kirim invoice"}><FiSend/> Kirim</button>}{["SENT", "PARTIALLY_PAID"].includes(invoice.status) && <button onClick={() => openPayment(invoice)}><FiCreditCard/> Bayar</button>}{canVoid && !invoice.payments.length && !["PAID", "VOID"].includes(invoice.status) && <button className="void" onClick={() => voidInvoice(invoice)}>Batalkan</button>}</div></td></tr>)}
       </tbody></table></div>
       {!loading && !rows.length && <div className="ar-empty"><FiFileText/><h3>Belum ada invoice</h3><p>{data.eligibleSources?.length ? "Buat invoice dari order, Faktur Muatan, atau Trip Tunggal yang siap ditagih." : "Selesaikan perjalanan terlebih dahulu agar dapat ditagih."}</p></div>}
     </section>
 
-    {modal === "invoice" && <div className="ar-overlay" onMouseDown={() => setModal("")}><form className="ar-modal ar-invoice-modal" onSubmit={createInvoice} onMouseDown={e => e.stopPropagation()}>
+    {modal === "invoice" && <div className="ar-overlay" onMouseDown={() => setModal("")}><form noValidate className="ar-modal ar-invoice-modal ar-create-modal" onSubmit={createInvoice} onMouseDown={e => e.stopPropagation()}>
       <div className="ar-modal-head"><div><span className="ar-eyebrow">INVOICE BARU</span><h2>Buat tagihan pelanggan</h2><p>Pilih sumber dan pastikan rincian tagihan sudah benar.</p></div><button type="button" aria-label="Tutup" onClick={() => setModal("")}><FiX/></button></div>
       <div className="ar-form ar-invoice-form">
         <section className="ar-form-section">
@@ -152,7 +166,7 @@ export default function Receivables() {
             <div className="ar-material-list">{(selectedSource.invoices || []).map(invoice => {
               const invoiceTotal = (invoice.lines || []).reduce((sum, line) => sum + Number(line.totalAmount || 0), 0);
               const itemNames = [...new Set((invoice.lines || []).map(line => line.itemName).filter(Boolean))].join(", ");
-              return <label className={`ar-material-item ${invoiceForm.materialInvoiceIds.includes(invoice.id) ? "selected" : ""}`} key={invoice.id}><input type="checkbox" checked={invoiceForm.materialInvoiceIds.includes(invoice.id)} onChange={() => toggleMaterialInvoice(invoice.id)}/><span><b>{invoice.number}</b><small>{tanggal(invoice.issuedAt)} · {invoice.trip?.truck?.plateNumber || "Tanpa armada"}</small><small>{invoice.destinationLocation?.name || invoice.destinationText || "Tujuan belum dicatat"}</small><em>{itemNames || "Ambang / Material"}</em></span><strong>{rupiah(invoiceTotal)}</strong></label>;
+              return <label className={`ar-material-item ${invoiceForm.materialInvoiceIds.includes(invoice.id) ? "selected" : ""}`} key={invoice.id}><input type="checkbox" checked={invoiceForm.materialInvoiceIds.includes(invoice.id)} onChange={() => toggleMaterialInvoice(invoice.id)}/><span><b>{invoice.number}</b><small>{tanggal(invoice.issuedAt)} · {invoice.trip?.truck?.plateNumber || "Tanpa armada"}</small><small>{invoice.destinationLocation?.name || invoice.destinationText || "Tujuan belum dicatat"}</small><em>{itemNames || "Ambang / Material"}</em>{invoiceForm.materialInvoiceIds.includes(invoice.id)&&(invoice.lines||[]).map(line=><span className="ar-material-rate" key={line.id}><small>{line.itemName} · {line.qty} {line.unit}</small><input required min="1" type="number" value={invoiceForm.materialLineAmounts[line.id]??""} onClick={e=>e.stopPropagation()} onChange={e=>setInvoiceForm(form=>({...form,materialLineAmounts:{...form.materialLineAmounts,[line.id]:e.target.value}}))} placeholder={`Harga per ${line.unit}`}/></span>)}</span><strong>{rupiah(invoiceForm.materialInvoiceIds.includes(invoice.id)?(invoice.lines||[]).reduce((sum,line)=>sum+Number(line.qty||0)*Number(invoiceForm.materialLineAmounts[line.id]||0),0):invoiceTotal)}</strong></label>;
             })}</div>
             <div className="ar-material-subtotal"><span>Subtotal faktur terpilih</span><strong>{rupiah(selectedMaterialSubtotal)}</strong></div>
           </div>}
@@ -179,7 +193,17 @@ export default function Receivables() {
           <div className="ar-total"><span><small>TOTAL TAGIHAN</small>{selectedSource?.type === "SINGLE_TRIP_GROUP" ? "Berat aktual × harga/kg + pajak − diskon" : "Kontrak utama + Faktur Muatan + pajak − diskon"}</span><strong>{rupiah(total)}</strong></div>
         </section>
       </div>
-      <div className="ar-modal-actions"><span className={`ar-save-hint ${invoiceBlockReason ? "waiting" : "ready"}`}>{invoiceBlockReason || "Invoice siap disimpan"}</span><button type="button" className="secondary" onClick={() => setModal("")}>Batal</button><button className="ar-primary ar-save-invoice" disabled={!canSaveInvoice} title={invoiceBlockReason || "Simpan invoice sebagai draft"}>{busy ? <><FiRefreshCw className="ar-spin"/> Menyimpan...</> : <><FiCheck/> Simpan Invoice</>}</button></div>
+      <div className="ar-modal-actions"><span className={`ar-save-hint ${invoiceBlockReason ? "waiting" : "ready"}`}>{invoiceBlockReason || "Sumber siap disimpan sebagai Draft"}</span><button type="button" className="secondary" onClick={() => setModal("")}>Batal</button><button className="ar-primary ar-save-invoice" disabled={!canSaveInvoice} title={invoiceBlockReason || "Buat Draft Invoice"}>{busy ? <><FiRefreshCw className="ar-spin"/> Menyimpan...</> : <><FiCheck/> Buat Draft</>}</button></div>
+    </form></div>}
+
+    {modal === "invoice-detail" && selected && <div className="ar-overlay" onMouseDown={() => setModal("")}><form className="ar-modal ar-invoice-modal" onSubmit={saveInvoicePricing} onMouseDown={e => e.stopPropagation()}>
+      <div className="ar-modal-head"><div><span className="ar-eyebrow">DETAIL INVOICE DRAFT</span><h2>{selected.number}</h2><p>{selected.customerName} · Lengkapi harga sebelum invoice dikirim.</p></div><button type="button" onClick={() => setModal("")}><FiX/></button></div>
+      <div className="ar-form ar-invoice-form">
+        <section className="ar-form-section"><div className="ar-section-title"><span>1</span><div><strong>Sumber tagihan</strong><small>Sumber sudah dikunci pada Draft ini.</small></div></div>
+          {selected.materialInvoices?.length ? <div className="ar-material-list">{selected.materialInvoices.flatMap(invoice => (invoice.lines || []).map(line => <div className="ar-material-rate ar-detail-rate" key={line.id}><span><b>{line.itemName}</b><small>{line.qty} {line.unit} · {invoice.number} · {invoice.trip?.truck?.plateNumber || "-"}</small></span><input required min="1" type="number" value={pricingForm.materialLineRates[line.id] ?? ""} onChange={e => setPricingForm(form => ({ ...form, materialLineRates: { ...form.materialLineRates, [line.id]: e.target.value } }))} placeholder={`Harga per ${line.unit}`}/></div>))}</div> : selected.singleTripLines?.length ? <><div className="ar-order-summary"><span><small>TRIP TERPILIH</small><strong>{selected.singleTripLines.length} trip · {selected.singleTripLines.reduce((sum,line)=>sum+Number(line.actualWeightKg||0),0).toLocaleString("id-ID")} kg</strong></span></div><label>Harga per kg<input required min="1" type="number" value={pricingForm.ratePerKg} onChange={e=>setPricingForm({...pricingForm,ratePerKg:e.target.value})}/></label></> : <><div className="ar-order-summary"><span><small>PESANAN</small><strong>{selected.order?.orderNo || "Pesanan reguler"}</strong></span><span><small>Realisasi</small><strong>{selected.order?.shipment?.delivered ?? 0} {selected.order?.unit || ""}</strong></span></div><label>Harga kontrak utama<input required min="1" type="number" value={pricingForm.contractSubtotal} onChange={e=>setPricingForm({...pricingForm,contractSubtotal:e.target.value})}/></label></>}
+        </section>
+        <section className="ar-form-section"><div className="ar-section-title"><span>2</span><div><strong>Penyesuaian tagihan</strong><small>Atur tanggal, pajak, diskon, dan catatan.</small></div></div><label>Jatuh tempo<input required type="date" value={pricingForm.dueAt} onChange={e=>setPricingForm({...pricingForm,dueAt:e.target.value})}/></label><div className="ar-grid2"><label>Pajak<input min="0" type="number" value={pricingForm.tax} onChange={e=>setPricingForm({...pricingForm,tax:e.target.value})}/></label><label>Diskon<input min="0" type="number" value={pricingForm.discount} onChange={e=>setPricingForm({...pricingForm,discount:e.target.value})}/></label></div><label>Catatan<textarea rows="2" value={pricingForm.notes} onChange={e=>setPricingForm({...pricingForm,notes:e.target.value})}/></label></section>
+      </div><div className="ar-modal-actions"><button type="button" className="secondary" onClick={()=>setModal("")}>Batal</button><button className="ar-primary" disabled={busy}><FiCheck/> {busy ? "Menyimpan..." : "Simpan Harga"}</button></div>
     </form></div>}
 
     {modal === "payment" && selected && <div className="ar-overlay" onMouseDown={() => setModal("")}><form className="ar-modal ar-payment-modal" onSubmit={savePayment} onMouseDown={e => e.stopPropagation()}><div className="ar-modal-head"><div><span className="ar-eyebrow">PEMBAYARAN PIUTANG</span><h2>Catat pembayaran</h2><p>{selected.number} · {selected.customerName}</p></div><button type="button" onClick={() => setModal("")}><FiX/></button></div><div className="ar-form"><div className="ar-balance"><span>Sisa piutang</span><strong>{rupiah(selected.balance)}</strong></div><label>Jumlah diterima<input required min="1" max={selected.balance} type="number" value={paymentForm.amount} onChange={e => setPaymentForm({...paymentForm, amount:e.target.value})}/></label><div className="ar-grid2"><label>Metode<select value={paymentForm.method} onChange={e => setPaymentForm({...paymentForm, method:e.target.value})}><option value="BANK_TRANSFER">Transfer Bank</option><option value="CASH">Tunai</option><option value="OTHER">Lainnya</option></select></label><label>Tanggal diterima<input required type="date" value={paymentForm.receivedAt} onChange={e => setPaymentForm({...paymentForm, receivedAt:e.target.value})}/></label></div><label>Nomor referensi<input value={paymentForm.reference} onChange={e => setPaymentForm({...paymentForm, reference:e.target.value})} placeholder="Nomor transfer atau kuitansi"/></label><label>Catatan<textarea rows="2" value={paymentForm.notes} onChange={e => setPaymentForm({...paymentForm, notes:e.target.value})}/></label></div><div className="ar-modal-actions"><button type="button" className="secondary" onClick={() => setModal("")}>Batal</button><button className="ar-primary" disabled={busy}><FiCheck/> {busy ? "Menyimpan..." : "Simpan Pembayaran"}</button></div></form></div>}

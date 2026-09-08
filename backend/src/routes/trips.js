@@ -413,7 +413,7 @@ router.post("/single", authRequired, async (req, res) => {
     const { truckId, driverUserId, pickupLocationId, destinationLocationId, plannedDepartAt, cargoCategory, cargoName, billingCustomerId, qtyPlanned, unit, reason } = req.body || {};
     const allowedCargoCategories = new Set(["FERTILIZER", "CANGKANG", "MATERIAL"]);
     const selectedCargoCategory = str(cargoCategory) === "AMBANG" ? "MATERIAL" : str(cargoCategory);
-    const plannedQty = qtyPlanned === "" || qtyPlanned == null ? null : Number(qtyPlanned);
+    const plannedQty = selectedCargoCategory === "MATERIAL" ? null : (qtyPlanned === "" || qtyPlanned == null ? null : Number(qtyPlanned));
     if (!truckId) return res.status(400).json({ error: "Truk wajib dipilih" });
     if (!allowedCargoCategories.has(selectedCargoCategory)) return res.status(400).json({ error: "Jenis muatan wajib dipilih" });
     if (!str(cargoName)) return res.status(400).json({ error: "Nama barang/muatan wajib diisi" });
@@ -473,7 +473,7 @@ router.post("/single", authRequired, async (req, res) => {
           arrivalRadiusM: destination.radiusM,
           qtyPlanned: plannedQty,
           qtyActual: null,
-          unitSnap: str(unit),
+          unitSnap: plannedQty == null ? null : str(unit),
         },
       });
     });
@@ -805,6 +805,10 @@ router.get("/:id", authRequired, async (req, res) => {
           include: { createdBy: { select: { id: true, name: true } } },
         },
         dispatchLetter: true,
+        materialInvoices: {
+          include: { destinationLocation: true, lines: true },
+          orderBy: { stopSequence: "asc" },
+        },
       },
     });
 

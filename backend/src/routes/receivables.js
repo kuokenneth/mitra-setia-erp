@@ -76,10 +76,10 @@ router.get("/overview", async (_req, res) => {
       prisma.invoice.findMany({ include: invoiceInclude, orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }] }),
       prisma.order.findMany({
         where: { status: "COMPLETED", invoices: { none: { sourceType: "ORDER", status: { not: "VOID" } } } },
-        include: { customer: true, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true } }, tripAllocations: { where: { trip: { status: "COMPLETED" } }, select: { qtyPlanned: true, qtyActual: true } }, materialInvoices: { select: { id: true, billingCustomerName: true, billedInvoiceId: true, destinationCompletedAt: true, lines: { select: { totalAmount: true } } } } },
+        include: { customer: true, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true } }, tripAllocations: { where: { trip: { status: "COMPLETED" } }, select: { qtyPlanned: true, qtyActual: true } }, materialInvoices: { select: { id: true, billingCustomerName: true, billedInvoiceId: true, destinationCompletedAt: true, lines: { select: { id: true, itemName: true, qty: true, unit: true, totalAmount: true } } } } },
         orderBy: { updatedAt: "desc" },
       }),
-      prisma.materialInvoice.findMany({ where: { billedInvoiceId: null, destinationCompletedAt: { not: null } }, include: { lines: true, trip: { include: { truck: true } }, destinationLocation: true }, orderBy: { issuedAt: "asc" } }),
+      prisma.materialInvoice.findMany({ where: { billedInvoiceId: null, destinationCompletedAt: { not: null } }, include: { billingCustomer: true, lines: true, trip: { include: { truck: true } }, destinationLocation: true }, orderBy: { issuedAt: "asc" } }),
       prisma.trip.findMany({ where: { purpose: "SINGLE_TRIP", status: "COMPLETED", cargoCategorySnap: { in: ["FERTILIZER", "CANGKANG"] }, billingCustomerName: { not: null }, invoiceLines: { none: {} }, singleInvoice: null }, include: { truck: true, billingCustomer: true }, orderBy: { completedAt: "asc" } }),
     ]);
     const rows = invoices.map(summarize);
@@ -92,13 +92,14 @@ router.get("/overview", async (_req, res) => {
     }, { invoiced: 0, received: 0, outstanding: 0, overdue: 0 });
     const groups = new Map();
     for (const item of materialRows) {
-      const key = String(item.billingCustomerName || "Tanpa customer").trim().toLocaleLowerCase("id-ID");
-      const group = groups.get(key) || { key, customerName: item.billingCustomerName || "Tanpa customer", total: 0, invoiceIds: [], invoices: [] };
+      const customerName = item.billingCustomer?.name || item.billingCustomerName || "Tanpa customer";
+      const key = item.billingCustomerId ? `id:${item.billingCustomerId}` : `name:${String(customerName).trim().toLocaleLowerCase("id-ID")}`;
+      const group = groups.get(key) || { key, customerId: item.billingCustomerId || null, customerName, customerPhone: item.billingCustomer?.phone || "", billingAddress: item.billingCustomer?.address || "", total: 0, invoiceIds: [], invoices: [] };
       group.total += item.lines.reduce((sum, line) => sum + Number(line.totalAmount || 0), 0);
       group.invoiceIds.push(item.id); group.invoices.push(item); groups.set(key, group);
     }
     const orderSources = eligibleOrders.map(order => ({ type: "ORDER", id: order.id, customerId: order.customerId || null, label: `${order.orderNo} — ${order.customer?.name || order.customerName || "Tanpa nama"}`, customerName: order.customer?.name || order.customerName || "", customerPhone: order.customer?.phone || "", billingAddress: order.customer?.address || "", order: { ...order, shipment: shipmentSummary(order), materialSubtotal: materialSubtotal(order) } }));
-    const materialSources = [...groups.values()].map(group => ({ type: "MATERIAL", id: group.key, label: `Faktur Muatan — ${group.customerName} (${group.invoiceIds.length} faktur)`, customerName: group.customerName, materialInvoiceIds: group.invoiceIds, materialSubtotal: group.total, invoices: group.invoices }));
+    const materialSources = [...groups.values()].map(group => ({ type: "MATERIAL", id: group.key, customerId: group.customerId, label: `Faktur Muatan — ${group.customerName} (${group.invoiceIds.length} faktur)`, customerName: group.customerName, customerPhone: group.customerPhone, billingAddress: group.billingAddress, materialInvoiceIds: group.invoiceIds, materialSubtotal: group.total, invoices: group.invoices }));
     const singleGroups = new Map();
     for (const trip of singleTrips) {
       const customerName = String(trip.billingCustomerName || "").trim();
@@ -117,7 +118,7 @@ router.get("/overview", async (_req, res) => {
 
 router.post("/invoices", async (req, res) => {
   try {
-    const { orderId, customerName, customerPhone, billingAddress, dueAt, notes, sourceType = "ORDER", materialInvoiceIds = [], singleTripId, singleTripIds = [] } = req.body;
+    const { orderId, customerId, customerName, customerPhone, billingAddress, dueAt, notes, sourceType = "ORDER", materialInvoiceIds = [], materialLineAmounts = {}, singleTripId, singleTripIds = [] } = req.body;
     const contractSubtotal = amount(req.body.contractSubtotal ?? req.body.subtotal, "Harga kontrak");
     const tax = amount(req.body.tax || 0, "Pajak");
     const discount = amount(req.body.discount || 0, "Diskon");
@@ -127,16 +128,17 @@ router.post("/invoices", async (req, res) => {
 
     const invoice = await prisma.$transaction(async (tx) => {
       if (sourceType === "MATERIAL") {
-        const items = await tx.materialInvoice.findMany({ where: { id: { in: materialInvoiceIds }, billedInvoiceId: null, destinationCompletedAt: { not: null } }, include: { lines: true } });
+        const items = await tx.materialInvoice.findMany({ where: { id: { in: materialInvoiceIds }, billedInvoiceId: null, destinationCompletedAt: { not: null } }, include: { billingCustomer: true, lines: true } });
         if (!items.length || items.length !== materialInvoiceIds.length) throw new Error("Faktur Muatan tidak tersedia atau sudah ditagih");
+        const resolvedCustomerId = items[0].billingCustomerId || customerId || null;
         const customerKey = customerName.trim().toLocaleLowerCase("id-ID");
-        if (items.some((item) => String(item.billingCustomerName || "").trim().toLocaleLowerCase("id-ID") !== customerKey)) throw new Error("Semua Faktur Muatan harus untuk customer yang sama");
-        const subtotal = items.flatMap((item) => item.lines).reduce((sum, line) => sum + Number(line.totalAmount || 0), 0);
-        if (subtotal <= 0) throw new Error("Total Rupiah Faktur Muatan belum diisi");
-        const total = subtotal + tax - discount; if (total <= 0) throw new Error("Total invoice harus lebih dari nol");
+        if (items.some((item) => resolvedCustomerId && item.billingCustomerId !== resolvedCustomerId)) throw new Error("Semua Faktur Muatan harus untuk customer yang sama");
+        if (items.some((item) => !resolvedCustomerId && String(item.billingCustomerName || "").trim().toLocaleLowerCase("id-ID") !== customerKey)) throw new Error("Semua Faktur Muatan harus untuk customer yang sama");
+        const subtotal = 0;
+        const total = 0;
         const number = await nextNumber(tx, "invoice", "INV");
         const sourceKey = [...materialInvoiceIds].sort().join(",");
-        const created = await tx.invoice.create({ data: { number, billingKey: `MATERIAL:${sourceKey}`, sourceType, customerName: customerName.trim(), customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null, dueAt: dueDate, subtotal, contractSubtotal: 0, materialSubtotal: subtotal, tax, discount, total, notes: notes?.trim() || null, createdById: req.user.id }, include: invoiceInclude });
+        const created = await tx.invoice.create({ data: { number, billingKey: `MATERIAL:${sourceKey}`, sourceType, customerId: resolvedCustomerId, customerName: customerName.trim(), customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null, dueAt: dueDate, subtotal, contractSubtotal: 0, materialSubtotal: subtotal, tax, discount, total, notes: notes?.trim() || null, createdById: req.user.id }, include: invoiceInclude });
         await tx.materialInvoice.updateMany({ where: { id: { in: materialInvoiceIds } }, data: { billedInvoiceId: created.id } }); return created;
       }
       if (sourceType === "SINGLE_TRIP") {
@@ -150,18 +152,15 @@ router.post("/invoices", async (req, res) => {
       }
       if (sourceType === "SINGLE_TRIP_GROUP") {
         const ids = [...new Set(singleTripIds)].filter(Boolean);
-        const ratePerKg = amount(req.body.ratePerKg, "Harga per kg");
         if (!ids.length) throw new Error("Pilih minimal satu Trip Tunggal");
-        if (ratePerKg <= 0) throw new Error("Harga per kg harus lebih dari nol");
         const trips = await tx.trip.findMany({ where: { id: { in: ids }, purpose: "SINGLE_TRIP", status: "COMPLETED", cargoCategorySnap: { in: ["FERTILIZER", "CANGKANG"] }, invoiceLines: { none: {} }, singleInvoice: null } });
         if (trips.length !== ids.length) throw new Error("Sebagian trip tidak tersedia atau sudah ditagih");
         const customerKey = customerName.trim().toLocaleLowerCase("id-ID");
         const category = String(trips[0].cargoCategorySnap || "");
         if (trips.some(trip => String(trip.billingCustomerName || "").trim().toLocaleLowerCase("id-ID") !== customerKey || trip.cargoCategorySnap !== category)) throw new Error("Semua trip harus memiliki customer dan jenis muatan yang sama");
-        const lines = trips.map(trip => { const actualWeightKg = weightKg(trip); if (actualWeightKg <= 0) throw new Error(`${trip.tripNo || "Trip"} belum memiliki berat aktual dalam TON/KG`); return { tripId: trip.id, actualWeightKg, ratePerKg, amount: Math.round(actualWeightKg * ratePerKg) }; });
-        const subtotal = lines.reduce((sum, line) => sum + line.amount, 0);
-        const total = subtotal + tax - discount;
-        if (total <= 0) throw new Error("Total invoice harus lebih dari nol");
+        const lines = trips.map(trip => { const actualWeightKg = weightKg(trip); if (actualWeightKg <= 0) throw new Error(`${trip.tripNo || "Trip"} belum memiliki berat aktual dalam TON/KG`); return { tripId: trip.id, actualWeightKg, ratePerKg: 0, amount: 0 }; });
+        const subtotal = 0;
+        const total = 0;
         const number = await nextNumber(tx, "invoice", "INV");
         const billingIds = ids.slice().sort();
         return tx.invoice.create({ data: { number, billingKey: `SINGLE_TRIP_GROUP:${billingIds.join(",")}`, sourceType, customerId: trips[0].billingCustomerId || null, customerName: customerName.trim(), customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null, dueAt: dueDate, subtotal, contractSubtotal: subtotal, deliveredQuantity: lines.reduce((sum, line) => sum + line.actualWeightKg, 0), tax, discount, total, notes: notes?.trim() || null, createdById: req.user.id, singleTripLines: { create: lines } }, include: invoiceInclude });
@@ -173,29 +172,22 @@ router.post("/invoices", async (req, res) => {
       const plannedQuantity = shipment.planned > 0 ? shipment.planned : Number(order.qty || 0);
       const deliveredQuantity = shipment.delivered;
       const billableRatio = plannedQuantity > 0 ? Math.min(1, Math.max(0, deliveredQuantity / plannedQuantity)) : 1;
-      const extraMaterialSubtotal = materialSubtotal(order);
-      if (contractSubtotal <= 0 && extraMaterialSubtotal <= 0) throw new Error("Harga kontrak atau nilai Faktur Muatan harus lebih dari nol");
-      const baseSubtotal = Math.round(contractSubtotal * billableRatio);
-      const subtotal = baseSubtotal + extraMaterialSubtotal;
-      const cargoLossAmount = Math.max(0, contractSubtotal - baseSubtotal);
-      const total = subtotal + tax - discount;
-      if (total <= 0) throw new Error("Total invoice setelah penyesuaian harus lebih dari nol");
+      const baseSubtotal = 0;
+      const subtotal = 0;
+      const cargoLossAmount = 0;
+      const total = 0;
       const number = await nextNumber(tx, "invoice", "INV");
       const created = await tx.invoice.create({
         data: {
           number, orderId, billingKey: `ORDER:${orderId}`, sourceType: "ORDER", customerId: order.customerId, customerName: customerName.trim(),
           customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null,
-          dueAt: dueDate, subtotal, contractSubtotal, plannedQuantity: plannedQuantity || null,
+          dueAt: dueDate, subtotal, contractSubtotal: 0, plannedQuantity: plannedQuantity || null,
           deliveredQuantity: plannedQuantity > 0 ? deliveredQuantity : null,
           cargoLossQuantity: plannedQuantity > 0 ? shipment.loss : null,
-          cargoLossAmount, materialSubtotal: extraMaterialSubtotal, tax, discount, total, notes: notes?.trim() || null, createdById: req.user.id,
+          cargoLossAmount, materialSubtotal: 0, tax, discount, total, notes: notes?.trim() || null, createdById: req.user.id,
         },
         include: invoiceInclude,
       });
-      const includedMaterialIds = eligibleOrderMaterials(order).map((item) => item.id);
-      if (includedMaterialIds.length) {
-        await tx.materialInvoice.updateMany({ where: { id: { in: includedMaterialIds }, billedInvoiceId: null }, data: { billedInvoiceId: created.id } });
-      }
       return tx.invoice.findUnique({ where: { id: created.id }, include: invoiceInclude });
     });
     res.status(201).json({ ok: true, invoice: summarize(invoice) });
@@ -203,6 +195,54 @@ router.post("/invoices", async (req, res) => {
     const status = error.code === "P2002" ? 409 : 400;
     res.status(status).json({ error: error.message || "Gagal membuat invoice" });
   }
+});
+
+router.patch("/invoices/:id/draft", async (req, res) => {
+  try {
+    const tax = amount(req.body.tax || 0, "Pajak");
+    const discount = amount(req.body.discount || 0, "Diskon");
+    const dueAt = new Date(req.body.dueAt);
+    if (Number.isNaN(dueAt.getTime())) throw new Error("Tanggal jatuh tempo tidak valid");
+    const saved = await prisma.$transaction(async tx => {
+      const invoice = await tx.invoice.findUnique({ where: { id: req.params.id }, include: { order: { include: { trips: { where: { status: "COMPLETED" } }, tripAllocations: { where: { trip: { status: "COMPLETED" } } } } }, singleTripLines: true, materialInvoices: { include: { lines: true } } } });
+      if (!invoice || invoice.status !== "DRAFT") throw new Error("Hanya invoice Draft yang dapat diubah");
+      let contractSubtotal = 0;
+      let materialSubtotal = 0;
+      let subtotal = 0;
+      let cargoLossAmount = 0;
+      if (invoice.sourceType === "MATERIAL") {
+        for (const line of invoice.materialInvoices.flatMap(row => row.lines)) {
+          const rate = amount(req.body.materialLineRates?.[line.id], `Harga ${line.itemName}`);
+          if (rate <= 0) throw new Error(`Harga ${line.itemName} wajib diisi`);
+          const lineTotal = Math.round(Number(line.qty) * rate);
+          await tx.materialInvoiceLine.update({ where: { id: line.id }, data: { totalAmount: lineTotal } });
+          materialSubtotal += lineTotal;
+        }
+        subtotal = materialSubtotal;
+      } else if (invoice.sourceType === "SINGLE_TRIP_GROUP") {
+        const ratePerKg = amount(req.body.ratePerKg, "Harga per kg");
+        if (ratePerKg <= 0) throw new Error("Harga per kg wajib diisi");
+        for (const line of invoice.singleTripLines) {
+          const lineAmount = Math.round(line.actualWeightKg * ratePerKg);
+          await tx.singleTripInvoiceLine.update({ where: { id: line.id }, data: { ratePerKg, amount: lineAmount } });
+          subtotal += lineAmount;
+        }
+        contractSubtotal = subtotal;
+      } else {
+        contractSubtotal = amount(req.body.contractSubtotal, "Harga kontrak");
+        if (contractSubtotal <= 0) throw new Error("Harga kontrak wajib diisi");
+        const shipment = shipmentSummary(invoice.order);
+        const planned = shipment.planned > 0 ? shipment.planned : Number(invoice.order?.qty || 0);
+        const ratio = planned > 0 ? Math.min(1, Math.max(0, shipment.delivered / planned)) : 1;
+        subtotal = Math.round(contractSubtotal * ratio);
+        cargoLossAmount = Math.max(0, contractSubtotal - subtotal);
+      }
+      const total = subtotal + tax - discount;
+      if (total <= 0) throw new Error("Total invoice harus lebih dari nol");
+      return tx.invoice.update({ where: { id: invoice.id }, data: { dueAt, contractSubtotal, materialSubtotal, subtotal, cargoLossAmount, tax, discount, total, notes: req.body.notes?.trim() || null }, include: invoiceInclude });
+    });
+    res.json({ ok: true, invoice: summarize(saved) });
+  } catch (error) { res.status(400).json({ error: error.message || "Gagal menyimpan harga invoice" }); }
 });
 
 router.get("/invoices/:id/print", async (req, res) => {
@@ -266,6 +306,7 @@ router.patch("/invoices/:id/send", async (req, res) => {
   try {
     const current = await prisma.invoice.findUnique({ where: { id: req.params.id } });
     if (!current || current.status !== "DRAFT") return res.status(400).json({ error: "Hanya invoice draft yang dapat dikirim" });
+    if (current.total <= 0) return res.status(400).json({ error: "Lengkapi harga di Detail Invoice sebelum mengirim" });
     const invoice = await prisma.$transaction(async tx => {
       const updated = await tx.invoice.update({ where: { id: req.params.id }, data: { status: "SENT", sentAt: new Date() }, include: invoiceInclude });
       await postJournal(tx, { date: updated.sentAt, description: `Invoice ${updated.number}`, sourceType: "CUSTOMER_INVOICE", sourceId: updated.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.AR, debit: updated.total }, { code: SYSTEM_ACCOUNTS.REVENUE, credit: updated.total }] });

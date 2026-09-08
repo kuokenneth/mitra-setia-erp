@@ -223,6 +223,7 @@ model User {
   purchaseRequestsApproved    PurchaseRequest[]          @relation("PurchaseRequestApprovedBy")
   purchaseOrdersCreated       PurchaseOrder[]            @relation("PurchaseOrderCreatedBy")
   goodsReceiptsCreated        GoodsReceipt[]             @relation("GoodsReceiptCreatedBy")
+  materialStocksCreated       MaterialStockReceipt[]     @relation("MaterialStockCreatedBy")
   supplierBillsCreated        SupplierBill[]             @relation("SupplierBillCreatedBy")
   purchasePaymentsCreated     PurchasePayment[]          @relation("PurchasePaymentCreatedBy")
   purchasePaymentsApproved    PurchasePayment[]          @relation("PurchasePaymentApprovedBy")
@@ -474,9 +475,11 @@ model Customer {
   address   String?
   createdAt DateTime @default(now())
 
-  orders       Order[]
-  invoices     Invoice[]
-  billingTrips Trip[]    @relation("TripBillingCustomer")
+  orders         Order[]
+  invoices       Invoice[]
+  billingTrips   Trip[]                 @relation("TripBillingCustomer")
+  billedMaterials MaterialInvoice[]     @relation("MaterialInvoiceCustomer")
+  materialStocks MaterialStockReceipt[]
 }
 
 ////////////////////////////////////////////////////
@@ -799,6 +802,8 @@ model MaterialInvoice {
   qty                    Float
   unit                   String
   billingCustomerName    String?
+  billingCustomerId      String?
+  billingCustomer        Customer?            @relation("MaterialInvoiceCustomer", fields: [billingCustomerId], references: [id], onDelete: SetNull)
   destinationLocationId  String?
   destinationLocation    OperationalLocation? @relation(fields: [destinationLocationId], references: [id], onDelete: SetNull)
   stopSequence           Int?
@@ -823,6 +828,7 @@ model MaterialInvoice {
   @@index([tripId])
   @@index([destinationLocationId])
   @@index([billedInvoiceId])
+  @@index([billingCustomerId])
 }
 
 model MaterialInvoiceLine {
@@ -837,11 +843,53 @@ model MaterialInvoiceLine {
   totalAmount       Int?
   createdAt         DateTime @default(now())
 
-  materialInvoice MaterialInvoice @relation(fields: [materialInvoiceId], references: [id], onDelete: Cascade)
+  materialInvoice  MaterialInvoice           @relation(fields: [materialInvoiceId], references: [id], onDelete: Cascade)
+  stockAllocations MaterialStockAllocation[]
 
   @@index([materialInvoiceId])
 }
 
+model MaterialStockReceipt {
+  id            String                    @id @default(cuid())
+  number        String                    @unique
+  customerId    String
+  customer      Customer                  @relation(fields: [customerId], references: [id])
+  itemName      String
+  qtyReceived   Float
+  qtyRemaining  Float
+  unit          String
+  sourceName    String?
+  deliveryNote  String
+  receivedAt    DateTime                  @default(now())
+  locationId    String?
+  location      InventoryLocation?        @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  proofUrl      String
+  proofFileName String?
+  proofMimeType String?
+  proofSize     Int?
+  notes         String?
+  createdById   String
+  createdBy     User                      @relation("MaterialStockCreatedBy", fields: [createdById], references: [id])
+  allocations   MaterialStockAllocation[]
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+
+  @@index([customerId, itemName, unit])
+  @@index([qtyRemaining])
+}
+
+model MaterialStockAllocation {
+  id                    String               @id @default(cuid())
+  receiptId             String
+  receipt               MaterialStockReceipt @relation(fields: [receiptId], references: [id], onDelete: Restrict)
+  materialInvoiceLineId String
+  materialInvoiceLine   MaterialInvoiceLine  @relation(fields: [materialInvoiceLineId], references: [id], onDelete: Cascade)
+  qty                   Float
+  createdAt             DateTime             @default(now())
+
+  @@index([receiptId])
+  @@index([materialInvoiceLineId])
+}
 
 model DispatchLetter {
   id String @id @default(cuid())
@@ -1146,6 +1194,7 @@ model InventoryLocation {
   stockUnits       StockUnit[]
   goodsReceipts    GoodsReceipt[]
   inventoryBatches InventoryBatch[]
+  materialStocks   MaterialStockReceipt[]
 }
 
 model InventoryBatch {

@@ -1,0 +1,64 @@
+.material-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.material-stock-page .material-head-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 17px;
+  border: 1px solid #176f43;
+  border-radius: 11px;
+  background: #176f43;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 7px 18px rgba(23, 111, 67, 0.18);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.material-stock-page .material-head-actions button.secondary {
+  border-color: #cddfd4;
+  background: #fff;
+  color: #296f49;
+  box-shadow: 0 4px 13px rgba(35, 75, 51, 0.07);
+}
+
+.material-stock-page .material-head-actions button:hover {
+  transform: translateY(-1px);
+  background: #125f38;
+  box-shadow: 0 10px 23px rgba(23, 111, 67, 0.22);
+}
+
+.material-stock-page .material-head-actions button.secondary:hover {
+  border-color: #9fc3ac;
+  background: #f0f8f3;
+  color: #175f39;
+}
+
+.material-stock-page .material-head-actions button:active {
+  transform: translateY(0);
+}
+
+.material-stock-page .material-head-actions svg {
+  flex: none;
+  font-size: 16px;
+}
+
+@media (max-width: 560px) {
+  .material-head-actions {
+    width: 100%;
+  }
+
+  .material-stock-page .material-head-actions button {
+    flex: 1;
+    padding: 0 12px;
+  }
+}
