@@ -5,7 +5,8 @@ import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { ProtectedImage } from "../components/ProtectedFile";
 import LoadingState from "../components/LoadingState";
-import { FiTool, FiClock, FiCheck, FiX, FiPlus, FiRefreshCw } from "react-icons/fi";
+import { FiActivity, FiCalendar, FiCheck, FiClock, FiPlus, FiRefreshCw, FiSearch, FiTool, FiTruck, FiX } from "react-icons/fi";
+import "./Maintenance.css";
 
 //////////////////////
 // THEME - CORPORATE MINIMALIST
@@ -163,9 +164,9 @@ function Button({ variant = "secondary", children, icon: Icon, ...props }) {
   );
 }
 
-function Card({ children, style = {} }) {
+function Card({ children, style = {}, className = "" }) {
   return (
-    <div
+    <div className={className}
       style={{
         background: BRAND.white,
         borderRadius: 8,
@@ -373,7 +374,7 @@ function ServicePhoto({ photo, alt }) {
   return <img src={src} alt={alt} style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }} />;
 }
 
-function Modal({ open, title, onClose, children, width = 900 }) {
+function Modal({ open, title, onClose, children, width = 900, className = "" }) {
   if (!open) return null;
   return (
     <div
@@ -389,7 +390,7 @@ function Modal({ open, title, onClose, children, width = 900 }) {
       }}
       onMouseDown={onClose}
     >
-      <div
+      <div className={`maintenance-modal ${className}`}
         style={{
           width: "100%",
           maxWidth: width,
@@ -411,7 +412,7 @@ function Modal({ open, title, onClose, children, width = 900 }) {
         >
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: BRAND.text }}>{title}</h3>
           <Button variant="secondary" onClick={onClose}>
-            Close
+            Tutup
           </Button>
         </div>
         <div
@@ -468,6 +469,8 @@ export default function Maintenance() {
   const [activeId, setActiveId] = useState(null);
   const [activeJob, setActiveJob] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailTab, setDetailTab] = useState("PARTS");
+  const [partMode, setPartMode] = useState("SERIALIZED");
 
   // items/locations
   const [items, setItems] = useState([]);
@@ -501,6 +504,8 @@ export default function Maintenance() {
   const [tireActionSaving, setTireActionSaving] = useState(false);
   const [progressNote, setProgressNote] = useState("");
   const [savingProgressNote, setSavingProgressNote] = useState(false);
+  const [purchaseRequestForm, setPurchaseRequestForm] = useState({ itemId: "", qty: 1, urgency: "URGENT", reason: "", notes: "", newItem: false, sku: "", name: "", unit: "PCS", isSerialized: false });
+  const [requestingPurchase, setRequestingPurchase] = useState(false);
 
   const truckSearchTimer = useRef(null);
 
@@ -543,6 +548,7 @@ export default function Maintenance() {
 
   async function openDetail(id) {
     setShowDetail(true);
+    setDetailTab("PARTS");
     setActiveId(id);
     setActiveJob(null);
     setDetailLoading(true);
@@ -567,6 +573,7 @@ export default function Maintenance() {
       setUseOilOdometer("");
       setPhotoError("");
       setProgressNote("");
+      setPurchaseRequestForm({ itemId: "", qty: 1, urgency: "URGENT", reason: "", notes: "", newItem: false, sku: "", name: "", unit: "PCS", isSerialized: false });
     } catch (e) {
       setErr(e.message || "Gagal memuat detail");
     } finally {
@@ -580,6 +587,19 @@ export default function Maintenance() {
       const data = await api("/maintenance/" + activeId);
       setActiveJob(data.job);
     } catch {}
+  }
+
+  async function createMaintenancePurchaseRequest(event) {
+    event.preventDefault();
+    if (!activeJob?.id) return;
+    setRequestingPurchase(true); setErr("");
+    try {
+      const form = purchaseRequestForm;
+      await api(`/maintenance/${activeJob.id}/purchase-requests`, { method: "POST", body: JSON.stringify({ itemId: form.newItem ? undefined : form.itemId, newItem: form.newItem ? { sku: form.sku, name: form.name, unit: form.unit, isSerialized: form.isSerialized } : undefined, qty: form.qty, urgency: form.urgency, reason: form.reason, notes: form.notes }) });
+      setPurchaseRequestForm({ itemId: "", qty: 1, urgency: "URGENT", reason: "", notes: "", newItem: false, sku: "", name: "", unit: "PCS", isSerialized: false });
+      await refreshDetail();
+    } catch (e) { setErr(e.message || "Gagal membuat permintaan pembelian"); }
+    finally { setRequestingPurchase(false); }
   }
 
   useEffect(() => {
@@ -866,11 +886,17 @@ export default function Maintenance() {
 
   // live tick usage
   const _ = tick;
+  const maintenanceSummary = {
+    total: jobs.length,
+    open: jobs.filter((job) => job.status === "OPEN").length,
+    done: jobs.filter((job) => job.status === "DONE").length,
+    cancelled: jobs.filter((job) => job.status === "CANCELLED").length,
+  };
 
   return (
-    <div data-testid="maintenance-page">
+    <div className="maintenance-page" data-testid="maintenance-page">
       {/* Header */}
-      <div
+      <div className="maintenance-head"
         style={{
           marginBottom: 24,
           display: "flex",
@@ -881,7 +907,7 @@ export default function Maintenance() {
         }}
       >
         <div>
-          <h1
+          <span className="maintenance-eyebrow">BENGKEL & PERAWATAN ARMADA</span><h1
             style={{
               margin: 0,
               fontSize: 28,
@@ -890,16 +916,16 @@ export default function Maintenance() {
             }}
             data-testid="maintenance-title"
           >
-            Maintenance
+            Servis Kendaraan
           </h1>
           <p style={{ margin: "8px 0 0", fontSize: 14, color: BRAND.textMuted }}>
-            Create jobs, track ongoing time, and record spare parts used
+            Pantau pekerjaan bengkel, waktu pengerjaan, dan penggunaan sparepart.
           </p>
         </div>
 
         {allowed && (
           <Button variant="primary" icon={FiPlus} onClick={startCreate} data-testid="new-maintenance-btn">
-            New Maintenance
+            <span>Servis Baru</span>
           </Button>
         )}
       </div>
@@ -923,8 +949,15 @@ export default function Maintenance() {
         </div>
       )}
 
+      <section className="maintenance-stats">
+        <article><span><FiTool /></span><div><small>TOTAL SERVIS</small><strong>{maintenanceSummary.total}</strong><p>Dalam hasil pencarian</p></div></article>
+        <article className="open"><span><FiActivity /></span><div><small>SEDANG DIKERJAKAN</small><strong>{maintenanceSummary.open}</strong><p>Pekerjaan bengkel aktif</p></div></article>
+        <article className="done"><span><FiCheck /></span><div><small>SELESAI</small><strong>{maintenanceSummary.done}</strong><p>Servis telah ditutup</p></div></article>
+        <article><span><FiClock /></span><div><small>DIBATALKAN</small><strong>{maintenanceSummary.cancelled}</strong><p>Riwayat tidak dilanjutkan</p></div></article>
+      </section>
+
       {/* Filters Card */}
-      <Card style={{ marginBottom: 24 }}>
+      <Card style={{ marginBottom: 16 }}>
         <div style={{ padding: 20 }}>
           <div
             className="maintenance-filter-grid"
@@ -937,7 +970,7 @@ export default function Maintenance() {
           >
             <div style={{ flex: "1 1 260px", minWidth: 200 }}>
               <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
-                Search
+                Cari servis
               </label>
               <Input
                 value={q}
@@ -973,15 +1006,15 @@ export default function Maintenance() {
               <span className={`date-placeholder-wrap ${to ? "has-value" : ""}`} data-placeholder="Pilih tanggal akhir"><Input className="tablet-date-input" aria-label="Tanggal akhir servis" type="date" value={to} onChange={(e) => setTo(e.target.value)} data-testid="to-date" /></span>
             </div>
 
-            <Button variant="primary" onClick={load} disabled={loading} data-testid="apply-filter-btn">
-              {loading ? "Memuat..." : "Apply"}
+            <Button variant="primary" icon={FiSearch} onClick={load} disabled={loading} data-testid="apply-filter-btn">
+              {loading ? "Memuat..." : "Terapkan"}
             </Button>
           </div>
         </div>
       </Card>
 
       {/* Jobs List */}
-      <Card>
+      <Card style={{ overflow: "hidden", borderRadius: 14 }}>
         {/* Table Header */}
         <div
           style={{
@@ -998,9 +1031,9 @@ export default function Maintenance() {
             letterSpacing: "0.5px",
           }}
         >
-          <div>Job</div>
+          <div>Pekerjaan servis</div>
           <div>Status</div>
-          <div>Duration</div>
+          <div>Durasi</div>
           <div style={{ textAlign: "right" }}>Tindakan</div>
         </div>
 
@@ -1026,12 +1059,12 @@ export default function Maintenance() {
                 }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = BRAND.secondary)}
                 onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                data-testid={`job-row-${j.id}`}
+                className="maintenance-job-row" data-testid={`job-row-${j.id}`}
               >
                 <div>
                   <div style={{ fontSize: 15, fontWeight: 600, color: BRAND.text }}>{j.title}</div>
                   <div style={{ fontSize: 13, color: BRAND.textMuted, marginTop: 4 }}>
-                    {j.truck?.plateNumber || "—"} • {fmtDateTime(j.createdAt)}
+                    <FiTruck /> {j.truck?.plateNumber || "—"} <span>•</span> <FiCalendar /> {fmtDateTime(j.createdAt)}
                   </div>
                 </div>
 
@@ -1041,14 +1074,14 @@ export default function Maintenance() {
 
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 500, color: BRAND.textMuted, marginBottom: 4 }}>
-                    {j.status === "OPEN" ? <StatusBadge status="LIVE" /> : "TOTAL"}
+                    {j.status === "OPEN" ? <StatusBadge status="LIVE" /> : "TOTAL WAKTU"}
                   </div>
                   <div style={{ fontSize: 16, fontWeight: 700, color: BRAND.text }}>{fmtDuration(dur)}</div>
                 </div>
 
                 <div style={{ textAlign: "right" }}>
                   <Button variant="secondary" onClick={() => openDetail(j.id)} data-testid={`open-job-${j.id}`}>
-                    Open
+                    Detail
                   </Button>
                 </div>
               </div>
@@ -1057,19 +1090,19 @@ export default function Maintenance() {
 
           {!loading && (!jobs || jobs.length === 0) && (
             <div style={{ padding: 24, textAlign: "center", color: BRAND.textMuted, fontSize: 14 }}>
-              Tidak ada maintenance jobs ditemukan.
+              Tidak ada pekerjaan servis ditemukan.
             </div>
           )}
         </div>
       </Card>
 
       {/* CREATE MODAL */}
-      <Modal open={showCreate} title="Create Maintenance Job" onClose={() => setShowCreate(false)} width={960}>
-        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 20 }}>
+      <Modal open={showCreate} title="Buat Servis Baru" onClose={() => setShowCreate(false)} width={1040} className="maintenance-create-modal">
+        <div className="maintenance-create-grid">
           {/* Truck Picker */}
-          <Card>
-            <div style={{ padding: 16 }}>
-              <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Pilih Kendaraan</div>
+          <Card style={{ overflow: "hidden", borderRadius: 12 }}>
+            <div className="maintenance-create-section">
+              <div className="maintenance-create-title"><span>1</span><div><strong>Pilih kendaraan</strong><small>Armada READY atau yang sudah berada di bengkel.</small></div></div>
               <Input
                 value={truckSearch}
                 onChange={(e) => setTruckSearch(e.target.value)}
@@ -1077,7 +1110,7 @@ export default function Maintenance() {
                 data-testid="truck-search"
               />
 
-              <div style={{ marginTop: 12, maxHeight: 300, overflow: "auto" }}>
+              <div className="maintenance-truck-list">
                 {trucksLoading && <LoadingState compact label="Memuat kendaraan" note="Mencari armada yang tersedia…" rows={3} />}
                 {!trucksLoading && (filteredTrucks || []).length === 0 && (
                   <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>Tidak ada kendaraan ditemukan.</div>
@@ -1086,31 +1119,14 @@ export default function Maintenance() {
                 {(filteredTrucks || []).map((t) => {
                   const selected = createForm.truckId === t.id;
                   return (
-                    <div
+                    <button type="button"
                       key={t.id}
                       onClick={() => setCreateForm((f) => ({ ...f, truckId: t.id }))}
-                      style={{
-                        padding: 14,
-                        borderRadius: 6,
-                        border: `1px solid ${selected ? BRAND.primary : BRAND.border}`,
-                        background: selected ? BRAND.accent : BRAND.white,
-                        marginTop: 8,
-                        cursor: "pointer",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        transition: "all 0.15s ease",
-                      }}
+                      className={`maintenance-truck-option ${selected ? "selected" : ""}`}
                       data-testid={`truck-option-${t.id}`}
                     >
-                      <div>
-                        <div style={{ fontSize: 15, fontWeight: 600, color: BRAND.text }}>{t.plateNumber}</div>
-                        <div style={{ fontSize: 13, color: BRAND.textMuted, marginTop: 2 }}>
-                          {t.brand || "—"} {t.model || ""} • {t.status}
-                        </div>
-                      </div>
-                      {selected && <StatusBadge status="SELECTED" />}
-                    </div>
+                      <i><FiTruck /></i><span><b>{t.plateNumber}</b><small>{t.brand || "—"} {t.model || ""}</small></span><em>{selected ? "DIPILIH" : t.status}</em>
+                    </button>
                   );
                 })}
               </div>
@@ -1118,28 +1134,30 @@ export default function Maintenance() {
           </Card>
 
           {/* Job Info */}
-          <Card>
-            <div style={{ padding: 16 }}>
-              <div style={{ fontWeight: 600, marginBottom: 12, color: BRAND.text }}>Job Info</div>
+          <Card style={{ overflow: "hidden", borderRadius: 12 }}>
+            <div className="maintenance-create-section">
+              <div className="maintenance-create-title"><span>2</span><div><strong>Rincian servis</strong><small>Catat jenis pekerjaan dan kondisi awal kendaraan.</small></div></div>
 
-              <div style={{ display: "grid", gap: 12 }}>
+              <div className="maintenance-create-fields">
+                <label>Jenis pekerjaan / keluhan
                 <Input
                   value={createForm.title}
                   onChange={(e) => setCreateForm((f) => ({ ...f, title: e.target.value }))}
-                  placeholder="Title (e.g. Brake service)"
+                  placeholder="Contoh: servis rem, ganti oli, perbaikan kopling"
                   data-testid="job-title-input"
-                />
+                /></label>
 
+                <label>Odometer saat masuk <small>Opsional</small>
                 <Input
                   type="number"
                   min="0"
                   value={createForm.odometerKm}
                   onChange={(e) => setCreateForm((f) => ({ ...f, odometerKm: e.target.value }))}
-                  placeholder="Odometer (km) optional"
+                  placeholder="Contoh: 125000 km"
                   data-testid="odometer-input"
-                />
+                /></label>
 
-
+                <label>Catatan awal <small>Opsional</small>
                 <textarea
                   style={{
                     width: "100%",
@@ -1157,13 +1175,15 @@ export default function Maintenance() {
                   }}
                   value={createForm.note}
                   onChange={(e) => setCreateForm((f) => ({ ...f, note: e.target.value }))}
-                  placeholder="Note (optional)"
+                  placeholder="Jelaskan gejala, permintaan pengemudi, atau pemeriksaan yang perlu dilakukan..."
                   data-testid="job-note-input"
-                />
+                /></label>
 
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 }}>
+                {selectedTruck && <div className="maintenance-selected-summary"><FiCheck /><span><small>ARMADA TERPILIH</small><strong>{selectedTruck.plateNumber}</strong><em>{selectedTruck.brand || ""} {selectedTruck.model || ""} · {createForm.odometerKm ? `${Number(createForm.odometerKm).toLocaleString("id-ID")} km` : "Odometer belum dicatat"}</em></span></div>}
+
+                <div className="maintenance-create-actions">
                   <Button variant="secondary" onClick={() => setShowCreate(false)}>
-                    Cancel
+                    Batal
                   </Button>
                   <Button
                     variant="primary"
@@ -1171,7 +1191,7 @@ export default function Maintenance() {
                     disabled={creating || !createForm.truckId || !String(createForm.title || "").trim()}
                     data-testid="create-job-btn"
                   >
-                    {creating ? "Membuat..." : "Create"}
+                    {creating ? "Membuat..." : "Mulai Servis"}
                   </Button>
                 </div>
               </div>
@@ -1181,19 +1201,37 @@ export default function Maintenance() {
       </Modal>
 
       {/* DETAIL MODAL */}
-      <Modal open={showDetail} title="Maintenance Detail" onClose={() => setShowDetail(false)} width={1280}>
+      <Modal open={showDetail} title="Detail Servis" onClose={() => setShowDetail(false)} width={1320} className="maintenance-detail-modal">
         {detailLoading || !activeJob ? (
           <LoadingState compact label="Memuat detail servis" note="Menyiapkan pekerjaan dan penggunaan sparepart…" rows={4} />
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(320px, 0.8fr) minmax(620px, 1.6fr)", gap: 20 }}>
+          <div className="maintenance-detail-layout" style={{ display: "grid", gridTemplateColumns: "minmax(320px, 0.8fr) minmax(620px, 1.6fr)", gap: 20 }}>
+            <section className="maintenance-detail-hero">
+              <div className="maintenance-detail-hero-main">
+                <div><small>DETAIL PEKERJAAN SERVIS</small><h2>{activeJob.title}</h2><p><b>{activeJob.truck?.plateNumber || "—"}</b><span>•</span><FiCalendar /> Masuk {fmtDateTime(activeJob.createdAt)}</p></div>
+                <StatusBadge status={activeJob.status} />
+              </div>
+              <div className="maintenance-detail-metrics">
+                <article><small>DURASI {activeJob.status === "OPEN" ? "BERJALAN" : "TOTAL"}</small><strong>{fmtDuration((activeJob.status === "OPEN" ? Date.now() : activeJob.doneAt ? new Date(activeJob.doneAt).getTime() : Date.now()) - new Date(activeJob.createdAt).getTime())}</strong><span><FiClock /> Waktu pengerjaan bengkel</span></article>
+                <article><small>BIAYA SPAREPART</small><strong>{fmtMoney(activeJob.totalCost || 0, activeJob.currency || "IDR")}</strong><span><FiTool /> Akumulasi pemakaian stok</span></article>
+                <article><small>DOKUMENTASI</small><strong>{(activeJob.photos || []).length} foto</strong><span><FiActivity /> Kondisi dan hasil servis</span></article>
+              </div>
+              {allowed && <div className="maintenance-detail-actions"><Button variant="primary" icon={FiCheck} onClick={() => setJobStatus("DONE")} disabled={activeJob.status !== "OPEN"} data-testid="mark-done-hero-btn">Selesaikan Servis</Button><Button variant="secondary" icon={FiRefreshCw} onClick={refreshDetail}>Muat Ulang</Button><Button variant="danger" icon={FiX} onClick={() => setJobStatus("CANCELLED")} disabled={activeJob.status !== "OPEN"} data-testid="cancel-job-hero-btn">Batalkan Servis</Button></div>}
+            </section>
+            <nav className="maintenance-detail-tabs" aria-label="Bagian detail servis">
+              <button type="button" className={detailTab === "PARTS" ? "active" : ""} onClick={() => setDetailTab("PARTS")}><FiTool /><span>Sparepart</span><b>{(activeJob.sparePartAssignments || []).length + (activeJob.movements || []).filter((movement) => movement.type === "OUT").length}</b></button>
+              <button type="button" className={detailTab === "PURCHASE" ? "active" : ""} onClick={() => setDetailTab("PURCHASE")}><FiPlus /><span>Pesan Sparepart</span><b>{(activeJob.purchaseRequests || []).length}</b></button>
+              <button type="button" className={detailTab === "PHOTOS" ? "active" : ""} onClick={() => setDetailTab("PHOTOS")}><FiActivity /><span>Foto</span><b>{(activeJob.photos || []).length}</b></button>
+              <button type="button" className={detailTab === "NOTES" ? "active" : ""} onClick={() => setDetailTab("NOTES")}><FiClock /><span>Catatan</span><b>{(activeJob.notes || []).length + (activeJob.note ? 1 : 0)}</b></button>
+            </nav>
             {/* LEFT - Job Info */}
-            <Card>
+            <Card className="maintenance-detail-summary">
               <div style={{ padding: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
                   <div>
                     <div style={{ fontSize: 16, fontWeight: 600, color: BRAND.text }}>{activeJob.title}</div>
                     <div style={{ fontSize: 13, color: BRAND.textMuted, marginTop: 4 }}>
-                      {activeJob.truck?.plateNumber || "—"} • Created: {fmtDateTime(activeJob.createdAt)}
+                    {activeJob.truck?.plateNumber || "—"} • Dibuat: {fmtDateTime(activeJob.createdAt)}
                     </div>
                   </div>
                   <StatusBadge status={activeJob.status} />
@@ -1201,6 +1239,7 @@ export default function Maintenance() {
 
                 {/* Duration Card */}
                 <div
+                  className="maintenance-part-box serialized"
                   style={{
                     padding: 16,
                     borderRadius: 6,
@@ -1210,7 +1249,7 @@ export default function Maintenance() {
                   }}
                 >
                   <div style={{ fontSize: 12, fontWeight: 500, color: BRAND.textMuted, marginBottom: 6 }}>
-                    {activeJob.status === "OPEN" ? "Live duration (running)" : "Total duration"}
+                    {activeJob.status === "OPEN" ? "Durasi berjalan" : "Total durasi"}
                   </div>
                   <div style={{ fontSize: 24, fontWeight: 700, color: BRAND.text }}>
                     {fmtDuration(
@@ -1251,7 +1290,7 @@ export default function Maintenance() {
                       disabled={activeJob.status !== "OPEN"}
                       data-testid="mark-done-btn"
                     >
-                      Mark DONE
+                      Selesaikan Servis
                     </Button>
                     <Button
                       variant="secondary"
@@ -1260,17 +1299,17 @@ export default function Maintenance() {
                       disabled={activeJob.status !== "OPEN"}
                       data-testid="cancel-job-btn"
                     >
-                      Cancel
+                      Batalkan
                     </Button>
                     <Button variant="secondary" icon={FiRefreshCw} onClick={refreshDetail} data-testid="refresh-btn">
-                      Refresh
+                      Muat Ulang
                     </Button>
                   </div>
                 )}
               </div>
             </Card>
 
-            <Card style={{ gridColumn: "1 / -1", gridRow: "2" }}>
+            {detailTab === "PHOTOS" && <Card className="maintenance-detail-photos" style={{ gridColumn: "1 / -1", gridRow: "2" }}>
               <div style={{ padding: 16 }}>
                 {activeJob.isOilChange && (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12, marginBottom: 18 }}>
@@ -1304,7 +1343,7 @@ export default function Maintenance() {
                     )}
                   </div>
                 )}
-                <div style={{ fontWeight: 600, color: BRAND.text }}>Foto kondisi & servis</div>
+                <div className="maintenance-detail-section-heading"><span>02</span><div><strong>Dokumentasi servis</strong><small>Foto komponen, proses pemasangan, dan hasil pekerjaan.</small></div></div>
                 <div style={{ marginTop: 5, marginBottom: 14, fontSize: 13, color: BRAND.textMuted }}>Unggah foto sparepart yang dipasang, komponen rusak, atau hasil pekerjaan. Maksimal 10 foto.</div>
                 {allowed && (
                   <label style={{ display: "inline-flex", padding: "10px 14px", borderRadius: 6, background: BRAND.secondary, border: `1px solid ${BRAND.border}`, color: BRAND.primary, cursor: uploadingPhotos ? "wait" : "pointer", fontWeight: 600, fontSize: 14 }}>
@@ -1324,11 +1363,11 @@ export default function Maintenance() {
                   </div>
                 ) : <div style={{ marginTop: 14, color: BRAND.textMuted, fontSize: 13 }}>Belum ada foto dokumentasi.</div>}
               </div>
-            </Card>
+            </Card>}
 
-            <Card style={{ gridColumn: "1 / -1" }}>
+            {detailTab === "NOTES" && <Card className="maintenance-detail-notes" style={{ gridColumn: "1 / -1" }}>
               <div style={{ padding: 16 }}>
-                <div style={{ fontWeight: 600, color: BRAND.text }}>Catatan perkembangan servis</div>
+                <div className="maintenance-detail-section-heading"><span>03</span><div><strong>Catatan perkembangan</strong><small>Temuan baru dan pembaruan selama pengerjaan.</small></div></div>
                 <div style={{ marginTop: 5, fontSize: 13, color: BRAND.textMuted }}>
                   Tambahkan temuan kerusakan atau pekerjaan baru tanpa menghapus riwayat sebelumnya.
                 </div>
@@ -1372,15 +1411,33 @@ export default function Maintenance() {
                   {!activeJob.note && (activeJob.notes || []).length === 0 ? <div style={{ color: BRAND.textMuted, fontSize: 13 }}>Belum ada catatan perkembangan.</div> : null}
                 </div>
               </div>
-            </Card>
+            </Card>}
 
             {/* RIGHT - Spare Parts */}
-            <Card style={{ gridColumn: "2", gridRow: "1" }}>
+            {["PARTS", "PURCHASE"].includes(detailTab) && <Card className={`maintenance-detail-parts ${detailTab === "PURCHASE" ? "purchase-only" : "stock-only"}`} style={{ gridColumn: "2", gridRow: "1" }}>
               <div style={{ padding: 16 }}>
-                <div style={{ fontWeight: 600, marginBottom: 16, color: BRAND.text }}>Record Spareparts Used</div>
+                {detailTab === "PARTS" ? <div className="maintenance-detail-section-heading"><span>01</span><div><strong>Penggunaan sparepart</strong><small>Pilih jenis sparepart yang akan dicatat pada servis ini.</small></div></div> : <div className="maintenance-detail-section-heading"><span>01</span><div><strong>Pesan sparepart untuk servis</strong><small>Barang yang diterima masuk Inventory dan dipasang manual dari servis ini.</small></div></div>}
+
+                {detailTab === "PARTS" && <div className="maintenance-part-mode" role="tablist" aria-label="Jenis penggunaan sparepart">
+                  <button type="button" role="tab" aria-selected={partMode === "SERIALIZED"} className={partMode === "SERIALIZED" ? "active" : ""} onClick={() => setPartMode("SERIALIZED")}>
+                    <span>A</span><div><strong>Unit berserial</strong><small>Ban, aki, dan komponen bernomor seri</small></div>
+                  </button>
+                  <button type="button" role="tab" aria-selected={partMode === "STOCK"} className={partMode === "STOCK" ? "active" : ""} onClick={() => setPartMode("STOCK")}>
+                    <span>B</span><div><strong>Stok biasa</strong><small>Oli, grease, baut, dan barang satuan</small></div>
+                  </button>
+                </div>}
+
+                <form className={`maintenance-direct-request ${detailTab !== "PURCHASE" ? "maintenance-detail-section-hidden" : ""}`} onSubmit={createMaintenancePurchaseRequest}>
+                  <div className="maintenance-request-head"><span><FiPlus /></span><div><strong>Pesan sparepart untuk servis ini</strong><small>Permintaan tetap terlacak di servis; barang masuk Inventory saat diterima.</small></div><em>UNTUK SERVIS</em></div>
+                  <div className="maintenance-request-mode"><button type="button" className={!purchaseRequestForm.newItem ? "active" : ""} onClick={() => setPurchaseRequestForm(form => ({ ...form, newItem: false }))}>Pilih katalog</button><button type="button" className={purchaseRequestForm.newItem ? "active" : ""} onClick={() => setPurchaseRequestForm(form => ({ ...form, newItem: true }))}>Sparepart baru</button></div>
+                  {!purchaseRequestForm.newItem ? <label>Sparepart<select required value={purchaseRequestForm.itemId} onChange={event => setPurchaseRequestForm(form => ({ ...form, itemId: event.target.value }))}><option value="">Pilih barang, termasuk yang stoknya 0</option>{items.map(item => <option key={item.id} value={item.id}>{item.sku} — {item.name} ({item.unit})</option>)}</select></label> : <div className="maintenance-request-new-item"><label>SKU<input required value={purchaseRequestForm.sku} onChange={event => setPurchaseRequestForm(form => ({ ...form, sku: event.target.value }))} placeholder="Contoh: BRK-HINO-02" /></label><label>Nama sparepart<input required value={purchaseRequestForm.name} onChange={event => setPurchaseRequestForm(form => ({ ...form, name: event.target.value }))} placeholder="Contoh: Master rem Hino" /></label><label>Satuan<select value={purchaseRequestForm.unit} onChange={event => setPurchaseRequestForm(form => ({ ...form, unit: event.target.value }))}><option>PCS</option><option>SET</option><option>UNIT</option><option>LITER</option></select></label><label className="maintenance-request-check"><input type="checkbox" checked={purchaseRequestForm.isSerialized} onChange={event => setPurchaseRequestForm(form => ({ ...form, isSerialized: event.target.checked }))} /> Memiliki nomor serial</label></div>}
+                  <div className="maintenance-request-fields"><label>Jumlah<input required type="number" min="0.01" step="0.01" value={purchaseRequestForm.qty} onChange={event => setPurchaseRequestForm(form => ({ ...form, qty: event.target.value }))} /></label><label>Urgensi<select value={purchaseRequestForm.urgency} onChange={event => setPurchaseRequestForm(form => ({ ...form, urgency: event.target.value }))}><option value="NORMAL">Normal</option><option value="URGENT">Mendesak</option><option value="CRITICAL">Kritis</option></select></label><label>Alasan kebutuhan<input required value={purchaseRequestForm.reason} onChange={event => setPurchaseRequestForm(form => ({ ...form, reason: event.target.value }))} placeholder="Contoh: komponen rusak dan tidak tersedia di gudang" /></label><button className="maintenance-request-submit" disabled={requestingPurchase || activeJob.status !== "OPEN"}>{requestingPurchase ? "Mengirim..." : "Buat Permintaan"}</button></div>
+                  {!!activeJob.purchaseRequests?.length && <div className="maintenance-request-history">{activeJob.purchaseRequests.map(request => <span key={request.id}><b>{request.number}</b><small>{request.items?.map(row => `${row.item.name} · ${row.originalQty} ${row.item.unit}`).join(", ")}</small><em className={request.status}>{request.status.replaceAll("_", " ")}</em></span>)}</div>}
+                </form>
 
                 {/* A) Serialized assign */}
                 <div
+                  className={`maintenance-part-box serialized ${detailTab !== "PARTS" || partMode !== "SERIALIZED" ? "maintenance-detail-section-hidden" : ""}`}
                   style={{
                     padding: 16,
                     borderRadius: 6,
@@ -1388,11 +1445,9 @@ export default function Maintenance() {
                     marginBottom: 16,
                   }}
                 >
-                  <div style={{ fontSize: 14, fontWeight: 600, color: BRAND.text, marginBottom: 12 }}>
-                    A) Assign Serialized Unit
-                  </div>
+                  <div className="maintenance-part-box-title"><span>A</span><div><strong>Pasang unit berserial</strong><small>Ban, aki, atau komponen yang memiliki nomor seri.</small></div></div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(240px, 1fr))", gap: 12, marginBottom: 10, alignItems: "start", overflowX: "auto" }}>
+                  <div className="maintenance-serialized-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, marginBottom: 10, alignItems: "start" }}>
                     <SearchableItemPicker
                       items={serializedItems}
                       value={assignItemId}
@@ -1437,7 +1492,7 @@ export default function Maintenance() {
                   <Input
                     value={assignNote}
                     onChange={(e) => setAssignNote(e.target.value)}
-                    placeholder="Note (optional)"
+                    placeholder="Catatan pemasangan (opsional)"
                     disabled={!allowed || activeJob.status !== "OPEN"}
                     style={{ marginBottom: 10 }}
                     data-testid="assign-note-input"
@@ -1450,22 +1505,21 @@ export default function Maintenance() {
                       disabled={!allowed || activeJob.status !== "OPEN" || assigning || !unitPick}
                       data-testid="assign-unit-btn"
                     >
-                      {assigning ? "Assigning..." : "Assign Unit"}
+                      {assigning ? "Memasang..." : "Pasang Unit"}
                     </Button>
                   </div>
                 </div>
 
                 {/* B) Non-serialized use */}
                 <div
+                  className={`maintenance-part-box stock ${detailTab !== "PARTS" || partMode !== "STOCK" ? "maintenance-detail-section-hidden" : ""}`}
                   style={{
                     padding: 16,
                     borderRadius: 6,
                     border: `1px solid ${BRAND.border}`,
                   }}
                 >
-                  <div style={{ fontSize: 14, fontWeight: 600, color: BRAND.text, marginBottom: 12 }}>
-                    B) Use Non-Serialized Stock (qty)
-                  </div>
+                  <div className="maintenance-part-box-title"><span>B</span><div><strong>Gunakan stok non-serial</strong><small>Oli, grease, baut, dan barang berdasarkan jumlah.</small></div></div>
 
                   <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 1.4fr) 1fr", gap: 10, marginBottom: 10 }}>
                     <SearchableItemPicker
@@ -1483,7 +1537,7 @@ export default function Maintenance() {
                       disabled={!allowed || activeJob.status !== "OPEN"}
                       data-testid="location-select"
                     >
-                      <option value="">Select location</option>
+                      <option value="">Pilih lokasi stok</option>
                       {locations.map((l) => (
                         <option key={l.id} value={l.id}>
                           {l.name}
@@ -1518,14 +1572,14 @@ export default function Maintenance() {
                     <Input
                       value={useQty}
                       onChange={(e) => setUseQty(e.target.value)}
-                      placeholder="Qty"
+                      placeholder="Jumlah"
                       disabled={!allowed || activeJob.status !== "OPEN"}
                       data-testid="qty-input"
                     />
                     <Input
                       value={useNote}
                       onChange={(e) => setUseNote(e.target.value)}
-                      placeholder="Note (optional)"
+                      placeholder="Catatan pemakaian (opsional)"
                       disabled={!allowed || activeJob.status !== "OPEN"}
                       data-testid="use-note-input"
                     />
@@ -1538,23 +1592,21 @@ export default function Maintenance() {
                       disabled={!allowed || activeJob.status !== "OPEN" || usingStock}
                       data-testid="use-stock-btn"
                     >
-                      {usingStock ? "Menyimpan..." : "Use Stock"}
+                      {usingStock ? "Menyimpan..." : "Gunakan Stok"}
                     </Button>
                   </div>
                 </div>
               </div>
-            </Card>
+            </Card>}
 
             {/* FULL WIDTH TABLES */}
-            <Card style={{ gridColumn: "1 / -1" }}>
+            {detailTab === "PARTS" && <Card className="maintenance-detail-history" style={{ gridColumn: "1 / -1" }}>
               <div style={{ padding: 16 }}>
-                <div style={{ fontWeight: 600, marginBottom: 16, color: BRAND.text }}>
-                  Spareparts used in this maintenance
-                </div>
+                <div className="maintenance-detail-section-heading maintenance-history-heading"><span>RIWAYAT</span><div><strong>Sparepart yang sudah digunakan</strong><small>Semua unit dan stok yang tercatat pada pekerjaan servis ini.</small></div></div>
 
                 {/* Serialized Table */}
                 <div style={{ fontSize: 13, fontWeight: 600, color: BRAND.textMuted, marginBottom: 8 }}>
-                  Serialized assignments
+                  Unit berserial yang dipasang
                 </div>
                 <div style={{ overflow: "auto", marginBottom: 20 }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
@@ -1595,7 +1647,7 @@ export default function Maintenance() {
                       {(activeJob.sparePartAssignments || []).length === 0 && (
                         <tr>
                           <td colSpan={6} style={{ padding: 16, color: BRAND.textMuted, textAlign: "center" }}>
-                            No serialized spareparts assigned yet.
+                            Belum ada sparepart berserial yang dipasang.
                           </td>
                         </tr>
                       )}
@@ -1605,7 +1657,7 @@ export default function Maintenance() {
 
                 {/* Movements Table */}
                 <div style={{ fontSize: 13, fontWeight: 600, color: BRAND.textMuted, marginBottom: 8 }}>
-                  Non-serialized spareparts used
+                  Stok non-serial yang digunakan
                 </div>
                 <div style={{ overflow: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
@@ -1647,7 +1699,7 @@ export default function Maintenance() {
                   </table>
                 </div>
               </div>
-            </Card>
+            </Card>}
           </div>
         )}
       </Modal>

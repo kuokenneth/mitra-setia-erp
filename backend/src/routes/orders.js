@@ -201,6 +201,9 @@ router.post("/", authRequired, async (req, res) => {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
 
     const body = req.body || {};
+    if (!body.customerId) return res.status(400).json({ error: "Customer wajib dipilih dari Master Customer" });
+    const selectedCustomer = await prisma.customer.findUnique({ where: { id: body.customerId } });
+    if (!selectedCustomer) return res.status(400).json({ error: "Customer tidak ditemukan" });
     const proofs = Array.isArray(body.proofs) ? body.proofs : [];
     const cargoCategory = ["FERTILIZER", "CANGKANG", "MATERIAL"].includes(body.cargoCategory)
       ? body.cargoCategory
@@ -223,8 +226,8 @@ router.post("/", authRequired, async (req, res) => {
         data: {
           orderNo,
           orderType: body.orderType || "OUTBOUND",
-          customerId: body.customerId || null,
-          customerName: body.customerName || null,
+          customerId: selectedCustomer.id,
+          customerName: selectedCustomer.name,
           description: body.description || null,
           notes: body.notes || null,
           cargoName: body.cargoName || null,

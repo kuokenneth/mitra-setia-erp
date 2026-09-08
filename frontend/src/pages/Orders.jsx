@@ -286,6 +286,10 @@ export default function Orders() {
   const [items, setItems] = useState([]);
   const searchRequestRef = useRef({ id: 0, controller: null });
   const [locations, setLocations] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [showCustomerForm, setShowCustomerForm] = useState(false);
+  const [customerSaving, setCustomerSaving] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({ name: "", phone: "", address: "" });
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
@@ -304,6 +308,7 @@ export default function Orders() {
   const [uploadErr, setUploadErr] = useState("");
 
   const [form, setForm] = useState({
+    customerId: "",
     customerName: "",
     cargoName: "",
     cargoCategory: "FERTILIZER",
@@ -362,7 +367,7 @@ export default function Orders() {
   }, [q, status, customer, dateFrom, dateTo]);
   useEffect(() => {
     let active = true;
-    api("/operational-locations").then((data) => { if (active) setLocations((data.items || []).filter((location) => location.isActive)); }).catch((error) => { if (active) setErr(error.message || "Gagal memuat Master Lokasi"); });
+    Promise.all([api("/operational-locations"), api("/customers")]).then(([locationData, customerData]) => { if (active) { setLocations((locationData.items || []).filter((location) => location.isActive)); setCustomers(customerData.items || []); } }).catch((error) => { if (active) setErr(error.message || "Gagal memuat data master"); });
     return () => { active = false; };
   }, []);
   useLiveRefresh(load);
@@ -377,6 +382,7 @@ export default function Orders() {
   function resetCreate() {
     setCreateErr("");
     setForm({
+      customerId: "",
       customerName: "",
       cargoName: "",
       cargoCategory: "FERTILIZER",
@@ -396,6 +402,17 @@ export default function Orders() {
     setForm((f) => ({ ...f, [k]: v }));
   }
 
+  async function createCustomer() {
+    try {
+      setCustomerSaving(true); setCreateErr("");
+      const created = await api("/customers", { method: "POST", body: JSON.stringify(newCustomer) });
+      setCustomers(items => [...items, created].sort((a, b) => a.name.localeCompare(b.name, "id")));
+      setForm(current => ({ ...current, customerId: created.id, customerName: created.name }));
+      setNewCustomer({ name: "", phone: "", address: "" }); setShowCustomerForm(false);
+    } catch (error) { setCreateErr(error.message || "Gagal menambah customer"); }
+    finally { setCustomerSaving(false); }
+  }
+
   function removeProof(idx) {
     setProofs((p) => p.filter((_, i) => i !== idx));
   }
@@ -406,6 +423,7 @@ export default function Orders() {
       setCreating(true);
 
       const payload = {
+        customerId: form.customerId,
         customerName: form.customerName || null,
         cargoName: form.cargoName || null,
         cargoCategory: form.cargoCategory,
@@ -441,7 +459,7 @@ export default function Orders() {
     <div className="orders-v3-page" data-testid="orders-page">
       <header className="orders-v3-head">
         <div><span>ORDER CONTROL</span><h1 data-testid="orders-title">Pesanan</h1><p>Kelola permintaan angkutan, pembagian trip, dan surat jalan dari satu tempat.</p></div>
-        {allowed ? <button className="orders-v3-create" onClick={() => { resetCreate(); setShowCreate(true); }} data-testid="new-order-btn"><FiPlus /> Pesanan Baru</button> : <span className="orders-v3-readonly">Akses hanya-baca</span>}
+        {allowed ? <div className="orders-v3-head-actions"><button className="orders-v3-customer-create" onClick={() => { setCreateErr(""); setNewCustomer({ name: "", phone: "", address: "" }); setShowCustomerForm(true); }}><FiPlus /> Customer</button><button className="orders-v3-create" onClick={() => { resetCreate(); setShowCreate(true); }} data-testid="new-order-btn"><FiPlus /> Pesanan Baru</button></div> : <span className="orders-v3-readonly">Akses hanya-baca</span>}
       </header>
 
       <section className="orders-v3-summary">
@@ -491,6 +509,12 @@ export default function Orders() {
         </div>
       </section>
 
+      <Modal open={showCustomerForm} title="Customer Baru" subtitle="Tambahkan perusahaan agar dapat dipilih pada pesanan dan Trip Tunggal." onClose={() => !customerSaving && setShowCustomerForm(false)} width={560} className="orders-v3-customer-modal">
+        {createErr && <div className="orders-v3-error">{createErr}</div>}
+        <div className="orders-customer-modal-fields"><label>Nama perusahaan<Input autoFocus value={newCustomer.name} onChange={e => setNewCustomer(value => ({ ...value, name: e.target.value }))} placeholder="Contoh: PT Madina Agro Lestari"/></label><label>Nomor telepon <small>Opsional</small><Input value={newCustomer.phone} onChange={e => setNewCustomer(value => ({ ...value, phone: e.target.value }))} placeholder="Contoh: 061 123456"/></label><label>Alamat penagihan <small>Opsional</small><Input value={newCustomer.address} onChange={e => setNewCustomer(value => ({ ...value, address: e.target.value }))} placeholder="Alamat yang dicantumkan pada invoice"/></label></div>
+        <div className="orders-v3-modal-actions"><Button variant="secondary" onClick={() => setShowCustomerForm(false)} disabled={customerSaving}>Batal</Button><Button variant="primary" onClick={createCustomer} disabled={customerSaving || !newCustomer.name.trim()}>{customerSaving ? "Menyimpan…" : "Simpan Customer"}</Button></div>
+      </Modal>
+
       {/* Create Order Modal */}
       <Modal
         open={showCreate}
@@ -520,7 +544,7 @@ export default function Orders() {
             <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>
               Customer / perusahaan
             </label>
-            <Input value={form.customerName} onChange={(e) => update("customerName", e.target.value)} placeholder="Contoh: PT Perkebunan Nusantara" />
+            <select required value={form.customerId} onChange={(e) => { const selected = customers.find(item => item.id === e.target.value); setForm(current => ({ ...current, customerId: e.target.value, customerName: selected?.name || "" })); }} style={{ width: "100%", height: 42, border: `1px solid ${BRAND.border}`, borderRadius: 8, padding: "0 10px", background: "white" }}><option value="">Pilih customer</option>{customers.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
           </div>
 
           <div style={{ gridColumn: "1 / -1" }}>

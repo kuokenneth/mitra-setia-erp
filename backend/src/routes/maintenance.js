@@ -77,30 +77,7 @@ router.get("/", authRequired, async (req, res) => {
     const jobs = await prisma.truckMaintenance.findMany({
       where,
       orderBy: { createdAt: "desc" },
-      include: {
-        truck: true,
-        sparePartAssignments: {
-          orderBy: { installedAt: "desc" },
-          include: {
-            stockUnit: { include: { item: true, location: true } },
-            createdBy: true,
-          },
-        },
-        movements: {
-          orderBy: { createdAt: "desc" },
-          include: {
-            item: true,
-            fromLocation: true,
-            toLocation: true,
-            createdBy: true,
-            stockUnit: true,
-          },
-        },
-        notes: {
-          orderBy: { createdAt: "desc" },
-          include: { createdBy: { select: { id: true, name: true, email: true, role: true } } },
-        },
-      },
+      select: { id: true, title: true, status: true, createdAt: true, doneAt: true, truck: { select: { id: true, plateNumber: true, brand: true, model: true } } },
     });
 
     res.json({ jobs });
@@ -159,6 +136,48 @@ router.post("/", authRequired, async (req, res) => {
   }
 });
 
+// Purchase request created from a maintenance job. It remains linked to the
+// service, while received goods follow the normal inventory flow.
+router.post("/:id/purchase-requests", authRequired, async (req, res) => {
+  try {
+    if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
+    const maintenance = await prisma.truckMaintenance.findUnique({ where: { id: req.params.id }, include: { truck: true } });
+    if (!maintenance || maintenance.status !== "OPEN") return res.status(400).json({ error: "Permintaan hanya dapat dibuat pada servis yang masih terbuka" });
+    const qty = Number(req.body.qty);
+    if (!Number.isFinite(qty) || qty <= 0) return res.status(400).json({ error: "Jumlah barang harus lebih dari nol" });
+
+    let itemId = req.body.itemId;
+    if (!itemId && req.body.newItem) {
+      const input = req.body.newItem;
+      if (!String(input.sku || "").trim() || !String(input.name || "").trim()) return res.status(400).json({ error: "SKU dan nama sparepart baru wajib diisi" });
+      const created = await prisma.item.create({ data: { sku: String(input.sku).trim(), name: String(input.name).trim(), unit: String(input.unit || "PCS").trim(), isSerialized: Boolean(input.isSerialized), category: input.category || "GENERAL_SPAREPART" } });
+      itemId = created.id;
+    }
+    const item = itemId ? await prisma.item.findUnique({ where: { id: itemId } }) : null;
+    if (!item) return res.status(400).json({ error: "Sparepart wajib dipilih" });
+
+    const request = await prisma.purchaseRequest.create({
+      data: {
+        number: `PR-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`,
+        status: "WAITING_APPROVAL",
+        urgency: req.body.urgency || "URGENT",
+        purpose: "MAINTENANCE_STOCK_REQUEST",
+        truckId: maintenance.truckId,
+        maintenanceId: maintenance.id,
+        directUse: false,
+        reason: String(req.body.reason || `Kebutuhan sparepart servis ${maintenance.title}`).trim(),
+        notes: req.body.notes ? String(req.body.notes).trim() : null,
+        createdById: req.user.id,
+        items: { create: [{ itemId: item.id, originalQty: qty, notes: req.body.notes ? String(req.body.notes).trim() : null }] },
+      },
+      include: { items: { include: { item: true } }, maintenance: { include: { truck: true } } },
+    });
+    res.status(201).json({ ok: true, request });
+  } catch (e) {
+    res.status(e.code === "P2002" ? 409 : 400).json({ error: e.code === "P2002" ? "SKU atau nama sparepart sudah digunakan" : e.message || "Gagal membuat permintaan pembelian servis" });
+  }
+});
+
 ////////////////////////////////////////////////////
 // DETAIL
 // GET /maintenance/:id
@@ -186,6 +205,7 @@ router.get("/:id", authRequired, async (req, res) => {
           orderBy: { createdAt: "desc" },
           include: { createdBy: { select: { id: true, name: true, email: true, role: true } } },
         },
+        purchaseRequests: { select: { id: true, number: true, status: true, urgency: true, createdAt: true, items: { select: { id: true, originalQty: true, approvedQty: true, item: { select: { id: true, sku: true, name: true, unit: true } } } } }, orderBy: { createdAt: "desc" } },
       },
     });
 

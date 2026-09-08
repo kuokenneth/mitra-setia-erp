@@ -6,12 +6,14 @@ const { SYSTEM_ACCOUNTS, cashCode, postJournal } = require("../services/accounti
 const { esc, num, money, date, documentHtml } = require("../utils/printDocument");
 
 const router = express.Router();
+// Keep the running server aligned with the generated Prisma relations.
 router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF"));
 
 const invoiceInclude = {
   order: { select: { id: true, orderNo: true, cargoName: true, customerName: true, customer: { select: { name: true } }, qty: true, unit: true, fromText: true, toText: true, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true } }, tripAllocations: { where: { trip: { status: "COMPLETED" } }, select: { qtyPlanned: true, qtyActual: true } }, materialInvoices: { select: { billingCustomerName: true, lines: { select: { totalAmount: true } } } } } },
   customer: true,
   singleTrip: { include: { truck: true } },
+  singleTripLines: { include: { trip: { include: { truck: true } } }, orderBy: { trip: { completedAt: "asc" } } },
   materialInvoices: { include: { trip: { include: { truck: true } }, destinationLocation: true, lines: true } },
   createdBy: { select: { name: true } },
   payments: { include: { createdBy: { select: { name: true } } }, orderBy: { receivedAt: "desc" } },
@@ -59,6 +61,15 @@ function materialSubtotal(order) {
     .reduce((sum, line) => sum + Number(line.totalAmount || 0), 0);
 }
 
+function weightKg(trip) {
+  const qty = Number(trip?.qtyActual);
+  const unit = String(trip?.unitSnap || "").toUpperCase();
+  if (!Number.isFinite(qty) || qty <= 0) return 0;
+  if (unit === "TON") return qty * 1000;
+  if (unit === "KG") return qty;
+  return 0;
+}
+
 router.get("/overview", async (_req, res) => {
   try {
     const [invoices, eligibleOrders, materialRows, singleTrips] = await Promise.all([
@@ -69,7 +80,7 @@ router.get("/overview", async (_req, res) => {
         orderBy: { updatedAt: "desc" },
       }),
       prisma.materialInvoice.findMany({ where: { billedInvoiceId: null, destinationCompletedAt: { not: null } }, include: { lines: true, trip: { include: { truck: true } }, destinationLocation: true }, orderBy: { issuedAt: "asc" } }),
-      prisma.trip.findMany({ where: { purpose: "SINGLE_TRIP", status: "COMPLETED", singleInvoice: null }, include: { truck: true }, orderBy: { completedAt: "desc" } }),
+      prisma.trip.findMany({ where: { purpose: "SINGLE_TRIP", status: "COMPLETED", cargoCategorySnap: { in: ["FERTILIZER", "CANGKANG"] }, billingCustomerName: { not: null }, invoiceLines: { none: {} }, singleInvoice: null }, include: { truck: true, billingCustomer: true }, orderBy: { completedAt: "asc" } }),
     ]);
     const rows = invoices.map(summarize);
     const stats = rows.reduce((acc, invoice) => {
@@ -86,9 +97,18 @@ router.get("/overview", async (_req, res) => {
       group.total += item.lines.reduce((sum, line) => sum + Number(line.totalAmount || 0), 0);
       group.invoiceIds.push(item.id); group.invoices.push(item); groups.set(key, group);
     }
-    const orderSources = eligibleOrders.map(order => ({ type: "ORDER", id: order.id, label: `${order.orderNo} — ${order.customer?.name || order.customerName || "Tanpa nama"}`, customerName: order.customer?.name || order.customerName || "", customerPhone: order.customer?.phone || "", billingAddress: order.customer?.address || "", order: { ...order, shipment: shipmentSummary(order), materialSubtotal: materialSubtotal(order) } }));
+    const orderSources = eligibleOrders.map(order => ({ type: "ORDER", id: order.id, customerId: order.customerId || null, label: `${order.orderNo} — ${order.customer?.name || order.customerName || "Tanpa nama"}`, customerName: order.customer?.name || order.customerName || "", customerPhone: order.customer?.phone || "", billingAddress: order.customer?.address || "", order: { ...order, shipment: shipmentSummary(order), materialSubtotal: materialSubtotal(order) } }));
     const materialSources = [...groups.values()].map(group => ({ type: "MATERIAL", id: group.key, label: `Faktur Muatan — ${group.customerName} (${group.invoiceIds.length} faktur)`, customerName: group.customerName, materialInvoiceIds: group.invoiceIds, materialSubtotal: group.total, invoices: group.invoices }));
-    const singleSources = singleTrips.map(trip => ({ type: "SINGLE_TRIP", id: trip.id, label: `${trip.tripNo || "Trip tanpa pesanan"} — ${trip.truck?.plateNumber || "Armada"} · ${trip.cargoNameSnap || "Muatan"}`, customerName: "", singleTripId: trip.id, trip }));
+    const singleGroups = new Map();
+    for (const trip of singleTrips) {
+      const customerName = String(trip.billingCustomerName || "").trim();
+      const category = String(trip.cargoCategorySnap || "").toUpperCase();
+      const key = `${trip.billingCustomerId || customerName.toLocaleLowerCase("id-ID")}:${category}`;
+      const group = singleGroups.get(key) || { key, customerId: trip.billingCustomerId || null, customerName, customerPhone: trip.billingCustomer?.phone || "", billingAddress: trip.billingCustomer?.address || "", cargoCategory: category, trips: [], totalWeightKg: 0 };
+      group.trips.push(trip); group.totalWeightKg += weightKg(trip); singleGroups.set(key, group);
+    }
+    const cargoLabel = value => value === "FERTILIZER" ? "Pupuk" : value === "CANGKANG" ? "Cangkang" : value;
+    const singleSources = [...singleGroups.values()].map(group => ({ type: "SINGLE_TRIP_GROUP", id: group.key, customerId: group.customerId, label: `Trip Tunggal — ${group.customerName} · ${cargoLabel(group.cargoCategory)} (${group.trips.length} trip)`, customerName: group.customerName, customerPhone: group.customerPhone, billingAddress: group.billingAddress, cargoCategory: group.cargoCategory, singleTripIds: group.trips.map(trip => trip.id), totalWeightKg: group.totalWeightKg, trips: group.trips }));
     res.json({ ok: true, invoices: rows, eligibleOrders: orderSources.map(source => source.order), eligibleMaterialGroups: [...groups.values()], eligibleSingleTrips: singleTrips, eligibleSources: [...orderSources, ...materialSources, ...singleSources], stats });
   } catch (error) {
     res.status(400).json({ error: error.message || "Gagal memuat piutang" });
@@ -97,7 +117,7 @@ router.get("/overview", async (_req, res) => {
 
 router.post("/invoices", async (req, res) => {
   try {
-    const { orderId, customerName, customerPhone, billingAddress, dueAt, notes, sourceType = "ORDER", materialInvoiceIds = [], singleTripId } = req.body;
+    const { orderId, customerName, customerPhone, billingAddress, dueAt, notes, sourceType = "ORDER", materialInvoiceIds = [], singleTripId, singleTripIds = [] } = req.body;
     const contractSubtotal = amount(req.body.contractSubtotal ?? req.body.subtotal, "Harga kontrak");
     const tax = amount(req.body.tax || 0, "Pajak");
     const discount = amount(req.body.discount || 0, "Diskon");
@@ -127,6 +147,24 @@ router.post("/invoices", async (req, res) => {
         if (total <= 0) throw new Error("Total invoice harus lebih dari nol");
         const number = await nextNumber(tx, "invoice", "INV");
         return tx.invoice.create({ data: { number, billingKey: `SINGLE_TRIP:${trip.id}`, sourceType, singleTripId: trip.id, customerName: customerName.trim(), customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null, dueAt: dueDate, subtotal: contractSubtotal, contractSubtotal, tax, discount, total, notes: notes?.trim() || null, createdById: req.user.id }, include: invoiceInclude });
+      }
+      if (sourceType === "SINGLE_TRIP_GROUP") {
+        const ids = [...new Set(singleTripIds)].filter(Boolean);
+        const ratePerKg = amount(req.body.ratePerKg, "Harga per kg");
+        if (!ids.length) throw new Error("Pilih minimal satu Trip Tunggal");
+        if (ratePerKg <= 0) throw new Error("Harga per kg harus lebih dari nol");
+        const trips = await tx.trip.findMany({ where: { id: { in: ids }, purpose: "SINGLE_TRIP", status: "COMPLETED", cargoCategorySnap: { in: ["FERTILIZER", "CANGKANG"] }, invoiceLines: { none: {} }, singleInvoice: null } });
+        if (trips.length !== ids.length) throw new Error("Sebagian trip tidak tersedia atau sudah ditagih");
+        const customerKey = customerName.trim().toLocaleLowerCase("id-ID");
+        const category = String(trips[0].cargoCategorySnap || "");
+        if (trips.some(trip => String(trip.billingCustomerName || "").trim().toLocaleLowerCase("id-ID") !== customerKey || trip.cargoCategorySnap !== category)) throw new Error("Semua trip harus memiliki customer dan jenis muatan yang sama");
+        const lines = trips.map(trip => { const actualWeightKg = weightKg(trip); if (actualWeightKg <= 0) throw new Error(`${trip.tripNo || "Trip"} belum memiliki berat aktual dalam TON/KG`); return { tripId: trip.id, actualWeightKg, ratePerKg, amount: Math.round(actualWeightKg * ratePerKg) }; });
+        const subtotal = lines.reduce((sum, line) => sum + line.amount, 0);
+        const total = subtotal + tax - discount;
+        if (total <= 0) throw new Error("Total invoice harus lebih dari nol");
+        const number = await nextNumber(tx, "invoice", "INV");
+        const billingIds = ids.slice().sort();
+        return tx.invoice.create({ data: { number, billingKey: `SINGLE_TRIP_GROUP:${billingIds.join(",")}`, sourceType, customerId: trips[0].billingCustomerId || null, customerName: customerName.trim(), customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null, dueAt: dueDate, subtotal, contractSubtotal: subtotal, deliveredQuantity: lines.reduce((sum, line) => sum + line.actualWeightKg, 0), tax, discount, total, notes: notes?.trim() || null, createdById: req.user.id, singleTripLines: { create: lines } }, include: invoiceInclude });
       }
       const order = await tx.order.findUnique({ where: { id: orderId }, include: { customer: true, invoices: true, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true } }, tripAllocations: { where: { trip: { status: "COMPLETED" } }, select: { qtyPlanned: true, qtyActual: true } }, materialInvoices: { select: { id: true, billingCustomerName: true, billedInvoiceId: true, destinationCompletedAt: true, lines: { select: { totalAmount: true } } } } } });
       if (!order || order.status !== "COMPLETED") throw new Error("Invoice hanya dapat dibuat dari pesanan yang selesai");
@@ -173,6 +211,12 @@ router.get("/invoices/:id/print", async (req, res) => {
     if (!invoice) return res.status(404).send("Invoice tidak ditemukan");
 
     let rowNumber = 0;
+    const singleTripRows = (invoice.singleTripLines || []).map(line => {
+      rowNumber += 1;
+      const trip = line.trip;
+      const cargo = trip.cargoCategorySnap === "FERTILIZER" ? "Pupuk" : trip.cargoCategorySnap === "CANGKANG" ? "Cangkang" : trip.cargoNameSnap || "Muatan";
+      return `<tr><td class="center">${rowNumber}</td><td>${esc(date(trip.completedAt))}</td><td>${esc(trip.truck?.plateNumber || trip.plateNumberSnap || "-")}</td><td>${esc(trip.tripNo || "-")}</td><td>${esc(cargo)}<div class="muted">${esc(trip.fromText || "-")} → ${esc(trip.toText || "-")}</div></td><td class="right">${esc(num(line.actualWeightKg))}</td><td>KG</td><td class="right">${money(line.ratePerKg)}</td><td class="right"><b>${money(line.amount)}</b></td></tr>`;
+    }).join("");
     const materialRows = (invoice.materialInvoices || []).flatMap((materialInvoice) => {
       rowNumber += 1;
       const lines = materialInvoice.lines?.length ? materialInvoice.lines : [{ itemName: "Ambang / Material", qty: 0, unit: "-", totalAmount: 0 }];
@@ -195,10 +239,12 @@ router.get("/invoices/:id/print", async (req, res) => {
 
     const sourceDescription = invoice.order
       ? `${invoice.order.orderNo} · ${invoice.order.fromText || "-"} → ${invoice.order.toText || "-"}`
+      : invoice.singleTripLines?.length
+        ? `${invoice.singleTripLines.length} Trip Tunggal · ${invoice.singleTripLines[0]?.trip?.cargoCategorySnap === "FERTILIZER" ? "Pupuk" : "Cangkang"}`
       : invoice.singleTrip
         ? `${invoice.singleTrip.tripNo || "Trip"} · ${invoice.singleTrip.truck?.plateNumber || "-"}`
         : `${invoice.materialInvoices.length} Faktur Muatan`;
-    const fallbackRows = materialRows || `<tr><td class="center">1</td><td>${esc(date(invoice.issuedAt))}</td><td>${esc(invoice.singleTrip?.truck?.plateNumber || "-")}</td><td>${esc(invoice.order?.orderNo || invoice.singleTrip?.tripNo || "-")}</td><td>${esc(invoice.order?.cargoName || invoice.singleTrip?.cargoNameSnap || "Ongkos angkut")}</td><td class="right">1</td><td>Trip</td><td class="right">${money(invoice.contractSubtotal || invoice.subtotal)}</td><td class="right"><b>${money(invoice.contractSubtotal || invoice.subtotal)}</b></td></tr>`;
+    const fallbackRows = singleTripRows || materialRows || `<tr><td class="center">1</td><td>${esc(date(invoice.issuedAt))}</td><td>${esc(invoice.singleTrip?.truck?.plateNumber || "-")}</td><td>${esc(invoice.order?.orderNo || invoice.singleTrip?.tripNo || "-")}</td><td>${esc(invoice.order?.cargoName || invoice.singleTrip?.cargoNameSnap || "Ongkos angkut")}</td><td class="right">1</td><td>Trip</td><td class="right">${money(invoice.contractSubtotal || invoice.subtotal)}</td><td class="right"><b>${money(invoice.contractSubtotal || invoice.subtotal)}</b></td></tr>`;
     const status = statusLabelForPrint(invoice.status);
     const body = `
       <div class="summary"><div class="box">Ditagihkan kepada<b>${esc(invoice.customerName)}</b><span class="muted">${esc(invoice.billingAddress || "Alamat belum dicatat")}</span></div><div class="box">Sumber tagihan<b>${esc(sourceDescription)}</b><span class="muted">${esc(invoice.customerPhone || "Nomor telepon belum dicatat")}</span></div><div class="box">Jatuh tempo<b>${esc(date(invoice.dueAt))}</b><span class="muted">Status: ${esc(status)}</span></div></div>

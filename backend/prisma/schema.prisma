@@ -161,6 +161,14 @@ enum PurchasePaymentStatus {
   PAID
 }
 
+enum SupplierBillStatus {
+  OPEN
+  WAITING_PAYMENT_APPROVAL
+  PARTIALLY_PAID
+  PAID
+  VOID
+}
+
 enum InvoiceStatus {
   DRAFT
   SENT
@@ -215,6 +223,7 @@ model User {
   purchaseRequestsApproved    PurchaseRequest[]          @relation("PurchaseRequestApprovedBy")
   purchaseOrdersCreated       PurchaseOrder[]            @relation("PurchaseOrderCreatedBy")
   goodsReceiptsCreated        GoodsReceipt[]             @relation("GoodsReceiptCreatedBy")
+  supplierBillsCreated        SupplierBill[]             @relation("SupplierBillCreatedBy")
   purchasePaymentsCreated     PurchasePayment[]          @relation("PurchasePaymentCreatedBy")
   purchasePaymentsApproved    PurchasePayment[]          @relation("PurchasePaymentApprovedBy")
   invoicesCreated             Invoice[]                  @relation("InvoiceCreatedBy")
@@ -262,6 +271,7 @@ model Supplier {
   bankAccount    String?
   createdAt      DateTime        @default(now())
   purchaseOrders PurchaseOrder[]
+  bills          SupplierBill[]
   tireRetreads   TireRetread[]
 }
 
@@ -272,6 +282,9 @@ model PurchaseRequest {
   urgency        String                @default("NORMAL")
   purpose        String?
   truckId        String?
+  maintenanceId  String?
+  maintenance    TruckMaintenance?     @relation(fields: [maintenanceId], references: [id], onDelete: SetNull)
+  directUse      Boolean               @default(false)
   reason         String
   notes          String?
   createdById    String
@@ -286,6 +299,7 @@ model PurchaseRequest {
   updatedAt      DateTime              @updatedAt
 
   @@index([status])
+  @@index([maintenanceId])
 }
 
 model PurchaseRequestItem {
@@ -346,13 +360,17 @@ model PurchaseOrderItem {
 }
 
 model GoodsReceipt {
-  id                      String             @id @default(cuid())
-  number                  String             @unique
+  id                      String               @id @default(cuid())
+  number                  String               @unique
   purchaseOrderId         String
-  purchaseOrder           PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id])
+  purchaseOrder           PurchaseOrder        @relation(fields: [purchaseOrderId], references: [id])
   locationId              String
-  location                InventoryLocation  @relation(fields: [locationId], references: [id])
+  location                InventoryLocation    @relation(fields: [locationId], references: [id])
   deliveryNote            String?
+  deliveryNoteProofUrl    String?
+  deliveryNoteFileName    String?
+  deliveryNoteMimeType    String?
+  deliveryNoteSize        Int?
   notes                   String?
   supplierInvoiceNumber   String?
   supplierInvoiceDate     DateTime?
@@ -361,11 +379,49 @@ model GoodsReceipt {
   supplierInvoiceFileName String?
   supplierInvoiceMimeType String?
   supplierInvoiceSize     Int?
-  receivedAt              DateTime           @default(now())
+  receivedAt              DateTime             @default(now())
   createdById             String
-  createdBy               User               @relation("GoodsReceiptCreatedBy", fields: [createdById], references: [id])
+  createdBy               User                 @relation("GoodsReceiptCreatedBy", fields: [createdById], references: [id])
   items                   GoodsReceiptItem[]
   inventoryBatches        InventoryBatch[]
+  supplierBillLine        SupplierBillReceipt?
+}
+
+model SupplierBill {
+  id            String                @id @default(cuid())
+  number        String                @unique
+  supplierId    String
+  supplier      Supplier              @relation(fields: [supplierId], references: [id])
+  invoiceNumber String
+  invoiceDate   DateTime
+  dueDate       DateTime?
+  amount        Int
+  notes         String?
+  proofUrl      String?
+  proofFileName String?
+  proofMimeType String?
+  proofSize     Int?
+  status        SupplierBillStatus    @default(OPEN)
+  receipts      SupplierBillReceipt[]
+  payments      PurchasePayment[]
+  createdById   String
+  createdBy     User                  @relation("SupplierBillCreatedBy", fields: [createdById], references: [id])
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@unique([supplierId, invoiceNumber])
+  @@index([supplierId, status])
+}
+
+model SupplierBillReceipt {
+  id        String       @id @default(cuid())
+  billId    String
+  bill      SupplierBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  receiptId String       @unique
+  receipt   GoodsReceipt @relation(fields: [receiptId], references: [id])
+  amount    Int
+
+  @@index([billId])
 }
 
 model GoodsReceiptItem {
@@ -382,8 +438,10 @@ model GoodsReceiptItem {
 model PurchasePayment {
   id              String                @id @default(cuid())
   number          String                @unique
-  purchaseOrderId String
-  purchaseOrder   PurchaseOrder         @relation(fields: [purchaseOrderId], references: [id])
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder?        @relation(fields: [purchaseOrderId], references: [id])
+  supplierBillId  String?
+  supplierBill    SupplierBill?         @relation(fields: [supplierBillId], references: [id])
   amount          Int
   method          String
   reference       String?
@@ -395,6 +453,8 @@ model PurchasePayment {
   approvedBy      User?                 @relation("PurchasePaymentApprovedBy", fields: [approvedById], references: [id])
   approvedAt      DateTime?
   createdAt       DateTime              @default(now())
+
+  @@index([supplierBillId])
 }
 
 model Driver {
@@ -414,8 +474,9 @@ model Customer {
   address   String?
   createdAt DateTime @default(now())
 
-  orders   Order[]
-  invoices Invoice[]
+  orders       Order[]
+  invoices     Invoice[]
+  billingTrips Trip[]    @relation("TripBillingCustomer")
 }
 
 ////////////////////////////////////////////////////
@@ -486,21 +547,22 @@ model Order {
 // INVOICE + RECEIVABLE
 ////////////////////////////////////////////////////
 model Invoice {
-  id                String              @id @default(cuid())
-  number            String              @unique
+  id                String                  @id @default(cuid())
+  number            String                  @unique
   orderId           String?
-  order             Order?              @relation(fields: [orderId], references: [id])
-  singleTripId      String?             @unique
-  singleTrip        Trip?               @relation("SingleTripInvoice", fields: [singleTripId], references: [id])
-  billingKey        String              @unique
-  sourceType        String              @default("ORDER")
+  order             Order?                  @relation(fields: [orderId], references: [id])
+  singleTripId      String?                 @unique
+  singleTrip        Trip?                   @relation("SingleTripInvoice", fields: [singleTripId], references: [id])
+  singleTripLines   SingleTripInvoiceLine[]
+  billingKey        String                  @unique
+  sourceType        String                  @default("ORDER")
   customerId        String?
-  customer          Customer?           @relation(fields: [customerId], references: [id])
+  customer          Customer?               @relation(fields: [customerId], references: [id])
   customerName      String
   customerPhone     String?
   billingAddress    String?
-  status            InvoiceStatus       @default(DRAFT)
-  issuedAt          DateTime            @default(now())
+  status            InvoiceStatus           @default(DRAFT)
+  issuedAt          DateTime                @default(now())
   dueAt             DateTime
   subtotal          Int
   contractSubtotal  Int?
@@ -508,19 +570,19 @@ model Invoice {
   deliveredQuantity Float?
   cargoLossQuantity Float?
   cargoLossAmount   Int?
-  materialSubtotal  Int                 @default(0)
-  tax               Int                 @default(0)
-  discount          Int                 @default(0)
+  materialSubtotal  Int                     @default(0)
+  tax               Int                     @default(0)
+  discount          Int                     @default(0)
   total             Int
   notes             String?
   sentAt            DateTime?
   paidAt            DateTime?
   createdById       String
-  createdBy         User                @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+  createdBy         User                    @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
   payments          ReceivablePayment[]
-  materialInvoices  MaterialInvoice[]   @relation("MaterialInvoiceBilling")
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  materialInvoices  MaterialInvoice[]       @relation("MaterialInvoiceBilling")
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
 
   @@index([status])
   @@index([dueAt])
@@ -559,12 +621,15 @@ model Trip {
   driverUserId String?
   driverUser   User?   @relation(fields: [driverUserId], references: [id])
 
-  status            TripStatus  @default(PLANNED)
-  purpose           TripPurpose @default(DELIVERY)
-  phase             TripPhase   @default(PLANNED)
-  operationalReason String?
-  cargoCategorySnap String?
-  cargoNameSnap     String?
+  status              TripStatus  @default(PLANNED)
+  purpose             TripPurpose @default(DELIVERY)
+  phase               TripPhase   @default(PLANNED)
+  operationalReason   String?
+  cargoCategorySnap   String?
+  cargoNameSnap       String?
+  billingCustomerName String?
+  billingCustomerId   String?
+  billingCustomer     Customer?   @relation("TripBillingCustomer", fields: [billingCustomerId], references: [id], onDelete: SetNull)
 
   // ✅ quantity per trip (for contract decrement)
   qtyPlanned Float? // planned load for this trip
@@ -604,7 +669,8 @@ model Trip {
   operationalActions TripOperationalAction[]
 
   expenses      Expense[]
-  singleInvoice Invoice?  @relation("SingleTripInvoice")
+  singleInvoice Invoice?                @relation("SingleTripInvoice")
+  invoiceLines  SingleTripInvoiceLine[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -614,6 +680,21 @@ model Trip {
   @@index([driverUserId])
   @@index([status])
   @@index([tripNo])
+  @@index([billingCustomerId])
+}
+
+model SingleTripInvoiceLine {
+  id             String   @id @default(cuid())
+  invoiceId      String
+  invoice        Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  tripId         String   @unique
+  trip           Trip     @relation(fields: [tripId], references: [id], onDelete: Restrict)
+  actualWeightKg Float
+  ratePerKg      Int
+  amount         Int
+  createdAt      DateTime @default(now())
+
+  @@index([invoiceId])
 }
 
 model TripOrderAllocation {
@@ -760,6 +841,7 @@ model MaterialInvoiceLine {
 
   @@index([materialInvoiceId])
 }
+
 
 model DispatchLetter {
   id String @id @default(cuid())
@@ -919,6 +1001,7 @@ model TruckMaintenance {
 
   sparePartAssignments TruckSparePartAssignment[]
   notes                MaintenanceNote[]
+  purchaseRequests     PurchaseRequest[]
 
   @@index([truckId, isOilChange, oilChangedAt])
 }

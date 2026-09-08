@@ -63,6 +63,7 @@ export default function Dashboard() {
   const [trucks, setTrucks] = useState([]);
   const [maintenance, setMaintenance] = useState([]);
   const [inventory, setInventory] = useState([]);
+  const [arrivedTrips, setArrivedTrips] = useState([]);
   const [finance, setFinance] = useState({ summary: {} });
   useLiveRefresh(() => setRevision((value) => value + 1));
 
@@ -73,13 +74,14 @@ export default function Dashboard() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([api("/trucks"), api("/maintenance"), api("/inventory/items"), api(`/fleet-profitability?month=${month}`)])
-      .then(([truckData, maintenanceData, inventoryData, financeData]) => {
+    Promise.all([api("/trucks"), api("/maintenance"), api("/inventory/items"), api(`/fleet-profitability?month=${month}`), api("/trips?status=ARRIVED&limit=8")])
+      .then(([truckData, maintenanceData, inventoryData, financeData, arrivedTripData]) => {
         if (cancelled) return;
         setTrucks(list(truckData));
         setMaintenance(list(maintenanceData));
         setInventory(list(inventoryData));
         setFinance(financeData?.summary ? financeData : { summary: {} });
+        setArrivedTrips(list(arrivedTripData));
         setConnected(true);
       })
       .catch((error) => { console.error(error); if (!cancelled) setConnected(false); })
@@ -135,6 +137,15 @@ export default function Dashboard() {
         <div className="d3-profit">
           <div><span>FINANCIAL PULSE</span><FiDollarSign /></div><small>Laba bersih bulan ini</small><strong className={profit < 0 ? "loss" : "gain"}>{loading ? "—" : rupiah(profit)}</strong><p>{rupiah(finance.summary?.revenue)} pendapatan · Margin {Number(finance.summary?.margin || 0).toLocaleString("id-ID", { maximumFractionDigits: 1 })}%</p><button onClick={() => (window.location.href = "/fleet-profitability")}>Buka laporan <FiArrowRight /></button>
         </div>
+      </section>
+
+      <section className="d3-arrived-card">
+        <div className="d3-title"><div><span>MENUNGGU PENYELESAIAN</span><h2>Trip Sudah Sampai</h2></div><b className={arrivedTrips.length ? "attention" : "safe"}>{arrivedTrips.length} trip</b></div>
+        {loading ? <LoadingState compact label="Memuat trip tiba" note="Memeriksa perjalanan yang menunggu diselesaikan…" rows={2} /> : arrivedTrips.length ? <div className="d3-arrived-list">{arrivedTrips.map(trip => {
+          const category = ({ FERTILIZER: "Pupuk", CANGKANG: "Cangkang", MATERIAL: "Ambang / Material", AMBANG: "Ambang / Material" })[trip.cargoCategorySnap || trip.order?.cargoCategory] || trip.cargoNameSnap || trip.order?.cargoName || "Muatan";
+          const quantity = trip.qtyActual == null ? trip.qtyPlanned : trip.qtyActual;
+          return <button key={trip.id} type="button" onClick={() => (window.location.href = `/trips/${trip.id}`)}><i><FiMapPin /></i><span><strong>{trip.order?.orderNo || trip.tripNo || "Trip"}</strong><small>{trip.truck?.plateNumber || trip.plateNumberSnap || "Tanpa armada"} · {trip.driverUser?.name || trip.driverNameSnap || "Tanpa pengemudi"}</small></span><span><strong>{trip.order?.toText || trip.toText || "Tujuan belum dicatat"}</strong><small>{category}{quantity != null ? ` · ${Number(quantity).toLocaleString("id-ID", { maximumFractionDigits: 3 })} ${trip.unitSnap || trip.order?.unit || ""}` : ""}</small></span><em>Selesaikan <FiArrowRight /></em></button>;
+        })}</div> : <div className="d3-arrived-empty"><FiCheck /><span><strong>Tidak ada trip tertunda</strong><small>Semua trip yang sudah tiba telah diselesaikan.</small></span></div>}
       </section>
 
       <section className="d3-grid">

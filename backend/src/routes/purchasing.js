@@ -7,12 +7,12 @@ const { esc, num: fmtNum, money, date: fmtDate, documentHtml } = require("../uti
 const router = express.Router();
 
 const seq = (prefix) => `${prefix}-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
-const includePO = { supplier: true, request: true, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } } } }, receipts: { include: { items: { include: { purchaseOrderItem: { include: { item: true } } } }, location: true, createdBy: { select: { name: true } } } }, payments: { include: { createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } } } };
+const includePO = { supplier: true, request: { include: { maintenance: { include: { truck: true } } } }, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } } } }, receipts: { include: { items: { include: { purchaseOrderItem: { include: { item: true } } } }, location: true, createdBy: { select: { name: true } }, supplierBillLine: { include: { bill: true } } } }, payments: { include: { createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } } } };
 
 router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"));
 router.get("/overview", async (_req, res) => {
-  const [requests, orders, suppliers, locations, items, retreadingUnits] = await Promise.all([
-    prisma.purchaseRequest.findMany({ include: { items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } } } }, createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } }, orderBy: { createdAt: "desc" } }),
+  const [requests, orders, suppliers, locations, items, retreadingUnits, bills] = await Promise.all([
+    prisma.purchaseRequest.findMany({ include: { maintenance: { include: { truck: true } }, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } } } }, createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } }, orderBy: { createdAt: "desc" } }),
     prisma.purchaseOrder.findMany({ include: includePO, orderBy: { createdAt: "desc" } }),
     prisma.supplier.findMany({ orderBy: { name: "asc" } }), prisma.inventoryLocation.findMany({ orderBy: { name: "asc" } }), prisma.item.findMany({ orderBy: { name: "asc" } }),
     prisma.stockUnit.findMany({
@@ -28,8 +28,16 @@ router.get("/overview", async (_req, res) => {
       },
       orderBy: { updatedAt: "asc" },
     }),
+    prisma.supplierBill.findMany({
+      include: {
+        supplier: true,
+        receipts: { include: { receipt: { include: { purchaseOrder: true } } } },
+        payments: { include: { createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } } },
+      },
+      orderBy: { invoiceDate: "desc" },
+    }),
   ]);
-  res.json({ ok: true, requests, orders, suppliers, locations, items, retreadingUnits });
+  res.json({ ok: true, requests, orders, suppliers, locations, items, retreadingUnits, bills });
 });
 router.get("/orders/:id/print", async (req, res) => {
   const po = await prisma.purchaseOrder.findUnique({ where: { id: req.params.id }, include: includePO });
@@ -55,7 +63,7 @@ router.get("/receipts/:id/print", async (req, res) => {
     title: "BUKTI PENERIMAAN BARANG",
     subtitle: receipt.number,
     meta: `Tanggal terima: ${fmtDate(receipt.receivedAt, true)}<br>PO: ${esc(receipt.purchaseOrder.number)}`,
-    body: `<div class="summary"><div class="box">Supplier<b>${esc(receipt.purchaseOrder.supplier.name)}</b></div><div class="box">Lokasi penerimaan<b>${esc(receipt.location.name)}</b></div><div class="box">Penerima<b>${esc(receipt.createdBy?.name || "-")}</b></div></div><table><thead><tr><th>No</th><th>SKU</th><th>Barang</th><th class="right">Diterima</th><th>Satuan</th><th>Kondisi</th></tr></thead><tbody>${rows}</tbody></table><table><tbody><tr><th style="width:28%">Surat jalan supplier</th><td>${esc(receipt.deliveryNote || "-")}</td></tr><tr><th>Nomor invoice supplier</th><td>${esc(receipt.supplierInvoiceNumber || "-")}</td></tr><tr><th>Tanggal invoice</th><td>${fmtDate(receipt.supplierInvoiceDate)}</td></tr><tr><th>Nilai invoice</th><td>${receipt.supplierInvoiceAmount == null ? "-" : money(receipt.supplierInvoiceAmount)}</td></tr><tr><th>Catatan</th><td>${esc(receipt.notes || "-")}</td></tr></tbody></table><div class="signatures"><div>Pengirim / Supplier</div><div>Penerima</div><div>Diperiksa oleh</div></div>`,
+    body: `<div class="summary"><div class="box">Supplier<b>${esc(receipt.purchaseOrder.supplier.name)}</b></div><div class="box">Lokasi penerimaan<b>${esc(receipt.location.name)}</b></div><div class="box">Penerima<b>${esc(receipt.createdBy?.name || "-")}</b></div></div><table><thead><tr><th>No</th><th>SKU</th><th>Barang</th><th class="right">Diterima</th><th>Satuan</th><th>Kondisi</th></tr></thead><tbody>${rows}</tbody></table><table><tbody><tr><th style="width:28%">Surat jalan supplier</th><td>${esc(receipt.deliveryNote || "-")}</td></tr><tr><th>Bukti surat penerimaan</th><td>${receipt.deliveryNoteProofUrl ? esc(receipt.deliveryNoteFileName || "Foto bukti tersimpan") : "-"}</td></tr><tr><th>Catatan</th><td>${esc(receipt.notes || "-")}</td></tr></tbody></table><div class="signatures"><div>Pengirim / Supplier</div><div>Penerima</div><div>Diperiksa oleh</div></div>`,
   }));
 });
 router.post("/suppliers", async (req, res) => res.json({ ok: true, supplier: await prisma.supplier.create({ data: req.body }) }));
@@ -117,22 +125,26 @@ router.patch("/orders/:id/status", requireRole("OWNER", "ADMIN"), async (req, re
   res.json({ ok: true, order: await prisma.purchaseOrder.update({ where: { id: req.params.id }, data: { status: req.body.status } }) });
 });
 router.post("/receipts", async (req, res) => {
-  const { purchaseOrderId, locationId, deliveryNote, notes, supplierInvoiceNumber, supplierInvoiceDate, supplierInvoiceAmount, supplierInvoiceProofUrl, supplierInvoiceFileName, supplierInvoiceMimeType, supplierInvoiceSize, items = [] } = req.body;
+  const { purchaseOrderId, locationId, deliveryNote, deliveryNoteProofUrl, deliveryNoteFileName, deliveryNoteMimeType, deliveryNoteSize, notes, supplierInvoiceNumber, supplierInvoiceDate, supplierInvoiceAmount, supplierInvoiceProofUrl, supplierInvoiceFileName, supplierInvoiceMimeType, supplierInvoiceSize, items = [] } = req.body;
   try {
   const receipt = await prisma.$transaction(async tx => {
-    const po = await tx.purchaseOrder.findUnique({ where: { id: purchaseOrderId }, include: { items: { include: { item: true, tireRetread: true } } } });
+    const po = await tx.purchaseOrder.findUnique({ where: { id: purchaseOrderId }, include: { request: { include: { maintenance: true } }, items: { include: { item: true, tireRetread: true } } } });
     if (!po) throw new Error("Purchase Order tidak ditemukan");
+    // The maintenance relation is traceability only. Receipt always enters stock;
+    // mechanics install/use the item manually from the linked service afterward.
+    const directMaintenance = null;
     if (!locationId || !items.length) throw new Error("Lokasi dan item penerimaan wajib diisi");
+    if (!deliveryNoteProofUrl) throw new Error("Foto bukti surat penerimaan wajib dilampirkan");
     const invoiceAmount = supplierInvoiceAmount === "" || supplierInvoiceAmount == null ? null : Number(supplierInvoiceAmount);
     if (invoiceAmount != null && (!Number.isFinite(invoiceAmount) || invoiceAmount < 0)) throw new Error("Nilai invoice supplier tidak valid");
     const invoiceDate = supplierInvoiceDate ? new Date(supplierInvoiceDate) : null;
     if (invoiceDate && Number.isNaN(invoiceDate.getTime())) throw new Error("Tanggal invoice supplier tidak valid");
-    const rec = await tx.goodsReceipt.create({ data: { number: seq("GR"), purchaseOrderId, locationId, deliveryNote, notes, supplierInvoiceNumber: supplierInvoiceNumber ? String(supplierInvoiceNumber).trim() : null, supplierInvoiceDate: invoiceDate, supplierInvoiceAmount: invoiceAmount == null ? null : Math.round(invoiceAmount), supplierInvoiceProofUrl: supplierInvoiceProofUrl || null, supplierInvoiceFileName: supplierInvoiceFileName || null, supplierInvoiceMimeType: supplierInvoiceMimeType || null, supplierInvoiceSize: Number.isFinite(Number(supplierInvoiceSize)) ? Number(supplierInvoiceSize) : null, createdById: req.user.id } });
+    const rec = await tx.goodsReceipt.create({ data: { number: seq("GR"), purchaseOrderId, locationId, deliveryNote, deliveryNoteProofUrl, deliveryNoteFileName: deliveryNoteFileName || null, deliveryNoteMimeType: deliveryNoteMimeType || null, deliveryNoteSize: Number.isFinite(Number(deliveryNoteSize)) ? Number(deliveryNoteSize) : null, notes, supplierInvoiceNumber: supplierInvoiceNumber ? String(supplierInvoiceNumber).trim() : null, supplierInvoiceDate: invoiceDate, supplierInvoiceAmount: invoiceAmount == null ? null : Math.round(invoiceAmount), supplierInvoiceProofUrl: supplierInvoiceProofUrl || null, supplierInvoiceFileName: supplierInvoiceFileName || null, supplierInvoiceMimeType: supplierInvoiceMimeType || null, supplierInvoiceSize: Number.isFinite(Number(supplierInvoiceSize)) ? Number(supplierInvoiceSize) : null, createdById: req.user.id } });
     for (const row of items) {
       const poi = po.items.find(i => i.id === row.purchaseOrderItemId); const qty = Number(row.qty);
       if (!poi || qty <= 0 || poi.receivedQty + qty > poi.qty) throw new Error("Jumlah penerimaan melebihi sisa PO");
       const receiptItem = await tx.goodsReceiptItem.create({ data: { receiptId: rec.id, purchaseOrderItemId: poi.id, qty, condition: row.condition || "GOOD" } });
-      const batch = await tx.inventoryBatch.create({ data: { itemId: poi.itemId, locationId, goodsReceiptId: rec.id, goodsReceiptItemId: receiptItem.id, purchaseOrderItemId: poi.id, receivedQty: qty, remainingQty: qty, unitPrice: poi.unitPrice, receivedAt: rec.receivedAt } });
+      const batch = directMaintenance ? null : await tx.inventoryBatch.create({ data: { itemId: poi.itemId, locationId, goodsReceiptId: rec.id, goodsReceiptItemId: receiptItem.id, purchaseOrderItemId: poi.id, receivedQty: qty, remainingQty: qty, unitPrice: poi.unitPrice, receivedAt: rec.receivedAt } });
       if (poi.item.isSerialized) {
         const units = poi.tireRetreadId
           ? [{ retreadUnitId: poi.tireRetread.stockUnitId }]
@@ -183,12 +195,17 @@ router.post("/receipts", async (req, res) => {
           }
           const serialNumber = String(unit.serialNumber || "").trim();
           if (!serialNumber) throw new Error(`${poi.item.name}: serial number wajib diisi`);
-          await tx.stockUnit.create({ data: { itemId: poi.itemId, locationId, inventoryBatchId: batch.id, serialNumber, barcode: unit.barcode ? String(unit.barcode).trim() : null, purchasePrice: poi.unitPrice, purchasedAt: rec.receivedAt, currency: "IDR", status: "IN_STOCK" } });
+          const stockUnit = await tx.stockUnit.create({ data: { itemId: poi.itemId, locationId: directMaintenance ? null : locationId, inventoryBatchId: batch?.id || null, serialNumber, barcode: unit.barcode ? String(unit.barcode).trim() : null, purchasePrice: poi.unitPrice, purchasedAt: rec.receivedAt, currency: "IDR", status: directMaintenance ? "ASSIGNED" : "IN_STOCK" } });
+          if (directMaintenance) await tx.truckSparePartAssignment.create({ data: { truckId: directMaintenance.truckId, stockUnitId: stockUnit.id, installedAt: rec.receivedAt, installCost: poi.unitPrice, currency: "IDR", note: `Pembelian langsung ${po.number}`, maintenanceId: directMaintenance.id, createdById: req.user.id } });
         }
       }
       await tx.purchaseOrderItem.update({ where: { id: poi.id }, data: { receivedQty: { increment: qty } } });
-      await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: poi.itemId, locationId } }, create: { itemId: poi.itemId, locationId, qty }, update: { qty: { increment: qty } } });
-      await tx.stockMovement.create({ data: { type: "IN", itemId: poi.itemId, qty, toLocationId: locationId, createdById: req.user.id, note: `Penerimaan ${po.number}` } });
+      if (directMaintenance) {
+        if (!poi.item.isSerialized) await tx.stockMovement.create({ data: { type: "OUT", itemId: poi.itemId, qty, unitPrice: poi.unitPrice, totalCost: Math.round(qty * poi.unitPrice), maintenanceId: directMaintenance.id, createdById: req.user.id, note: `Pembelian langsung & dipakai pada ${directMaintenance.title} · ${po.number}` } });
+      } else {
+        await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: poi.itemId, locationId } }, create: { itemId: poi.itemId, locationId, qty }, update: { qty: { increment: qty } } });
+        await tx.stockMovement.create({ data: { type: "IN", itemId: poi.itemId, qty, unitPrice: poi.unitPrice, totalCost: Math.round(qty * poi.unitPrice), toLocationId: locationId, createdById: req.user.id, note: `Penerimaan ${po.number}` } });
+      }
     }
     const all = await tx.purchaseOrderItem.findMany({ where: { purchaseOrderId } });
     const fullyReceived = all.every(i => i.receivedQty >= i.qty);
@@ -196,26 +213,59 @@ router.post("/receipts", async (req, res) => {
       const poi = po.items.find(i => i.id === row.purchaseOrderItemId);
       return sum + Number(row.qty) * Number(poi?.unitPrice || 0);
     }, 0) + (fullyReceived ? Number(po.tax) + Number(po.shippingCost) - Number(po.discount) : 0);
-    if (receiptValue > 0) await postJournal(tx, { date: rec.receivedAt, description: `Penerimaan barang ${rec.number}`, sourceType: "GOODS_RECEIPT", sourceId: rec.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.INVENTORY, debit: receiptValue }, { code: SYSTEM_ACCOUNTS.AP, credit: receiptValue }] });
+    if (receiptValue > 0) await postJournal(tx, { date: rec.receivedAt, description: `${directMaintenance ? "Pembelian langsung servis" : "Penerimaan barang"} ${rec.number}`, sourceType: "GOODS_RECEIPT", sourceId: rec.id, createdById: req.user.id, lines: [{ code: directMaintenance ? SYSTEM_ACCOUNTS.EXPENSE : SYSTEM_ACCOUNTS.INVENTORY, debit: receiptValue }, { code: SYSTEM_ACCOUNTS.AP, credit: receiptValue }] });
     await tx.purchaseOrder.update({ where: { id: purchaseOrderId }, data: { status: fullyReceived ? "FULLY_RECEIVED" : "PARTIALLY_RECEIVED" } }); return rec;
   }); res.json({ ok: true, receipt });
   } catch (e) {
     res.status(400).json({ error: e.message || "Gagal menerima barang" });
   }
 });
+router.post("/bills", async (req, res) => {
+  try {
+    const { supplierId, invoiceNumber, invoiceDate, dueDate, amount, notes, proofUrl, proofFileName, proofMimeType, proofSize, receipts = [] } = req.body;
+    const total = Math.round(Number(amount));
+    if (!supplierId || !String(invoiceNumber || "").trim() || !invoiceDate || !Number.isFinite(total) || total <= 0 || !receipts.length) throw new Error("Supplier, nomor invoice, tanggal, nilai, dan penerimaan wajib diisi");
+    const ids = receipts.map(row => String(row.receiptId));
+    const records = await prisma.goodsReceipt.findMany({ where: { id: { in: ids } }, include: { purchaseOrder: true, supplierBillLine: true } });
+    if (records.length !== ids.length) throw new Error("Sebagian penerimaan barang tidak ditemukan");
+    if (records.some(row => row.purchaseOrder.supplierId !== supplierId)) throw new Error("Semua penerimaan harus berasal dari supplier yang sama");
+    if (records.some(row => row.supplierBillLine)) throw new Error("Ada penerimaan yang sudah masuk tagihan supplier lain");
+    const allocations = receipts.map(row => ({ receiptId: String(row.receiptId), amount: Math.round(Number(row.amount)) }));
+    if (allocations.some(row => !Number.isFinite(row.amount) || row.amount < 0) || allocations.reduce((sum, row) => sum + row.amount, 0) !== total) throw new Error("Jumlah alokasi penerimaan harus sama dengan nilai invoice supplier");
+    const bill = await prisma.supplierBill.create({
+      data: {
+        number: seq("BILL"), supplierId, invoiceNumber: String(invoiceNumber).trim(), invoiceDate: new Date(invoiceDate), dueDate: dueDate ? new Date(dueDate) : null,
+        amount: total, notes: notes || null, proofUrl: proofUrl || null, proofFileName: proofFileName || null, proofMimeType: proofMimeType || null,
+        proofSize: Number.isFinite(Number(proofSize)) ? Number(proofSize) : null, createdById: req.user.id, receipts: { create: allocations },
+      },
+      include: { supplier: true, receipts: { include: { receipt: { include: { purchaseOrder: true } } } }, payments: true },
+    });
+    res.status(201).json({ ok: true, bill });
+  } catch (e) { res.status(e.code === "P2002" ? 409 : 400).json({ error: e.code === "P2002" ? "Nomor invoice supplier sudah pernah dicatat" : e.message || "Gagal mencatat tagihan supplier" }); }
+});
+
 router.post("/payments", async (req, res) => {
-  const po = await prisma.purchaseOrder.findUnique({ where: { id: req.body.purchaseOrderId }, include: { items: true, payments: true } });
-  if (!po || !["PARTIALLY_RECEIVED", "FULLY_RECEIVED"].includes(po.status)) return res.status(400).json({ error: "Pembayaran hanya dapat diajukan setelah barang diterima" });
-  const total = po.items.reduce((sum, i) => sum + i.qty * i.unitPrice, 0) + po.tax + po.shippingCost - po.discount;
-  const committed = po.payments.filter(p => p.status !== "UNPAID").reduce((sum, p) => sum + p.amount, 0);
-  const amount = Number(req.body.amount);
-  if (!amount || amount <= 0 || amount > total - committed) return res.status(400).json({ error: "Jumlah pembayaran melebihi sisa tagihan" });
-  const payment = await prisma.purchasePayment.create({ data: { number: seq("PAY"), purchaseOrderId: req.body.purchaseOrderId, amount, method: req.body.method, reference: req.body.reference, createdById: req.user.id } }); res.json({ ok: true, payment });
+  const bill = await prisma.supplierBill.findUnique({ where: { id: req.body.supplierBillId }, include: { payments: true } });
+  if (!bill || ["PAID", "VOID"].includes(bill.status)) return res.status(400).json({ error: "Tagihan supplier tidak tersedia untuk dibayar" });
+  const committed = bill.payments.filter(p => p.status !== "UNPAID").reduce((sum, p) => sum + p.amount, 0);
+  const amount = Math.round(Number(req.body.amount));
+  if (!amount || amount <= 0 || amount > bill.amount - committed) return res.status(400).json({ error: "Jumlah pembayaran melebihi sisa tagihan supplier" });
+  const payment = await prisma.$transaction(async tx => {
+    const created = await tx.purchasePayment.create({ data: { number: seq("PAY"), supplierBillId: bill.id, amount, method: req.body.method, reference: req.body.reference, createdById: req.user.id } });
+    await tx.supplierBill.update({ where: { id: bill.id }, data: { status: "WAITING_PAYMENT_APPROVAL" } });
+    return created;
+  });
+  res.json({ ok: true, payment });
 });
 router.patch("/payments/:id/approve", requireRole("OWNER", "ADMIN"), async (req, res) => {
   const payment = await prisma.$transaction(async tx => {
     const updated = await tx.purchasePayment.update({ where: { id: req.params.id }, data: { status: "PAID", paidAt: new Date(), approvedAt: new Date(), approvedById: req.user.id } });
     await postJournal(tx, { date: updated.paidAt, description: `Pembayaran supplier ${updated.number}`, sourceType: "SUPPLIER_PAYMENT", sourceId: updated.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.AP, debit: updated.amount }, { code: cashCode(updated.method), credit: updated.amount }] });
+    if (updated.supplierBillId) {
+      const bill = await tx.supplierBill.findUnique({ where: { id: updated.supplierBillId }, include: { payments: true } });
+      const paid = bill.payments.filter(row => row.status === "PAID").reduce((sum, row) => sum + row.amount, 0);
+      await tx.supplierBill.update({ where: { id: bill.id }, data: { status: paid >= bill.amount ? "PAID" : "PARTIALLY_PAID" } });
+    }
     return updated;
   });
   res.json({ ok: true, payment });

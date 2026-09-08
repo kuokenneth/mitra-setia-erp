@@ -14,6 +14,13 @@ const statusLabel = {
   COMPLETED: "Selesai",
   CANCELLED: "Dibatalkan"
 };
+
+const cargoCategoryLabel = value => ({
+  FERTILIZER: "Pupuk",
+  CANGKANG: "Cangkang",
+  MATERIAL: "Ambang / Material",
+  AMBANG: "Ambang / Material",
+})[String(value || "").toUpperCase()] || "Muatan";
 const statusColor = {
   PLANNED: {
     color: "#475569",
@@ -191,12 +198,14 @@ export default function Trips() {
   });
   const [emptyReturnOpen, setEmptyReturnOpen] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [viewTab, setViewTab] = useState("LIST");
   const [singleTripOpen, setSingleTripOpen] = useState(false);
   const [singleTripBusy, setSingleTripBusy] = useState(false);
   const [singleTripTrucks, setSingleTripTrucks] = useState([]);
   const [singleTripLocations, setSingleTripLocations] = useState([]);
+  const [singleTripCustomers, setSingleTripCustomers] = useState([]);
   const [singleTripQ, setSingleTripQ] = useState("");
-  const [singleTripForm, setSingleTripForm] = useState({ truckId: "", pickupLocationId: "", destinationLocationId: "", plannedDepartAt: "", cargoCategory: "CANGKANG", cargoName: "", qtyPlanned: "", unit: "TON", reason: "" });
+  const [singleTripForm, setSingleTripForm] = useState({ truckId: "", pickupLocationId: "", destinationLocationId: "", plannedDepartAt: "", cargoCategory: "CANGKANG", cargoName: "", billingCustomerId: "", qtyPlanned: "", unit: "TON", reason: "" });
   const [emptyReturnBusy, setEmptyReturnBusy] = useState(false);
   const [emptyReturnTrucks, setEmptyReturnTrucks] = useState([]);
   const [baseLocations, setBaseLocations] = useState([]);
@@ -209,7 +218,7 @@ export default function Trips() {
     setError("");
     setSingleTripQ("");
     try {
-      const [truckData, locationData] = await Promise.all([api("/trucks"), api("/operational-locations")]);
+      const [truckData, locationData, customerData] = await Promise.all([api("/trucks"), api("/operational-locations"), api("/customers")]);
       const trucks = (truckData.items || []).filter(truck => truck.status === "READY" && truck.driverUser?.id);
       const locations = (locationData.items || []).filter(location => location.isActive);
       const normalizeLocationName = value => String(value || "").trim().toLocaleLowerCase("id-ID").replace(/[^a-z0-9]+/g, " ").trim();
@@ -221,6 +230,7 @@ export default function Trips() {
       const localNow = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
       setSingleTripTrucks(trucks);
       setSingleTripLocations(orderedLocations);
+      setSingleTripCustomers(customerData.items || []);
       setSingleTripForm(form => ({ ...form, truckId: trucks[0]?.id || "", pickupLocationId: mitraSetia?.id || "", destinationLocationId: defaultDestination?.id || "", plannedDepartAt: localNow }));
     } catch (error) {
       setError(error.message || "Gagal menyiapkan trip tunggal");
@@ -439,7 +449,8 @@ export default function Trips() {
   }, [controlTrips]);
   return <div className="trips-v3-page"><header className="trips-v3-head"><div><span>TRIP CONTROL</span><h1>Perjalanan Armada</h1><p>Pantau penugasan, posisi workflow, muatan tiba, dan penyelesaian perjalanan.</p></div><div className="trip-create-actions"><b>{pagination.total} total trip</b><div className="trip-create-menu" onMouseEnter={() => setCreateMenuOpen(true)} onMouseLeave={() => setCreateMenuOpen(false)}><button type="button" aria-haspopup="menu" aria-expanded={createMenuOpen} onClick={() => setCreateMenuOpen(open => !open)}><FiPlus /> Buat Trip <FiChevronDown /></button>{createMenuOpen && <div role="menu"><button type="button" role="menuitem" onClick={openSingleTrip}><FiPackage/><span><strong>Trip Tunggal</strong><small>Muatan tanpa pesanan</small></span></button><button type="button" role="menuitem" onClick={() => { setCreateMenuOpen(false); openEmptyReturn(); }}><FiTruck/><span><strong>Kembali Kosong</strong><small>Armada pulang tanpa muatan</small></span></button></div>}</div></div></header>
     <section className="trips-v3-summary"><article><FiActivity /><small>AKTIF</small><strong>{summary.active}</strong><span>Planned sampai tiba</span></article><article><FiTruck /><small>DALAM PERJALANAN</small><strong>{summary.moving}</strong><span>Status dispatched</span></article><article><FiMapPin /><small>SUDAH TIBA</small><strong>{summary.arrived}</strong><span>Menunggu penyelesaian</span></article><article><FiCheckCircle /><small>SELESAI</small><strong>{summary.completed}</strong><span>Pada halaman ini</span></article></section>
-    <section className="trip-control-center"><header><div><span>LIVE OPERATION FLOW</span><h2>Pusat Kontrol Trip</h2><p>Perpindahan tahap mengikuti data GPS. Klik warning untuk melakukan tindak lanjut.</p></div><b className={control.warnings ? "warning" : "safe"}><FiAlertTriangle /> {control.warnings} warning</b></header>{controlLoading ? <LoadingState label="Menyiapkan pusat kontrol" note="Mengelompokkan perjalanan berdasarkan tahap GPS…" rows={4} /> : <div className="trip-control-grid">{CONTROL_STAGES.map(stage => {
+    <nav className="trips-view-tabs" aria-label="Tampilan perjalanan"><button type="button" className={viewTab === "LIST" ? "active" : ""} onClick={() => setViewTab("LIST")}><FiTruck /><span><strong>Trip Aktif & Riwayat</strong><small>Cari perjalanan aktif maupun selesai</small></span><b>{pagination.total}</b></button><button type="button" className={viewTab === "CONTROL" ? "active" : ""} onClick={() => setViewTab("CONTROL")}><FiActivity /><span><strong>Pusat Kontrol Trip</strong><small>Pantau tahap perjalanan secara langsung</small></span>{control.warnings > 0 && <b>{control.warnings}</b>}</button></nav>
+    <section className={`trip-control-center ${viewTab !== "CONTROL" ? "trip-view-hidden" : ""}`}><header><div><span>LIVE OPERATION FLOW</span><h2>Pusat Kontrol Trip</h2><p>Perpindahan tahap mengikuti data GPS. Klik warning untuk melakukan tindak lanjut.</p></div><b className={control.warnings ? "warning" : "safe"}><FiAlertTriangle /> {control.warnings} warning</b></header>{controlLoading ? <LoadingState label="Menyiapkan pusat kontrol" note="Mengelompokkan perjalanan berdasarkan tahap GPS…" rows={4} /> : <div className="trip-control-grid">{CONTROL_STAGES.map(stage => {
           const Icon = stage.icon;
           const rows = control.groups[stage.key] || [];
           return <article className={`trip-control-lane ${stage.warning ? "warning" : ""}`} key={stage.key}><div className="trip-control-lane-head"><span><Icon /></span><div><strong>{stage.label}</strong><small>{stage.note}</small></div><b>{rows.length}</b></div><div className="trip-control-cards">{rows.slice(0, 5).map(({
@@ -447,7 +458,7 @@ export default function Trips() {
                 warning
               }) => <button type="button" key={trip.id} className={warning ? warning.level : ""} onClick={() => warning ? openActionCenter(trip, warning) : nav(`/trips/${trip.id}`)}><div><strong>{trip.truck?.plateNumber || trip.plateNumberSnap || "Tanpa armada"}</strong><span>{trip.order?.orderNo || (trip.purpose === "EMPTY_RETURN" ? "Kembali kosong" : trip.purpose === "SINGLE_TRIP" ? trip.tripNo || "Trip tanpa pesanan" : "Trip operasional")}</span></div><p><FiMapPin /> {stage.key === "TO_PICKUP" ? trip.fromText : stage.key === "AT_PICKUP" ? trip.fromText : stage.key === "SERVICE_AT_BASE" ? trip.serviceStops?.[0]?.location?.name || "Base" : trip.toText}</p>{warning ? <em><FiAlertTriangle /> {warning.text}</em> : <small>{trip.driverUser?.name || trip.driverNameSnap || "Tanpa pengemudi"}</small>}<FiChevronRight /></button>)}{!rows.length && <div className="trip-control-empty">Tidak ada trip</div>}{rows.length > 5 && <div className="trip-control-more">+{rows.length - 5} trip lainnya</div>}</div></article>;
         })}</div>}</section>
-    <section className="trips-v3-tools"><label><FiSearch /><input value={filters.q} onChange={e => setFilters(f => ({
+    <section className={`trips-v3-tools ${viewTab !== "LIST" ? "trip-view-hidden" : ""}`}><label><FiSearch /><input value={filters.q} onChange={e => setFilters(f => ({
           ...f,
           q: e.target.value
         }))} placeholder="Cari order, nomor polisi, pengemudi, atau tujuan…" />{loading && <LoadingMini />}</label><select value={filters.status} onChange={e => setFilters(f => ({
@@ -461,11 +472,11 @@ export default function Trips() {
         dateTo: e.target.value
       }))} /><button type="button" onClick={resetFilters}><FiX /> Reset</button></section>
     {error && <div className="trips-v3-error">{error}</div>}
-    <section className="trips-v3-board"><header><div><span>DAFTAR OPERASIONAL</span><h2>Trip Aktif & Riwayat</h2></div><b>{items.length} ditampilkan</b></header><div className="trips-v3-list">{!loading && items.map(trip => {
+    <section className={`trips-v3-board ${viewTab !== "LIST" ? "trip-view-hidden" : ""}`}><header><div><span>DAFTAR OPERASIONAL</span><h2>Trip Aktif & Riwayat</h2></div><b>{items.length} ditampilkan</b></header><div className="trips-v3-list">{!loading && items.map(trip => {
           const planned = trip.qtyPlanned == null ? null : Number(trip.qtyPlanned);
           const actual = trip.qtyActual == null ? null : Number(trip.qtyActual);
           const loss = planned == null || actual == null ? null : Math.max(0, planned - actual);
-          return <article key={trip.id} onClick={() => nav(`/trips/${trip.id}`)}><div className="trips-v3-id"><span style={statusColor[trip.status]}>{statusLabel[trip.status] || trip.status}</span><h3>{trip.order?.orderNo || (trip.purpose === "EMPTY_RETURN" ? "Kembali Kosong" : trip.purpose === "SINGLE_TRIP" ? trip.tripNo || "Trip tanpa pesanan" : "Tanpa Order")}</h3><p>{trip.order?.customerName || "Operasional internal"}</p></div><div className="trips-v3-assignment"><FiTruck /><div><small>ARMADA & PENGEMUDI</small><strong>{trip.truck?.plateNumber || trip.plateNumberSnap || "—"}</strong><span>{trip.driverUser?.name || trip.driverNameSnap || "Tanpa pengemudi"}</span></div></div><div className="trips-v3-route"><FiMapPin /><div><small>RUTE</small><strong>{trip.order?.fromText || trip.fromText || "—"} <i>→</i> {trip.order?.toText || trip.toText || "—"}</strong><span><FiCalendar /> {dateTime(trip.plannedDepartAt || trip.createdAt)}</span></div></div><div className="trips-v3-load"><FiPackage /><div><small>MUATAN</small><strong>{actual ?? planned ?? "—"} {trip.unitSnap || ""}</strong><span>{actual == null ? `Rencana ${planned ?? "—"}` : `Tiba ${actual} dari ${planned ?? "—"}`}</span>{loss > 0 && <em>Selisih {loss} {trip.unitSnap || ""}</em>}</div></div><div className="trips-v3-docs"><span><b>{trip._count?.arrivalProofs || 0}</b> bukti</span><span><b>{trip._count?.expenses || 0}</b> biaya</span><FiChevronRight /></div></article>;
+          return <article key={trip.id} onClick={() => nav(`/trips/${trip.id}`)}><div className="trips-v3-id"><span style={statusColor[trip.status]}>{statusLabel[trip.status] || trip.status}</span><h3>{trip.order?.orderNo || (trip.purpose === "EMPTY_RETURN" ? "Kembali Kosong" : trip.purpose === "SINGLE_TRIP" ? trip.tripNo || "Trip tanpa pesanan" : "Tanpa Order")}</h3><p>{trip.order?.customerName || "Operasional internal"}</p></div><div className="trips-v3-assignment"><FiTruck /><div><small>ARMADA & PENGEMUDI</small><strong>{trip.truck?.plateNumber || trip.plateNumberSnap || "—"}</strong><span>{trip.driverUser?.name || trip.driverNameSnap || "Tanpa pengemudi"}</span></div></div><div className="trips-v3-route"><FiMapPin /><div><small>RUTE</small><strong>{trip.order?.fromText || trip.fromText || "—"} <i>→</i> {trip.order?.toText || trip.toText || "—"}</strong><span><FiCalendar /> {dateTime(trip.plannedDepartAt || trip.createdAt)}</span></div></div><div className="trips-v3-load"><FiPackage /><div><small>MUATAN</small><strong>{trip.purpose === "SINGLE_TRIP" ? cargoCategoryLabel(trip.cargoCategorySnap) : (trip.order?.cargoName || trip.cargoNameSnap || "Muatan")}</strong><span>{actual == null ? `Rencana ${planned ?? "—"} ${trip.unitSnap || ""}` : `${actual} ${trip.unitSnap || ""} tiba${planned == null ? "" : ` dari ${planned} ${trip.unitSnap || ""}`}`}</span>{loss > 0 && <em>Selisih {loss} {trip.unitSnap || ""}</em>}</div></div><div className="trips-v3-docs"><span><b>{trip._count?.arrivalProofs || 0}</b> bukti</span><span><b>{trip._count?.expenses || 0}</b> biaya</span><FiChevronRight /></div></article>;
         })}{loading && <LoadingState label="Memuat perjalanan" note="Menyinkronkan tahap GPS dan penugasan armada…" rows={4} />} {!loading && !items.length && <div className="trips-v3-state">Tidak ada trip yang sesuai filter.</div>}</div><footer><span>Halaman {pagination.page} dari {pagination.totalPages}</span><div><button disabled={page <= 1 || loading} onClick={() => setPage(p => p - 1)}><FiChevronLeft /> Sebelumnya</button><button disabled={page >= pagination.totalPages || loading} onClick={() => setPage(p => p + 1)}>Berikutnya <FiChevronRight /></button></div></footer></section>
     {singleTripOpen && <div className="trip-action-overlay" onMouseDown={event => event.target === event.currentTarget && !singleTripBusy && setSingleTripOpen(false)}>
       <section className="trip-action-modal empty-return-builder single-trip-builder">
@@ -481,6 +492,7 @@ export default function Trips() {
               <div className="empty-return-section-title"><div><span>LANGKAH 2</span><strong>Muatan & Rute</strong></div></div>
               <div><span className="single-trip-field-label">Kategori muatan</span><div className="single-trip-categories">{[{ value: "FERTILIZER", label: "Pupuk", note: "Jumlah wajib" }, { value: "CANGKANG", label: "Cangkang", note: "Jumlah wajib" }, { value: "MATERIAL", label: "Ambang / Material", note: "Dapat menyusul" }].map(option => <button key={option.value} type="button" className={singleTripForm.cargoCategory === option.value ? "active" : ""} onClick={() => setSingleTripForm(form => ({ ...form, cargoCategory: option.value, qtyPlanned: option.value === "MATERIAL" ? "" : form.qtyPlanned }))}><FiPackage/><span><strong>{option.label}</strong><small>{option.note}</small></span></button>)}</div></div>
               <label><span>Nama barang / muatan</span><input required value={singleTripForm.cargoName} onChange={event => setSingleTripForm(form => ({ ...form, cargoName: event.target.value }))} placeholder="Contoh: Pupuk NPK, cangkang, pasir"/></label>
+              <label><span>Customer tagihan</span><select required value={singleTripForm.billingCustomerId} onChange={event => setSingleTripForm(form => ({ ...form, billingCustomerId: event.target.value }))}><option value="">Pilih customer dari Master Customer</option>{singleTripCustomers.map(customer => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
               <label><span>Jumlah {["FERTILIZER", "CANGKANG"].includes(singleTripForm.cargoCategory) ? "(wajib)" : "(opsional)"}</span><input required={["FERTILIZER", "CANGKANG"].includes(singleTripForm.cargoCategory)} type="number" min="0.01" step="any" value={singleTripForm.qtyPlanned} onChange={event => setSingleTripForm(form => ({ ...form, qtyPlanned: event.target.value }))} placeholder={["MATERIAL", "AMBANG"].includes(singleTripForm.cargoCategory) ? "Dapat diisi setelah muat" : "Contoh: 25"}/></label>
               <label><span>Satuan</span><select value={singleTripForm.unit} onChange={event => setSingleTripForm(form => ({ ...form, unit: event.target.value }))}><option value="TON">TON</option><option value="KG">KG</option><option value="PCS">PCS</option><option value="M3">M3</option></select></label>
               <label><span>Lokasi muat</span><select required value={singleTripForm.pickupLocationId} onChange={event => setSingleTripForm(form => ({ ...form, pickupLocationId: event.target.value }))}><option value="">Pilih lokasi muat</option>{singleTripLocations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
@@ -490,7 +502,7 @@ export default function Trips() {
               {selectedSingleTruck && selectedSinglePickup && selectedSingleDestination && <div className="empty-return-summary"><span>RUTE TRIP TUNGGAL</span><strong>{selectedSinglePickup.name} <b>→</b> {selectedSingleDestination.name}</strong><small>{selectedSingleTruck.plateNumber} · {singleTripForm.cargoName || "Muatan"}{singleTripForm.qtyPlanned ? ` · ${singleTripForm.qtyPlanned} ${singleTripForm.unit}` : " · jumlah diisi setelah muat"}</small></div>}
             </section>
           </div>
-          <footer><button type="button" className="secondary" disabled={singleTripBusy} onClick={() => setSingleTripOpen(false)}>Batal</button><button type="submit" disabled={singleTripBusy || !singleTripForm.truckId || !singleTripForm.pickupLocationId || !singleTripForm.destinationLocationId || singleTripForm.pickupLocationId === singleTripForm.destinationLocationId}>{singleTripBusy ? "Menyiapkan…" : "Buat Trip Tunggal"}</button></footer>
+          <footer><button type="button" className="secondary" disabled={singleTripBusy} onClick={() => setSingleTripOpen(false)}>Batal</button><button type="submit" disabled={singleTripBusy || !singleTripForm.truckId || !singleTripForm.billingCustomerId || !singleTripForm.pickupLocationId || !singleTripForm.destinationLocationId || singleTripForm.pickupLocationId === singleTripForm.destinationLocationId}>{singleTripBusy ? "Menyiapkan…" : "Buat Trip Tunggal"}</button></footer>
         </form>
       </section>
     </div>}
