@@ -774,7 +774,7 @@ export default function Trucks() {
                 </select>
               </Field>
 
-              <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+              <div className="fleet-add-actions" style={{ display: "flex", gap: 12, marginTop: 8 }}>
                 <button type="submit" disabled={creating} style={{ ...s.primaryBtn, flex: 1, opacity: creating ? 0.7 : 1 }} data-testid="submit-truck-btn">
                   {creating ? "Adding…" : "Tambah Kendaraan"}
                 </button>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FiActivity, FiAlertTriangle, FiChevronRight, FiMapPin, FiNavigation, FiRefreshCw, FiSearch, FiTruck } from "react-icons/fi";
+import { FiActivity, FiAlertTriangle, FiChevronRight, FiMap, FiMapPin, FiNavigation, FiRefreshCw, FiSearch, FiTruck } from "react-icons/fi";
 import { api } from "../api";
 import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID, loadGoogleMaps } from "../googleMaps";
 import { useLiveRefresh } from "../liveUpdates";
@@ -16,6 +16,13 @@ function validPosition(truck) {
   const lng = Number(truck.lastGpsLongitude);
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180 || (lat === 0 && lng === 0)) return null;
   return { lat, lng };
+}
+
+function cityFromGeocode(response) {
+  const results = Array.isArray(response) ? response : response?.results;
+  const components = results?.[0]?.address_components || [];
+  const find = (type) => components.find((item) => item.types?.includes(type))?.long_name;
+  return find("administrative_area_level_2") || find("locality") || find("administrative_area_level_1") || null;
 }
 
 function markerColor(truck) {
@@ -130,6 +137,8 @@ export default function FleetMap() {
   const [query, setQuery] = useState("");
   const [mapFilter, setMapFilter] = useState("ALL");
   const [focusTruckId, setFocusTruckId] = useState(null);
+  const [cityByTruck, setCityByTruck] = useState({});
+  const cityCacheRef = useRef(new Map());
 
   async function load({ background = false } = {}) {
     if (!background) setLoading(true);
@@ -158,6 +167,34 @@ export default function FleetMap() {
   const attentionAll = useMemo(() => mapped.filter((truck) => truck.gpsStopWarning || truck.gpsLocation?.type === "WARNING" || truck.status === "MAINTENANCE"), [mapped]);
   const visible = useMemo(() => searched.filter((truck) => mapFilter === "MOVING" ? (truck.status === "DISPATCH" || Number(truck.lastGpsSpeed || 0) > 5) : mapFilter === "ATTENTION" ? (truck.gpsStopWarning || truck.gpsLocation?.type === "WARNING" || truck.status === "MAINTENANCE") : true), [searched, mapFilter]);
   const moving = useMemo(() => visible.filter((truck) => truck.status === "DISPATCH" || Number(truck.lastGpsSpeed || 0) > 5).sort((a, b) => Number(b.lastGpsSpeed || 0) - Number(a.lastGpsSpeed || 0)), [visible]);
+  useEffect(() => {
+    if (!GOOGLE_MAPS_API_KEY || !mapped.length) return;
+    let active = true;
+    loadGoogleMaps().then(async (maps) => {
+      const geocoder = new maps.Geocoder();
+      for (const truck of mapped) {
+        if (!active) break;
+        const key = `${truck.position.lat.toFixed(3)},${truck.position.lng.toFixed(3)}`;
+        let city = cityCacheRef.current.get(key);
+        if (city === undefined) {
+          try { city = cityFromGeocode(await geocoder.geocode({ location: truck.position })) || "Lokasi belum dikenali"; }
+          catch { city = "Lokasi belum dikenali"; }
+          if (city !== "Lokasi belum dikenali") cityCacheRef.current.set(key, city);
+        }
+        if (active) setCityByTruck((current) => current[truck.id] === city ? current : { ...current, [truck.id]: city });
+      }
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [mapped]);
+  const cityGroups = useMemo(() => {
+    const groups = new Map();
+    visible.forEach((truck) => {
+      const city = cityByTruck[truck.id] || "Mengenali lokasi…";
+      if (!groups.has(city)) groups.set(city, []);
+      groups.get(city).push(truck);
+    });
+    return [...groups.entries()].map(([city, cityTrucks]) => ({ city, trucks: cityTrucks.sort((a,b) => String(a.plateNumber).localeCompare(String(b.plateNumber))), moving: cityTrucks.filter((truck) => truck.status === "DISPATCH" || Number(truck.lastGpsSpeed || 0) > 5).length })).sort((a,b) => b.trucks.length-a.trucks.length || a.city.localeCompare(b.city));
+  }, [visible, cityByTruck]);
 
   return (
     <main className="fleet-map-page google-map-page">
@@ -173,6 +210,10 @@ export default function FleetMap() {
           {mapError && <div className="fleet-map-error google-map-runtime-error">{mapError}</div>}
           {!loading && GOOGLE_MAPS_API_KEY && !visible.length && <div className="fleet-map-empty">Belum ada armada dengan koordinat GPS yang cocok.</div>}
         </div>
+      </section>
+      <section className="fleet-city-section">
+        <header><div><span>SEBARAN LOKASI</span><h2>Lokasi Armada per Kota</h2><p>Pengelompokan otomatis dari koordinat GPS terbaru kendaraan.</p></div><b><FiMap/> {cityGroups.filter((group)=>group.city!=="Mengenali lokasi…").length} wilayah</b></header>
+        {loading ? <LoadingState label="Memuat lokasi armada" note="Mengenali kota dari posisi GPS…" rows={3}/> : cityGroups.length ? <div className="fleet-city-grid">{cityGroups.map((group)=><article key={group.city} className={group.city==="Mengenali lokasi…"?"resolving":""}><div className="fleet-city-title"><span><FiMapPin/></span><div><small>KOTA / KABUPATEN</small><h3>{group.city}</h3></div><b>{group.trucks.length} armada</b></div><div className="fleet-city-summary"><span>{group.moving} bergerak</span><span>{group.trucks.length-group.moving} berhenti / standby</span></div><div className="fleet-city-trucks">{group.trucks.map((truck)=><button type="button" key={truck.id} onClick={()=>{setFocusTruckId(truck.id);document.querySelector('.fleet-map-card')?.scrollIntoView({behavior:'smooth',block:'start'});}}><i style={{background:markerColor(truck)}}/><span><strong>{truck.plateNumber}</strong><small>{truck.driverUser?.name||"Belum ada pengemudi"}</small></span><em>{Number(truck.lastGpsSpeed||0).toFixed(0)} km/j</em><FiChevronRight/></button>)}</div></article>)}</div> : <div className="fleet-city-empty"><FiMapPin/><p>Belum ada armada dengan koordinat GPS.</p></div>}
       </section>
     </main>
   );

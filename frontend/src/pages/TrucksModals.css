@@ -95,3 +95,30 @@
   .fleet-movement-filters > span { width: 100%; margin-left: 0; box-sizing: border-box; }
   .fleet-modal-hero { align-items: flex-start !important; }
 }
+
+/* Keep the complete create form reachable on tablet landscape and portrait. */
+@media (min-width: 721px) and (max-width: 1180px) {
+  .fleet-add-modal {
+    display: flex !important;
+    flex-direction: column;
+    width: min(720px, calc(100vw - 40px)) !important;
+    max-height: calc(100dvh - 40px) !important;
+  }
+  .fleet-add-header { flex: 0 0 auto; }
+  .fleet-add-form {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: 18px !important;
+  }
+  .fleet-add-actions {
+    position: sticky;
+    z-index: 3;
+    bottom: -18px;
+    margin: 0 -25px -18px !important;
+    padding: 14px 25px 18px;
+    border-top: 1px solid #e3eae5;
+    background: rgba(255,255,255,.97);
+    box-shadow: 0 -9px 22px rgba(25,55,36,.06);
+  }
+}

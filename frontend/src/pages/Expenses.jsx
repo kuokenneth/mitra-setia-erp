@@ -619,15 +619,15 @@ export default function Expenses() {
       {/* Create Modal */}
       {showModal && (
         <div style={s.modalOverlay} onClick={() => setShowModal(false)}>
-          <div style={s.modalCard} onClick={(e) => e.stopPropagation()}>
-            <div style={s.modalHeader}>
+          <div style={s.modalCard} className="expense-create-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={s.modalHeader} className="expense-create-header">
               <div style={s.modalTitle}>Pengeluaran Baru</div>
               <button style={s.closeBtn} onClick={() => setShowModal(false)} aria-label="Close">
                 ✕
               </button>
             </div>
-            <form onSubmit={onSubmit}>
-              <div style={s.formGrid}>
+            <form className="expense-create-form" onSubmit={onSubmit}>
+              <div style={s.formGrid} className="expense-create-fields">
                 <div style={{ gridColumn: "1 / -1" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12, marginBottom: 8 }}>
                     <div>
@@ -663,7 +663,7 @@ export default function Expenses() {
                     </select>
                   </div>
                   {emptyReturnOpen && (
-                    <div style={{ marginTop: 12, padding: isMobile ? 14 : 16, border: `1px solid #CFE1D5`, borderRadius: 12, background: "#F7FBF8" }}>
+                    <div className="expense-empty-return" style={{ marginTop: 12, padding: isMobile ? 14 : 16, border: `1px solid #CFE1D5`, borderRadius: 12, background: "#F7FBF8" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 12 }}>
                         <div><div style={{ color: BRAND.primary, fontWeight: 750, fontSize: 13 }}>PERJALANAN KEMBALI KOSONG</div><div style={{ color: BRAND.textMuted, fontSize: 11, marginTop: 3 }}>Hanya menampilkan truk yang menunggu backhaul di luar Medan.</div></div>
                         <button type="button" onClick={() => setEmptyReturnOpen(false)} style={{ border: 0, background: "transparent", color: BRAND.textMuted, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
@@ -788,7 +788,7 @@ export default function Expenses() {
                   />
                 </div>
               </div>
-              <div style={s.formActions}>
+              <div style={s.formActions} className="expense-create-actions">
                 <button style={s.secondaryBtn} type="button" onClick={() => setShowModal(false)}>
                   Cancel
                 </button>
