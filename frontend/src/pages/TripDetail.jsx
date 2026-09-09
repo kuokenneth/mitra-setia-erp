@@ -256,6 +256,7 @@ export default function TripDetail() {
   const [operationalLocations, setOperationalLocations] = useState([]);
   const [singleMaterialOpen, setSingleMaterialOpen] = useState(false);
   const [singleMaterialBusy, setSingleMaterialBusy] = useState(false);
+  const [dispatchBusy, setDispatchBusy] = useState(false);
   const [materialCustomers, setMaterialCustomers] = useState([]);
   const [materialAvailable, setMaterialAvailable] = useState([]);
   const [singleMaterialForm, setSingleMaterialForm] = useState({ customerId: "", selected: {}, destinationLocationId: "", stopSequence: 1, notes: "" });
@@ -296,6 +297,27 @@ export default function TripDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
   useLiveRefresh(load);
+
+  async function generateDispatchLetter() {
+    setDispatchBusy(true);
+    setErr("");
+    try {
+      await api(`/dispatch/trips/${id}`, {
+        method: "POST",
+        body: JSON.stringify({
+          city: "Medan",
+          companyName: "CV. MITRA SETIA",
+          companyAddress: "JLN. CEMARA NO. 40 TELP. (061) 6642646. FAX. (061) 6642647\nDs. Sampali Kec. Percut Sei Tuan Kab. Deli Serdang",
+          companyPhone: "Telp. (061) 6642646",
+        }),
+      });
+      await load();
+    } catch (e) {
+      setErr(e?.message || "Gagal membuat surat jalan");
+    } finally {
+      setDispatchBusy(false);
+    }
+  }
 
   const order = trip?.order || null;
   const truck = trip?.truck || null;
@@ -675,9 +697,7 @@ export default function TripDetail() {
               <InfoRow
                 label="Surat jalan"
                 icon={FiFileText}
-                value={trip.dispatchLetter?.pdfUrl ? (
-                  <button type="button" onClick={() => openProtectedFile(trip.dispatchLetter.pdfUrl).catch((e) => setErr(e.message))} style={{ border: 0, padding: 0, background: "transparent", cursor: "pointer", fontWeight: 600, color: "#0D7C3D" }}>{trip.dispatchLetter.number || "Buka PDF"}</button>
-                ) : "Belum dibuat"}
+                value={<span className="trip-dispatch-actions">{trip.dispatchLetter?.pdfUrl ? <button type="button" className="trip-dispatch-link" onClick={() => openProtectedFile(trip.dispatchLetter.pdfUrl).catch((e) => setErr(e.message))}>{trip.dispatchLetter.number || "Buka PDF"}</button> : <span>Belum dibuat</span>}{canWrite && trip.purpose === "SINGLE_TRIP" && currentStatus !== "CANCELLED" && <button type="button" className="trip-dispatch-create" disabled={dispatchBusy} onClick={generateDispatchLetter}>{dispatchBusy ? "Membuat…" : trip.dispatchLetter ? "Buat ulang" : "Buat surat jalan"}</button>}</span>}
               />
             </div>
           </div>

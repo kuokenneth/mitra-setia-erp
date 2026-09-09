@@ -126,6 +126,7 @@ hr { border: none; border-top: 1.5px solid #000; margin: 10px 0 18px; }
     <div><span class="label">Nama Supir</span>: ${esc(driverName || "")}</div>
     <div><span class="label">No. Polisi</span>: ${esc(plateNumber || "")}</div>
     <div><span class="label">Tanggal Muat</span>: ${esc(loadDateText || "")}</div>
+    <div><span class="label">Jumlah Muatan</span>: ${esc(qtyText || "")}</div>
     <div><span class="label">Tujuan</span>: ${esc(destination || "")}</div>
   </div>
 
@@ -179,28 +180,37 @@ router.post("/trips/:tripId", authRequired, async (req, res) => {
     const result = await prisma.$transaction(async (tx) => {
       const trip = await tx.trip.findUnique({
         where: { id: tripId },
-        include: { truck: true, driverUser: true, order: true, dispatchLetter: true, orderAllocations: { include: { order: { include: { customer: true, destinationLocation: true } } }, orderBy: [{ stopSequence: "asc" }, { createdAt: "asc" }] } },
+        include: { truck: true, driverUser: true, order: true, dispatchLetter: true, materialInvoices: { include: { lines: true, destinationLocation: true }, orderBy: [{ stopSequence: "asc" }, { createdAt: "asc" }] }, orderAllocations: { include: { order: { include: { customer: true, destinationLocation: true } } }, orderBy: [{ stopSequence: "asc" }, { createdAt: "asc" }] } },
       });
       if (!trip) throw new Error("Trip not found");
 
       const order = trip.order;
 
       const allocations = trip.orderAllocations || [];
+      const materialInvoices = trip.materialInvoices || [];
       const recipientName = allocations.length
         ? [...new Set(allocations.map((item) => item.order.customer?.name || item.order.customerName).filter(Boolean))].join(" / ")
-        : order.customerName || "";
+        : materialInvoices.length
+          ? [...new Set(materialInvoices.map((item) => item.billingCustomerName).filter(Boolean))].join(" / ")
+          : trip.billingCustomerName || order?.customerName || "";
       const cargoName = allocations.length
         ? allocations.map((item) => `${item.order.cargoName || "Muatan"} (${item.order.orderNo})`).join("; ")
-        : order.cargoName || "";
+        : materialInvoices.length
+          ? materialInvoices.map((item) => item.lines?.length ? item.lines.map((line) => line.itemName).join(", ") : item.materialName).filter(Boolean).join("; ")
+          : trip.cargoNameSnap || order?.cargoName || "";
       const qtyText = allocations.length
         ? allocations.map((item) => `${Number(item.qtyPlanned || 0)} ${item.unitSnap || ""}`.trim()).join("; ")
-        : (trip.qtyPlanned != null ? `${Number(trip.qtyPlanned)} ${trip.unitSnap || order.unit || ""}`.trim() : "");
+        : materialInvoices.length
+          ? materialInvoices.map((item) => `${Number(item.qty || 0)} ${item.unit || ""}`.trim()).join("; ")
+          : (trip.qtyPlanned != null ? `${Number(trip.qtyPlanned)} ${trip.unitSnap || order?.unit || ""}`.trim() : "");
 
       const driverName = trip.driverNameSnap || trip.driverUser?.name || "";
       const plateNumber = trip.plateNumberSnap || trip.truck?.plateNumber || "";
       const destination = allocations.length
         ? allocations.map((item) => `${item.stopSequence}. ${item.order.destinationLocation?.name || item.order.toText || "Tujuan"}`).join("; ")
-        : trip.toText || order.toText || "";
+        : materialInvoices.length
+          ? materialInvoices.map((item, index) => `${item.stopSequence || index + 1}. ${item.destinationLocation?.name || trip.toText || "Tujuan"}`).join("; ")
+          : trip.toText || order?.toText || "";
 
       const issuedAt = new Date();
       const dispatchNo = trip.dispatchLetter?.number || (await nextDispatchNo(tx));

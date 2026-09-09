@@ -28,9 +28,22 @@ function tripDate(trip) {
 }
 
 function allocatedRevenue(trip) {
+  const singleLine = trip.invoiceLines?.find(line => ["SENT", "PARTIALLY_PAID", "PAID"].includes(line.invoice?.status));
+  if (singleLine) return Number(singleLine.amount || 0);
+  const materialRevenue = (trip.materialInvoices || []).reduce((sum, materialInvoice) => {
+    if (!["SENT", "PARTIALLY_PAID", "PAID"].includes(materialInvoice.billedInvoice?.status)) return sum;
+    return sum + (materialInvoice.lines || []).reduce((lineSum, line) => lineSum + Number(line.totalAmount || 0), 0);
+  }, 0);
+  if (materialRevenue > 0) return materialRevenue;
   const invoice = trip.order?.invoices?.find(item => item.sourceType === "ORDER" && item.status !== "VOID");
   if (!invoice || !["SENT", "PARTIALLY_PAID", "PAID"].includes(invoice.status)) return 0;
+  const plannedQuantity = Math.max(0, Number(trip.qtyPlanned || 0));
   const deliveredQuantity = Math.max(0, Number(trip.qtyActual ?? trip.qtyPlanned ?? 0));
+  const loss = Math.max(0, plannedQuantity - deliveredQuantity);
+  const tolerance = Math.max(0, Number(invoice.tolerancePercent || 0));
+  const billableQuantity = plannedQuantity > 0 && loss <= plannedQuantity * tolerance / 100 + 1e-9 ? plannedQuantity : deliveredQuantity;
+  const unitMultiplier = String(trip.unitSnap || trip.order?.unit || "").toUpperCase() === "TON" ? 1000 : 1;
+  if (Number(invoice.billableQuantity || 0) > 0) return invoice.total * billableQuantity * unitMultiplier / Number(invoice.billableQuantity);
   const orderedQuantity = Math.max(0, Number(trip.order.qty || 0));
   if (orderedQuantity > 0) return invoice.total * deliveredQuantity / orderedQuantity;
 
@@ -51,7 +64,10 @@ function cargoLossValue(trip) {
   if (!invoice || !["SENT", "PARTIALLY_PAID", "PAID"].includes(invoice.status) || orderedQuantity <= 0 || trip.qtyActual == null) return 0;
   const plannedQuantity = Math.max(0, Number(trip.qtyPlanned || 0));
   const deliveredQuantity = Math.max(0, Number(trip.qtyActual || 0));
-  return invoice.total * Math.max(0, plannedQuantity - deliveredQuantity) / orderedQuantity;
+  const loss = Math.max(0, plannedQuantity - deliveredQuantity);
+  const multiplier = String(trip.unitSnap || trip.order?.unit || "").toUpperCase() === "TON" ? 1000 : 1;
+  if (Number(invoice.ratePerKg || 0) > 0) return loss * multiplier * Number(invoice.ratePerKg);
+  return invoice.total * loss / orderedQuantity;
 }
 
 router.get("/", async (req, res) => {
@@ -75,6 +91,8 @@ router.get("/", async (req, res) => {
           include: {
             expenses: { where: { status: { in: ["PAID", "APPROVED"] } }, orderBy: { createdAt: "asc" } },
             order: { include: { invoices: true, trips: { select: { id: true, status: true, qtyActual: true, qtyPlanned: true } } } },
+            invoiceLines: { include: { invoice: true } },
+            materialInvoices: { include: { billedInvoice: true, lines: true } },
           },
         },
         sparePartAssignments: { where: { installedAt: dateRange }, include: { stockUnit: { select: { purchasePrice: true, item: { select: { name: true, sku: true } } } } } },

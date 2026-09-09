@@ -19,7 +19,9 @@ router.post("/", async (req, res) => {
     if (!name) return res.status(400).json({ error: "Nama customer wajib diisi" });
     const existing = await prisma.customer.findFirst({ where: { name: { equals: name, mode: "insensitive" } } });
     if (existing) return res.status(409).json({ error: "Customer dengan nama tersebut sudah ada", customer: existing });
-    const customer = await prisma.customer.create({ data: { name, phone: String(req.body?.phone || "").trim() || null, address: String(req.body?.address || "").trim() || null } });
+    const tolerance = Number(req.body?.cargoLossTolerancePercent || 0);
+    if (!Number.isFinite(tolerance) || tolerance < 0 || tolerance > 100) return res.status(400).json({ error: "Toleransi susut harus antara 0 sampai 100 persen" });
+    const customer = await prisma.customer.create({ data: { name, phone: String(req.body?.phone || "").trim() || null, address: String(req.body?.address || "").trim() || null, cargoLossTolerancePercent: tolerance } });
     res.status(201).json(customer);
   } catch (error) { res.status(400).json({ error: error.message || "Gagal menambah customer" }); }
 });

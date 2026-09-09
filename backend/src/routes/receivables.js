@@ -10,10 +10,10 @@ const router = express.Router();
 router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF"));
 
 const invoiceInclude = {
-  order: { select: { id: true, orderNo: true, cargoName: true, customerName: true, customer: { select: { name: true } }, qty: true, unit: true, fromText: true, toText: true, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true } }, tripAllocations: { where: { trip: { status: "COMPLETED" } }, select: { qtyPlanned: true, qtyActual: true } }, materialInvoices: { select: { billingCustomerName: true, lines: { select: { totalAmount: true } } } } } },
+  order: { select: { id: true, orderNo: true, cargoName: true, customerName: true, customer: { select: { name: true, cargoLossTolerancePercent: true } }, qty: true, unit: true, fromText: true, toText: true, trips: { where: { status: "COMPLETED" }, include: { truck: true, dispatchLetter: true } }, tripAllocations: { where: { trip: { status: "COMPLETED" } }, include: { trip: { include: { truck: true, dispatchLetter: true } } } }, materialInvoices: { select: { billingCustomerName: true, lines: { select: { totalAmount: true } } } } } },
   customer: true,
   singleTrip: { include: { truck: true } },
-  singleTripLines: { include: { trip: { include: { truck: true } } }, orderBy: { trip: { completedAt: "asc" } } },
+  singleTripLines: { include: { trip: { include: { truck: true, dispatchLetter: true } } }, orderBy: { trip: { completedAt: "asc" } } },
   materialInvoices: { include: { trip: { include: { truck: true } }, destinationLocation: true, lines: true } },
   createdBy: { select: { name: true } },
   payments: { include: { createdBy: { select: { name: true } } }, orderBy: { receivedAt: "desc" } },
@@ -61,13 +61,29 @@ function materialSubtotal(order) {
     .reduce((sum, line) => sum + Number(line.totalAmount || 0), 0);
 }
 
-function weightKg(trip) {
-  const qty = Number(trip?.qtyActual);
-  const unit = String(trip?.unitSnap || "").toUpperCase();
-  if (!Number.isFinite(qty) || qty <= 0) return 0;
-  if (unit === "TON") return qty * 1000;
-  if (unit === "KG") return qty;
+function quantityKg(qty, unit) {
+  const value = Number(qty);
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  if (String(unit || "").toUpperCase() === "TON") return value * 1000;
+  if (String(unit || "").toUpperCase() === "KG") return value;
   return 0;
+}
+
+function weightKg(trip, field = "qtyActual") {
+  const qty = Number(trip?.[field]);
+  const unit = String(trip?.unitSnap || "").toUpperCase();
+  return quantityKg(qty, unit);
+}
+
+function billingWeight(plannedKg, actualKg, tolerancePercent) {
+  const planned = Math.max(0, Number(plannedKg || 0));
+  const actual = Math.max(0, Number(actualKg || 0));
+  const loss = Math.max(0, planned - actual);
+  const tolerance = Math.max(0, Number(tolerancePercent || 0));
+  const toleranceWeight = planned * tolerance / 100;
+  const claimableLoss = Math.max(0, loss - toleranceWeight);
+  const withinTolerance = claimableLoss <= 1e-9;
+  return { planned, actual, loss, tolerance, toleranceWeight, claimableLoss, withinTolerance, billable: Math.max(0, planned - claimableLoss) };
 }
 
 router.get("/overview", async (_req, res) => {
@@ -154,17 +170,18 @@ router.post("/invoices", async (req, res) => {
       if (sourceType === "SINGLE_TRIP_GROUP") {
         const ids = [...new Set(singleTripIds)].filter(Boolean);
         if (!ids.length) throw new Error("Pilih minimal satu Trip Tunggal");
-        const trips = await tx.trip.findMany({ where: { id: { in: ids }, purpose: "SINGLE_TRIP", status: "COMPLETED", cargoCategorySnap: { in: ["FERTILIZER", "CANGKANG"] }, invoiceLines: { none: {} }, singleInvoice: null } });
+        const trips = await tx.trip.findMany({ where: { id: { in: ids }, purpose: "SINGLE_TRIP", status: "COMPLETED", cargoCategorySnap: { in: ["FERTILIZER", "CANGKANG"] }, invoiceLines: { none: {} }, singleInvoice: null }, include: { billingCustomer: true } });
         if (trips.length !== ids.length) throw new Error("Sebagian trip tidak tersedia atau sudah ditagih");
         const customerKey = customerName.trim().toLocaleLowerCase("id-ID");
         const category = String(trips[0].cargoCategorySnap || "");
         if (trips.some(trip => String(trip.billingCustomerName || "").trim().toLocaleLowerCase("id-ID") !== customerKey || trip.cargoCategorySnap !== category)) throw new Error("Semua trip harus memiliki customer dan jenis muatan yang sama");
-        const lines = trips.map(trip => { const actualWeightKg = weightKg(trip); if (actualWeightKg <= 0) throw new Error(`${trip.tripNo || "Trip"} belum memiliki berat aktual dalam TON/KG`); return { tripId: trip.id, actualWeightKg, ratePerKg: 0, amount: 0 }; });
+        const tolerancePercent = Number(trips[0].billingCustomer?.cargoLossTolerancePercent || 0);
+        const lines = trips.map(trip => { const actualWeightKg = weightKg(trip); if (actualWeightKg <= 0) throw new Error(`${trip.tripNo || "Trip"} belum memiliki berat aktual dalam TON/KG`); const plannedWeightKg = weightKg(trip, "qtyPlanned") || actualWeightKg; const billing = billingWeight(plannedWeightKg, actualWeightKg, tolerancePercent); return { tripId: trip.id, actualWeightKg, plannedWeightKg, billableWeightKg: billing.billable, cargoLossWeightKg: billing.loss, tolerancePercent, ratePerKg: 0, amount: 0 }; });
         const subtotal = 0;
         const total = 0;
         const number = await nextNumber(tx, "invoice", "INV");
         const billingIds = ids.slice().sort();
-        return tx.invoice.create({ data: { number, billingKey: `SINGLE_TRIP_GROUP:${billingIds.join(",")}`, sourceType, customerId: trips[0].billingCustomerId || null, customerName: customerName.trim(), customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null, dueAt: dueDate, subtotal, contractSubtotal: subtotal, deliveredQuantity: lines.reduce((sum, line) => sum + line.actualWeightKg, 0), tax, discount, total, notes: notes?.trim() || null, createdById: req.user.id, singleTripLines: { create: lines } }, include: invoiceInclude });
+        return tx.invoice.create({ data: { number, billingKey: `SINGLE_TRIP_GROUP:${billingIds.join(",")}`, sourceType, customerId: trips[0].billingCustomerId || null, customerName: customerName.trim(), customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null, dueAt: dueDate, subtotal, contractSubtotal: subtotal, plannedQuantity: lines.reduce((sum, line) => sum + Number(line.plannedWeightKg || 0), 0), deliveredQuantity: lines.reduce((sum, line) => sum + line.actualWeightKg, 0), billableQuantity: lines.reduce((sum, line) => sum + Number(line.billableWeightKg || 0), 0), cargoLossQuantity: lines.reduce((sum, line) => sum + billingWeight(line.plannedWeightKg, line.actualWeightKg, tolerancePercent).claimableLoss, 0), tolerancePercent, tax, discount, total, notes: notes?.trim() || null, createdById: req.user.id, singleTripLines: { create: lines } }, include: invoiceInclude });
       }
       const order = await tx.order.findUnique({ where: { id: orderId }, include: { customer: true, invoices: true, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true } }, tripAllocations: { where: { trip: { status: "COMPLETED" } }, select: { qtyPlanned: true, qtyActual: true } }, materialInvoices: { select: { id: true, billingCustomerName: true, billedInvoiceId: true, destinationCompletedAt: true, lines: { select: { totalAmount: true } } } } } });
       if (!order || order.status !== "COMPLETED") throw new Error("Invoice hanya dapat dibuat dari pesanan yang selesai");
@@ -172,7 +189,10 @@ router.post("/invoices", async (req, res) => {
       const shipment = shipmentSummary(order);
       const plannedQuantity = shipment.planned > 0 ? shipment.planned : Number(order.qty || 0);
       const deliveredQuantity = shipment.delivered;
-      const billableRatio = plannedQuantity > 0 ? Math.min(1, Math.max(0, deliveredQuantity / plannedQuantity)) : 1;
+      const plannedKg = quantityKg(plannedQuantity, order.unit);
+      const deliveredKg = quantityKg(deliveredQuantity, order.unit);
+      const tolerancePercent = Number(order.customer?.cargoLossTolerancePercent || 0);
+      const billing = billingWeight(plannedKg, deliveredKg, tolerancePercent);
       const baseSubtotal = 0;
       const subtotal = 0;
       const cargoLossAmount = 0;
@@ -182,9 +202,9 @@ router.post("/invoices", async (req, res) => {
         data: {
           number, orderId, billingKey: `ORDER:${orderId}`, sourceType: "ORDER", customerId: order.customerId, customerName: customerName.trim(),
           customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null,
-          dueAt: dueDate, subtotal, contractSubtotal: 0, plannedQuantity: plannedQuantity || null,
-          deliveredQuantity: plannedQuantity > 0 ? deliveredQuantity : null,
-          cargoLossQuantity: plannedQuantity > 0 ? shipment.loss : null,
+          dueAt: dueDate, subtotal, contractSubtotal: 0, plannedQuantity: plannedKg || null,
+          deliveredQuantity: plannedKg > 0 ? deliveredKg : null, billableQuantity: billing.billable || null, tolerancePercent,
+          cargoLossQuantity: plannedKg > 0 ? billing.claimableLoss : null,
           cargoLossAmount, materialSubtotal: 0, tax, discount, total, notes: notes?.trim() || null, createdById: req.user.id,
         },
         include: invoiceInclude,
@@ -205,12 +225,14 @@ router.patch("/invoices/:id/draft", async (req, res) => {
     const dueAt = new Date(req.body.dueAt);
     if (Number.isNaN(dueAt.getTime())) throw new Error("Tanggal jatuh tempo tidak valid");
     const saved = await prisma.$transaction(async tx => {
-      const invoice = await tx.invoice.findUnique({ where: { id: req.params.id }, include: { order: { include: { trips: { where: { status: "COMPLETED" } }, tripAllocations: { where: { trip: { status: "COMPLETED" } } } } }, singleTripLines: true, materialInvoices: { include: { lines: true } } } });
+      const invoice = await tx.invoice.findUnique({ where: { id: req.params.id }, include: { customer: true, order: { include: { customer: true, trips: { where: { status: "COMPLETED" } }, tripAllocations: { where: { trip: { status: "COMPLETED" } } } } }, singleTripLines: true, materialInvoices: { include: { lines: true } } } });
       if (!invoice || invoice.status !== "DRAFT") throw new Error("Hanya invoice Draft yang dapat diubah");
       let contractSubtotal = 0;
       let materialSubtotal = 0;
       let subtotal = 0;
       let cargoLossAmount = 0;
+      const requestedTolerance = Number(req.body.tolerancePercent ?? invoice.tolerancePercent ?? invoice.customer?.cargoLossTolerancePercent ?? 0);
+      if (!Number.isFinite(requestedTolerance) || requestedTolerance < 0 || requestedTolerance > 100) throw new Error("Toleransi susut harus antara 0 sampai 100 persen");
       if (invoice.sourceType === "MATERIAL") {
         for (const line of invoice.materialInvoices.flatMap(row => row.lines)) {
           const rate = amount(req.body.materialLineRates?.[line.id], `Harga ${line.itemName}`);
@@ -224,20 +246,28 @@ router.patch("/invoices/:id/draft", async (req, res) => {
         const ratePerKg = amount(req.body.ratePerKg, "Harga per kg");
         if (ratePerKg <= 0) throw new Error("Harga per kg wajib diisi");
         for (const line of invoice.singleTripLines) {
-          const lineAmount = Math.round(line.actualWeightKg * ratePerKg);
-          await tx.singleTripInvoiceLine.update({ where: { id: line.id }, data: { ratePerKg, amount: lineAmount } });
+          const billing = billingWeight(line.plannedWeightKg ?? line.actualWeightKg, line.actualWeightKg, requestedTolerance);
+          const lineAmount = Math.round(billing.billable * ratePerKg);
+          await tx.singleTripInvoiceLine.update({ where: { id: line.id }, data: { ratePerKg, amount: lineAmount, billableWeightKg: billing.billable, cargoLossWeightKg: billing.loss, tolerancePercent: requestedTolerance } });
           subtotal += lineAmount;
         }
         contractSubtotal = subtotal;
+        await tx.invoice.update({ where: { id: invoice.id }, data: { ratePerKg, billableQuantity: invoice.singleTripLines.reduce((sum, line) => sum + billingWeight(line.plannedWeightKg ?? line.actualWeightKg, line.actualWeightKg, requestedTolerance).billable, 0), cargoLossQuantity: invoice.singleTripLines.reduce((sum, line) => sum + billingWeight(line.plannedWeightKg ?? line.actualWeightKg, line.actualWeightKg, requestedTolerance).claimableLoss, 0), tolerancePercent: requestedTolerance } });
       } else {
-        contractSubtotal = amount(req.body.contractSubtotal, "Harga kontrak");
-        if (contractSubtotal <= 0) throw new Error("Harga kontrak wajib diisi");
+        const ratePerKg = amount(req.body.ratePerKg, "Harga per kg");
+        if (ratePerKg <= 0) throw new Error("Harga per kg wajib diisi");
         const shipment = shipmentSummary(invoice.order);
         const planned = shipment.planned > 0 ? shipment.planned : Number(invoice.order?.qty || 0);
-        const ratio = planned > 0 ? Math.min(1, Math.max(0, shipment.delivered / planned)) : 1;
-        subtotal = Math.round(contractSubtotal * ratio);
+        const plannedKg = quantityKg(planned, invoice.order?.unit);
+        const actualKg = quantityKg(shipment.delivered, invoice.order?.unit);
+        const tolerancePercent = requestedTolerance;
+        const billing = billingWeight(plannedKg, actualKg, tolerancePercent);
+        subtotal = Math.round(billing.billable * ratePerKg);
+        contractSubtotal = Math.round(plannedKg * ratePerKg);
         cargoLossAmount = Math.max(0, contractSubtotal - subtotal);
+        await tx.invoice.update({ where: { id: invoice.id }, data: { ratePerKg, plannedQuantity: plannedKg, deliveredQuantity: actualKg, billableQuantity: billing.billable, cargoLossQuantity: billing.claimableLoss, tolerancePercent } });
       }
+      if (invoice.customerId && invoice.sourceType !== "MATERIAL") await tx.customer.update({ where: { id: invoice.customerId }, data: { cargoLossTolerancePercent: requestedTolerance } });
       const total = subtotal + tax - discount;
       if (total <= 0) throw new Error("Total invoice harus lebih dari nol");
       return tx.invoice.update({ where: { id: invoice.id }, data: { dueAt, contractSubtotal, materialSubtotal, subtotal, cargoLossAmount, tax, discount, total, notes: req.body.notes?.trim() || null }, include: invoiceInclude });
@@ -252,6 +282,23 @@ router.get("/invoices/:id/print", async (req, res) => {
     if (!invoice) return res.status(404).send("Invoice tidak ditemukan");
 
     let rowNumber = 0;
+    const orderEntries = invoice.order
+      ? (invoice.order.tripAllocations?.length
+          ? invoice.order.tripAllocations.map(item => ({ ...item, unitSnap: item.unitSnap || invoice.order.unit, trip: item.trip }))
+          : (invoice.order.trips || []).map(trip => ({ qtyPlanned: trip.qtyPlanned, qtyActual: trip.qtyActual, unitSnap: trip.unitSnap || invoice.order.unit, trip })))
+      : [];
+    const weightRows = invoice.singleTripLines?.length
+      ? invoice.singleTripLines.map(line => ({ trip: line.trip, plannedKg: Number(line.plannedWeightKg ?? line.actualWeightKg ?? 0), actualKg: Number(line.actualWeightKg || 0), billableKg: Number(line.billableWeightKg ?? line.actualWeightKg ?? 0), lossKg: Number(line.cargoLossWeightKg ?? Math.max(0, Number(line.plannedWeightKg || 0) - Number(line.actualWeightKg || 0))), tolerancePercent: Number(line.tolerancePercent ?? invoice.tolerancePercent ?? 0), ratePerKg: Number(line.ratePerKg || 0), amount: Number(line.amount || 0) }))
+      : orderEntries.map(item => {
+          const plannedKg = quantityKg(item.qtyPlanned, item.unitSnap);
+          const actualKg = quantityKg(item.qtyActual ?? item.qtyPlanned, item.unitSnap);
+          const billing = billingWeight(plannedKg, actualKg, invoice.tolerancePercent || 0);
+          return { trip: item.trip, plannedKg, actualKg, billableKg: billing.billable, lossKg: billing.loss, tolerancePercent: Number(invoice.tolerancePercent || 0), ratePerKg: Number(invoice.ratePerKg || 0), amount: Math.round(billing.billable * Number(invoice.ratePerKg || 0)) };
+        });
+    const totalPhysicalLossKg = weightRows.reduce((sum, row) => sum + row.lossKg, 0);
+    const totalToleranceKg = weightRows.reduce((sum, row) => sum + (row.plannedKg * row.tolerancePercent / 100), 0);
+    const totalClaimableLossKg = weightRows.reduce((sum, row) => sum + Math.max(0, row.lossKg - (row.plannedKg * row.tolerancePercent / 100)), 0);
+    const shipmentRows = weightRows.map((row, index) => `<tr><td class="center">${index + 1}</td><td>${esc(date(row.trip?.completedAt))}</td><td>${esc(row.trip?.truck?.plateNumber || row.trip?.plateNumberSnap || "-")}</td><td>${esc(row.trip?.dispatchLetter?.number || row.trip?.tripNo || "-")}</td><td class="right">${esc(num(row.plannedKg))}</td><td class="right">${esc(num(row.actualKg))}</td><td class="right">${esc(num(row.actualKg - row.plannedKg))}</td><td class="right">${esc(num(row.billableKg))}</td><td class="right">${money(row.ratePerKg)}</td><td class="right"><b>${money(row.amount)}</b></td></tr>`).join("");
     const singleTripRows = (invoice.singleTripLines || []).map(line => {
       rowNumber += 1;
       const trip = line.trip;
@@ -289,11 +336,12 @@ router.get("/invoices/:id/print", async (req, res) => {
     const status = statusLabelForPrint(invoice.status);
     const body = `
       <div class="summary"><div class="box">Ditagihkan kepada<b>${esc(invoice.customerName)}</b><span class="muted">${esc(invoice.billingAddress || "Alamat belum dicatat")}</span></div><div class="box">Sumber tagihan<b>${esc(sourceDescription)}</b><span class="muted">${esc(invoice.customerPhone || "Nomor telepon belum dicatat")}</span></div><div class="box">Jatuh tempo<b>${esc(date(invoice.dueAt))}</b><span class="muted">Status: ${esc(status)}</span></div></div>
-      <table><thead><tr><th>No.</th><th>Tanggal</th><th>No. Pol.</th><th>Surat Jalan / Faktur</th><th>Jenis Barang & Tujuan</th><th class="right">Banyak</th><th>Satuan</th><th class="right">Harga</th><th class="right">Jumlah</th></tr></thead><tbody>${fallbackRows}</tbody></table>
+      ${shipmentRows ? `<div class="box" style="margin-top:14px"><b>RINCIAN ONGKOS ANGKUT ${esc(invoice.order?.cargoName || invoice.singleTripLines?.[0]?.trip?.cargoNameSnap || "MUATAN")}</b><br><span class="muted">${esc(invoice.order?.fromText || invoice.singleTripLines?.[0]?.trip?.fromText || "-")} → ${esc(invoice.order?.toText || invoice.singleTripLines?.[0]?.trip?.toText || "-")}</span><br><span class="muted">No. Pesanan: ${esc(invoice.order?.orderNo || "-")} · Toleransi susut: ${esc(num(invoice.tolerancePercent || 0))}%</span></div><table><thead><tr><th>No.</th><th>Tanggal</th><th>No. Polisi</th><th>Surat Jalan</th><th class="right">KG Kirim</th><th class="right">KG Diterima</th><th class="right">Selisih</th><th class="right">KG Ditagih</th><th class="right">Ongkos/KG</th><th class="right">Jumlah</th></tr></thead><tbody>${shipmentRows}</tbody><tfoot><tr><td colspan="4" class="right"><b>TOTAL</b></td><td class="right"><b>${num(weightRows.reduce((sum,row)=>sum+row.plannedKg,0))}</b></td><td class="right"><b>${num(weightRows.reduce((sum,row)=>sum+row.actualKg,0))}</b></td><td class="right"><b>${num(weightRows.reduce((sum,row)=>sum+row.actualKg-row.plannedKg,0))}</b></td><td class="right"><b>${num(weightRows.reduce((sum,row)=>sum+row.billableKg,0))}</b></td><td></td><td class="right"><b>${money(weightRows.reduce((sum,row)=>sum+row.amount,0))}</b></td></tr></tfoot></table>` : `<table><thead><tr><th>No.</th><th>Tanggal</th><th>No. Pol.</th><th>Surat Jalan / Faktur</th><th>Jenis Barang & Tujuan</th><th class="right">Banyak</th><th>Satuan</th><th class="right">Harga</th><th class="right">Jumlah</th></tr></thead><tbody>${fallbackRows}</tbody></table>`}
+      ${shipmentRows ? `<div class="box" style="margin-top:14px;line-height:1.8"><b>Ongkos/Kg</b> : ${money(weightRows[0]?.ratePerKg || invoice.ratePerKg || 0)}<br><b>Perhitungan</b> : ${num(weightRows.reduce((sum,row)=>sum+row.billableKg,0))} kg × ${money(weightRows[0]?.ratePerKg || invoice.ratePerKg || 0)}<br><span class="muted">Susut fisik ${num(totalPhysicalLossKg)} kg · jatah toleransi ${num(totalToleranceKg)} kg (${num(invoice.tolerancePercent || 0)}%) · susut yang diklaim ${num(totalClaimableLossKg)} kg</span><br><span class="muted">KG ditagih = KG kirim − susut yang melebihi toleransi.</span></div>` : ""}
       <table style="width:42%;margin-left:auto"><tbody><tr><td>Subtotal</td><td class="right"><b>${money(invoice.subtotal)}</b></td></tr>${invoice.tax ? `<tr><td>Pajak</td><td class="right">${money(invoice.tax)}</td></tr>` : ""}${invoice.discount ? `<tr><td>Diskon</td><td class="right">-${money(invoice.discount)}</td></tr>` : ""}<tr><td><b>TOTAL TAGIHAN</b></td><td class="right"><b>${money(invoice.total)}</b></td></tr></tbody></table>
       ${invoice.notes ? `<div class="box" style="margin-top:14px"><span class="muted">Catatan</span><br>${esc(invoice.notes)}</div>` : ""}
       <div class="signatures"><div>Pelanggan</div><div>Dibuat oleh<br>${esc(invoice.createdBy?.name || "-")}</div><div>CV. Mitra Setia</div></div>`;
-    res.type("html").send(documentHtml({ title: "TAGIHAN ONGKOS ANGKUT", subtitle: invoice.number, meta: `Tanggal invoice: ${esc(date(invoice.issuedAt))}<br>Customer: ${esc(invoice.customerName)}`, body, landscape: true }));
+    res.type("html").send(documentHtml({ title: "TAGIHAN ONGKOS ANGKUT", subtitle: invoice.number, meta: `Tanggal invoice: ${esc(date(invoice.issuedAt))}<br>Customer: ${esc(invoice.customerName)}`, body, landscape: Boolean(materialRows && !shipmentRows) }));
   } catch (error) {
     res.status(400).send(error.message || "Gagal membuat dokumen invoice");
   }

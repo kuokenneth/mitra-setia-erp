@@ -289,7 +289,7 @@ export default function Orders() {
   const [customers, setCustomers] = useState([]);
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [customerSaving, setCustomerSaving] = useState(false);
-  const [newCustomer, setNewCustomer] = useState({ name: "", phone: "", address: "" });
+  const [newCustomer, setNewCustomer] = useState({ name: "", phone: "", address: "", cargoLossTolerancePercent: "0" });
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
@@ -408,7 +408,7 @@ export default function Orders() {
       const created = await api("/customers", { method: "POST", body: JSON.stringify(newCustomer) });
       setCustomers(items => [...items, created].sort((a, b) => a.name.localeCompare(b.name, "id")));
       setForm(current => ({ ...current, customerId: created.id, customerName: created.name }));
-      setNewCustomer({ name: "", phone: "", address: "" }); setShowCustomerForm(false);
+      setNewCustomer({ name: "", phone: "", address: "", cargoLossTolerancePercent: "0" }); setShowCustomerForm(false);
     } catch (error) { setCreateErr(error.message || "Gagal menambah customer"); }
     finally { setCustomerSaving(false); }
   }
@@ -511,7 +511,7 @@ export default function Orders() {
 
       <Modal open={showCustomerForm} title="Customer Baru" subtitle="Tambahkan perusahaan agar dapat dipilih pada pesanan dan Trip Tunggal." onClose={() => !customerSaving && setShowCustomerForm(false)} width={560} className="orders-v3-customer-modal">
         {createErr && <div className="orders-v3-error">{createErr}</div>}
-        <div className="orders-customer-modal-fields"><label>Nama perusahaan<Input autoFocus value={newCustomer.name} onChange={e => setNewCustomer(value => ({ ...value, name: e.target.value }))} placeholder="Contoh: PT Madina Agro Lestari"/></label><label>Nomor telepon <small>Opsional</small><Input value={newCustomer.phone} onChange={e => setNewCustomer(value => ({ ...value, phone: e.target.value }))} placeholder="Contoh: 061 123456"/></label><label>Alamat penagihan <small>Opsional</small><Input value={newCustomer.address} onChange={e => setNewCustomer(value => ({ ...value, address: e.target.value }))} placeholder="Alamat yang dicantumkan pada invoice"/></label></div>
+        <div className="orders-customer-modal-fields"><label>Nama perusahaan<Input autoFocus value={newCustomer.name} onChange={e => setNewCustomer(value => ({ ...value, name: e.target.value }))} placeholder="Contoh: PT Madina Agro Lestari"/></label><label>Nomor telepon <small>Opsional</small><Input value={newCustomer.phone} onChange={e => setNewCustomer(value => ({ ...value, phone: e.target.value }))} placeholder="Contoh: 061 123456"/></label><label>Alamat penagihan <small>Opsional</small><Input value={newCustomer.address} onChange={e => setNewCustomer(value => ({ ...value, address: e.target.value }))} placeholder="Alamat yang dicantumkan pada invoice"/></label><label>Toleransi susut (%)<Input type="number" min="0" max="100" step="0.01" value={newCustomer.cargoLossTolerancePercent} onChange={e => setNewCustomer(value => ({ ...value, cargoLossTolerancePercent: e.target.value }))} placeholder="Contoh: 0,5"/><small>Muatan tetap ditagih penuh jika susut masih dalam persentase ini.</small></label></div>
         <div className="orders-v3-modal-actions"><Button variant="secondary" onClick={() => setShowCustomerForm(false)} disabled={customerSaving}>Batal</Button><Button variant="primary" onClick={createCustomer} disabled={customerSaving || !newCustomer.name.trim()}>{customerSaving ? "Menyimpan…" : "Simpan Customer"}</Button></div>
       </Modal>
 
