@@ -478,7 +478,6 @@ model Customer {
   orders         Order[]
   invoices       Invoice[]
   billingTrips   Trip[]                 @relation("TripBillingCustomer")
-  billedMaterials MaterialInvoice[]     @relation("MaterialInvoiceCustomer")
   materialStocks MaterialStockReceipt[]
 }
 
@@ -802,8 +801,6 @@ model MaterialInvoice {
   qty                    Float
   unit                   String
   billingCustomerName    String?
-  billingCustomerId      String?
-  billingCustomer        Customer?            @relation("MaterialInvoiceCustomer", fields: [billingCustomerId], references: [id], onDelete: SetNull)
   destinationLocationId  String?
   destinationLocation    OperationalLocation? @relation(fields: [destinationLocationId], references: [id], onDelete: SetNull)
   stopSequence           Int?
@@ -828,7 +825,6 @@ model MaterialInvoice {
   @@index([tripId])
   @@index([destinationLocationId])
   @@index([billedInvoiceId])
-  @@index([billingCustomerId])
 }
 
 model MaterialInvoiceLine {

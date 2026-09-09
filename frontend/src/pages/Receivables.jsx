@@ -9,7 +9,7 @@ import "./Receivables.css";
 const rupiah = value => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value) || 0);
 const tanggal = value => value ? new Date(value).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 const statusLabel = { DRAFT: "Draft", SENT: "Terkirim", PARTIALLY_PAID: "Dibayar Sebagian", PAID: "Lunas", OVERDUE: "Jatuh Tempo", VOID: "Dibatalkan" };
-const initialData = { invoices: [], eligibleOrders: [], eligibleSources: [], stats: { invoiced: 0, received: 0, outstanding: 0, overdue: 0 } };
+const initialData = { customers: [], invoices: [], eligibleOrders: [], eligibleSources: [], stats: { invoiced: 0, received: 0, outstanding: 0, overdue: 0 } };
 const afterDays = days => { const d = new Date(); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10); };
 const customerKey = source => source?.customerId ? `id:${source.customerId}` : `name:${String(source?.customerName || "").trim().toLocaleLowerCase("id-ID")}`;
 
@@ -49,8 +49,9 @@ export default function Receivables() {
     setError(""); setModal("invoice");
   }
   function chooseCustomer(key) {
+    const customer = data.customers.find(item => `id:${item.id}` === key);
     const source = data.eligibleSources.find(item => customerKey(item) === key);
-    setInvoiceForm(form => ({ ...form, billingCustomerKey: key, sourceKey: "", sourceType: "ORDER", orderId: "", customerId: source?.customerId || "", materialInvoiceIds: [], materialLineAmounts: {}, singleTripId: "", singleTripIds: [], ratePerKg: "", customerName: source?.customerName || "", customerPhone: source?.customerPhone || "", billingAddress: source?.billingAddress || "", contractSubtotal: "" }));
+    setInvoiceForm(form => ({ ...form, billingCustomerKey: key, sourceKey: "", sourceType: "ORDER", orderId: "", customerId: customer?.id || source?.customerId || "", materialInvoiceIds: [], materialLineAmounts: {}, singleTripId: "", singleTripIds: [], ratePerKg: "", customerName: customer?.name || source?.customerName || "", customerPhone: customer?.phone || source?.customerPhone || "", billingAddress: customer?.address || source?.billingAddress || "", contractSubtotal: "" }));
   }
   function chooseOrder(sourceKey) {
     const source = data.eligibleSources.find(item => `${item.type}:${item.id}` === sourceKey);
@@ -114,9 +115,10 @@ export default function Receivables() {
   const selectedSource = data.eligibleSources?.find(source => `${source.type}:${source.id}` === invoiceForm.sourceKey);
   const billingCustomers = useMemo(() => {
     const values = new Map();
+    (data.customers || []).forEach(customer => values.set(`id:${customer.id}`, { key: `id:${customer.id}`, name: customer.name, count: 0 }));
     (data.eligibleSources || []).forEach(source => { const key = customerKey(source); if (source.customerName && !values.has(key)) values.set(key, { key, name: source.customerName, count: 0 }); values.get(key) && (values.get(key).count += 1); });
     return [...values.values()].sort((a, b) => a.name.localeCompare(b.name, "id"));
-  }, [data.eligibleSources]);
+  }, [data.customers, data.eligibleSources]);
   const customerSources = (data.eligibleSources || []).filter(source => customerKey(source) === invoiceForm.billingCustomerKey);
   const invoiceOrder = selectedSource?.order;
   const plannedQuantity = Number(invoiceOrder?.shipment?.planned || invoiceOrder?.qty || 0);
@@ -137,17 +139,18 @@ export default function Receivables() {
   const invoiceBlockReason = !invoiceForm.billingCustomerKey ? "Pilih customer tagihan terlebih dahulu" : !selectedSource ? "Pilih sumber tagihan customer ini" : selectedSource.type === "MATERIAL" && !invoiceForm.materialInvoiceIds.length ? "Pilih minimal satu Faktur Muatan" : selectedSource.type === "SINGLE_TRIP_GROUP" && !invoiceForm.singleTripIds.length ? "Pilih minimal satu Trip Tunggal" : "";
   const canSaveInvoice = !busy && !invoiceBlockReason;
   return <div className="ar-page">
-    <header className="ar-head"><div><span className="ar-eyebrow">INVOICE & PIUTANG</span><h1>Piutang Pelanggan</h1><p>Pantau penagihan dan pembayaran pelanggan.</p></div><button className="ar-primary ar-create-invoice" onClick={openInvoice}><FiPlus/> Buat Invoice</button></header>
+    <header className="ar-head"><div className="ar-head-copy"><span className="ar-eyebrow">KEUANGAN · PIUTANG</span><h1>Piutang Pelanggan</h1><p>Susun Draft, lengkapi harga, kirim invoice, dan pantau pembayaran dalam satu tempat.</p></div><div className="ar-head-side"><span><small>Sumber siap ditagih</small><strong>{data.eligibleSources?.length || 0}</strong></span><button className="ar-primary ar-create-invoice" onClick={openInvoice}><FiPlus/> Buat Draft Invoice</button></div></header>
     <section className="ar-stats">
-      <article><span>Total Ditagih</span><strong>{rupiah(data.stats.invoiced)}</strong><small>Seluruh invoice aktif</small></article>
-      <article><span>Sudah Diterima</span><strong>{rupiah(data.stats.received)}</strong><small>Pembayaran pelanggan</small></article>
-      <article><span>Sisa Piutang</span><strong>{rupiah(data.stats.outstanding)}</strong><small>Belum dilunasi</small></article>
-      <article className={data.stats.overdue ? "danger" : ""}><span>Jatuh Tempo</span><strong>{rupiah(data.stats.overdue)}</strong><small>Perlu ditindaklanjuti</small></article>
+      <article className="billed"><i>01</i><div><span>Total Ditagih</span><strong>{rupiah(data.stats.invoiced)}</strong><small>Seluruh invoice aktif</small></div></article>
+      <article className="received"><i>02</i><div><span>Sudah Diterima</span><strong>{rupiah(data.stats.received)}</strong><small>Pembayaran pelanggan</small></div></article>
+      <article className="outstanding"><i>03</i><div><span>Sisa Piutang</span><strong>{rupiah(data.stats.outstanding)}</strong><small>Belum dilunasi</small></div></article>
+      <article className={`overdue ${data.stats.overdue ? "danger" : ""}`}><i>04</i><div><span>Jatuh Tempo</span><strong>{rupiah(data.stats.overdue)}</strong><small>Perlu ditindaklanjuti</small></div></article>
     </section>
     {error && <div className="ar-alert"><FiAlertCircle/><span>{error}</span><button onClick={() => setError("")}><FiX/></button></div>}
     <section className="ar-panel">
+      <div className="ar-panel-heading"><div><span>DAFTAR INVOICE</span><h2>Tagihan & pembayaran</h2><p>{rows.length} invoice ditampilkan</p></div><div className="ar-status-legend"><span><i className="draft"/>Draft</span><span><i className="sent"/>Terkirim</span><span><i className="paid"/>Lunas</span></div></div>
       <div className="ar-tools"><input className="ar-search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Cari nomor invoice, pesanan, atau pelanggan..."/><select className="ar-filter" value={filter} onChange={e => setFilter(e.target.value)}><option value="ALL">Semua Status</option><option value="DRAFT">Draft</option><option value="SENT">Terkirim</option><option value="PARTIALLY_PAID">Dibayar Sebagian</option><option value="PAID">Lunas</option><option value="OVERDUE">Jatuh Tempo</option><option value="VOID">Dibatalkan</option></select><button className="ar-refresh" onClick={load} aria-label="Muat ulang"><FiRefreshCw className={loading ? "ar-spin" : ""}/></button></div>
-      <div className="ar-table-wrap">{loading && !rows.length && <LoadingState label="Memuat piutang" note="Menghitung invoice, pembayaran, dan sisa tagihan…" rows={5} />}<table><thead><tr><th>Invoice</th><th>Pelanggan</th><th>Jatuh Tempo</th><th>Total</th><th>Dibayar</th><th>Sisa</th><th>Status</th><th>Tindakan</th></tr></thead><tbody>
+      <div className={`ar-table-wrap ${loading && !rows.length ? "initial-loading" : ""}`}>{loading && !rows.length && <LoadingState label="Memuat piutang" note="Menghitung invoice, pembayaran, dan sisa tagihan…" rows={5} />}<table><thead><tr><th>Invoice</th><th>Pelanggan</th><th>Jatuh Tempo</th><th>Total</th><th>Dibayar</th><th>Sisa</th><th>Status</th><th>Tindakan</th></tr></thead><tbody>
         {rows.map(invoice => <tr key={invoice.id}><td><b>{invoice.number}</b><small>{invoice.order?.orderNo || (invoice.materialInvoices?.length ? `${invoice.materialInvoices.length} Faktur Muatan` : invoice.singleTrip?.tripNo)}</small>{invoice.order?.shipment?.loss > 0 && <small style={{ color: "#b45309" }}>Selisih {invoice.order.shipment.loss.toLocaleString("id-ID")} {invoice.order.shipment.unit || ""}</small>}</td><td><b>{invoice.customerName}</b><small>{invoice.order?.fromText} {invoice.order && "→"} {invoice.order?.toText}</small></td><td>{tanggal(invoice.dueAt)}</td><td>{rupiah(invoice.total)}</td><td className="paid">{rupiah(invoice.paid)}</td><td><b>{rupiah(invoice.balance)}</b></td><td><span className={`ar-status ${invoice.displayStatus}`}>{statusLabel[invoice.displayStatus]}</span></td><td><div className="ar-actions">{invoice.status === "DRAFT" && <button onClick={() => openInvoiceDetail(invoice)}><FiFileText/> Detail & Harga</button>}<button onClick={() => printInvoice(invoice)}><FiPrinter/> Cetak</button>{invoice.status === "DRAFT" && <button onClick={() => sendInvoice(invoice)} disabled={busy || invoice.total <= 0} title={invoice.total <= 0 ? "Lengkapi harga terlebih dahulu" : "Kirim invoice"}><FiSend/> Kirim</button>}{["SENT", "PARTIALLY_PAID"].includes(invoice.status) && <button onClick={() => openPayment(invoice)}><FiCreditCard/> Bayar</button>}{canVoid && !invoice.payments.length && !["PAID", "VOID"].includes(invoice.status) && <button className="void" onClick={() => voidInvoice(invoice)}>Batalkan</button>}</div></td></tr>)}
       </tbody></table></div>
       {!loading && !rows.length && <div className="ar-empty"><FiFileText/><h3>Belum ada invoice</h3><p>{data.eligibleSources?.length ? "Buat invoice dari order, Faktur Muatan, atau Trip Tunggal yang siap ditagih." : "Selesaikan perjalanan terlebih dahulu agar dapat ditagih."}</p></div>}
@@ -158,8 +161,21 @@ export default function Receivables() {
       <div className="ar-form ar-invoice-form">
         <section className="ar-form-section">
           <div className="ar-section-title"><span>1</span><div><strong>Pilih customer dan sumber tagihan</strong><small>Hanya pesanan, trip, dan Faktur Muatan customer terpilih yang belum ditagih akan ditampilkan.</small></div></div>
-          <div className="ar-source-guide"><span><b>Customer tagihan</b><small>Perusahaan yang akan menerima invoice</small></span><FiArrowRight/><span><b>Sumber tagihan</b><small>Pekerjaan yang membentuk nilai invoice</small></span></div>
-          <div className="ar-grid2"><label>Customer tagihan<select required value={invoiceForm.billingCustomerKey} onChange={e => chooseCustomer(e.target.value)}><option value="">Pilih customer</option>{billingCustomers.map(customer => <option key={customer.key} value={customer.key}>{customer.name} · {customer.count} sumber</option>)}</select></label><label>Sumber tagihan<select required disabled={!invoiceForm.billingCustomerKey} value={invoiceForm.sourceKey} onChange={e => chooseOrder(e.target.value)}><option value="">{invoiceForm.billingCustomerKey ? "Pilih pesanan atau kelompok trip" : "Pilih customer terlebih dahulu"}</option>{customerSources.map(source => <option key={`${source.type}:${source.id}`} value={`${source.type}:${source.id}`}>{source.label}</option>)}</select></label></div>
+          <div className="ar-source-guide"><span><b>Customer tagihan</b><small>Perusahaan yang menerima invoice</small></span><FiArrowRight/><span><b>Checklist sumber</b><small>Pilih pekerjaan yang akan dibuatkan Draft</small></span></div>
+          <label>Customer tagihan<select required value={invoiceForm.billingCustomerKey} onChange={e => chooseCustomer(e.target.value)}><option value="">Pilih customer</option>{billingCustomers.map(customer => <option key={customer.key} value={customer.key}>{customer.name} · {customer.count} sumber</option>)}</select></label>
+          <div className="ar-source-picker"><div className="ar-source-picker-title"><span>Sumber yang siap ditagih</span><small>{invoiceForm.billingCustomerKey ? `${customerSources.length} kelompok tersedia` : "Pilih customer terlebih dahulu"}</small></div>
+            {!invoiceForm.billingCustomerKey ? <div className="ar-source-empty">Customer belum dipilih.</div> : !customerSources.length ? <div className="ar-source-empty">Belum ada order, trip, atau Faktur Muatan yang sudah selesai dan siap ditagih.</div> : customerSources.map(source => {
+              const sourceKey = `${source.type}:${source.id}`;
+              const selected = invoiceForm.sourceKey === sourceKey;
+              const isOrder = source.type === "ORDER";
+              const isMaterial = source.type === "MATERIAL";
+              const category = isMaterial ? "Ambang / Material" : source.type === "SINGLE_TRIP_GROUP" ? (source.cargoCategory === "FERTILIZER" ? "Pupuk" : "Cangkang") : (source.order?.cargoName || "Pesanan");
+              const numbers = isOrder ? source.order?.orderNo : isMaterial ? (source.invoices || []).map(row => row.number).join(", ") : (source.trips || []).map(row => row.tripNo).join(", ");
+              const weight = isOrder ? `${Number(source.order?.shipment?.delivered || 0).toLocaleString("id-ID")} ${source.order?.unit || ""}` : isMaterial ? (source.invoices || []).flatMap(row => row.lines || []).map(line => `${line.qty} ${line.unit}`).join(" · ") : `${Number(source.totalWeightKg || 0).toLocaleString("id-ID")} kg`;
+              const count = isOrder ? `${source.order?.shipment?.delivered ? "Realisasi selesai" : "Order selesai"}` : `${isMaterial ? source.invoices?.length : source.trips?.length} ${isMaterial ? "faktur" : "trip"}`;
+              return <button type="button" key={sourceKey} className={`ar-source-choice ${selected ? "selected" : ""}`} onClick={() => chooseOrder(sourceKey)}><i>{selected && <FiCheck/>}</i><span><small>{category}</small><b>{numbers || source.label}</b><em>{count}</em></span><strong>{weight || "—"}</strong></button>;
+            })}
+          </div>
           {invoiceOrder && <div className="ar-order-summary"><span><small>Rute pengiriman</small><strong>{invoiceOrder.fromText || "—"} → {invoiceOrder.toText || "—"}</strong></span><span><small>Realisasi muatan</small><strong>{invoiceOrder.shipment?.delivered ?? 0} / {invoiceOrder.shipment?.planned ?? invoiceOrder.qty ?? 0} {invoiceOrder.unit || ""}</strong>{invoiceOrder.shipment?.loss > 0 && <small style={{ color: "#b45309" }}>Kehilangan {invoiceOrder.shipment.loss.toLocaleString("id-ID")} {invoiceOrder.unit || ""}</small>}</span></div>}
           {selectedSource?.type === "MATERIAL" && <div className="ar-material-picker">
             <div className="ar-material-picker-head"><div><small>FAKTUR CUSTOMER</small><strong>{selectedSource.customerName}</strong><span>{invoiceForm.materialInvoiceIds.length} dari {selectedSource.materialInvoiceIds.length} faktur dipilih</span></div><button type="button" onClick={() => setInvoiceForm(form => ({ ...form, materialInvoiceIds: form.materialInvoiceIds.length === selectedSource.materialInvoiceIds.length ? [] : [...selectedSource.materialInvoiceIds] }))}>{invoiceForm.materialInvoiceIds.length === selectedSource.materialInvoiceIds.length ? "Batalkan semua" : "Pilih semua"}</button></div>

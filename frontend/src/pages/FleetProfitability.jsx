@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { FiActivity, FiAlertTriangle, FiDollarSign, FiEdit2, FiFileText, FiTruck, FiTrendingDown, FiTrendingUp, FiX } from "react-icons/fi";
+import { FiActivity, FiAlertTriangle, FiCalendar, FiDollarSign, FiEdit2, FiFileText, FiTruck, FiTrendingDown, FiTrendingUp, FiX } from "react-icons/fi";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import LoadingState from "../components/LoadingState";
 import "./FleetProfitability.css";
+import "./FleetProfitabilityPro.css";
 
 const money = value => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value) || 0);
 const pct = value => `${Number(value || 0).toLocaleString("id-ID", { maximumFractionDigits: 1 })}%`;
@@ -66,21 +67,21 @@ export default function FleetProfitability() {
   if (!canAccess) return <main className="fp-page"><header className="fp-head"><div><span>AKSES DIBATASI</span><h1>Profit Armada</h1><p>Halaman ini hanya tersedia untuk Owner dan Admin.</p></div></header></main>;
 
   return <main className="fp-page">
-    <header className="fp-head"><div><span>ANALISIS ARMADA</span><h1>Profit Armada</h1><p>Ukur trip, pendapatan, seluruh biaya, dan keuntungan setiap truk.</p></div><label>Periode<input type="month" value={month} onChange={event => setMonth(event.target.value)} /></label></header>
+    <header className="fp-head"><div className="fp-head-copy"><span>KEUANGAN · ANALISIS ARMADA</span><h1>Profit Armada</h1><p>Pantau kontribusi pendapatan, struktur biaya, dan laba bersih setiap armada dalam satu laporan.</p></div><div className="fp-period-card"><FiCalendar/><label><small>PERIODE LAPORAN</small><input type="month" value={month} onChange={event => setMonth(event.target.value)} /></label></div></header>
     {error && <div className="fp-error">{error}</div>}
     <section className="fp-summary">
-      <article><FiDollarSign/><small>Pendapatan</small><strong>{money(data.summary.revenue)}</strong><span>{data.summary.trips || 0} trip bulan ini</span></article>
-      <article className="loss"><FiAlertTriangle/><small>Kehilangan Muatan</small><strong>{money(data.summary.cargoLoss)}</strong><span>Selisih nilai muatan rencana dan tiba</span></article>
-      <article><FiActivity/><small>Total Biaya</small><strong>{money(data.summary.totalCost)}</strong><span>Operasional + sparepart + tetap</span></article>
-      <article className={(data.summary.profit || 0) < 0 ? "loss" : "profit"}><FiTrendingUp/><small>Laba Bersih</small><strong>{money(data.summary.profit)}</strong><span>Margin {pct(data.summary.margin)}</span></article>
-      <article><FiTruck/><small>Truk Terbaik</small><strong>{best?.truck.plateNumber || "—"}</strong><span>{best ? `${money(best.profit)} · ${pct(best.margin)}` : "Belum ada data"}</span></article>
+      <article className="revenue"><FiDollarSign/><small>Pendapatan</small><strong>{money(data.summary.revenue)}</strong><span>{data.summary.trips || 0} trip pada periode ini</span></article>
+      <article className="cargo-loss"><FiAlertTriangle/><small>Kehilangan Muatan</small><strong>{money(data.summary.cargoLoss)}</strong><span>Selisih nilai rencana dan tiba</span></article>
+      <article className="cost"><FiActivity/><small>Total Biaya</small><strong>{money(data.summary.totalCost)}</strong><span>Trip, armada, sparepart, dan tetap</span></article>
+      <article className={`net ${(data.summary.profit || 0) < 0 ? "loss" : "profit"}`}><FiTrendingUp/><small>Laba Bersih</small><strong>{money(data.summary.profit)}</strong><span>Margin bersih {pct(data.summary.margin)}</span></article>
+      <article className="best"><FiTruck/><small>Armada Terbaik</small><strong>{best?.truck.plateNumber || "—"}</strong><span>{best ? `${money(best.profit)} · margin ${pct(best.margin)}` : "Belum ada data"}</span></article>
     </section>
     <section className="fp-panel">
-      <div className="fp-panel-head"><div><h2>Performa per Truk</h2><p>Hijau ≥ 20% margin, kuning 0–19,9%, merah berarti rugi.</p></div><label>Urutkan<select value={sortBy} onChange={event => setSortBy(event.target.value)}><option value="profit-desc">Paling untung</option><option value="profit-asc">Paling rugi</option><option value="margin-desc">Margin tertinggi</option><option value="margin-asc">Margin terendah</option><option value="trips-desc">Trip terbanyak</option></select></label></div>
+      <div className="fp-panel-head"><div className="fp-panel-title"><span>PERFORMA ARMADA</span><h2>Analisis per Truk</h2><p>Bandingkan pendapatan, biaya, margin, dan utilisasi seluruh armada.</p></div><div className="fp-panel-controls"><span className="fp-count"><FiTruck/> {sortedRows.length} armada</span><label>Urutkan<select value={sortBy} onChange={event => setSortBy(event.target.value)}><option value="profit-desc">Paling untung</option><option value="profit-asc">Paling rugi</option><option value="margin-desc">Margin tertinggi</option><option value="margin-asc">Margin terendah</option><option value="trips-desc">Trip terbanyak</option></select></label></div></div>
       {loading ? <LoadingState label="Menghitung profit armada" note="Merekonsiliasi pendapatan, biaya trip, dan sparepart…" rows={5} /> : !data.rows.length ? <div className="fp-state">Belum ada armada.</div> :
       <div className="fp-table-wrap"><table><thead><tr><th>Armada</th><th>Trip</th><th>Pendapatan</th><th>Biaya</th><th>Laba / Rugi</th><th>Margin</th><th>Kinerja</th><th /></tr></thead><tbody>
         {sortedRows.map(row => <tr key={row.truck.id} onClick={() => setSelected(row)} className="fp-clickable" title="Klik untuk melihat rincian laba rugi">
-          <td><b>{row.truck.plateNumber}</b><small>{[row.truck.brand, row.truck.model].filter(Boolean).join(" ") || "Detail belum diisi"}</small></td>
+          <td><div className="fp-truck-cell"><span><FiTruck/></span><div><b>{row.truck.plateNumber}</b><small>{[row.truck.brand, row.truck.model].filter(Boolean).join(" ") || "Detail belum diisi"}</small></div></div></td>
           <td><b>{row.trips.total}</b><small>{row.trips.completed} selesai · {pct(row.completionRate)}</small></td>
           <td><b>{money(row.revenue)}</b><small>Kontribusi {pct(row.revenueContribution)}</small>{row.cargoLoss > 0 && <small style={{ color: "#bf3434" }}>Kehilangan {money(row.cargoLoss)}</small>}</td>
           <td><b>{money(row.totalCost)}</b><small>Rasio {pct(row.costRatio)}</small></td>
@@ -92,8 +93,9 @@ export default function FleetProfitability() {
       </tbody></table></div>}
     </section>
     {selected && <div className="fp-overlay" onMouseDown={event => event.target === event.currentTarget && setSelected(null)}><section className="fp-detail-modal">
-      <header><div><span>RINCIAN LABA / RUGI</span><h2>{selected.truck.plateNumber}</h2><p>Rekonsiliasi lengkap periode {month}. Semua angka di bawah membentuk laba/rugi akhir.</p></div><button type="button" onClick={() => setSelected(null)}><FiX/></button></header>
+      <header><div className="fp-detail-heading"><span>RINCIAN LABA / RUGI</span><h2>{selected.truck.plateNumber}</h2><p>Rekonsiliasi lengkap periode {month}. Semua angka di bawah membentuk laba/rugi akhir.</p></div><div className="fp-detail-head-actions"><div className={`fp-detail-head-metric ${selected.profit < 0 ? "loss" : "profit"}`}><small>{selected.profit < 0 ? "RUGI BERSIH" : "LABA BERSIH"}</small><strong>{money(Math.abs(selected.profit))}</strong><span>Margin {pct(selected.margin)}</span></div><button type="button" onClick={() => setSelected(null)} aria-label="Tutup rincian"><FiX/></button></div></header>
       <div className="fp-detail-body">
+        <div className="fp-detail-intro"><div><span>01</span><div><h3>Rekonsiliasi Keuangan</h3><p>Pendapatan dikurangi seluruh komponen biaya pada armada ini.</p></div></div><small>{selected.trips.total} trip · {selected.activeDays} hari aktif</small></div>
         <div className="fp-equation">
           <article><FiTrendingUp/><small>Pendapatan</small><strong>{money(selected.revenue)}</strong></article><i>−</i>
           <article><FiTrendingDown/><small>Pengeluaran Trip</small><strong>{money(selected.tripExpenses)}</strong></article><i>−</i>

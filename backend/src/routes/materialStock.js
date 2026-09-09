@@ -66,7 +66,7 @@ router.post("/allocate", async (req, res) => {
         orderId: body.orderId || null, tripId: trip.id, number: trip.dispatchLetter ? trip.dispatchLetter.number : "FM-" + new Date().getFullYear() + "-" + String(Date.now()).slice(-7),
         materialName: body.lines.length === 1 ? clean(body.lines[0].itemName) : "Multiple materials",
         qty: body.lines.reduce((sum, row) => sum + Number(row.qty || 0), 0), unit: body.lines.length === 1 ? clean(body.lines[0].unit).toUpperCase() : "LINES",
-        billingCustomerId: customer.id, billingCustomerName: customer.name, destinationLocationId: destination.id, stopSequence: sequence, notes: clean(body.notes) || null,
+        billingCustomerName: customer.name, destinationLocationId: destination.id, stopSequence: sequence, notes: clean(body.notes) || null,
       } });
       for (const input of body.lines) {
         let remaining = Number(input.qty);

@@ -166,7 +166,8 @@ function ItemSearchSelect({ items, value, onChange }) {
   }, [selected, value]);
 
   const filtered = useMemo(() => {
-    const keyword = query.trim().toLowerCase();
+    const selectedLabel = selected ? `${selected.sku || ""} — ${selected.name || ""}` : "";
+    const keyword = query === selectedLabel ? "" : query.trim().toLowerCase();
     const list = items || [];
     if (!keyword) return list.slice(0, 30);
     return list.filter((item) => `${item.sku || ""} ${item.name || ""} ${item.unit || ""}`.toLowerCase().includes(keyword)).slice(0, 50);
@@ -179,7 +180,7 @@ function ItemSearchSelect({ items, value, onChange }) {
         value={query}
         placeholder="Cari SKU atau nama item..."
         onChange={(e) => { setQuery(e.target.value); setOpen(true); if (value) onChange(""); }}
-        onFocus={() => setOpen(true)}
+        onFocus={(e) => { setOpen(true); e.target.select(); }}
         onBlur={() => setTimeout(() => setOpen(false), 140)}
       />
       {open && (
@@ -481,6 +482,7 @@ export default function Inventory() {
     unitLines: "",
     totalPurchasePrice: "",
   });
+  const [receiveUnitRows, setReceiveUnitRows] = useState([{ serialNumber: "", purchasePrice: "" }]);
 
   const [assignForm, setAssignForm] = useState({
     unitId: "",
@@ -500,6 +502,7 @@ export default function Inventory() {
   });
 
   const serializedItems = useMemo(() => items.filter((x) => x.isSerialized), [items]);
+  const selectedReceiveItem = receiveItems.find((x) => x.id === receiveForm.itemId) || items.find((x) => x.id === receiveForm.itemId);
   const nonSerializedItems = useMemo(() => items.filter((x) => !x.isSerialized), [items]);
 
   const qNorm = (q || "").trim().toLowerCase();
@@ -844,11 +847,17 @@ export default function Inventory() {
       };
 
       if (item.isSerialized) {
-        const unitsPayload = parseUnitLines(receiveForm.unitLines);
+        const unitsPayload = receiveUnitRows
+          .map((row) => ({ serialNumber: String(row.serialNumber || "").trim(), purchasePrice: row.purchasePrice === "" ? undefined : Number(row.purchasePrice) }))
+          .filter((row) => row.serialNumber || row.purchasePrice != null);
 
         if (unitsPayload.length === 0) {
-          throw new Error("Serialized item requires unit lines (serial required).");
+          throw new Error("Tambahkan minimal satu nomor seri.");
         }
+        if (unitsPayload.some((unit) => !unit.serialNumber)) throw new Error("Nomor seri tidak boleh kosong.");
+        const normalizedSerials = unitsPayload.map((unit) => unit.serialNumber.toLocaleLowerCase("id-ID"));
+        if (new Set(normalizedSerials).size !== normalizedSerials.length) throw new Error("Nomor seri tidak boleh duplikat.");
+        if (unitsPayload.some((unit) => unit.purchasePrice != null && (!Number.isFinite(unit.purchasePrice) || unit.purchasePrice <= 0))) throw new Error("Harga unit harus berupa angka lebih dari nol.");
 
         const hasAnyUnitPrice = unitsPayload.some(
           (u) => u.purchasePrice != null && Number(u.purchasePrice) > 0
@@ -865,6 +874,7 @@ export default function Inventory() {
         if (hasAnyUnitPrice && hasTotalPrice) {
           throw new Error("Use either per-unit price OR Total Purchase Price, not both.");
         }
+        if (hasAnyUnitPrice && unitsPayload.some((unit) => !(unit.purchasePrice > 0))) throw new Error("Isi harga pada seluruh unit, atau kosongkan semuanya dan gunakan Total Harga Pembelian.");
 
         payload.units = unitsPayload.map((u) => ({
           serialNumber: u.serialNumber,
@@ -892,6 +902,7 @@ export default function Inventory() {
         unitLines: "",
         totalPurchasePrice: "",
       });
+      setReceiveUnitRows([{ serialNumber: "", purchasePrice: "" }]);
 
       await Promise.all([loadItems(), loadMovements()]);
       if (tab === "UNITS") await loadUnits();
@@ -1055,16 +1066,13 @@ export default function Inventory() {
 
             <button
               className="inventory-action inventory-action--in"
-              onClick={async () => {
-                try {
-                  setErr("");
-                  await loadLocations();
-                  const data = await api("/inventory/items");
-                  setReceiveItems(data.items || []);
-                  setOpenReceive(true);
-                } catch (e) {
-                  setErr(String(e?.message || e));
-                }
+              onClick={() => {
+                setErr("");
+                setReceiveItems(items);
+                setOpenReceive(true);
+                Promise.all([loadLocations(), api("/inventory/items")])
+                  .then(([, data]) => setReceiveItems(data.items || []))
+                  .catch((e) => setErr(String(e?.message || e)));
               }}
             >
               <FiArrowDownCircle /> Terima Stok
@@ -1421,16 +1429,19 @@ export default function Inventory() {
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Barang</div>
+              <div className="inventory-receive-field-head">Barang</div>
               <ItemSearchSelect
                 items={receiveItems}
                 value={receiveForm.itemId}
-                onChange={(itemId) => setReceiveForm((p) => ({ ...p, itemId }))}
+                onChange={(itemId) => {
+                  setReceiveForm((p) => itemId === p.itemId ? p : ({ ...p, itemId, qty: 1, totalPurchasePrice: "", unitLines: "" }));
+                  if (itemId !== receiveForm.itemId) setReceiveUnitRows([{ serialNumber: "", purchasePrice: "" }]);
+                }}
               />
             </div>
 
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>
+              <div className="inventory-receive-field-head">
                 Lokasi penyimpanan{" "}
                 {locations.length > 0 ? (
                   <Btn
@@ -1477,9 +1488,17 @@ export default function Inventory() {
               <input
                 style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                 type="number"
-                step="0.01"
+                step={selectedReceiveItem?.isSerialized ? "1" : "0.01"}
+                min={selectedReceiveItem?.isSerialized ? "1" : "0.01"}
                 value={receiveForm.qty}
-                onChange={(e) => setReceiveForm((p) => ({ ...p, qty: e.target.value }))}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setReceiveForm((p) => ({ ...p, qty: value }));
+                  if (selectedReceiveItem?.isSerialized && value !== "") {
+                    const wanted = Math.max(1, Math.min(500, Math.floor(Number(value) || 1)));
+                    setReceiveUnitRows((rows) => Array.from({ length: wanted }, (_, index) => rows[index] || { serialNumber: "", purchasePrice: "" }));
+                  }
+                }}
               />
               <div style={{ marginTop: 6, fontSize: 12, color: BRAND.textMuted }}>
                 Untuk barang berseri, jumlah mengikuti daftar nomor seri di bawah.
@@ -1499,6 +1518,7 @@ export default function Inventory() {
                     style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                     type="number"
                     value={receiveForm.totalPurchasePrice || ""}
+                    disabled={Boolean(item.isSerialized && receiveUnitRows.some((row) => Number(row.purchasePrice) > 0))}
                     onChange={(e) => setReceiveForm((p) => ({ ...p, totalPurchasePrice: e.target.value }))}
                     placeholder="e.g. 20000000"
                   />
@@ -1511,39 +1531,17 @@ export default function Inventory() {
               );
             })()}
 
-            <div style={{ gridColumn: "1 / -1" }}>
+            {(() => {
+              const item = receiveItems.find((x) => x.id === receiveForm.itemId) || items.find((x) => x.id === receiveForm.itemId);
+              if (!item?.isSerialized) return null;
+              return <div className="inventory-serial-editor" style={{ gridColumn: "1 / -1" }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
-                Daftar unit berseri {(() => {
-                  const item = receiveItems.find((x) => x.id === receiveForm.itemId) || items.find((x) => x.id === receiveForm.itemId);
-                  return item?.isSerialized ? "(wajib)" : "(opsional)";
-                })()}
+                Daftar unit berseri (wajib)
               </div>
-
-              <div style={{ fontSize: 12, color: BRAND.textMuted, marginTop: 4 }}>
-                Satu unit per baris: <code>nomor seri,harga</code>. Harga boleh kosong jika total harga diisi.
-              </div>
-
-              <textarea
-                style={{
-                  width: "100%",
-                  marginTop: 10,
-                  padding: 12,
-                  borderRadius: 6,
-                  border: `1px solid ${BRAND.border}`,
-                  outline: "none",
-                  background: BRAND.white,
-                  color: BRAND.text,
-                  height: 120,
-                  resize: "vertical",
-                  boxSizing: "border-box",
-                  fontFamily: "monospace",
-                  fontSize: 13,
-                }}
-                value={receiveForm.unitLines}
-                onChange={(e) => setReceiveForm((p) => ({ ...p, unitLines: e.target.value }))}
-                placeholder={`Contoh:\nSN001,2000000\nSN002,2000000`}
-              />
-            </div>
+              <div className="inventory-serial-help">Masukkan satu unit pada setiap baris. Nomor seri diperiksa agar tidak kosong atau duplikat.</div>
+              <div className="inventory-serial-table"><div className="inventory-serial-head"><span>No.</span><span>Nomor seri</span><span>Harga/unit (Rp)</span><span/></div>{receiveUnitRows.map((row, index) => <div className="inventory-serial-row" key={index}><b>{index + 1}</b><input value={row.serialNumber} onChange={(e) => setReceiveUnitRows((rows) => rows.map((current, rowIndex) => rowIndex === index ? { ...current, serialNumber: e.target.value } : current))} placeholder="Contoh: SN001"/><input type="number" min="1" value={row.purchasePrice} disabled={String(receiveForm.totalPurchasePrice || "").trim() !== ""} onChange={(e) => setReceiveUnitRows((rows) => rows.map((current, rowIndex) => rowIndex === index ? { ...current, purchasePrice: e.target.value } : current))} placeholder={receiveForm.totalPurchasePrice ? "Pakai total harga" : "Contoh: 2000000"}/><button type="button" aria-label={`Hapus baris ${index + 1}`} disabled={receiveUnitRows.length === 1} onClick={() => { setReceiveUnitRows((rows) => rows.filter((_, rowIndex) => rowIndex !== index)); setReceiveForm((form) => ({ ...form, qty: Math.max(1, receiveUnitRows.length - 1) })); }}><FiX/></button></div>)}</div>
+              <button type="button" className="inventory-add-serial" onClick={() => { setReceiveUnitRows((rows) => [...rows, { serialNumber: "", purchasePrice: "" }]); setReceiveForm((form) => ({ ...form, qty: receiveUnitRows.length + 1 })); }}><FiPlus/> Tambah unit</button>
+            </div>})()}
           </div>
 
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>

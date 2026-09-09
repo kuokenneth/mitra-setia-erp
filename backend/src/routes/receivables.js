@@ -72,14 +72,15 @@ function weightKg(trip) {
 
 router.get("/overview", async (_req, res) => {
   try {
-    const [invoices, eligibleOrders, materialRows, singleTrips] = await Promise.all([
+    const [customers, invoices, eligibleOrders, materialRows, singleTrips] = await Promise.all([
+      prisma.customer.findMany({ orderBy: { name: "asc" } }),
       prisma.invoice.findMany({ include: invoiceInclude, orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }] }),
       prisma.order.findMany({
         where: { status: "COMPLETED", invoices: { none: { sourceType: "ORDER", status: { not: "VOID" } } } },
         include: { customer: true, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true } }, tripAllocations: { where: { trip: { status: "COMPLETED" } }, select: { qtyPlanned: true, qtyActual: true } }, materialInvoices: { select: { id: true, billingCustomerName: true, billedInvoiceId: true, destinationCompletedAt: true, lines: { select: { id: true, itemName: true, qty: true, unit: true, totalAmount: true } } } } },
         orderBy: { updatedAt: "desc" },
       }),
-      prisma.materialInvoice.findMany({ where: { billedInvoiceId: null, destinationCompletedAt: { not: null } }, include: { billingCustomer: true, lines: true, trip: { include: { truck: true } }, destinationLocation: true }, orderBy: { issuedAt: "asc" } }),
+      prisma.materialInvoice.findMany({ where: { billedInvoiceId: null, destinationCompletedAt: { not: null } }, include: { lines: true, trip: { include: { truck: true } }, destinationLocation: true }, orderBy: { issuedAt: "asc" } }),
       prisma.trip.findMany({ where: { purpose: "SINGLE_TRIP", status: "COMPLETED", cargoCategorySnap: { in: ["FERTILIZER", "CANGKANG"] }, billingCustomerName: { not: null }, invoiceLines: { none: {} }, singleInvoice: null }, include: { truck: true, billingCustomer: true }, orderBy: { completedAt: "asc" } }),
     ]);
     const rows = invoices.map(summarize);
@@ -92,9 +93,10 @@ router.get("/overview", async (_req, res) => {
     }, { invoiced: 0, received: 0, outstanding: 0, overdue: 0 });
     const groups = new Map();
     for (const item of materialRows) {
-      const customerName = item.billingCustomer?.name || item.billingCustomerName || "Tanpa customer";
-      const key = item.billingCustomerId ? `id:${item.billingCustomerId}` : `name:${String(customerName).trim().toLocaleLowerCase("id-ID")}`;
-      const group = groups.get(key) || { key, customerId: item.billingCustomerId || null, customerName, customerPhone: item.billingCustomer?.phone || "", billingAddress: item.billingCustomer?.address || "", total: 0, invoiceIds: [], invoices: [] };
+      const customerName = item.billingCustomerName || "Tanpa customer";
+      const matchedCustomer = customers.find(customer => customer.name.trim().toLocaleLowerCase("id-ID") === String(customerName).trim().toLocaleLowerCase("id-ID"));
+      const key = matchedCustomer ? `id:${matchedCustomer.id}` : `name:${String(customerName).trim().toLocaleLowerCase("id-ID")}`;
+      const group = groups.get(key) || { key, customerId: matchedCustomer?.id || null, customerName: matchedCustomer?.name || customerName, customerPhone: matchedCustomer?.phone || "", billingAddress: matchedCustomer?.address || "", total: 0, invoiceIds: [], invoices: [] };
       group.total += item.lines.reduce((sum, line) => sum + Number(line.totalAmount || 0), 0);
       group.invoiceIds.push(item.id); group.invoices.push(item); groups.set(key, group);
     }
@@ -110,7 +112,7 @@ router.get("/overview", async (_req, res) => {
     }
     const cargoLabel = value => value === "FERTILIZER" ? "Pupuk" : value === "CANGKANG" ? "Cangkang" : value;
     const singleSources = [...singleGroups.values()].map(group => ({ type: "SINGLE_TRIP_GROUP", id: group.key, customerId: group.customerId, label: `Trip Tunggal — ${group.customerName} · ${cargoLabel(group.cargoCategory)} (${group.trips.length} trip)`, customerName: group.customerName, customerPhone: group.customerPhone, billingAddress: group.billingAddress, cargoCategory: group.cargoCategory, singleTripIds: group.trips.map(trip => trip.id), totalWeightKg: group.totalWeightKg, trips: group.trips }));
-    res.json({ ok: true, invoices: rows, eligibleOrders: orderSources.map(source => source.order), eligibleMaterialGroups: [...groups.values()], eligibleSingleTrips: singleTrips, eligibleSources: [...orderSources, ...materialSources, ...singleSources], stats });
+    res.json({ ok: true, customers, invoices: rows, eligibleOrders: orderSources.map(source => source.order), eligibleMaterialGroups: [...groups.values()], eligibleSingleTrips: singleTrips, eligibleSources: [...orderSources, ...materialSources, ...singleSources], stats });
   } catch (error) {
     res.status(400).json({ error: error.message || "Gagal memuat piutang" });
   }
@@ -128,12 +130,11 @@ router.post("/invoices", async (req, res) => {
 
     const invoice = await prisma.$transaction(async (tx) => {
       if (sourceType === "MATERIAL") {
-        const items = await tx.materialInvoice.findMany({ where: { id: { in: materialInvoiceIds }, billedInvoiceId: null, destinationCompletedAt: { not: null } }, include: { billingCustomer: true, lines: true } });
+        const items = await tx.materialInvoice.findMany({ where: { id: { in: materialInvoiceIds }, billedInvoiceId: null, destinationCompletedAt: { not: null } }, include: { lines: true } });
         if (!items.length || items.length !== materialInvoiceIds.length) throw new Error("Faktur Muatan tidak tersedia atau sudah ditagih");
-        const resolvedCustomerId = items[0].billingCustomerId || customerId || null;
+        const resolvedCustomerId = customerId || null;
         const customerKey = customerName.trim().toLocaleLowerCase("id-ID");
-        if (items.some((item) => resolvedCustomerId && item.billingCustomerId !== resolvedCustomerId)) throw new Error("Semua Faktur Muatan harus untuk customer yang sama");
-        if (items.some((item) => !resolvedCustomerId && String(item.billingCustomerName || "").trim().toLocaleLowerCase("id-ID") !== customerKey)) throw new Error("Semua Faktur Muatan harus untuk customer yang sama");
+        if (items.some((item) => String(item.billingCustomerName || "").trim().toLocaleLowerCase("id-ID") !== customerKey)) throw new Error("Semua Faktur Muatan harus untuk customer yang sama");
         const subtotal = 0;
         const total = 0;
         const number = await nextNumber(tx, "invoice", "INV");
