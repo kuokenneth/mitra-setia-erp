@@ -29,6 +29,7 @@ enum StockUnitStatus {
   IN_STOCK
   ASSIGNED
   RETREADING
+  REPAIRING
   SCRAPPED
   LOST
 }
@@ -233,6 +234,7 @@ model User {
   auditLogs                   AuditLog[]                 @relation("AuditLogActor")
   journalEntriesCreated       JournalEntry[]             @relation("JournalEntryCreatedBy")
   tireRetreadsCreated         TireRetread[]              @relation("TireRetreadCreatedBy")
+  partRepairsCreated          PartRepair[]               @relation("PartRepairCreatedBy")
   maintenanceNotesCreated     MaintenanceNote[]          @relation("MaintenanceNoteCreatedBy")
   tripActionsCreated          TripOperationalAction[]    @relation("TripActionCreatedBy")
   tripActionsAssigned         TripOperationalAction[]    @relation("TripActionAssignedTo")
@@ -274,6 +276,7 @@ model Supplier {
   purchaseOrders PurchaseOrder[]
   bills          SupplierBill[]
   tireRetreads   TireRetread[]
+  partRepairs    PartRepair[]
 }
 
 model PurchaseRequest {
@@ -314,8 +317,11 @@ model PurchaseRequestItem {
   notes         String?
   tireRetreadId String?
   tireRetread   TireRetread?    @relation("PurchaseRequestItemRetread", fields: [tireRetreadId], references: [id], onDelete: SetNull)
+  partRepairId  String?
+  partRepair    PartRepair?     @relation("PurchaseRequestItemRepair", fields: [partRepairId], references: [id], onDelete: SetNull)
 
   @@index([tireRetreadId])
+  @@index([partRepairId])
 }
 
 model PurchaseOrder {
@@ -354,10 +360,13 @@ model PurchaseOrderItem {
   receivedQty      Float              @default(0)
   tireRetreadId    String?
   tireRetread      TireRetread?       @relation("PurchaseOrderItemRetread", fields: [tireRetreadId], references: [id], onDelete: SetNull)
+  partRepairId     String?
+  partRepair       PartRepair?        @relation("PurchaseOrderItemRepair", fields: [partRepairId], references: [id], onDelete: SetNull)
   receiptItems     GoodsReceiptItem[]
   inventoryBatches InventoryBatch[]
 
   @@index([tireRetreadId])
+  @@index([partRepairId])
 }
 
 model GoodsReceipt {
@@ -606,12 +615,32 @@ model Invoice {
   createdBy         User                    @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
   payments          ReceivablePayment[]
   materialInvoices  MaterialInvoice[]       @relation("MaterialInvoiceBilling")
+  manualData        Json?
+  manualLines       ManualInvoiceLine[]
   createdAt         DateTime                @default(now())
   updatedAt         DateTime                @updatedAt
 
   @@index([status])
   @@index([dueAt])
   @@index([customerId])
+}
+
+model ManualInvoiceLine {
+  id        String   @id @default(cuid())
+  invoiceId String
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  truckId   String?
+  truck     Truck?   @relation(fields: [truckId], references: [id], onDelete: SetNull)
+  position  Int
+  data      Json
+  quantity  Float    @default(0)
+  unit      String?
+  rate      Int      @default(0)
+  amount    Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([invoiceId, position])
+  @@index([truckId])
 }
 
 model ReceivablePayment {
@@ -983,6 +1012,7 @@ model Truck {
   monthlyCosts         TruckMonthlyCost[]
   expenses             Expense[]
   gpsEvents            GpsEvent[]
+  manualInvoiceLines   ManualInvoiceLine[]
 
   @@index([driverUserId])
   @@index([stnkExpiry])
@@ -1073,6 +1103,7 @@ model TruckMaintenance {
   sparePartAssignments TruckSparePartAssignment[]
   notes                MaintenanceNote[]
   purchaseRequests     PurchaseRequest[]
+  partRepairs          PartRepair[]
 
   @@index([truckId, isOilChange, oilChangedAt])
 }
@@ -1120,6 +1151,7 @@ model StockUnit {
   assignments  TruckSparePartAssignment[]
   movements    StockMovement[]
   tireRetreads TireRetread[]
+  partRepairs  PartRepair[]
 
   @@index([itemId])
   @@index([locationId])
@@ -1202,6 +1234,31 @@ model TireRetread {
 
   @@index([stockUnitId])
   @@index([supplierId])
+  @@index([status])
+}
+
+model PartRepair {
+  id                   String                @id @default(cuid())
+  stockUnitId          String
+  stockUnit            StockUnit             @relation(fields: [stockUnitId], references: [id], onDelete: Cascade)
+  supplierId           String?
+  supplier             Supplier?             @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  status               RetreadStatus         @default(SENT)
+  cost                 Int                   @default(0)
+  sentAt               DateTime              @default(now())
+  completedAt          DateTime?
+  notes                String?
+  maintenanceId        String?
+  maintenance          TruckMaintenance?     @relation(fields: [maintenanceId], references: [id], onDelete: SetNull)
+  createdById          String?
+  createdBy            User?                 @relation("PartRepairCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  purchaseRequestItems PurchaseRequestItem[] @relation("PurchaseRequestItemRepair")
+  purchaseOrderItems   PurchaseOrderItem[]   @relation("PurchaseOrderItemRepair")
+  createdAt            DateTime              @default(now())
+
+  @@index([stockUnitId])
+  @@index([supplierId])
+  @@index([maintenanceId])
   @@index([status])
 }
 

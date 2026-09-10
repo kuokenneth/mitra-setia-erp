@@ -95,6 +95,11 @@ router.get("/", async (req, res) => {
             materialInvoices: { include: { billedInvoice: true, lines: true } },
           },
         },
+        manualInvoiceLines: {
+          where: { invoice: { status: { in: ["SENT", "PARTIALLY_PAID", "PAID"] }, issuedAt: dateRange } },
+          include: { invoice: { select: { number: true, status: true, issuedAt: true, customerName: true, sourceType: true, manualData: true } } },
+          orderBy: { createdAt: "asc" },
+        },
         sparePartAssignments: { where: { installedAt: dateRange }, include: { stockUnit: { select: { purchasePrice: true, item: { select: { name: true, sku: true } } } } } },
         monthlyCosts: { where: { month: start } },
         expenses: {
@@ -110,7 +115,9 @@ router.get("/", async (req, res) => {
     const rows = trucks.map(truck => {
       const operationalTrips = truck.trips.filter(item => item.status !== "CANCELLED");
       const completedTrips = operationalTrips.filter(item => item.status === "COMPLETED").length;
-      const revenue = Math.round(operationalTrips.reduce((sum, item) => sum + allocatedRevenue(item), 0));
+      const tripRevenue = Math.round(operationalTrips.reduce((sum, item) => sum + allocatedRevenue(item), 0));
+      const manualRevenue = truck.manualInvoiceLines.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const revenue = tripRevenue + manualRevenue;
       const cargoLoss = Math.round(operationalTrips.reduce((sum, item) => sum + cargoLossValue(item), 0));
       const tripExpenses = operationalTrips.reduce((sum, item) => sum + item.expenses.reduce((cost, expense) => cost + expense.amount, 0), 0);
       const vehicleExpenses = truck.expenses.reduce((sum, expense) => sum + expense.amount, 0);
@@ -151,6 +158,32 @@ router.get("/", async (req, res) => {
           expenses: item.expenses.map(expense => ({ id: expense.id, reason: expense.reason, amount: expense.amount, status: expense.status, paidAt: expense.paidAt || expense.createdAt })),
         };
       });
+      for (const line of truck.manualInvoiceLines) {
+        const data = line.data || {};
+        tripDetails.push({
+          id: `manual:${line.id}`,
+          purpose: "MANUAL_INVOICE",
+          status: "COMPLETED",
+          date: data.date || line.invoice.issuedAt,
+          fromText: line.invoice.manualData?.fromText || "Data historis",
+          toText: line.invoice.manualData?.toText || "Tagihan langsung",
+          orderNo: "Tagihan Tunggal",
+          customerName: line.invoice.customerName,
+          invoiceNumber: line.invoice.number,
+          invoiceTotal: line.amount,
+          allocatedRevenue: line.amount,
+          allocationPercent: 100,
+          quantity: line.quantity,
+          plannedQuantity: null,
+          cargoLoss: 0,
+          unit: line.unit,
+          expenseTotal: 0,
+          netContribution: line.amount,
+          historical: true,
+          cargoName: data.cargoName || null,
+          expenses: [],
+        });
+      }
       const sparePartDetails = truck.sparePartAssignments.map(item => ({
         id: item.id,
         name: item.stockUnit.item?.name || "Sparepart",
@@ -161,7 +194,7 @@ router.get("/", async (req, res) => {
       return {
         truck: { id: truck.id, plateNumber: truck.plateNumber, brand: truck.brand, model: truck.model, status: truck.status },
         trips: { total: operationalTrips.length, completed: completedTrips, cancelled: truck.trips.length - operationalTrips.length },
-        revenue, cargoLoss, tripExpenses, vehicleExpenses, spareParts, fixedCosts: Object.fromEntries(COST_FIELDS.map(field => [field, fixedCosts[field] || 0])),
+        revenue, tripRevenue, manualRevenue, cargoLoss, tripExpenses, vehicleExpenses, spareParts, fixedCosts: Object.fromEntries(COST_FIELDS.map(field => [field, fixedCosts[field] || 0])),
         fixedTotal, totalCost, profit, margin,
         tripDetails, sparePartDetails,
         vehicleExpenseDetails: truck.expenses.map(expense => ({ id: expense.id, reason: expense.reason, amount: expense.amount, status: expense.status, paidAt: expense.paidAt || expense.createdAt })),

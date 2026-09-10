@@ -7,12 +7,12 @@ const { esc, num: fmtNum, money, date: fmtDate, documentHtml } = require("../uti
 const router = express.Router();
 
 const seq = (prefix) => `${prefix}-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
-const includePO = { supplier: true, request: { include: { maintenance: { include: { truck: true } } } }, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } } } }, receipts: { include: { items: { include: { purchaseOrderItem: { include: { item: true } } } }, location: true, createdBy: { select: { name: true } }, supplierBillLine: { include: { bill: true } } } }, payments: { include: { createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } } } };
+const includePO = { supplier: true, request: { include: { maintenance: { include: { truck: true } } } }, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } }, partRepair: { include: { stockUnit: true } } } }, receipts: { include: { items: { include: { purchaseOrderItem: { include: { item: true } } } }, location: true, createdBy: { select: { name: true } }, supplierBillLine: { include: { bill: true } } } }, payments: { include: { createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } } } };
 
 router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"));
 router.get("/overview", async (_req, res) => {
   const [requests, orders, suppliers, locations, items, retreadingUnits, bills] = await Promise.all([
-    prisma.purchaseRequest.findMany({ include: { maintenance: { include: { truck: true } }, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } } } }, createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } }, orderBy: { createdAt: "desc" } }),
+    prisma.purchaseRequest.findMany({ include: { maintenance: { include: { truck: true } }, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } }, partRepair: { include: { stockUnit: true } } } }, createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } }, orderBy: { createdAt: "desc" } }),
     prisma.purchaseOrder.findMany({ include: includePO, orderBy: { createdAt: "desc" } }),
     prisma.supplier.findMany({ orderBy: { name: "asc" } }), prisma.inventoryLocation.findMany({ orderBy: { name: "asc" } }), prisma.item.findMany({ orderBy: { name: "asc" } }),
     prisma.stockUnit.findMany({
@@ -97,7 +97,7 @@ router.patch("/requests/:id/approval", requireRole("OWNER", "ADMIN"), async (req
   const result = await prisma.$transaction(async tx => {
     for (const [id, qty] of Object.entries(quantities)) {
       const item = await tx.purchaseRequestItem.findUnique({ where: { id } });
-      await tx.purchaseRequestItem.update({ where: { id }, data: { approvedQty: item?.tireRetreadId ? 1 : Number(qty) } });
+      await tx.purchaseRequestItem.update({ where: { id }, data: { approvedQty: item?.tireRetreadId || item?.partRepairId ? 1 : Number(qty) } });
     }
     return tx.purchaseRequest.update({ where: { id: req.params.id }, data: { status: approved ? "APPROVED" : "REJECTED", approvedById: req.user.id, approvedAt: new Date(), approvalNotes: notes } });
   }); res.json({ ok: true, request: result });
@@ -107,16 +107,17 @@ router.post("/orders", async (req, res) => {
     const { requestId, supplierId, tax = 0, shippingCost = 0, discount = 0, paymentTerms, deliveryAddress, estimatedArrival, items = [] } = req.body;
     if (!requestId || !supplierId || !items.length) return res.status(400).json({ error: "Request, supplier, dan item wajib diisi" });
     if (items.some(i => Number(i.qty) <= 0)) return res.status(400).json({ error: "Jumlah item tidak valid" });
-    const request = await prisma.purchaseRequest.findUnique({ where: { id: requestId }, include: { items: { include: { tireRetread: true } } } });
+    const request = await prisma.purchaseRequest.findUnique({ where: { id: requestId }, include: { items: { include: { tireRetread: true, partRepair: true } } } });
     if (!request || request.status !== "APPROVED") return res.status(400).json({ error: "Purchase Request belum disetujui" });
     const poItems = items.map(i => {
       const requestItem = request.items.find(row => row.id === i.purchaseRequestItemId) || request.items.find(row => row.itemId === i.itemId);
       if (!requestItem) throw new Error("Item PO tidak sesuai dengan Purchase Request");
-      return { itemId: requestItem.itemId, qty: Number(i.qty), unitPrice: 0, tireRetreadId: requestItem.tireRetreadId };
+      return { itemId: requestItem.itemId, qty: Number(i.qty), unitPrice: 0, tireRetreadId: requestItem.tireRetreadId, partRepairId: requestItem.partRepairId };
     });
     const wrongSupplier = request.items.find(row => row.tireRetread?.supplierId && row.tireRetread.supplierId !== supplierId);
     if (wrongSupplier) throw new Error("Supplier PO harus sama dengan vendor yang dipilih saat Lepas & Masak");
     const po = await prisma.purchaseOrder.create({ data: { number: seq("PO"), requestId, supplierId, tax: Number(tax), shippingCost: Number(shippingCost), discount: Number(discount), paymentTerms, deliveryAddress, estimatedArrival: estimatedArrival ? new Date(estimatedArrival) : null, createdById: req.user.id, items: { create: poItems } }, include: includePO });
+    await prisma.partRepair.updateMany({ where: { id: { in: request.items.map(row => row.partRepairId).filter(Boolean) } }, data: { supplierId } });
     res.json({ ok: true, order: po });
   } catch (e) { res.status(500).json({ error: e.message || "Gagal membuat Purchase Order" }); }
 });
@@ -129,7 +130,7 @@ router.post("/receipts", async (req, res) => {
   const { purchaseOrderId, locationId, deliveryNote, deliveryNoteProofUrl, deliveryNoteFileName, deliveryNoteMimeType, deliveryNoteSize, notes, supplierInvoiceNumber, supplierInvoiceDate, supplierInvoiceAmount, supplierInvoiceProofUrl, supplierInvoiceFileName, supplierInvoiceMimeType, supplierInvoiceSize, items = [] } = req.body;
   try {
   const receipt = await prisma.$transaction(async tx => {
-    const po = await tx.purchaseOrder.findUnique({ where: { id: purchaseOrderId }, include: { request: { include: { maintenance: true } }, items: { include: { item: true, tireRetread: true } } } });
+    const po = await tx.purchaseOrder.findUnique({ where: { id: purchaseOrderId }, include: { request: { include: { maintenance: true } }, items: { include: { item: true, tireRetread: true, partRepair: true } } } });
     if (!po) throw new Error("Purchase Order tidak ditemukan");
     // The maintenance relation is traceability only. Receipt always enters stock;
     // mechanics install/use the item manually from the linked service afterward.
@@ -149,6 +150,8 @@ router.post("/receipts", async (req, res) => {
       if (poi.item.isSerialized) {
         const units = poi.tireRetreadId
           ? [{ retreadUnitId: poi.tireRetread.stockUnitId }]
+          : poi.partRepairId
+            ? [{ repairUnitId: poi.partRepair.stockUnitId }]
           : (Array.isArray(row.units) ? row.units : []);
         if (!Number.isInteger(qty) || units.length !== qty) throw new Error(`${poi.item.name}: jumlah serial number harus sama dengan qty diterima`);
         for (const unit of units) {
@@ -194,6 +197,15 @@ router.post("/receipts", async (req, res) => {
             });
             continue;
           }
+          if (unit.repairUnitId) {
+            const existingUnit = await tx.stockUnit.findUnique({ where: { id: String(unit.repairUnitId) }, include: { partRepairs: { where: { status: "SENT" }, orderBy: { sentAt: "desc" }, take: 1 } } });
+            if (!existingUnit || existingUnit.status !== "REPAIRING") throw new Error("Unit perbaikan tidak ditemukan atau sudah diterima");
+            const repair = existingUnit.partRepairs[0];
+            if (!repair || repair.id !== poi.partRepairId) throw new Error("Proses perbaikan unit tidak sesuai dengan PO");
+            await tx.stockUnit.update({ where: { id: existingUnit.id }, data: { locationId, inventoryBatchId: batch.id, purchasePrice: poi.unitPrice, status: "IN_STOCK" } });
+            await tx.partRepair.update({ where: { id: repair.id }, data: { status: "COMPLETED", completedAt: rec.receivedAt, cost: poi.unitPrice, supplierId: repair.supplierId || po.supplierId } });
+            continue;
+          }
           const serialNumber = String(unit.serialNumber || "").trim();
           if (!serialNumber) throw new Error(`${poi.item.name}: serial number wajib diisi`);
           const stockUnit = await tx.stockUnit.create({ data: { itemId: poi.itemId, locationId: directMaintenance ? null : locationId, inventoryBatchId: batch?.id || null, serialNumber, barcode: unit.barcode ? String(unit.barcode).trim() : null, purchasePrice: poi.unitPrice, purchasedAt: rec.receivedAt, currency: "IDR", status: directMaintenance ? "ASSIGNED" : "IN_STOCK" } });
@@ -232,17 +244,22 @@ router.post("/bills", async (req, res) => {
     if (records.some(row => row.supplierBillLine)) throw new Error("Ada penerimaan yang sudah masuk tagihan supplier lain");
     const lines = records.flatMap(receipt => receipt.items.map(item => {
       if (item.supplierBillItem) throw new Error(`${item.purchaseOrderItem.item.name} sudah pernah ditagihkan`);
+      if (!Object.prototype.hasOwnProperty.call(itemPrices, item.id) || itemPrices[item.id] === "") throw new Error(`Harga ${item.purchaseOrderItem.item.name} wajib diisi`);
       const unitPrice = Math.round(Number(itemPrices[item.id]));
-      if (!Number.isFinite(unitPrice) || unitPrice <= 0) throw new Error(`Harga ${item.purchaseOrderItem.item.name} wajib diisi`);
+      const isRepair = Boolean(item.purchaseOrderItem.partRepairId);
+      if (!Number.isFinite(unitPrice) || unitPrice < 0 || (!isRepair && unitPrice === 0)) throw new Error(isRepair ? `Harga perbaikan ${item.purchaseOrderItem.item.name} tidak valid` : `Harga ${item.purchaseOrderItem.item.name} harus lebih dari Rp0`);
       return { receipt, item, unitPrice, amount: Math.round(Number(item.qty) * unitPrice) };
     }));
     const total = lines.reduce((sum, line) => sum + line.amount, 0);
     const allocations = records.map(receipt => ({ receiptId: receipt.id, amount: lines.filter(line => line.receipt.id === receipt.id).reduce((sum, line) => sum + line.amount, 0) }));
     const previousValue = lines.reduce((sum, line) => sum + Number(line.item.qty) * Number(line.item.purchaseOrderItem.unitPrice || 0), 0);
     const bill = await prisma.$transaction(async tx => {
-      const created = await tx.supplierBill.create({ data: { number: seq("BILL"), supplierId, invoiceNumber: String(invoiceNumber).trim(), invoiceDate: new Date(invoiceDate), dueDate: dueDate ? new Date(dueDate) : null, amount: total, notes: notes || null, proofUrl, proofFileName: proofFileName || null, proofMimeType: proofMimeType || null, proofSize: Number.isFinite(Number(proofSize)) ? Number(proofSize) : null, createdById: req.user.id, receipts: { create: allocations }, items: { create: lines.map(line => ({ receiptItemId: line.item.id, qty: line.item.qty, unitPrice: line.unitPrice, amount: line.amount })) } } });
+      const created = await tx.supplierBill.create({ data: { number: seq("BILL"), supplierId, invoiceNumber: String(invoiceNumber).trim(), invoiceDate: new Date(invoiceDate), dueDate: dueDate ? new Date(dueDate) : null, amount: total, status: total === 0 ? "PAID" : "OPEN", notes: notes || null, proofUrl, proofFileName: proofFileName || null, proofMimeType: proofMimeType || null, proofSize: Number.isFinite(Number(proofSize)) ? Number(proofSize) : null, createdById: req.user.id, receipts: { create: allocations }, items: { create: lines.map(line => ({ receiptItemId: line.item.id, qty: line.item.qty, unitPrice: line.unitPrice, amount: line.amount })) } } });
       for (const line of lines) {
         await tx.purchaseOrderItem.update({ where: { id: line.item.purchaseOrderItemId }, data: { unitPrice: line.unitPrice } });
+        if (line.item.purchaseOrderItem.partRepairId) {
+          await tx.partRepair.update({ where: { id: line.item.purchaseOrderItem.partRepairId }, data: { cost: line.unitPrice } });
+        }
         if (line.item.inventoryBatch) {
           await tx.inventoryBatch.update({ where: { id: line.item.inventoryBatch.id }, data: { unitPrice: line.unitPrice } });
           await tx.stockUnit.updateMany({ where: { inventoryBatchId: line.item.inventoryBatch.id }, data: { purchasePrice: line.unitPrice } });
