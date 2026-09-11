@@ -5,6 +5,7 @@ import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { ProtectedFilePreview } from "../components/ProtectedFile";
 import LoadingState from "../components/LoadingState";
+import { FiArrowLeft, FiArrowRight, FiCalendar, FiCheckCircle, FiClock, FiCreditCard, FiFileText, FiPlus, FiSearch, FiTruck, FiX } from "react-icons/fi";
 import "./Expenses.css";
 
 // Corporate Green Color Palette (matching Landing/Dashboard)
@@ -54,6 +55,7 @@ export default function Expenses() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [trips, setTrips] = useState([]);
+  const [expenseTrucks, setExpenseTrucks] = useState([]);
   const [tripSearch, setTripSearch] = useState("");
   const [tripLoading, setTripLoading] = useState(false);
   const [emptyReturnOpen, setEmptyReturnOpen] = useState(false);
@@ -86,6 +88,7 @@ export default function Expenses() {
 
   const [form, setForm] = useState({
     tripId: "",
+    truckId: "",
     category: "TRIP_ALLOWANCE",
     paymentMethod: "BANK_TRANSFER",
     bankName: "",
@@ -113,6 +116,7 @@ export default function Expenses() {
   function resetForm() {
     setForm({
       tripId: "",
+      truckId: "",
       category: "TRIP_ALLOWANCE",
       paymentMethod: "BANK_TRANSFER",
       bankName: "",
@@ -174,6 +178,15 @@ export default function Expenses() {
     }
   }
 
+  async function loadExpenseTrucks() {
+    try {
+      const data = await api("/trucks");
+      setExpenseTrucks(data.items || []);
+    } catch (e) {
+      setErr(e.message || "Gagal memuat Master Armada");
+    }
+  }
+
   async function openEmptyReturn() {
     setEmptyReturnOpen(true);
     setEmptyReturnLoading(true);
@@ -225,6 +238,11 @@ export default function Expenses() {
 
   useEffect(() => {
     if (!allowed) return;
+    loadExpenseTrucks();
+  }, [allowed]);
+
+  useEffect(() => {
+    if (!allowed) return;
     const t = setTimeout(() => {
       setPage(0);
       load();
@@ -248,6 +266,7 @@ export default function Expenses() {
         method: "POST",
         body: JSON.stringify({
           tripId: form.tripId || undefined,
+          truckId: form.truckId || undefined,
           category: form.category,
           paymentMethod: form.paymentMethod,
           bankName: form.bankName,
@@ -279,12 +298,6 @@ export default function Expenses() {
     } catch (e) {
       setErr(e.message || "Gagal menghapus expense");
     }
-  }
-
-  function normalizeProofUrl(url) {
-    if (!url) return url;
-    if (url.startsWith("http://") || url.startsWith("https://")) return url;
-    return `${API_BASE}${url.startsWith("/") ? "" : "/"}${url}`;
   }
 
   async function uploadProof(expenseId, file, replace = false) {
@@ -384,15 +397,15 @@ export default function Expenses() {
   );
 
   return (
-    <div style={s.page}>
+    <div style={s.page} className="expense-page">
       {/* Header */}
-      <div style={s.headerRow}>
+      <div style={s.headerRow} className="expense-hero">
         <div>
+          <div className="expense-eyebrow">KEUANGAN OPERASIONAL</div>
           <h1 style={s.hTitle}>Pengeluaran</h1>
-          <div style={s.hSub}>Catat dan pantau seluruh pengeluaran</div>
+          <div style={s.hSub}>Kelola biaya perjalanan, armada, dan operasional dalam satu tempat.</div>
         </div>
         <div style={s.headerActions}>
-          <span style={s.pill}>{total} total</span>
           <div style={s.reportActions}>
             <input
               type="month"
@@ -401,45 +414,52 @@ export default function Expenses() {
               style={s.monthInput}
             />
             <button style={s.secondaryBtn} onClick={() => openMonthlyReport(false)}>
-              Cetak Bulanan
+              <FiFileText /> Cetak laporan
             </button>
           </div>
           <button className="expense-new-button" style={s.primaryBtn} onClick={() => setShowModal(true)}>
-            + Pengeluaran Baru
+            <FiPlus /> Pengeluaran baru
           </button>
         </div>
       </div>
 
       {/* Stats */}
       <div style={s.statsRow}>
-        <div style={s.statCard}>
+        <div style={s.statCard} className="expense-stat-card expense-stat-waiting">
+          <span className="expense-stat-icon"><FiClock /></span>
           <div style={s.statLabel}>Diajukan</div>
           <div style={s.statValue}>{statusCounts.SUBMITTED}</div>
+          <div className="expense-stat-note">Menunggu bukti pembayaran</div>
         </div>
-        <div style={s.statCard}>
+        <div style={s.statCard} className="expense-stat-card expense-stat-paid">
+          <span className="expense-stat-icon"><FiCreditCard /></span>
           <div style={s.statLabel}>Dibayar</div>
           <div style={s.statValue}>{statusCounts.PAID}</div>
+          <div className="expense-stat-note">Menunggu persetujuan owner</div>
         </div>
-        <div style={s.statCard}>
+        <div style={s.statCard} className="expense-stat-card expense-stat-approved">
+          <span className="expense-stat-icon"><FiCheckCircle /></span>
           <div style={s.statLabel}>Disetujui</div>
           <div style={s.statValue}>{statusCounts.APPROVED}</div>
+          <div className="expense-stat-note">Sudah terverifikasi</div>
         </div>
-        <div style={s.statCard}>
-          <div style={s.statLabel}>Ditampilkan</div>
-          <div style={s.statValue}>{items.length}</div>
+        <div style={s.statCard} className="expense-stat-card expense-stat-total">
+          <span className="expense-stat-icon"><FiFileText /></span>
+          <div style={s.statLabel}>Total transaksi</div>
+          <div style={s.statValue}>{total}</div>
+          <div className="expense-stat-note">Seluruh catatan pengeluaran</div>
         </div>
       </div>
 
       {/* Main Panel */}
-      <div style={s.panel}>
+      <div style={s.panel} className="expense-panel">
+        <div className="expense-panel-heading">
+          <div><div className="expense-eyebrow">DAFTAR TRANSAKSI</div><h2>Riwayat pengeluaran</h2></div>
+          <span className="expense-result-count">{items.length} ditampilkan</span>
+        </div>
         {/* Filters */}
-        <div style={s.filtersRow}>
-          <input
-            style={s.searchInput}
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Cari alasan, klien, atau bank..."
-          />
+        <div style={s.filtersRow} className="expense-filters">
+          <div className="expense-search-wrap"><FiSearch /><input style={s.searchInput} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari keperluan, referensi, atau bank..." /></div>
           <select
             value={methodFilter}
             onChange={(e) => setMethodFilter(e.target.value)}
@@ -452,34 +472,35 @@ export default function Expenses() {
           </select>
         </div>
 
-        {err ? <div style={s.alertErr}>{err}</div> : null}
+        {err ? <div style={s.alertErr} className="expense-error">{err}</div> : null}
 
         {/* Table */}
-        <div style={s.tableWrap}>
+        <div style={s.tableWrap} className="expense-table-wrap">
           <table style={s.table}>
             <thead>
               <tr>
                 <th style={s.th}>Tanggal</th>
+                <th style={s.th}>Pengeluaran</th>
+                <th style={s.th}>Alokasi</th>
+                <th style={s.th}>Pembayaran</th>
+                <th style={s.th}>Nominal</th>
                 <th style={s.th}>Status</th>
-                <th style={s.th}>Metode</th>
-                <th style={s.th}>Bank</th>
-                <th style={s.th}>Rekening</th>
-                <th style={s.th}>Jumlah</th>
-                <th style={s.th}>Kategori</th>
-                <th style={s.th}>Alasan</th>
-                <th style={s.th}>Klien</th>
                 <th style={s.th}>Tindakan</th>
               </tr>
             </thead>
             <tbody>
-              {loading && items.length === 0 && <tr><td colSpan={10} style={{ padding: 14 }}><LoadingState compact label="Memuat pengeluaran" note="Mengambil transaksi dan status pembayaran…" rows={5} /></td></tr>}
+              {loading && items.length === 0 && <tr><td colSpan={7} style={{ padding: 14 }}><LoadingState compact label="Memuat pengeluaran" note="Mengambil transaksi dan status pembayaran…" rows={5} /></td></tr>}
               {items.map((x) => (
                 <tr key={x.id} style={s.rowClickable} onClick={() => openDetail(x)}>
-                  <td style={s.td}>{x.createdAt ? new Date(x.createdAt).toLocaleDateString() : "-"}</td>
+                  <td style={s.td}><div className="expense-date"><FiCalendar />{x.createdAt ? new Date(x.createdAt).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "-"}</div></td>
+                  <td style={s.td}><div className="expense-row-title">{x.reason || "Tanpa keterangan"}</div><div className="expense-row-meta">{EXPENSE_CATEGORIES[x.category] || "Lainnya"}{x.clientName ? ` · ${x.clientName}` : ""}</div></td>
+                  <td style={s.td}><div className="expense-allocation"><span><FiTruck /></span><div><strong>{x.trip?.truck?.plateNumber || x.truck?.plateNumber || "Umum"}</strong><small>{x.trip ? (x.trip.order?.orderNo || "Perjalanan") : x.truck ? "Biaya armada" : "Operasional umum"}</small></div></div></td>
+                  <td style={s.td}><div className="expense-row-title">{x.paymentMethod === "BANK_TRANSFER" ? "Transfer bank" : x.paymentMethod === "CASH" ? "Tunai" : "Lainnya"}</div><div className="expense-row-meta">{x.bankName || x.accountName || "—"}</div></td>
+                  <td style={s.tdStrong}>{new Intl.NumberFormat("id-ID", { style: "currency", currency: x.currency || "IDR", maximumFractionDigits: 0 }).format(x.amount || 0)}</td>
                   <td style={s.td}>
                     <div style={s.statusStack}>
                       <span style={{ ...s.statusPill, ...statusVariant(x.status) }}>
-                        {x.status || "SUBMITTED"}
+                        {x.status === "APPROVED" ? "Disetujui" : x.status === "PAID" ? "Dibayar" : "Diajukan"}
                       </span>
                       {x.duplicateFlag ? (
                         <span style={{ ...s.statusPill, ...s.dupPill }}>
@@ -488,19 +509,6 @@ export default function Expenses() {
                       ) : null}
                     </div>
                   </td>
-                  <td style={s.td}>{x.paymentMethod}</td>
-                  <td style={s.tdSoft}>{x.bankName || "-"}</td>
-                  <td style={s.tdSoft}>{x.accountName || x.accountNumber || "-"}</td>
-                  <td style={s.tdStrong}>
-                    {new Intl.NumberFormat(undefined, {
-                      style: "currency",
-                      currency: x.currency || "IDR",
-                      maximumFractionDigits: 0,
-                    }).format(x.amount || 0)}
-                  </td>
-                  <td style={s.td}>{EXPENSE_CATEGORIES[x.category] || "Lainnya"}</td>
-                  <td style={s.td}>{x.reason}</td>
-                  <td style={s.tdSoft}>{x.clientName || "-"}</td>
                   <td style={s.td}>
                     <div style={s.actionsRow}>
                       {x.proofUrl ? (
@@ -583,8 +591,8 @@ export default function Expenses() {
 
               {!loading && items.length === 0 ? (
                 <tr>
-                  <td style={s.empty} colSpan={10}>
-                    Tidak ada expenses ditemukan.
+                  <td style={s.empty} colSpan={7}>
+                    Belum ada pengeluaran yang sesuai.
                   </td>
                 </tr>
               ) : null}
@@ -593,13 +601,13 @@ export default function Expenses() {
         </div>
 
         {/* Pagination */}
-        <div style={s.footer}>
+        <div style={s.footer} className="expense-pagination">
           <button
             style={s.secondaryBtn}
             disabled={loading || page <= 0}
             onClick={() => setPage((p) => Math.max(0, p - 1))}
           >
-            Prev
+            <FiArrowLeft /> Sebelumnya
           </button>
 
           <div style={s.pageInfo}>
@@ -611,7 +619,7 @@ export default function Expenses() {
             disabled={loading || page + 1 >= pageCount}
             onClick={() => setPage((p) => p + 1)}
           >
-            Next
+            Berikutnya <FiArrowRight />
           </button>
         </div>
       </div>
@@ -621,13 +629,17 @@ export default function Expenses() {
         <div style={s.modalOverlay} onClick={() => setShowModal(false)}>
           <div style={s.modalCard} className="expense-create-modal" onClick={(e) => e.stopPropagation()}>
             <div style={s.modalHeader} className="expense-create-header">
-              <div style={s.modalTitle}>Pengeluaran Baru</div>
+              <div className="expense-modal-heading">
+                <span className="expense-modal-icon"><FiCreditCard /></span>
+                <div><div className="expense-eyebrow">PENCATATAN BIAYA</div><div style={s.modalTitle}>Pengeluaran baru</div><p>Pilih alokasi biaya, lengkapi pembayaran, lalu simpan untuk diajukan.</p></div>
+              </div>
               <button style={s.closeBtn} onClick={() => setShowModal(false)} aria-label="Close">
-                ✕
+                <FiX />
               </button>
             </div>
             <form className="expense-create-form" onSubmit={onSubmit}>
               <div style={s.formGrid} className="expense-create-fields">
+                <div className="expense-form-section-title"><span>01</span><div><strong>Alokasi biaya</strong><small>Hubungkan ke perjalanan, armada, atau biarkan sebagai biaya umum.</small></div></div>
                 <div style={{ gridColumn: "1 / -1" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12, marginBottom: 8 }}>
                     <div>
@@ -647,10 +659,20 @@ export default function Expenses() {
                     />
                     <select
                       value={form.tripId}
-                      onChange={(e) => onChangeForm("tripId", e.target.value)}
+                      disabled={Boolean(form.truckId)}
+                      onChange={(e) => {
+                        const tripId = e.target.value;
+                        setForm((current) => ({ ...current, tripId, truckId: tripId ? "" : current.truckId }));
+                      }}
                       style={s.select}
                     >
-                      <option value="">{tripLoading ? "Memuat perjalanan..." : "Pilih perjalanan"}</option>
+                      <option value="">
+                        {form.truckId
+                          ? "Kosongkan armada langsung untuk memilih perjalanan"
+                          : tripLoading
+                            ? "Memuat perjalanan..."
+                            : "Pilih perjalanan"}
+                      </option>
                       {trips.map((t) => (
                         <option key={t.id} value={t.id}>
                           {(t.purpose === "EMPTY_RETURN" ? "KEMBALI KOSONG • " : "") +
@@ -687,6 +709,33 @@ export default function Expenses() {
                     </div>
                   )}
                 </div>
+
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label style={s.label}>Armada langsung (opsional)</label>
+                  <select
+                    value={form.truckId}
+                    disabled={Boolean(form.tripId)}
+                    onChange={(e) => {
+                      const truckId = e.target.value;
+                      setForm((current) => ({ ...current, truckId, tripId: truckId ? "" : current.tripId }));
+                    }}
+                    style={s.select}
+                  >
+                    <option value="">
+                      {form.tripId ? "Armada mengikuti perjalanan yang dipilih" : "Tidak terkait armada tertentu"}
+                    </option>
+                    {expenseTrucks.map((truck) => (
+                      <option key={truck.id} value={truck.id}>
+                        {truck.plateNumber} • {[truck.brand, truck.model].filter(Boolean).join(" ") || "Armada"}
+                      </option>
+                    ))}
+                  </select>
+                  <div style={{ color: BRAND.textMuted, fontSize: 11, marginTop: 6 }}>
+                    Pilih ini untuk pajak, servis, sparepart, atau biaya kendaraan yang tidak terkait dengan satu perjalanan tertentu.
+                  </div>
+                </div>
+
+                <div className="expense-form-section-title"><span>02</span><div><strong>Pembayaran</strong><small>Catat tujuan pembayaran dan nilai transaksi.</small></div></div>
 
                 <div>
                   <label style={s.label}>Metode Pembayaran</label>
@@ -744,6 +793,8 @@ export default function Expenses() {
                     placeholder="0"
                   />
                 </div>
+
+                <div className="expense-form-section-title"><span>03</span><div><strong>Rincian pengeluaran</strong><small>Berikan kategori dan keterangan agar mudah ditelusuri.</small></div></div>
                 <div>
                   <label style={s.label}>Kategori Pengeluaran</label>
                   <select style={s.select} value={form.category} onChange={(e) => onChangeForm("category", e.target.value)}>
@@ -789,11 +840,10 @@ export default function Expenses() {
                 </div>
               </div>
               <div style={s.formActions} className="expense-create-actions">
-                <button style={s.secondaryBtn} type="button" onClick={() => setShowModal(false)}>
-                  Cancel
-                </button>
+                <div className="expense-submit-note"><FiCheckCircle /> Disimpan sebagai pengajuan pengeluaran</div>
+                <button style={s.secondaryBtn} type="button" onClick={() => setShowModal(false)}>Batal</button>
                 <button style={s.primaryBtn} disabled={submitting}>
-                  {submitting ? "Menyimpan..." : "Simpan Pengeluaran"}
+                  {submitting ? "Menyimpan..." : "Simpan pengeluaran"}
                 </button>
               </div>
             </form>
@@ -836,7 +886,7 @@ export default function Expenses() {
               <div>
                 <div style={s.detailLabel}>Kendaraan</div>
                 <div style={s.detailValue}>
-                  {detailItem.trip?.truck?.plateNumber || detailItem.trip?.plateNumberSnap || "-"}
+                  {detailItem.trip?.truck?.plateNumber || detailItem.trip?.plateNumberSnap || detailItem.truck?.plateNumber || "-"}
                 </div>
               </div>
               <div>

@@ -207,6 +207,11 @@ router.post("/", authRequired, async (req, res) => {
   const accountNumber = cleanStr(req.body.accountNumber);
   const notes = cleanStr(req.body.notes);
   const tripId = cleanStr(req.body.tripId);
+  const truckId = cleanStr(req.body.truckId);
+
+  if (tripId && truckId) {
+    return res.status(400).json({ error: "Pilih perjalanan atau armada langsung, bukan keduanya" });
+  }
 
   const allowedMethods = ["BANK_TRANSFER", "CASH", "OTHER"];
   if (!allowedMethods.includes(paymentMethod)) {
@@ -236,6 +241,10 @@ router.post("/", authRequired, async (req, res) => {
       });
     }
   }
+  if (truckId) {
+    const truck = await prisma.truck.findUnique({ where: { id: truckId }, select: { id: true } });
+    if (!truck) return res.status(404).json({ error: "Armada tidak ditemukan" });
+  }
 
   const created = await prisma.expense.create({
     data: {
@@ -251,9 +260,11 @@ router.post("/", authRequired, async (req, res) => {
       clientName,
       notes,
       tripId: tripId || null,
+      truckId: truckId || null,
       createdById: req.user?.id,
     },
     include: {
+      truck: { select: { id: true, plateNumber: true, brand: true, model: true } },
       trip: {
         include: {
           truck: true,

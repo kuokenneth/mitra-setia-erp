@@ -56,6 +56,7 @@ function Metric({ label, value, note, tone }) {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const canViewFinance = ["OWNER", "ADMIN"].includes(user?.role);
   const [revision, setRevision] = useState(0);
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(true);
@@ -74,7 +75,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([api("/trucks"), api("/maintenance"), api("/inventory/items"), api(`/fleet-profitability?month=${month}`), api("/trips?status=ARRIVED&limit=8")])
+    Promise.all([api("/trucks"), api("/maintenance"), api("/inventory/items"), canViewFinance ? api(`/fleet-profitability?month=${month}`) : Promise.resolve({ summary: {} }), api("/trips?status=ARRIVED&limit=8")])
       .then(([truckData, maintenanceData, inventoryData, financeData, arrivedTripData]) => {
         if (cancelled) return;
         setTrucks(list(truckData));
@@ -87,7 +88,7 @@ export default function Dashboard() {
       .catch((error) => { console.error(error); if (!cancelled) setConnected(false); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [month, revision]);
+  }, [canViewFinance, month, revision]);
 
   const data = useMemo(() => {
     const status = { READY: 0, PLANNED: 0, DISPATCH: 0, MAINTENANCE: 0, INACTIVE: 0 };
@@ -123,7 +124,7 @@ export default function Dashboard() {
         <div className="d3-header-side"><time>{new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</time><b className={connected ? "connected" : "disconnected"}><i />{connected ? "Live data" : "Data terputus"}</b></div>
       </header>
 
-      <section className="d3-overview">
+      <section className={`d3-overview ${canViewFinance ? "" : "operations-only"}`}>
         <div className="d3-utilization">
           <div className="d3-ring" style={{ "--progress": `${utilization * 3.6}deg` }}><div><strong>{loading ? "—" : `${utilization}%`}</strong><span>utilisasi</span></div></div>
           <div><span>KONDISI ARMADA</span><h2>{data.active} dari {trucks.length} truk aktif</h2><p>Armada berstatus siap atau sedang berjalan.</p><button onClick={() => (window.location.href = "/trucks")}>Lihat semua armada <FiArrowRight /></button></div>
@@ -134,9 +135,9 @@ export default function Dashboard() {
           <Metric label="SERVIS" value={data.status.MAINTENANCE} note="Dalam perbaikan" tone="service" />
           <Metric label="WARNING" value={data.warnings.length} note="Perlu perhatian" tone="warning" />
         </div>
-        <div className="d3-profit">
+        {canViewFinance && <div className="d3-profit">
           <div><span>FINANCIAL PULSE</span><FiDollarSign /></div><small>Laba bersih bulan ini</small><strong className={profit < 0 ? "loss" : "gain"}>{loading ? "—" : rupiah(profit)}</strong><p>{rupiah(finance.summary?.revenue)} pendapatan · Margin {Number(finance.summary?.margin || 0).toLocaleString("id-ID", { maximumFractionDigits: 1 })}%</p><button onClick={() => (window.location.href = "/fleet-profitability")}>Buka laporan <FiArrowRight /></button>
-        </div>
+        </div>}
       </section>
 
       <section className="d3-arrived-card">
