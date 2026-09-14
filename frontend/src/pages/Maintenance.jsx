@@ -8,6 +8,8 @@ import LoadingState from "../components/LoadingState";
 import { FiActivity, FiCalendar, FiCheck, FiClock, FiPlus, FiRefreshCw, FiSearch, FiTool, FiTruck, FiX } from "react-icons/fi";
 import "./Maintenance.css";
 
+const OIL_CHANGE_INTERVAL_KM = 8500;
+
 //////////////////////
 // THEME - CORPORATE MINIMALIST
 //////////////////////
@@ -338,15 +340,14 @@ function SearchableInstalledUnitPicker({ assignments, value, onChange, disabled,
 }
 
 function ServicePhoto({ photo, alt }) {
+  const directUrl = apiAssetUrl(photo);
+  const isDirect = /^https?:\/\//i.test(directUrl) && !directUrl.includes("/api/uploads/");
   const [src, setSrc] = useState("");
   const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     const url = apiAssetUrl(photo);
-    if (/^https?:\/\//i.test(url) && !url.includes("/api/uploads/")) {
-      setSrc(url);
-      return undefined;
-    }
+    if (/^https?:\/\//i.test(url) && !url.includes("/api/uploads/")) return undefined;
 
     let active = true;
     let objectUrl = "";
@@ -370,8 +371,9 @@ function ServicePhoto({ photo, alt }) {
   }, [photo]);
 
   if (loadError) return <div style={{ display: "grid", placeItems: "center", height: "100%", padding: 12, color: BRAND.danger, fontSize: 13, textAlign: "center" }}>{loadError}</div>;
-  if (!src) return <div style={{ display: "grid", placeItems: "center", height: "100%", color: BRAND.textMuted, fontSize: 13 }}>Memuat foto...</div>;
-  return <img src={src} alt={alt} style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }} />;
+  const displaySrc = isDirect ? directUrl : src;
+  if (!displaySrc) return <div style={{ display: "grid", placeItems: "center", height: "100%", color: BRAND.textMuted, fontSize: 13 }}>Memuat foto...</div>;
+  return <img src={displaySrc} alt={alt} style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }} />;
 }
 
 function Modal({ open, title, onClose, children, width = 900, className = "" }) {
@@ -594,25 +596,41 @@ export default function Maintenance() {
     try {
       const data = await api("/maintenance/" + activeId);
       setActiveJob(data.job);
-    } catch {}
+    } catch {
+      // Background refresh failures are surfaced by the next foreground load.
+    }
   }
 
   async function createMaintenancePurchaseRequest(event) {
     event.preventDefault();
     if (!activeJob?.id) return;
+    const form = purchaseRequestForm;
+    const selectedItem = items.find(item => item.id === form.itemId);
+    const availableQty = Number(selectedItem?.qtyTotal || 0);
+    if (!form.newItem && availableQty > 0 && !form.acknowledgeAvailableStock) {
+      setPurchaseRequestForm(current => ({ ...current, acknowledgeAvailableStock: true }));
+      setErr(`Peringatan: stok ${selectedItem.name} masih tersedia ${availableQty.toLocaleString("id-ID")} ${selectedItem.unit}. Periksa Inventory terlebih dahulu, atau klik Tetap Buat Permintaan jika pembelian memang diperlukan.`);
+      return;
+    }
     setRequestingPurchase(true); setErr("");
     try {
-      const form = purchaseRequestForm;
-      await api(`/maintenance/${activeJob.id}/purchase-requests`, { method: "POST", body: JSON.stringify({ itemId: form.newItem ? undefined : form.itemId, newItem: form.newItem ? { sku: form.sku, name: form.name, unit: form.unit, isSerialized: form.isSerialized } : undefined, qty: form.qty, urgency: form.urgency, reason: form.reason, notes: form.notes }) });
+      await api(`/maintenance/${activeJob.id}/purchase-requests`, { method: "POST", body: JSON.stringify({ itemId: form.newItem ? undefined : form.itemId, newItem: form.newItem ? { sku: form.sku, name: form.name, unit: form.unit, isSerialized: form.isSerialized } : undefined, qty: form.qty, urgency: form.urgency, reason: form.reason, notes: form.notes, acknowledgeAvailableStock: Boolean(form.acknowledgeAvailableStock) }) });
       setPurchaseRequestForm({ itemId: "", qty: 1, urgency: "URGENT", reason: "", notes: "", newItem: false, sku: "", name: "", unit: "PCS", isSerialized: false });
       await refreshDetail();
-    } catch (e) { setErr(e.message || "Gagal membuat permintaan pembelian"); }
+    } catch (e) {
+      if (String(e.message || "").startsWith("Stok ") && String(e.message || "").includes(" masih tersedia ")) {
+        setPurchaseRequestForm(current => ({ ...current, acknowledgeAvailableStock: true }));
+      }
+      setErr(e.message || "Gagal membuat permintaan pembelian");
+    }
     finally { setRequestingPurchase(false); }
   }
 
   useEffect(() => {
     load();
     loadItemsAndLocations().catch(() => {});
+  // Initial page bootstrap; live refresh handles subsequent updates.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -658,6 +676,12 @@ export default function Maintenance() {
   const serializedItems = useMemo(() => (items || []).filter((i) => i.isSerialized), [items]);
   const nonSerializedItems = useMemo(() => (items || []).filter((i) => !i.isSerialized), [items]);
   const selectedUseItem = useMemo(() => nonSerializedItems.find((item) => item.id === useItemId) || null, [nonSerializedItems, useItemId]);
+  const hasPreviousOilOdometer = activeJob?.previousOilChange?.odometerKm != null;
+  const previousOilOdometer = Number(activeJob?.previousOilChange?.odometerKm || 0);
+  const minimumOilOdometer = hasPreviousOilOdometer ? previousOilOdometer + OIL_CHANGE_INTERVAL_KM : 0;
+  const enteredOilOdometer = Number(useOilOdometer);
+  const oilOdometerValid = useOilOdometer !== "" && Number.isInteger(enteredOilOdometer) && enteredOilOdometer >= 0;
+  const oilMileageEligible = oilOdometerValid && (!hasPreviousOilOdometer || enteredOilOdometer >= minimumOilOdometer);
 
   async function startCreate() {
     setErr("");
@@ -792,6 +816,9 @@ export default function Maintenance() {
     if (!Number.isFinite(qty) || qty <= 0) return setErr("Qty must be > 0");
     if (selectedUseItem?.category === "OIL" && !useOilDate) return setErr("Tanggal ganti oli wajib diisi");
     if (selectedUseItem?.category === "OIL" && (!Number.isInteger(Number(useOilOdometer)) || Number(useOilOdometer) < 0)) return setErr("Odometer saat ganti oli wajib diisi");
+    if (selectedUseItem?.category === "OIL" && hasPreviousOilOdometer && !oilMileageEligible) {
+      return setErr(`Kendaraan harus berjalan minimal ${OIL_CHANGE_INTERVAL_KM.toLocaleString("id-ID")} km sejak ganti oli terakhir. Odometer minimal ${minimumOilOdometer.toLocaleString("id-ID")} km.`);
+    }
 
     setUsingStock(true);
     setErr("");
@@ -1464,10 +1491,10 @@ export default function Maintenance() {
 
                 <form className={`maintenance-direct-request ${detailTab !== "PURCHASE" ? "maintenance-detail-section-hidden" : ""}`} onSubmit={createMaintenancePurchaseRequest}>
                   <div className="maintenance-request-head"><span><FiPlus /></span><div><strong>Pesan sparepart untuk servis ini</strong><small>Permintaan tetap terlacak di servis; barang masuk Inventory saat diterima.</small></div><em>UNTUK SERVIS</em></div>
-                  <section className="maintenance-request-card"><div className="maintenance-request-card-title"><span>01</span><div><strong>Pilih barang</strong><small>Gunakan katalog atau daftarkan sparepart baru.</small></div></div><div className="maintenance-request-mode"><button type="button" className={!purchaseRequestForm.newItem ? "active" : ""} onClick={() => setPurchaseRequestForm(form => ({ ...form, newItem: false }))}>Pilih katalog</button><button type="button" className={purchaseRequestForm.newItem ? "active" : ""} onClick={() => setPurchaseRequestForm(form => ({ ...form, newItem: true }))}>Sparepart baru</button></div>
-                    {!purchaseRequestForm.newItem ? <label>Sparepart<select required value={purchaseRequestForm.itemId} onChange={event => setPurchaseRequestForm(form => ({ ...form, itemId: event.target.value }))}><option value="">Pilih barang, termasuk yang stoknya 0</option>{items.map(item => <option key={item.id} value={item.id}>{item.sku} — {item.name} ({item.unit})</option>)}</select></label> : <div className="maintenance-request-new-item"><label>SKU<input required value={purchaseRequestForm.sku} onChange={event => setPurchaseRequestForm(form => ({ ...form, sku: event.target.value }))} placeholder="Contoh: BRK-HINO-02" /></label><label>Nama sparepart<input required value={purchaseRequestForm.name} onChange={event => setPurchaseRequestForm(form => ({ ...form, name: event.target.value }))} placeholder="Contoh: Master rem Hino" /></label><label>Satuan<select value={purchaseRequestForm.unit} onChange={event => setPurchaseRequestForm(form => ({ ...form, unit: event.target.value }))}><option>PCS</option><option>SET</option><option>UNIT</option><option>LITER</option></select></label><label className="maintenance-request-check"><input type="checkbox" checked={purchaseRequestForm.isSerialized} onChange={event => setPurchaseRequestForm(form => ({ ...form, isSerialized: event.target.checked }))} /> Memiliki nomor serial</label></div>}
+                  <section className="maintenance-request-card"><div className="maintenance-request-card-title"><span>01</span><div><strong>Pilih barang</strong><small>Gunakan katalog atau daftarkan sparepart baru.</small></div></div><div className="maintenance-request-mode"><button type="button" className={!purchaseRequestForm.newItem ? "active" : ""} onClick={() => { setErr(""); setPurchaseRequestForm(form => ({ ...form, newItem: false, acknowledgeAvailableStock: false })); }}>Pilih katalog</button><button type="button" className={purchaseRequestForm.newItem ? "active" : ""} onClick={() => { setErr(""); setPurchaseRequestForm(form => ({ ...form, newItem: true, acknowledgeAvailableStock: false })); }}>Sparepart baru</button></div>
+                    {!purchaseRequestForm.newItem ? <label>Sparepart<select required value={purchaseRequestForm.itemId} onChange={event => { setErr(""); setPurchaseRequestForm(form => ({ ...form, itemId: event.target.value, acknowledgeAvailableStock: false })); }}><option value="">Pilih barang, termasuk yang stoknya 0</option>{items.map(item => <option key={item.id} value={item.id}>{item.sku} — {item.name} ({item.unit})</option>)}</select>{Number(items.find(item => item.id === purchaseRequestForm.itemId)?.qtyTotal || 0) > 0 && <span className="maintenance-stock-warning">⚠ Stok masih tersedia: <b>{Number(items.find(item => item.id === purchaseRequestForm.itemId)?.qtyTotal || 0).toLocaleString("id-ID")} {items.find(item => item.id === purchaseRequestForm.itemId)?.unit}</b>. Periksa Inventory sebelum membeli.</span>}</label> : <div className="maintenance-request-new-item"><label>SKU<input required value={purchaseRequestForm.sku} onChange={event => setPurchaseRequestForm(form => ({ ...form, sku: event.target.value }))} placeholder="Contoh: BRK-HINO-02" /></label><label>Nama sparepart<input required value={purchaseRequestForm.name} onChange={event => setPurchaseRequestForm(form => ({ ...form, name: event.target.value }))} placeholder="Contoh: Master rem Hino" /></label><label>Satuan<select value={purchaseRequestForm.unit} onChange={event => setPurchaseRequestForm(form => ({ ...form, unit: event.target.value }))}><option>PCS</option><option>SET</option><option>UNIT</option><option>LITER</option></select></label><label className="maintenance-request-check"><input type="checkbox" checked={purchaseRequestForm.isSerialized} onChange={event => setPurchaseRequestForm(form => ({ ...form, isSerialized: event.target.checked }))} /> Memiliki nomor serial</label></div>}
                   </section>
-                  <section className="maintenance-request-card"><div className="maintenance-request-card-title"><span>02</span><div><strong>Detail kebutuhan</strong><small>Tentukan jumlah, tingkat urgensi, dan alasan pemesanan.</small></div></div><div className="maintenance-request-fields"><label>Jumlah<input required type="number" min="0.01" step="0.01" value={purchaseRequestForm.qty} onChange={event => setPurchaseRequestForm(form => ({ ...form, qty: event.target.value }))} /></label><label>Urgensi<select value={purchaseRequestForm.urgency} onChange={event => setPurchaseRequestForm(form => ({ ...form, urgency: event.target.value }))}><option value="NORMAL">Normal</option><option value="URGENT">Mendesak</option><option value="CRITICAL">Kritis</option></select></label><label>Alasan kebutuhan<input required value={purchaseRequestForm.reason} onChange={event => setPurchaseRequestForm(form => ({ ...form, reason: event.target.value }))} placeholder="Contoh: komponen rusak dan tidak tersedia di gudang" /></label><button className="maintenance-request-submit" disabled={requestingPurchase || activeJob.status !== "OPEN"}>{requestingPurchase ? "Mengirim..." : "Buat Permintaan"}</button></div></section>
+                  <section className="maintenance-request-card"><div className="maintenance-request-card-title"><span>02</span><div><strong>Detail kebutuhan</strong><small>Tentukan jumlah, tingkat urgensi, dan alasan pemesanan.</small></div></div><div className="maintenance-request-fields"><label>Jumlah<input required type="number" min="0.01" step="0.01" value={purchaseRequestForm.qty} onChange={event => setPurchaseRequestForm(form => ({ ...form, qty: event.target.value }))} /></label><label>Urgensi<select value={purchaseRequestForm.urgency} onChange={event => setPurchaseRequestForm(form => ({ ...form, urgency: event.target.value }))}><option value="NORMAL">Normal</option><option value="URGENT">Mendesak</option><option value="CRITICAL">Kritis</option></select></label><label>Alasan kebutuhan<input required value={purchaseRequestForm.reason} onChange={event => setPurchaseRequestForm(form => ({ ...form, reason: event.target.value }))} placeholder="Contoh: komponen rusak dan tidak tersedia di gudang" /></label><button className="maintenance-request-submit" disabled={requestingPurchase || activeJob.status !== "OPEN"}>{requestingPurchase ? "Mengirim..." : purchaseRequestForm.acknowledgeAvailableStock ? "Tetap Buat Permintaan" : "Buat Permintaan"}</button></div></section>
                   {(activeJob.purchaseRequests?.length || activeJob.partRepairs?.length) ? <section className="maintenance-request-log"><div className="maintenance-request-card-title"><span>RIWAYAT</span><div><strong>Permintaan dari servis ini</strong><small>Status pembelian dan perbaikan yang masih terlacak.</small></div></div>{!!activeJob.purchaseRequests?.length && <div className="maintenance-request-history">{activeJob.purchaseRequests.map(request => <span key={request.id}><b>{request.number}</b><small>{request.items?.map(row => `${row.item.name} · ${row.originalQty} ${row.item.unit}`).join(", ")}</small><em className={request.status}>{request.status.replaceAll("_", " ")}</em></span>)}</div>}{!!activeJob.partRepairs?.length && <div className="maintenance-request-history">{activeJob.partRepairs.map(repair => <span key={repair.id}><b>PERBAIKAN · {repair.stockUnit?.serialNumber || repair.stockUnit?.barcode || "Tanpa serial"}</b><small>{repair.stockUnit?.item?.name}{repair.supplier?.name ? ` · ${repair.supplier.name}` : " · Vendor belum dipilih"}</small><em className={repair.status}>{repair.status === "SENT" ? "DALAM PERBAIKAN" : repair.status}</em></span>)}</div>}</section> : <div className="maintenance-request-empty">Belum ada permintaan pembelian dari servis ini.</div>}
                 </form>
 
@@ -1606,13 +1633,20 @@ export default function Maintenance() {
                         </label>
                         <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
                           Odometer saat ganti oli
-                          <Input type="number" min="0" value={useOilOdometer} onChange={(e) => setUseOilOdometer(e.target.value)} placeholder="km" disabled={!allowed || activeJob.status !== "OPEN"} />
+                          <Input type="number" min={0} value={useOilOdometer} onChange={(e) => setUseOilOdometer(e.target.value)} placeholder={hasPreviousOilOdometer ? `Minimal ${minimumOilOdometer.toLocaleString("id-ID")} km` : "Masukkan odometer saat ini"} disabled={!allowed || activeJob.status !== "OPEN"} />
                         </label>
                       </div>
                       <div style={{ marginTop: 10, fontSize: 12, color: BRAND.textLight }}>
                         {activeJob.previousOilChange
                           ? `Terakhir: ${fmtDateTime(activeJob.previousOilChange.oilChangedAt)} • ${Number(activeJob.previousOilChange.odometerKm || 0).toLocaleString()} km`
                           : "Belum ada riwayat ganti oli sebelumnya."}
+                      </div>
+                      <div style={{ marginTop: 5, fontSize: 12, fontWeight: 700, color: oilMileageEligible ? BRAND.primary : BRAND.warning }}>
+                        {!hasPreviousOilOdometer
+                          ? "Catatan pertama akan dijadikan odometer acuan ganti oli berikutnya."
+                          : oilMileageEligible
+                            ? `Memenuhi interval ${OIL_CHANGE_INTERVAL_KM.toLocaleString("id-ID")} km.`
+                            : `Odometer minimal untuk ganti oli: ${minimumOilOdometer.toLocaleString("id-ID")} km.`}
                       </div>
                       <div style={{ marginTop: 5, fontSize: 12, color: BRAND.textMuted }}>Foto dokumentasi dapat diunggah secara opsional pada bagian foto maintenance.</div>
                     </div>

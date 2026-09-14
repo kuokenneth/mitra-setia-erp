@@ -382,6 +382,8 @@ export default function Trips() {
   }
   useEffect(() => {
     load(page, applied);
+  // Fetch only when the applied query or page changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, applied]);
   useEffect(() => {
     loadControl();

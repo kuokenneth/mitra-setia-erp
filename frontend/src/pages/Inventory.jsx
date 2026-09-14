@@ -171,7 +171,7 @@ function ItemSearchSelect({ items, value, onChange }) {
     const list = items || [];
     if (!keyword) return list.slice(0, 30);
     return list.filter((item) => `${item.sku || ""} ${item.name || ""} ${item.unit || ""}`.toLowerCase().includes(keyword)).slice(0, 50);
-  }, [items, query]);
+  }, [items, query, selected]);
 
   return (
     <div style={{ position: "relative", minWidth: 280, flex: "1 1 280px" }}>
@@ -392,24 +392,6 @@ function buildQuery(paramsObj) {
   });
   const s = sp.toString();
   return s ? `?${s}` : "";
-}
-
-function parseUnitLines(text) {
-  const lines = String(text || "")
-    .split("\n")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  return lines.map((line) => {
-    const [serialNumber, purchasePrice] = line
-      .split(",")
-      .map((s) => (s ? s.trim() : ""));
-
-    return {
-      serialNumber: serialNumber || undefined,
-      purchasePrice: purchasePrice ? Number(purchasePrice) : undefined,
-    };
-  });
 }
 
 function sumStocks(stocks) {
@@ -728,11 +710,14 @@ export default function Inventory() {
         setLoading(false);
       }
     })();
+  // Bootstrap reference data once access becomes available.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowed]);
 
   useEffect(() => {
     if (!allowed) return;
     refresh();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
   async function createItem() {

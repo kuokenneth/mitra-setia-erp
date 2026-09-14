@@ -4,6 +4,7 @@ const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 
 const router = express.Router();
+const OIL_CHANGE_INTERVAL_KM = 8500;
 
 function canWrite(user) {
   return ["OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"].includes(user?.role);
@@ -155,6 +156,17 @@ router.post("/:id/purchase-requests", authRequired, async (req, res) => {
     }
     const item = itemId ? await prisma.item.findUnique({ where: { id: itemId } }) : null;
     if (!item) return res.status(400).json({ error: "Sparepart wajib dipilih" });
+    if (!req.body.acknowledgeAvailableStock) {
+      const availableQty = item.isSerialized
+        ? await prisma.stockUnit.count({ where: { itemId: item.id, status: "IN_STOCK" } })
+        : (await prisma.inventoryStock.aggregate({ where: { itemId: item.id }, _sum: { qty: true } }))._sum.qty || 0;
+      if (Number(availableQty) > 0) {
+        return res.status(409).json({
+          error: `Stok ${item.name} masih tersedia ${Number(availableQty).toLocaleString("id-ID")} ${item.unit}. Periksa Inventory atau konfirmasi untuk tetap membuat permintaan.`,
+          code: "STOCK_AVAILABLE",
+        });
+      }
+    }
 
     const request = await prisma.purchaseRequest.create({
       data: {
@@ -815,6 +827,15 @@ router.post("/:id/use-stock", authRequired, async (req, res) => {
       });
       if (previous?.odometerKm != null && oilOdometer < previous.odometerKm) {
         return res.status(400).json({ error: `Odometer baru tidak boleh lebih rendah dari riwayat terakhir (${previous.odometerKm} km)` });
+      }
+      const previousOdometer = Number(previous?.odometerKm || 0);
+      const distanceSinceLastChange = oilOdometer - previousOdometer;
+      if (previous?.odometerKm != null && distanceSinceLastChange < OIL_CHANGE_INTERVAL_KM) {
+        const minimumOdometer = previousOdometer + OIL_CHANGE_INTERVAL_KM;
+        const remainingKm = OIL_CHANGE_INTERVAL_KM - distanceSinceLastChange;
+        return res.status(400).json({
+          error: `Ganti oli hanya dapat dilakukan setelah kendaraan berjalan minimal ${OIL_CHANGE_INTERVAL_KM.toLocaleString("id-ID")} km. Odometer minimal ${minimumOdometer.toLocaleString("id-ID")} km (kurang ${remainingKm.toLocaleString("id-ID")} km).`,
+        });
       }
       if (previous?.oilChangedAt && oilDate < previous.oilChangedAt) {
         return res.status(400).json({ error: "Tanggal ganti oli baru tidak boleh lebih awal dari riwayat terakhir" });

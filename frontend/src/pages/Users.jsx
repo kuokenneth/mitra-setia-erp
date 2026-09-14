@@ -44,21 +44,6 @@ export default function Users() {
 
   const skip = useMemo(() => page * take, [page]);
 
-  const [isMobile, setIsMobile] = useState(() =>
-    window.matchMedia("(max-width: 900px)").matches
-  );
-
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 900px)");
-    const onChange = () => setIsMobile(mq.matches);
-    if (mq.addEventListener) mq.addEventListener("change", onChange);
-    else mq.addListener(onChange);
-    return () => {
-      if (mq.removeEventListener) mq.removeEventListener("change", onChange);
-      else mq.removeListener(onChange);
-    };
-  }, []);
-
   async function updateStatus(userId, status) {
     try {
       await api(`/users/${userId}/status`, {
@@ -66,7 +51,7 @@ export default function Users() {
         body: JSON.stringify({ status }),
       });
       setItems((prev) => prev.map((u) => (u.id === userId ? { ...u, status } : u)));
-    } catch (e) {
+    } catch {
       alert("Gagal memperbarui status");
     }
   }
@@ -135,6 +120,8 @@ export default function Users() {
   useEffect(() => {
     if (!allowed) return;
     load();
+  // Fetch only when the applied list controls change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skip, roleFilter]);
 
   useEffect(() => {
@@ -144,6 +131,7 @@ export default function Users() {
       load();
     }, 250);
     return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
   if (!allowed) {

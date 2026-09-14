@@ -11,7 +11,9 @@ const labels={ASSET:"Aset",LIABILITY:"Liabilitas",EQUITY:"Ekuitas",REVENUE:"Pend
 export default function Accounting(){
  const [data,setData]=useState({summary:{},accounts:[],entries:[]}),[from,setFrom]=useState(start()),[to,setTo]=useState(new Date().toISOString().slice(0,10)),[tab,setTab]=useState("journal"),[loading,setLoading]=useState(true),[syncing,setSyncing]=useState(false),[notice,setNotice]=useState(""),[error,setError]=useState("");
  async function load(){setLoading(true);setError("");try{setData(await api(`/accounting/overview?from=${from}&to=${to}`));}catch(err){setError(err.message);}finally{setLoading(false)}}
- useEffect(()=>{load()},[]);useLiveRefresh(load);
+	 // Initial request only; later period changes are applied explicitly by the user.
+	 // eslint-disable-next-line react-hooks/exhaustive-deps
+	 useEffect(()=>{load()},[]);useLiveRefresh(load);
  async function sync(){setSyncing(true);setNotice("");setError("");try{const result=await api("/accounting/sync",{method:"POST"});await load();setNotice(`Sinkronisasi selesai. ${result.processed||0} transaksi diperiksa tanpa jurnal ganda.`);}catch(err){setError(err.message)}finally{setSyncing(false)}}
  const grouped=useMemo(()=>data.accounts.reduce((result,account)=>{(result[account.type]??=[]).push(account);return result},{}),[data.accounts]);
  const profit=Number(data.summary.profit||0);

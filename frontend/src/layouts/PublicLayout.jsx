@@ -5,8 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 export default function PublicLayout() {
   const { pathname } = useLocation();
   const hideChrome = pathname === "/login" || pathname === "/register";
-  const isLanding = pathname === "/";
-
   // Corporate Green Color Palette
   const BRAND = useMemo(
     () => ({

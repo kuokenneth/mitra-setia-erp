@@ -234,6 +234,8 @@ export default function Expenses() {
   useEffect(() => {
     if (!allowed) return;
     load();
+  // load is intentionally retriggered only by pagination/filter state.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skip, methodFilter]);
 
   useEffect(() => {
@@ -248,6 +250,7 @@ export default function Expenses() {
       load();
     }, 250);
     return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
   useEffect(() => {
@@ -256,6 +259,7 @@ export default function Expenses() {
       loadTrips(tripSearch);
     }, 250);
     return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripSearch]);
 
   async function onSubmit(e) {

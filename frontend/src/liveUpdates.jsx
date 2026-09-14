@@ -62,10 +62,14 @@ export function LiveUpdatesProvider({ children }) {
   return <LiveContext.Provider value={{ status, lastUpdate }}>{children}<LiveIndicator status={status}/></LiveContext.Provider>;
 }
 
+// This module intentionally exports hooks together with their provider.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useLiveRefresh(callback, { interval = 60000, enabled = true } = {}) {
   const callbackRef = useRef(callback);
   const timerRef = useRef();
-  callbackRef.current = callback;
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
   useEffect(() => {
     if (!enabled) return;
     const refresh = () => {
@@ -81,6 +85,8 @@ export function useLiveRefresh(callback, { interval = 60000, enabled = true } = 
   }, [enabled, interval]);
 }
 
+// This module intentionally exports hooks together with their provider.
+// eslint-disable-next-line react-refresh/only-export-components
 export const useLiveStatus = () => useContext(LiveContext);
 
 function LiveIndicator({ status }) {

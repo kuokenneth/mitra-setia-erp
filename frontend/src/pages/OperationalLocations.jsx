@@ -65,6 +65,8 @@ function GoogleLocationPicker({ position, radius, warning, onPick, onError }) {
       if (markerRef.current) markerRef.current.map = null;
       circleRef.current?.setMap(null);
     };
+  // The map instance is created once; position changes are handled separately.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

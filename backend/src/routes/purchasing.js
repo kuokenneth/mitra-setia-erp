@@ -69,8 +69,35 @@ router.get("/receipts/:id/print", async (req, res) => {
 });
 router.post("/suppliers", async (req, res) => res.json({ ok: true, supplier: await prisma.supplier.create({ data: req.body }) }));
 router.post("/requests", async (req, res) => {
-  const { urgency, purpose, truckId, reason, notes, items = [], submit = true } = req.body;
+  const { urgency, purpose, truckId, reason, notes, items = [], submit = true, acknowledgeAvailableStock = false } = req.body;
   if (!reason || !items.length) return res.status(400).json({ error: "Alasan dan minimal satu item wajib diisi" });
+  const regularItemIds = items.filter(row => row.itemId && !row.retreadUnitId).map(row => String(row.itemId));
+  if (regularItemIds.length && !acknowledgeAvailableStock) {
+    const catalogItems = await prisma.item.findMany({
+      where: { id: { in: regularItemIds } },
+      include: { stocks: true },
+    });
+    const serializedCounts = await prisma.stockUnit.groupBy({
+      by: ["itemId"],
+      where: { itemId: { in: regularItemIds }, status: "IN_STOCK" },
+      _count: { _all: true },
+    });
+    const serializedByItem = new Map(serializedCounts.map(row => [row.itemId, row._count._all]));
+    const available = catalogItems
+      .map(item => ({
+        item,
+        qty: item.isSerialized
+          ? Number(serializedByItem.get(item.id) || 0)
+          : item.stocks.reduce((sum, stock) => sum + Number(stock.qty || 0), 0),
+      }))
+      .filter(row => row.qty > 0);
+    if (available.length) {
+      return res.status(409).json({
+        error: `Stok masih tersedia: ${available.map(row => `${row.item.name} (${row.qty.toLocaleString("id-ID")} ${row.item.unit})`).join(", ")}. Periksa Inventory atau konfirmasi untuk tetap membuat permintaan.`,
+        code: "STOCK_AVAILABLE",
+      });
+    }
+  }
   const preparedItems = [];
   for (const row of items) {
     if (row.retreadUnitId) {
@@ -93,7 +120,38 @@ router.post("/requests", async (req, res) => {
   res.json({ ok: true, request });
 });
 router.patch("/requests/:id/approval", requireRole("OWNER", "ADMIN"), async (req, res) => {
-  const { approved, notes, quantities = {} } = req.body;
+  const { approved, notes, quantities = {}, acknowledgeAvailableStock = false } = req.body;
+  if (approved && !acknowledgeAvailableStock) {
+    const request = await prisma.purchaseRequest.findUnique({
+      where: { id: req.params.id },
+      include: { items: { include: { item: { include: { stocks: true } } } } },
+    });
+    if (!request) return res.status(404).json({ error: "Purchase Request tidak ditemukan" });
+    const regularRows = request.items.filter(row => !row.tireRetreadId && !row.partRepairId);
+    const serializedIds = regularRows.filter(row => row.item.isSerialized).map(row => row.itemId);
+    const serializedCounts = serializedIds.length
+      ? await prisma.stockUnit.groupBy({
+          by: ["itemId"],
+          where: { itemId: { in: serializedIds }, status: "IN_STOCK" },
+          _count: { _all: true },
+        })
+      : [];
+    const serializedByItem = new Map(serializedCounts.map(row => [row.itemId, row._count._all]));
+    const available = regularRows
+      .map(row => ({
+        item: row.item,
+        qty: row.item.isSerialized
+          ? Number(serializedByItem.get(row.itemId) || 0)
+          : row.item.stocks.reduce((sum, stock) => sum + Number(stock.qty || 0), 0),
+      }))
+      .filter(row => row.qty > 0);
+    if (available.length) {
+      return res.status(409).json({
+        error: `Stok masih tersedia: ${available.map(row => `${row.item.name} (${row.qty.toLocaleString("id-ID")} ${row.item.unit})`).join(", ")}. Konfirmasi untuk tetap menyetujui permintaan.`,
+        code: "STOCK_AVAILABLE",
+      });
+    }
+  }
   const result = await prisma.$transaction(async tx => {
     for (const [id, qty] of Object.entries(quantities)) {
       const item = await tx.purchaseRequestItem.findUnique({ where: { id } });

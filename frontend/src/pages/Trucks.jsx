@@ -222,6 +222,8 @@ export default function Trucks() {
   useEffect(() => {
     if (!allowed) return;
     load();
+  // Bootstrap the list once access becomes available.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowed]);
 
   useEffect(() => { setPage(1); }, [q]);
@@ -230,6 +232,7 @@ export default function Trucks() {
     if (!selectedTruck?.id) return;
     const timer = window.setTimeout(() => loadAssignments(selectedTruck.id), movQ.trim() ? 300 : 0);
     return () => window.clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [movQ, movFrom, movTo, selectedTruck?.id]);
 
   useEffect(() => {
@@ -720,9 +723,13 @@ export default function Trucks() {
         <div style={s.modalOverlay} className="fleet-v2-overlay" onClick={() => setShowAdd(false)} data-testid="add-truck-modal">
           <div style={s.modalCard} className="fleet-add-modal" onClick={(e) => e.stopPropagation()}>
             <div style={s.modalHeader} className="fleet-add-header">
-              <div>
-                <h3 style={s.modalTitle}>Tambah Kendaraan</h3>
-                <p style={s.modalSubtitle}>Tambahkan kendaraan baru ke armada perusahaan.</p>
+              <div className="fleet-add-title">
+                <span className="fleet-add-title-icon"><FiTruck /></span>
+                <div>
+                  <small>DATA ARMADA</small>
+                  <h3 style={s.modalTitle}>Tambah Kendaraan</h3>
+                  <p style={s.modalSubtitle}>Masukkan identitas kendaraan dan penanggung jawab armada.</p>
+                </div>
               </div>
               <button style={s.modalClose} onClick={() => setShowAdd(false)} data-testid="close-modal-btn">
                 <FiX size={18} />
@@ -730,12 +737,12 @@ export default function Trucks() {
             </div>
 
             <form onSubmit={onCreate} style={s.form} className="fleet-add-form">
-              <Field label="Plate Number *">
+              <Field label="Nomor Polisi *">
                 <input style={s.input} value={form.plateNumber} onChange={(e) => setForm((f) => ({ ...f, plateNumber: e.target.value }))} placeholder="BK 1234 XX" data-testid="plate-input" />
               </Field>
 
               <div style={s.twoCol}>
-                <Field label="Brand">
+                <Field label="Merek">
                   <input style={s.input} value={form.brand} onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))} placeholder="Hino" />
                 </Field>
                 <Field label="Model">
@@ -744,8 +751,8 @@ export default function Trucks() {
               </div>
 
               <div style={s.twoCol}>
-                <Field label="Year">
-                  <input style={s.input} value={form.year} onChange={(e) => setForm((f) => ({ ...f, year: e.target.value }))} placeholder="2020" />
+                <Field label="Tahun">
+                  <input type="number" min="1900" max="2100" inputMode="numeric" style={s.input} value={form.year} onChange={(e) => setForm((f) => ({ ...f, year: e.target.value }))} placeholder="2020" />
                 </Field>
                 <Field label="Status">
                   <select style={s.select} value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>
@@ -756,23 +763,25 @@ export default function Trucks() {
                 </Field>
               </div>
 
-              <Field label="VIN (optional)">
-                <input style={s.input} value={form.vin} onChange={(e) => setForm((f) => ({ ...f, vin: e.target.value }))} placeholder="Vehicle identification number" />
-              </Field>
+              <div style={s.twoCol}>
+                <Field label="Nomor Rangka / VIN">
+                  <input style={s.input} value={form.vin} onChange={(e) => setForm((f) => ({ ...f, vin: e.target.value }))} placeholder="Masukkan nomor rangka" />
+                </Field>
+                <Field label="Masa Berlaku STNK">
+                  <input className="fleet-stnk-date" type="date" style={s.input} value={form.stnkExpiry || ""} onChange={(e) => setForm((f) => ({ ...f, stnkExpiry: e.target.value }))} />
+                </Field>
+              </div>
 
-              <Field label="Masa Berlaku STNK Date">
-                <input type="date" style={s.input} value={form.stnkExpiry || ""} onChange={(e) => setForm((f) => ({ ...f, stnkExpiry: e.target.value }))} />
-              </Field>
-
-              <Field label="Base / Pool Utama">
-                <input style={s.input} value={form.baseLocation} onChange={(e) => setForm((f) => ({ ...f, baseLocation: e.target.value }))} placeholder="Medan" />
-              </Field>
-
-              <Field label="Assign Driver (optional)">
-                <select style={s.select} value={form.driverUserId} onChange={(e) => setForm((f) => ({ ...f, driverUserId: e.target.value }))}>
-                  {driverOptions.map((d) => (<option key={d.id} value={d.id}>{d.name}</option>))}
-                </select>
-              </Field>
+              <div style={s.twoCol}>
+                <Field label="Pool Utama">
+                  <input style={s.input} value={form.baseLocation} onChange={(e) => setForm((f) => ({ ...f, baseLocation: e.target.value }))} placeholder="Contoh: Medan" />
+                </Field>
+                <Field label="Pengemudi">
+                  <select style={s.select} value={form.driverUserId} onChange={(e) => setForm((f) => ({ ...f, driverUserId: e.target.value }))}>
+                    {driverOptions.map((d) => (<option key={d.id} value={d.id}>{d.name}</option>))}
+                  </select>
+                </Field>
+              </div>
 
               <div className="fleet-add-actions" style={{ display: "flex", gap: 12, marginTop: 8 }}>
                 <button type="submit" disabled={creating} style={{ ...s.primaryBtn, flex: 1, opacity: creating ? 0.7 : 1 }} data-testid="submit-truck-btn">
@@ -781,7 +790,6 @@ export default function Trucks() {
                 <button type="button" onClick={() => setShowAdd(false)} style={s.ghostBtn}>Batal</button>
               </div>
 
-              <p style={s.tip}>Tip: You can assign a driver later from the fleet table.</p>
             </form>
           </div>
         </div>

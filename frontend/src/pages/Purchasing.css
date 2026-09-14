@@ -22,6 +22,7 @@
 
 /* Purchase request workspace */
 .purchasing .request-redesign-modal{width:min(980px,calc(100vw - 48px));max-height:calc(100vh - 48px);overflow:hidden;border:1px solid rgba(32,89,55,.14);border-radius:22px;background:#f6faf7}
+.stock-available-warning{display:block;margin-top:9px;padding:9px 11px;border:1px solid #f1cf76;border-radius:8px;background:#fff8df;color:#795908;font-size:11px;line-height:1.45}
 .purchasing .request-modal-heading{grid-template-columns:56px minmax(0,1fr) 40px;padding:24px 28px 22px}
 .purchasing .request-modal-heading h2{margin:4px 0;font-size:25px}
 .purchasing .request-modal-heading p{font-size:12px}

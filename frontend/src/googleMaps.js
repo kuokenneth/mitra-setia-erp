@@ -16,7 +16,7 @@ export function loadGoogleMaps() {
       }
       const script = document.createElement("script");
       script.dataset.erpGoogleMaps = "true";
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&libraries=marker,places&v=weekly`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&libraries=marker,places&language=id&region=ID&v=weekly`;
       script.async = true;
       script.onload = () => resolve(window.google.maps);
       script.onerror = () => reject(new Error("Google Maps gagal dimuat"));

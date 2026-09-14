@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, logoutReason } = useAuth();
   const nav = useNavigate();
 
   const [email, setEmail] = useState("");
@@ -212,6 +212,26 @@ export default function Login() {
             position: "relative",
           }}
         >
+          {logoutReason && (
+            <div
+              role="status"
+              style={{
+                width: "100%",
+                maxWidth: 440,
+                margin: "0 auto 18px",
+                padding: "12px 14px",
+                border: "1px solid #F1D08A",
+                borderRadius: 8,
+                background: "#FFF8E6",
+                color: "#75550A",
+                fontSize: 13,
+                lineHeight: 1.5,
+                boxSizing: "border-box",
+              }}
+            >
+              {logoutReason}
+            </div>
+          )}
           {/* Back to Home */}
           <div
             onClick={() => nav("/")}

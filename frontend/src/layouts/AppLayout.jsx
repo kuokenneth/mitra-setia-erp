@@ -109,7 +109,10 @@ export default function AppLayout() {
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1440px)");
-    const onChange = () => setIsMobile(mq.matches);
+    const onChange = () => {
+      setIsMobile(mq.matches);
+      if (!mq.matches) setMobileOpen(false);
+    };
 
     if (mq.addEventListener) mq.addEventListener("change", onChange);
     else mq.addListener(onChange);
@@ -119,10 +122,6 @@ export default function AppLayout() {
       else mq.removeListener(onChange);
     };
   }, []);
-
-  useEffect(() => {
-    if (!isMobile) setMobileOpen(false);
-  }, [isMobile]);
 
   const role = user?.role || "UNKNOWN";
   const isOwnerAdmin = role === "OWNER" || role === "ADMIN";

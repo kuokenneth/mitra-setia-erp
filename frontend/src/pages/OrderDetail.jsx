@@ -77,11 +77,6 @@ function fmtDateTime(d) {
   return dt.toLocaleString("id-ID");
 }
 
-function companyFromLocation(name) {
-  const value = String(name || "").trim();
-  return value.split(/\s+-\s+/)[0]?.trim() || value;
-}
-
 function fmtNum(n) {
   const x = Number(n);
   if (!Number.isFinite(x)) return "-";
@@ -376,7 +371,7 @@ export default function OrderDetail() {
   const [savingMaterialInvoice, setSavingMaterialInvoice] = useState(false);
   const [materialInvoiceError, setMaterialInvoiceError] = useState("");
 
-  const trips = order?.trips || [];
+  const trips = useMemo(() => order?.trips || [], [order?.trips]);
   const proofs = order?.proofs || [];
   const materialInvoices = order?.materialInvoices || [];
   const isNarrow = useIsNarrow(980);
@@ -398,6 +393,7 @@ export default function OrderDetail() {
 
   useEffect(() => {
     load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
   useLiveRefresh(load);
 
@@ -502,7 +498,7 @@ export default function OrderDetail() {
     if (order?.cargoCategory === "MATERIAL" || !(Number(order?.qty) > 0)) return null;
     const rem = Number(order.qty) - usedPlanned;
     return Number.isFinite(rem) ? Math.max(0, rem) : null;
-  }, [order?.qty, usedPlanned]);
+  }, [order?.cargoCategory, order?.qty, usedPlanned]);
   const isMaterialShipment = order?.cargoCategory === "MATERIAL" || (!(Number(order?.qty) > 0) && order?.cargoCategory !== "CANGKANG");
   const hasPlannedQty = !isMaterialShipment && Number(order?.qty) > 0;
 

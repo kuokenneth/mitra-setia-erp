@@ -46,6 +46,8 @@ export default function FleetProfitability() {
     catch (err) { setError(err.message); }
     finally { setLoading(false); }
   }
+  // load follows the selected month and access state.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (canAccess) load(); }, [month, canAccess]);
   useLiveRefresh(load);
   const best = useMemo(() => [...data.rows].sort((a, b) => b.profit - a.profit)[0], [data.rows]);

@@ -16,7 +16,7 @@
   box-shadow: 0 30px 90px rgba(11, 27, 17, .28) !important;
 }
 
-.fleet-add-modal { width: min(720px, calc(100vw - 32px)) !important; }
+.fleet-add-modal { width: min(760px, calc(100vw - 32px)) !important; }
 
 .fleet-add-header,
 .fleet-modal-hero {
@@ -33,6 +33,9 @@
 .fleet-add-header p,
 .fleet-modal-hero p { margin-top: 5px !important; color: #718078 !important; font-size: 12px !important; }
 .fleet-add-header > button { width: 36px !important; height: 36px !important; border-radius: 9px !important; background: rgba(255,255,255,.75) !important; }
+.fleet-add-title { display: flex; align-items: center; gap: 13px; }
+.fleet-add-title-icon { display: grid; width: 42px; height: 42px; flex: 0 0 auto; place-items: center; border-radius: 11px; background: #dfece3; color: #3f6f50; font-size: 20px; }
+.fleet-add-title small { display: block; margin-bottom: 3px; color: #698174; font-size: 9px; font-weight: 850; letter-spacing: .14em; }
 
 .fleet-add-form {
   display: grid !important;
@@ -43,9 +46,6 @@
 }
 
 .fleet-add-form > .fleet-form-field:first-child,
-.fleet-add-form > .fleet-form-field:nth-child(4),
-.fleet-add-form > .fleet-form-field:nth-child(5),
-.fleet-add-form > .fleet-form-field:nth-child(6),
 .fleet-add-form > div:nth-last-child(-n+2) { grid-column: 1 / -1; }
 .fleet-add-form > div[style*="display: grid"] { grid-column: 1 / -1; }
 .fleet-add-form > div[style*="display: flex"] { grid-column: 1 / -1; }
@@ -54,14 +54,48 @@
 .fleet-form-field label { display: block; margin-bottom: 7px !important; color: #526258 !important; font-size: 12px !important; font-weight: 750 !important; }
 .fleet-add-form input,
 .fleet-add-form select {
+  display: block;
   width: 100%;
   box-sizing: border-box;
-  min-height: 43px;
-  padding: 10px 12px !important;
+  height: 45px;
+  min-height: 45px;
+  margin: 0;
+  padding: 0 13px !important;
   border: 1px solid #d8e1da !important;
   border-radius: 9px !important;
   background: #fbfcfb !important;
+  color: #263a2f !important;
+  font-family: inherit !important;
   font-size: 14px !important;
+  line-height: 1.2 !important;
+}
+.fleet-add-form select {
+  appearance: none;
+  padding-right: 40px !important;
+  background-image: linear-gradient(45deg,transparent 50%,#718078 50%),linear-gradient(135deg,#718078 50%,transparent 50%) !important;
+  background-position: calc(100% - 18px) 19px,calc(100% - 13px) 19px !important;
+  background-size: 5px 5px,5px 5px !important;
+  background-repeat: no-repeat !important;
+}
+.fleet-add-form .fleet-stnk-date {
+  color-scheme: light;
+  color: #263a2f !important;
+  -webkit-appearance: none;
+}
+.fleet-add-form .fleet-stnk-date::-webkit-date-and-time-value,
+.fleet-add-form .fleet-stnk-date::-webkit-datetime-edit,
+.fleet-add-form .fleet-stnk-date::-webkit-datetime-edit-fields-wrapper,
+.fleet-add-form .fleet-stnk-date::-webkit-datetime-edit-text,
+.fleet-add-form .fleet-stnk-date::-webkit-datetime-edit-day-field,
+.fleet-add-form .fleet-stnk-date::-webkit-datetime-edit-month-field,
+.fleet-add-form .fleet-stnk-date::-webkit-datetime-edit-year-field {
+  color: #263a2f;
+  opacity: 1;
+  line-height: 43px;
+}
+.fleet-add-form .fleet-stnk-date::-webkit-calendar-picker-indicator {
+  opacity: .6;
+  cursor: pointer;
 }
 .fleet-add-form input:focus,
 .fleet-add-form select:focus { border-color: #6d907a !important; box-shadow: 0 0 0 3px rgba(89,126,102,.11); }
@@ -101,7 +135,7 @@
   .fleet-add-modal {
     display: flex !important;
     flex-direction: column;
-    width: min(720px, calc(100vw - 40px)) !important;
+    width: min(760px, calc(100vw - 40px)) !important;
     max-height: calc(100dvh - 40px) !important;
   }
   .fleet-add-header { flex: 0 0 auto; }

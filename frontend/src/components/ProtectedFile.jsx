@@ -12,6 +12,8 @@ async function fetchProtectedBlob(value) {
   return response.blob();
 }
 
+// Kept beside the preview components because they share the protected-blob loader.
+// eslint-disable-next-line react-refresh/only-export-components
 export async function openProtectedFile(value) {
   const url = apiAssetUrl(value);
   if (/^https?:\/\//i.test(url) && !url.startsWith(API_BASE)) {
@@ -38,7 +40,12 @@ export function ProtectedImage({ url, alt, style }) {
   useEffect(() => {
     let active = true;
     let objectUrl = "";
-    setError(false);
+    Promise.resolve().then(() => {
+      if (active) {
+        setError(false);
+        setSrc("");
+      }
+    });
     fetchProtectedBlob(url)
       .then((blob) => {
         if (!blob.type.startsWith("image/")) throw new Error("File bukan gambar");

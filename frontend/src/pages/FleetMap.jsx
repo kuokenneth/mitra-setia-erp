@@ -18,11 +18,25 @@ function validPosition(truck) {
   return { lat, lng };
 }
 
+function normalizeRegionName(name) {
+  const normalized = name
+    ?.replace(/^(Kota|Kabupaten)\s+/i, "")
+    .replace(/\s+(Regency|City)$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) return null;
+  const direction = normalized.match(/^(North|South|West|East|Central)\s+(.+)$/i);
+  if (!direction) return normalized;
+  const translations = { north: "Utara", south: "Selatan", west: "Barat", east: "Timur", central: "Tengah" };
+  const place = direction[2].replace(/^Sumatra$/i, "Sumatera");
+  return `${place} ${translations[direction[1].toLowerCase()]}`;
+}
+
 function cityFromGeocode(response) {
   const results = Array.isArray(response) ? response : response?.results;
-  const components = results?.[0]?.address_components || [];
+  const components = (results || []).flatMap((result) => result.address_components || []);
   const find = (type) => components.find((item) => item.types?.includes(type))?.long_name;
-  return find("administrative_area_level_2") || find("locality") || find("administrative_area_level_1") || null;
+  return normalizeRegionName(find("administrative_area_level_2") || find("locality") || find("administrative_area_level_1"));
 }
 
 function markerColor(truck) {
@@ -177,9 +191,12 @@ export default function FleetMap() {
         const key = `${truck.position.lat.toFixed(3)},${truck.position.lng.toFixed(3)}`;
         let city = cityCacheRef.current.get(key);
         if (city === undefined) {
-          try { city = cityFromGeocode(await geocoder.geocode({ location: truck.position })) || "Lokasi belum dikenali"; }
-          catch { city = "Lokasi belum dikenali"; }
-          if (city !== "Lokasi belum dikenali") cityCacheRef.current.set(key, city);
+          try {
+            city = cityFromGeocode(await geocoder.geocode({ location: truck.position, language: "id", region: "ID" })) || "Lokasi belum dikenali";
+            if (city !== "Lokasi belum dikenali") cityCacheRef.current.set(key, city);
+          } catch {
+            city = "Lokasi belum dikenali";
+          }
         }
         if (active) setCityByTruck((current) => current[truck.id] === city ? current : { ...current, [truck.id]: city });
       }
@@ -189,11 +206,12 @@ export default function FleetMap() {
   const cityGroups = useMemo(() => {
     const groups = new Map();
     visible.forEach((truck) => {
-      const city = cityByTruck[truck.id] || "Mengenali lokasi…";
-      if (!groups.has(city)) groups.set(city, []);
-      groups.get(city).push(truck);
+      const city = normalizeRegionName(cityByTruck[truck.id]) || "Mengenali lokasi…";
+      const key = city.toLocaleLowerCase("id-ID");
+      if (!groups.has(key)) groups.set(key, { city, trucks: [] });
+      groups.get(key).trucks.push(truck);
     });
-    return [...groups.entries()].map(([city, cityTrucks]) => ({ city, trucks: cityTrucks.sort((a,b) => String(a.plateNumber).localeCompare(String(b.plateNumber))), moving: cityTrucks.filter((truck) => truck.status === "DISPATCH" || Number(truck.lastGpsSpeed || 0) > 5).length })).sort((a,b) => b.trucks.length-a.trucks.length || a.city.localeCompare(b.city));
+    return [...groups.values()].map(({ city, trucks: cityTrucks }) => ({ city, trucks: cityTrucks.sort((a,b) => String(a.plateNumber).localeCompare(String(b.plateNumber))), moving: cityTrucks.filter((truck) => truck.status === "DISPATCH" || Number(truck.lastGpsSpeed || 0) > 5).length })).sort((a,b) => b.trucks.length-a.trucks.length || a.city.localeCompare(b.city));
   }, [visible, cityByTruck]);
 
   return (

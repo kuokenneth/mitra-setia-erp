@@ -19,7 +19,11 @@ function TruckSearch({ trucks, value, onChange }) {
   const selected = trucks.find(truck => truck.id === value);
   const truckLabel = truck => `${truck.plateNumber}${truck.brand || truck.model ? ` · ${[truck.brand, truck.model].filter(Boolean).join(" ")}` : ""}`;
   const [query, setQuery] = useState(selected ? truckLabel(selected) : "");
-  useEffect(() => { setQuery(selected ? truckLabel(selected) : ""); }, [value, trucks]);
+  useEffect(() => {
+    // Keep typed search text aligned when the selected truck changes externally.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setQuery(selected ? truckLabel(selected) : "");
+  }, [selected]);
   return <div className="ar-truck-search">
     <input required list={listId} value={query} placeholder="Cari no. polisi..." autoComplete="off" onChange={event => { const text = event.target.value; const match = trucks.find(truck => truckLabel(truck).toLocaleLowerCase("id-ID") === text.trim().toLocaleLowerCase("id-ID")); setQuery(text); onChange(match?.id || ""); }}/>
     <datalist id={listId}>{trucks.map(truck => <option key={truck.id} value={truckLabel(truck)}/>)}</datalist>
@@ -152,7 +156,6 @@ export default function Receivables() {
   const tripWeightKg = trip => String(trip.unitSnap || "").toUpperCase() === "TON" ? Number(trip.qtyActual || 0) * 1000 : Number(trip.qtyActual || 0);
   const selectedSingleWeightKg = selectedSingleTrips.reduce((sum, trip) => sum + tripWeightKg(trip), 0);
   const singleTripSubtotal = Math.round(selectedSingleWeightKg * Number(invoiceForm.ratePerKg || 0));
-  const cargoLossAmount = Math.max(0, Number(invoiceForm.contractSubtotal || 0) - billableSubtotal);
   const total = (selectedSource?.type === "SINGLE_TRIP_GROUP" ? singleTripSubtotal : billableSubtotal + materialSubtotal) + Number(invoiceForm.tax || 0) - Number(invoiceForm.discount || 0);
   const invoiceBlockReason = !invoiceForm.billingCustomerKey ? "Pilih customer tagihan terlebih dahulu" : !selectedSource ? "Pilih sumber tagihan customer ini" : selectedSource.type === "MATERIAL" && !invoiceForm.materialInvoiceIds.length ? "Pilih minimal satu Faktur Muatan" : selectedSource.type === "SINGLE_TRIP_GROUP" && !invoiceForm.singleTripIds.length ? "Pilih minimal satu Trip Tunggal" : "";
   const canSaveInvoice = !busy && !invoiceBlockReason;
