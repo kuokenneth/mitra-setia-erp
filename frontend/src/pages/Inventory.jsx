@@ -462,6 +462,7 @@ export default function Inventory() {
     qty: 1,
     note: "",
     unitLines: "",
+    unitPurchasePrice: "",
     totalPurchasePrice: "",
   });
   const [receiveUnitRows, setReceiveUnitRows] = useState([{ serialNumber: "", purchasePrice: "" }]);
@@ -870,7 +871,10 @@ export default function Inventory() {
         if (hasTotalPrice) payload.totalPurchasePrice = Number(totalRaw);
       } else {
         payload.qty = Number(receiveForm.qty || 0);
-        if (receiveForm.totalPurchasePrice !== "") payload.totalPurchasePrice = Number(receiveForm.totalPurchasePrice);
+        const unitPrice = Number(receiveForm.unitPurchasePrice || 0);
+        if (!Number.isFinite(payload.qty) || payload.qty <= 0) throw new Error("Jumlah harus lebih dari nol.");
+        if (!Number.isFinite(unitPrice) || unitPrice <= 0) throw new Error("Harga per unit harus lebih dari nol.");
+        payload.totalPurchasePrice = Math.round(payload.qty * unitPrice);
       }
 
       await api("/inventory/receive", {
@@ -885,6 +889,7 @@ export default function Inventory() {
         qty: 1,
         note: "",
         unitLines: "",
+        unitPurchasePrice: "",
         totalPurchasePrice: "",
       });
       setReceiveUnitRows([{ serialNumber: "", purchasePrice: "" }]);
@@ -1073,7 +1078,7 @@ export default function Inventory() {
               <button className={tab === "ITEMS" ? "active" : ""} onClick={() => setTab("ITEMS")}>Daftar Item</button>
               <button className={tab === "UNITS" ? "active" : ""} onClick={() => setTab("UNITS")}>Unit Berseri</button>
               <button className={tab === "MOVEMENTS" ? "active" : ""} onClick={() => setTab("MOVEMENTS")}>Pergerakan</button>
-              <button className={tab === "BATCHES" ? "active" : ""} onClick={() => setTab("BATCHES")}>Asal Stok</button>
+              <button className={tab === "BATCHES" ? "active" : ""} onClick={() => setTab("BATCHES")}>Harga Masuk</button>
             </div>
 
             <div className="inventory-search"><FiSearch />
@@ -1419,7 +1424,7 @@ export default function Inventory() {
                 items={receiveItems}
                 value={receiveForm.itemId}
                 onChange={(itemId) => {
-                  setReceiveForm((p) => itemId === p.itemId ? p : ({ ...p, itemId, qty: 1, totalPurchasePrice: "", unitLines: "" }));
+                  setReceiveForm((p) => itemId === p.itemId ? p : ({ ...p, itemId, qty: 1, unitPurchasePrice: "", totalPurchasePrice: "", unitLines: "" }));
                   if (itemId !== receiveForm.itemId) setReceiveUnitRows([{ serialNumber: "", purchasePrice: "" }]);
                 }}
               />
@@ -1468,7 +1473,7 @@ export default function Inventory() {
               />
             </div>
 
-            <div>
+            {selectedReceiveItem?.isSerialized && <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Jumlah</div>
               <input
                 style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
@@ -1488,11 +1493,11 @@ export default function Inventory() {
               <div style={{ marginTop: 6, fontSize: 12, color: BRAND.textMuted }}>
                 Untuk barang berseri, jumlah mengikuti daftar nomor seri di bawah.
               </div>
-            </div>
+            </div>}
 
             {(() => {
               const item = receiveItems.find((x) => x.id === receiveForm.itemId) || items.find((x) => x.id === receiveForm.itemId);
-              if (!item) return null;
+              if (!item?.isSerialized) return null;
 
               return (
                 <div style={{ gridColumn: "1 / -1" }}>
@@ -1515,6 +1520,15 @@ export default function Inventory() {
                 </div>
               );
             })()}
+
+            {selectedReceiveItem && !selectedReceiveItem.isSerialized ? <div className="inventory-serial-editor inventory-nonserial-editor" style={{ gridColumn: "1 / -1" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>Rincian stok non-serialized</div>
+              <div className="inventory-serial-help">Masukkan jumlah dan harga satuan. Sistem menghitung total pembelian secara otomatis.</div>
+              <div className="inventory-nonserial-table">
+                <div className="inventory-nonserial-head"><span>No.</span><span>Jumlah</span><span>Harga/unit (Rp)</span><span>Total (Rp)</span></div>
+                <div className="inventory-nonserial-row"><b>1</b><label><input type="number" min="0.01" step="0.01" value={receiveForm.qty} onChange={(e) => setReceiveForm((form) => ({ ...form, qty: e.target.value }))}/><small>{selectedReceiveItem.unit || "unit"}</small></label><input type="number" min="1" value={receiveForm.unitPurchasePrice} onChange={(e) => setReceiveForm((form) => ({ ...form, unitPurchasePrice: e.target.value }))} placeholder="Contoh: 200000"/><strong>{Number(receiveForm.qty) > 0 && Number(receiveForm.unitPurchasePrice) > 0 ? new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(receiveForm.qty) * Number(receiveForm.unitPurchasePrice)) : "—"}</strong></div>
+              </div>
+            </div> : null}
 
             {(() => {
               const item = receiveItems.find((x) => x.id === receiveForm.itemId) || items.find((x) => x.id === receiveForm.itemId);
@@ -1715,27 +1729,34 @@ export default function Inventory() {
 // TABLE COMPONENTS
 //////////////////////
 function BatchesTable({ batches, loading }) {
-  if (loading) return <LoadingState compact label="Memuat asal stok" note="Menelusuri batch dan lokasi persediaan…" rows={4} />;
+  if (loading) return <LoadingState compact label="Memuat harga masuk" note="Menelusuri batch, harga, dan sisa persediaan…" rows={4} />;
   if (!batches.length) return <div style={{ padding: 20, color: BRAND.textMuted }}>Belum ada batch stok yang tercatat.</div>;
   return (
     <div style={tableWrap}>
-      <table style={{ ...table, minWidth: 1150 }}>
+      <table style={{ ...table, minWidth: 1320 }}>
         <thead><tr>
-          <th style={th}>Barang</th><th style={th}>Supplier</th><th style={th}>PO / GR</th>
+          <th style={th}>Barang</th><th style={th}>Jenis</th><th style={th}>Supplier</th><th style={th}>PO / GR</th>
           <th style={th}>Tanggal Beli</th><th style={th}>Lokasi Terima</th><th style={th}>Diterima</th>
-          <th style={th}>Tersisa</th><th style={th}>Harga/Unit</th>
+          <th style={th}>Terpakai</th><th style={th}>Tersisa</th><th style={th}>Harga/Unit</th><th style={th}>Total Masuk</th>
         </tr></thead>
         <tbody>{batches.map((batch) => {
           const po = batch.purchaseOrderItem?.purchaseOrder;
+          const receivedQty = Number(batch.receivedQty || 0);
+          const remainingQty = Number(batch.remainingQty ?? batch.receivedQty ?? 0);
+          const usedQty = Math.max(0, receivedQty - remainingQty);
+          const totalValue = batch.unitPrice == null ? null : Math.round(receivedQty * Number(batch.unitPrice));
           return <tr key={batch.id}>
             <td style={td}><div>{batch.item?.name || "-"}</div><div style={{ fontSize: 12, color: BRAND.textMuted }}>{batch.item?.sku || "-"}</div></td>
+            <td style={tdSoft}><Pill variant={batch.item?.isSerialized ? "green" : "grey"}>{batch.item?.isSerialized ? "Ban berserial" : "Stok jumlah"}</Pill></td>
             <td style={td}>{po?.supplier?.name || <span style={{ color: BRAND.textMuted }}>Tidak tercatat</span>}</td>
             <td style={td}><div>{po?.number || "Manual"}</div><div style={{ fontSize: 12, color: BRAND.textMuted }}>{batch.goodsReceipt?.number || "Tanpa GR"}</div></td>
             <td style={tdSoft}>{fmtDate(batch.receivedAt)}</td>
             <td style={tdSoft}>{batch.location?.name || "-"}</td>
-            <td style={td}>{batch.receivedQty} {batch.item?.unit || ""}</td>
+            <td style={td}>{receivedQty} {batch.item?.unit || ""}</td>
+            <td style={tdSoft}>{usedQty} {batch.item?.unit || ""}</td>
             <td style={td}>{batch.remainingQty == null ? <Pill>Belum diketahui</Pill> : <Pill variant={Number(batch.remainingQty) > 0 ? "green" : "grey"}>{batch.remainingQty} {batch.item?.unit || ""}</Pill>}</td>
             <td style={tdSoft}>{batch.unitPrice == null ? "-" : new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(batch.unitPrice)}</td>
+            <td style={{ ...td, fontWeight: 700 }}>{totalValue == null ? "-" : new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(totalValue)}</td>
           </tr>;
         })}</tbody>
       </table>

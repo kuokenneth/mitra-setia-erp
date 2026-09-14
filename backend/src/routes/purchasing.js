@@ -70,8 +70,9 @@ router.get("/receipts/:id/print", async (req, res) => {
 });
 router.post("/suppliers", async (req, res) => res.json({ ok: true, supplier: await prisma.supplier.create({ data: req.body }) }));
 router.post("/requests", async (req, res) => {
-  const { urgency, purpose, truckId, reason, notes, items = [], submit = true, acknowledgeAvailableStock = false } = req.body;
+  const { urgency, purpose, truckId, reason, notes, items = [], submit = true, acknowledgeAvailableStock = false, damageProofUrl, damageProofFileName, damageProofMimeType, damageProofSize } = req.body;
   if (!reason || !items.length) return res.status(400).json({ error: "Alasan dan minimal satu item wajib diisi" });
+  if (!damageProofUrl || !String(damageProofMimeType || "").startsWith("image/")) return res.status(400).json({ error: "Foto bukti barang rusak wajib dilampirkan" });
   const regularItemIds = items.filter(row => row.itemId && !row.retreadUnitId).map(row => String(row.itemId));
   if (regularItemIds.length && !acknowledgeAvailableStock) {
     const catalogItems = await prisma.item.findMany({
@@ -117,7 +118,7 @@ router.post("/requests", async (req, res) => {
       preparedItems.push({ itemId: row.itemId, originalQty: Number(row.qty), notes: row.notes });
     }
   }
-  const request = await prisma.purchaseRequest.create({ data: { number: seq("PR"), urgency, purpose, truckId, reason, notes, status: submit ? "WAITING_APPROVAL" : "DRAFT", createdById: req.user.id, items: { create: preparedItems } }, include: { items: { include: { item: true } } } });
+  const request = await prisma.purchaseRequest.create({ data: { number: seq("PR"), urgency, purpose, truckId, reason, notes, damageProofUrl, damageProofFileName: damageProofFileName || null, damageProofMimeType, damageProofSize: damageProofSize == null ? null : Number(damageProofSize), status: submit ? "WAITING_APPROVAL" : "DRAFT", createdById: req.user.id, items: { create: preparedItems } }, include: { items: { include: { item: true } } } });
   if (request.status === "WAITING_APPROVAL") {
     await notifyOwnerSafely({
       event: "Permintaan pembelian baru",

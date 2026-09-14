@@ -5,7 +5,7 @@ import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { ProtectedImage } from "../components/ProtectedFile";
 import LoadingState from "../components/LoadingState";
-import { FiActivity, FiCalendar, FiCheck, FiClock, FiPlus, FiRefreshCw, FiSearch, FiTool, FiTruck, FiX } from "react-icons/fi";
+import { FiActivity, FiCalendar, FiCamera, FiCheck, FiClock, FiPlus, FiRefreshCw, FiSearch, FiTool, FiTruck, FiX } from "react-icons/fi";
 import "./Maintenance.css";
 
 const OIL_CHANGE_INTERVAL_KM = 8500;
@@ -339,6 +339,14 @@ function SearchableInstalledUnitPicker({ assignments, value, onChange, disabled,
   );
 }
 
+function LastPartChange({ item, history, loading }) {
+  if (!item) return null;
+  if (loading) return <div className="maintenance-last-change loading"><FiClock /><span>Memeriksa riwayat {item.name}…</span></div>;
+  if (!history) return <div className="maintenance-last-change empty"><FiClock /><span><strong>Belum pernah diganti</strong><small>Belum ada pemakaian {item.name} pada kendaraan ini.</small></span></div>;
+  const daysAgo = Number(history.daysAgo || 0);
+  return <div className="maintenance-last-change"><FiClock /><span><strong>Terakhir diganti {daysAgo === 0 ? "hari ini" : `${daysAgo} hari lalu`}</strong><small>{fmtDateTime(history.usedAt)} · {history.qty} {item.unit || "unit"}{history.serialNumber ? ` · ${history.serialNumber}` : ""}{history.maintenance?.title ? ` · ${history.maintenance.title}` : ""}</small></span></div>;
+}
+
 function ServicePhoto({ photo, alt }) {
   const directUrl = apiAssetUrl(photo);
   const isDirect = /^https?:\/\//i.test(directUrl) && !directUrl.includes("/api/uploads/");
@@ -380,6 +388,7 @@ function Modal({ open, title, onClose, children, width = 900, className = "" }) 
   if (!open) return null;
   return (
     <div
+      className="maintenance-modal-overlay"
       style={{
         position: "fixed",
         inset: 0,
@@ -404,6 +413,7 @@ function Modal({ open, title, onClose, children, width = 900, className = "" }) 
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div
+          className="maintenance-modal-body"
           style={{
             padding: "16px 20px",
             borderBottom: `1px solid ${BRAND.border}`,
@@ -512,7 +522,11 @@ export default function Maintenance() {
   const [progressNote, setProgressNote] = useState("");
   const [savingProgressNote, setSavingProgressNote] = useState(false);
   const [purchaseRequestForm, setPurchaseRequestForm] = useState({ itemId: "", qty: 1, urgency: "URGENT", reason: "", notes: "", newItem: false, sku: "", name: "", unit: "PCS", isSerialized: false });
+  const [purchaseDamagePhoto, setPurchaseDamagePhoto] = useState(null);
   const [requestingPurchase, setRequestingPurchase] = useState(false);
+  const [serializedHistory, setSerializedHistory] = useState(null);
+  const [stockHistory, setStockHistory] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState({ serialized: false, stock: false });
 
   const truckSearchTimer = useRef(null);
 
@@ -564,6 +578,7 @@ export default function Maintenance() {
       setActiveJob(data.job);
 
       setAssignItemId("");
+      setSerializedHistory(null);
       setAvailableUnits([]);
       setUnitPick("");
       setAssignNote("");
@@ -576,6 +591,7 @@ export default function Maintenance() {
       setReplaceDisposition("IN_STOCK");
 
       setUseItemId("");
+      setStockHistory(null);
       setUseLocationId("");
       setUseQty("");
       setUseNote("");
@@ -601,6 +617,24 @@ export default function Maintenance() {
     }
   }
 
+  async function loadPartHistory(itemId, kind) {
+    const setter = kind === "serialized" ? setSerializedHistory : setStockHistory;
+    if (!itemId || !activeJob?.id) {
+      setter(null);
+      return;
+    }
+    setHistoryLoading((value) => ({ ...value, [kind]: true }));
+    try {
+      const data = await api(`/maintenance/${activeJob.id}/part-history/${itemId}`);
+      setter(data.history || null);
+    } catch (error) {
+      setter(null);
+      setErr(error.message || "Gagal memuat riwayat penggantian");
+    } finally {
+      setHistoryLoading((value) => ({ ...value, [kind]: false }));
+    }
+  }
+
   async function createMaintenancePurchaseRequest(event) {
     event.preventDefault();
     if (!activeJob?.id) return;
@@ -614,8 +648,11 @@ export default function Maintenance() {
     }
     setRequestingPurchase(true); setErr("");
     try {
-      await api(`/maintenance/${activeJob.id}/purchase-requests`, { method: "POST", body: JSON.stringify({ itemId: form.newItem ? undefined : form.itemId, newItem: form.newItem ? { sku: form.sku, name: form.name, unit: form.unit, isSerialized: form.isSerialized } : undefined, qty: form.qty, urgency: form.urgency, reason: form.reason, notes: form.notes, acknowledgeAvailableStock: Boolean(form.acknowledgeAvailableStock) }) });
+      if (!purchaseDamagePhoto) throw new Error("Foto bukti barang rusak wajib dipilih");
+      const proof = (await uploadFiles([purchaseDamagePhoto]))[0];
+      await api(`/maintenance/${activeJob.id}/purchase-requests`, { method: "POST", body: JSON.stringify({ itemId: form.newItem ? undefined : form.itemId, newItem: form.newItem ? { sku: form.sku, name: form.name, unit: form.unit, isSerialized: form.isSerialized } : undefined, qty: form.qty, urgency: form.urgency, reason: form.reason, notes: form.notes, acknowledgeAvailableStock: Boolean(form.acknowledgeAvailableStock), damageProofUrl: proof?.url, damageProofFileName: proof?.fileName, damageProofMimeType: proof?.mimeType, damageProofSize: proof?.size }) });
       setPurchaseRequestForm({ itemId: "", qty: 1, urgency: "URGENT", reason: "", notes: "", newItem: false, sku: "", name: "", unit: "PCS", isSerialized: false });
+      setPurchaseDamagePhoto(null);
       await refreshDetail();
     } catch (e) {
       if (String(e.message || "").startsWith("Stok ") && String(e.message || "").includes(" masih tersedia ")) {
@@ -1406,11 +1443,12 @@ export default function Maintenance() {
                   </div>
                 )}
                 <div className="maintenance-detail-section-heading"><span>02</span><div><strong>Dokumentasi servis</strong><small>Foto komponen, proses pemasangan, dan hasil pekerjaan.</small></div></div>
-                <div style={{ marginTop: 5, marginBottom: 14, fontSize: 13, color: BRAND.textMuted }}>Unggah foto sparepart yang dipasang, komponen rusak, atau hasil pekerjaan. Maksimal 10 foto.</div>
                 {allowed && (
-                  <label style={{ display: "inline-flex", padding: "10px 14px", borderRadius: 6, background: BRAND.secondary, border: `1px solid ${BRAND.border}`, color: BRAND.primary, cursor: uploadingPhotos ? "wait" : "pointer", fontWeight: 600, fontSize: 14 }}>
+                  <label className={`maintenance-photo-dropzone ${uploadingPhotos ? "uploading" : ""}`}>
                     <input type="file" accept="image/*" multiple hidden disabled={uploadingPhotos} onChange={(e) => { uploadMaintenancePhotos(e.target.files); e.target.value = ""; }} />
-                    {uploadingPhotos ? "Mengunggah foto..." : "+ Tambah foto"}
+                    <span className="maintenance-photo-dropzone-icon"><FiCamera /></span>
+                    <span><strong>{uploadingPhotos ? "Mengunggah foto…" : "Ketuk untuk tambah foto"}</strong><small>Foto komponen, proses pemasangan, atau hasil pekerjaan · maksimal 10 foto</small></span>
+                    <b>{(activeJob.photos || []).length}/10</b>
                   </label>
                 )}
                 {photoError && <div style={{ marginTop: 10, color: BRAND.danger, fontSize: 13 }}>{photoError}</div>}
@@ -1490,9 +1528,10 @@ export default function Maintenance() {
                 </div>}
 
                 <form className={`maintenance-direct-request ${detailTab !== "PURCHASE" ? "maintenance-detail-section-hidden" : ""}`} onSubmit={createMaintenancePurchaseRequest}>
+                  <section className="maintenance-request-card maintenance-proof-card"><div className="maintenance-request-card-title"><span>03</span><div><strong>Bukti barang rusak</strong><small>Foto wajib disertakan agar pemilik dapat memeriksa pengajuan.</small></div></div><label className={`maintenance-damage-proof ${purchaseDamagePhoto ? "has-file" : ""}`}><input required type="file" accept="image/*" capture="environment" onChange={event => setPurchaseDamagePhoto(event.target.files?.[0] || null)} /><span className="maintenance-proof-icon"><FiCamera /></span><span className="maintenance-proof-copy"><strong>{purchaseDamagePhoto ? "Foto siap dikirim" : "Ketuk untuk tambah foto barang rusak"}</strong><small>{purchaseDamagePhoto ? `${purchaseDamagePhoto.name} · Ketuk kembali untuk mengganti` : "Gunakan kamera atau pilih foto dari galeri"}</small></span></label></section>
                   <div className="maintenance-request-head"><span><FiPlus /></span><div><strong>Pesan sparepart untuk servis ini</strong><small>Permintaan tetap terlacak di servis; barang masuk Inventory saat diterima.</small></div><em>UNTUK SERVIS</em></div>
                   <section className="maintenance-request-card"><div className="maintenance-request-card-title"><span>01</span><div><strong>Pilih barang</strong><small>Gunakan katalog atau daftarkan sparepart baru.</small></div></div><div className="maintenance-request-mode"><button type="button" className={!purchaseRequestForm.newItem ? "active" : ""} onClick={() => { setErr(""); setPurchaseRequestForm(form => ({ ...form, newItem: false, acknowledgeAvailableStock: false })); }}>Pilih katalog</button><button type="button" className={purchaseRequestForm.newItem ? "active" : ""} onClick={() => { setErr(""); setPurchaseRequestForm(form => ({ ...form, newItem: true, acknowledgeAvailableStock: false })); }}>Sparepart baru</button></div>
-                    {!purchaseRequestForm.newItem ? <label>Sparepart<select required value={purchaseRequestForm.itemId} onChange={event => { setErr(""); setPurchaseRequestForm(form => ({ ...form, itemId: event.target.value, acknowledgeAvailableStock: false })); }}><option value="">Pilih barang, termasuk yang stoknya 0</option>{items.map(item => <option key={item.id} value={item.id}>{item.sku} — {item.name} ({item.unit})</option>)}</select>{Number(items.find(item => item.id === purchaseRequestForm.itemId)?.qtyTotal || 0) > 0 && <span className="maintenance-stock-warning">⚠ Stok masih tersedia: <b>{Number(items.find(item => item.id === purchaseRequestForm.itemId)?.qtyTotal || 0).toLocaleString("id-ID")} {items.find(item => item.id === purchaseRequestForm.itemId)?.unit}</b>. Periksa Inventory sebelum membeli.</span>}</label> : <div className="maintenance-request-new-item"><label>SKU<input required value={purchaseRequestForm.sku} onChange={event => setPurchaseRequestForm(form => ({ ...form, sku: event.target.value }))} placeholder="Contoh: BRK-HINO-02" /></label><label>Nama sparepart<input required value={purchaseRequestForm.name} onChange={event => setPurchaseRequestForm(form => ({ ...form, name: event.target.value }))} placeholder="Contoh: Master rem Hino" /></label><label>Satuan<select value={purchaseRequestForm.unit} onChange={event => setPurchaseRequestForm(form => ({ ...form, unit: event.target.value }))}><option>PCS</option><option>SET</option><option>UNIT</option><option>LITER</option></select></label><label className="maintenance-request-check"><input type="checkbox" checked={purchaseRequestForm.isSerialized} onChange={event => setPurchaseRequestForm(form => ({ ...form, isSerialized: event.target.checked }))} /> Memiliki nomor serial</label></div>}
+                    {!purchaseRequestForm.newItem ? <label>Sparepart<SearchableItemPicker items={items} value={purchaseRequestForm.itemId} onChange={itemId => { setErr(""); setPurchaseRequestForm(form => ({ ...form, itemId, acknowledgeAvailableStock: false })); }} disabled={requestingPurchase} placeholder="Cari SKU atau nama sparepart..." testId="maintenance-purchase-item-search" />{Number(items.find(item => item.id === purchaseRequestForm.itemId)?.qtyTotal || 0) > 0 && <span className="maintenance-stock-warning">⚠ Stok masih tersedia: <b>{Number(items.find(item => item.id === purchaseRequestForm.itemId)?.qtyTotal || 0).toLocaleString("id-ID")} {items.find(item => item.id === purchaseRequestForm.itemId)?.unit}</b>. Periksa Inventory sebelum membeli.</span>}</label> : <div className="maintenance-request-new-item"><label>SKU<input required value={purchaseRequestForm.sku} onChange={event => setPurchaseRequestForm(form => ({ ...form, sku: event.target.value }))} placeholder="Contoh: BRK-HINO-02" /></label><label>Nama sparepart<input required value={purchaseRequestForm.name} onChange={event => setPurchaseRequestForm(form => ({ ...form, name: event.target.value }))} placeholder="Contoh: Master rem Hino" /></label><label>Satuan<select value={purchaseRequestForm.unit} onChange={event => setPurchaseRequestForm(form => ({ ...form, unit: event.target.value }))}><option>PCS</option><option>SET</option><option>UNIT</option><option>LITER</option></select></label><label className="maintenance-request-check"><input type="checkbox" checked={purchaseRequestForm.isSerialized} onChange={event => setPurchaseRequestForm(form => ({ ...form, isSerialized: event.target.checked }))} /> Memiliki nomor serial</label></div>}
                   </section>
                   <section className="maintenance-request-card"><div className="maintenance-request-card-title"><span>02</span><div><strong>Detail kebutuhan</strong><small>Tentukan jumlah, tingkat urgensi, dan alasan pemesanan.</small></div></div><div className="maintenance-request-fields"><label>Jumlah<input required type="number" min="0.01" step="0.01" value={purchaseRequestForm.qty} onChange={event => setPurchaseRequestForm(form => ({ ...form, qty: event.target.value }))} /></label><label>Urgensi<select value={purchaseRequestForm.urgency} onChange={event => setPurchaseRequestForm(form => ({ ...form, urgency: event.target.value }))}><option value="NORMAL">Normal</option><option value="URGENT">Mendesak</option><option value="CRITICAL">Kritis</option></select></label><label>Alasan kebutuhan<input required value={purchaseRequestForm.reason} onChange={event => setPurchaseRequestForm(form => ({ ...form, reason: event.target.value }))} placeholder="Contoh: komponen rusak dan tidak tersedia di gudang" /></label><button className="maintenance-request-submit" disabled={requestingPurchase || activeJob.status !== "OPEN"}>{requestingPurchase ? "Mengirim..." : purchaseRequestForm.acknowledgeAvailableStock ? "Tetap Buat Permintaan" : "Buat Permintaan"}</button></div></section>
                   {(activeJob.purchaseRequests?.length || activeJob.partRepairs?.length) ? <section className="maintenance-request-log"><div className="maintenance-request-card-title"><span>RIWAYAT</span><div><strong>Permintaan dari servis ini</strong><small>Status pembelian dan perbaikan yang masih terlacak.</small></div></div>{!!activeJob.purchaseRequests?.length && <div className="maintenance-request-history">{activeJob.purchaseRequests.map(request => <span key={request.id}><b>{request.number}</b><small>{request.items?.map(row => `${row.item.name} · ${row.originalQty} ${row.item.unit}`).join(", ")}</small><em className={request.status}>{request.status.replaceAll("_", " ")}</em></span>)}</div>}{!!activeJob.partRepairs?.length && <div className="maintenance-request-history">{activeJob.partRepairs.map(repair => <span key={repair.id}><b>PERBAIKAN · {repair.stockUnit?.serialNumber || repair.stockUnit?.barcode || "Tanpa serial"}</b><small>{repair.stockUnit?.item?.name}{repair.supplier?.name ? ` · ${repair.supplier.name}` : " · Vendor belum dipilih"}</small><em className={repair.status}>{repair.status === "SENT" ? "DALAM PERBAIKAN" : repair.status}</em></span>)}</div>}</section> : <div className="maintenance-request-empty">Belum ada permintaan pembelian dari servis ini.</div>}
@@ -1530,7 +1569,7 @@ export default function Maintenance() {
                         setReturnStockUnitId("");
                         setReplaceDisposition("IN_STOCK");
                         if (!v) return;
-                        await Promise.all([loadAvailableUnits(v), loadDonorUnits(v), loadReturnAssignments()]);
+                        await Promise.all([loadAvailableUnits(v), loadDonorUnits(v), loadReturnAssignments(), loadPartHistory(v, "serialized")]);
                       }}
                       disabled={!allowed || activeJob.status !== "OPEN"}
                       placeholder="Cari SKU / nama item serialized..."
@@ -1567,6 +1606,7 @@ export default function Maintenance() {
                     </Select></div>}
                   </div>
 
+                  <LastPartChange item={serializedItems.find((item) => item.id === assignItemId)} history={serializedHistory} loading={historyLoading.serialized} />
 
                   <div className="maintenance-install-footer">
                     <Input
@@ -1602,7 +1642,7 @@ export default function Maintenance() {
                     <SearchableItemPicker
                       items={nonSerializedItems}
                       value={useItemId}
-                      onChange={setUseItemId}
+                      onChange={(itemId) => { setUseItemId(itemId); loadPartHistory(itemId, "stock"); }}
                       disabled={!allowed || activeJob.status !== "OPEN"}
                       placeholder="Cari SKU / nama sparepart..."
                       testId="non-serialized-item-search"
@@ -1622,6 +1662,8 @@ export default function Maintenance() {
                       ))}
                     </Select>
                   </div>
+
+                  <LastPartChange item={selectedUseItem} history={stockHistory} loading={historyLoading.stock} />
 
                   {selectedUseItem?.category === "OIL" && (
                     <div style={{ padding: 14, marginBottom: 10, borderRadius: 6, border: `1px solid ${BRAND.primary}`, background: BRAND.successBg }}>

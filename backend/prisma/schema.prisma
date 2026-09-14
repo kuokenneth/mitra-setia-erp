@@ -291,6 +291,10 @@ model PurchaseRequest {
   directUse      Boolean               @default(false)
   reason         String
   notes          String?
+  damageProofUrl      String?
+  damageProofFileName String?
+  damageProofMimeType String?
+  damageProofSize     Int?
   createdById    String
   createdBy      User                  @relation("PurchaseRequestCreatedBy", fields: [createdById], references: [id])
   approvedById   String?

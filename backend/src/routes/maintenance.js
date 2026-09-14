@@ -147,6 +147,7 @@ router.post("/:id/purchase-requests", authRequired, async (req, res) => {
     if (!maintenance || maintenance.status !== "OPEN") return res.status(400).json({ error: "Permintaan hanya dapat dibuat pada servis yang masih terbuka" });
     const qty = Number(req.body.qty);
     if (!Number.isFinite(qty) || qty <= 0) return res.status(400).json({ error: "Jumlah barang harus lebih dari nol" });
+    if (!req.body.damageProofUrl || !String(req.body.damageProofMimeType || "").startsWith("image/")) return res.status(400).json({ error: "Foto bukti barang rusak wajib dilampirkan" });
 
     let itemId = req.body.itemId;
     if (!itemId && req.body.newItem) {
@@ -180,6 +181,10 @@ router.post("/:id/purchase-requests", authRequired, async (req, res) => {
         directUse: false,
         reason: String(req.body.reason || `Kebutuhan sparepart servis ${maintenance.title}`).trim(),
         notes: req.body.notes ? String(req.body.notes).trim() : null,
+        damageProofUrl: req.body.damageProofUrl,
+        damageProofFileName: req.body.damageProofFileName || null,
+        damageProofMimeType: req.body.damageProofMimeType,
+        damageProofSize: req.body.damageProofSize == null ? null : Number(req.body.damageProofSize),
         createdById: req.user.id,
         items: { create: [{ itemId: item.id, originalQty: qty, notes: req.body.notes ? String(req.body.notes).trim() : null }] },
       },
@@ -194,6 +199,67 @@ router.post("/:id/purchase-requests", authRequired, async (req, res) => {
     res.status(201).json({ ok: true, request });
   } catch (e) {
     res.status(e.code === "P2002" ? 409 : 400).json({ error: e.code === "P2002" ? "SKU atau nama sparepart sudah digunakan" : e.message || "Gagal membuat permintaan pembelian servis" });
+  }
+});
+
+// Last time a specific sparepart was installed or consumed on this truck.
+router.get("/:id/part-history/:itemId", authRequired, async (req, res) => {
+  try {
+    const job = await prisma.truckMaintenance.findUnique({
+      where: { id: req.params.id },
+      select: { truckId: true },
+    });
+    if (!job) return res.status(404).json({ error: "Maintenance job not found" });
+
+    const [assignment, movement] = await Promise.all([
+      prisma.truckSparePartAssignment.findFirst({
+        where: { truckId: job.truckId, stockUnit: { itemId: req.params.itemId } },
+        orderBy: { installedAt: "desc" },
+        select: {
+          installedAt: true,
+          maintenance: { select: { id: true, title: true, status: true } },
+          stockUnit: { select: { serialNumber: true, barcode: true } },
+          createdBy: { select: { name: true } },
+        },
+      }),
+      prisma.stockMovement.findFirst({
+        where: {
+          itemId: req.params.itemId,
+          type: "OUT",
+          maintenance: { truckId: job.truckId },
+        },
+        orderBy: { createdAt: "desc" },
+        select: {
+          createdAt: true,
+          qty: true,
+          maintenance: { select: { id: true, title: true, status: true } },
+          createdBy: { select: { name: true } },
+        },
+      }),
+    ]);
+
+    const installed = assignment ? {
+      usedAt: assignment.installedAt,
+      qty: 1,
+      serialNumber: assignment.stockUnit.serialNumber || assignment.stockUnit.barcode || null,
+      maintenance: assignment.maintenance,
+      createdBy: assignment.createdBy,
+      source: "SERIALIZED",
+    } : null;
+    const consumed = movement ? {
+      usedAt: movement.createdAt,
+      qty: movement.qty,
+      serialNumber: null,
+      maintenance: movement.maintenance,
+      createdBy: movement.createdBy,
+      source: "STOCK",
+    } : null;
+    const history = [installed, consumed].filter(Boolean).sort((a, b) => new Date(b.usedAt) - new Date(a.usedAt))[0] || null;
+    if (history) history.daysAgo = Math.max(0, Math.floor((Date.now() - new Date(history.usedAt).getTime()) / 86400000));
+    res.json({ ok: true, history });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Gagal memuat riwayat penggantian sparepart" });
   }
 });
 
@@ -224,7 +290,7 @@ router.get("/:id", authRequired, async (req, res) => {
           orderBy: { createdAt: "desc" },
           include: { createdBy: { select: { id: true, name: true, email: true, role: true } } },
         },
-        purchaseRequests: { select: { id: true, number: true, status: true, urgency: true, createdAt: true, items: { select: { id: true, originalQty: true, approvedQty: true, item: { select: { id: true, sku: true, name: true, unit: true } } } } }, orderBy: { createdAt: "desc" } },
+        purchaseRequests: { select: { id: true, number: true, status: true, urgency: true, createdAt: true, damageProofUrl: true, damageProofFileName: true, damageProofMimeType: true, items: { select: { id: true, originalQty: true, approvedQty: true, item: { select: { id: true, sku: true, name: true, unit: true } } } } }, orderBy: { createdAt: "desc" } },
         partRepairs: { include: { stockUnit: { include: { item: true } }, supplier: true }, orderBy: { createdAt: "desc" } },
       },
     });
