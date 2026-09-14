@@ -32,6 +32,7 @@ const materialStockRoutes = require("./routes/materialStock");
 const { publishUpdate } = require("./realtime");
 const { auditTrail } = require("./middleware/auditTrail");
 const { authRequired } = require("./middleware/authRequired");
+const { startGpsEventRetention } = require("./services/gpsEventRetention");
 
 const app = express();
 app.set("trust proxy", 1);
@@ -148,4 +149,7 @@ app.use("/dispatch", dispatchRouter);
 // app.use("/dispatch", express.static(path.join(process.cwd(), "public", "dispatch")));
 
 const port = process.env.PORT || 4000;
-app.listen(port, () => console.log(`Backend running on http://localhost:${port}`));
+app.listen(port, () => {
+  console.log(`Backend running on http://localhost:${port}`);
+  startGpsEventRetention();
+});

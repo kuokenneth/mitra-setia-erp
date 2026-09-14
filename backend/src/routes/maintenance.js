@@ -5,6 +5,7 @@ const { authRequired } = require("../middleware/authRequired");
 
 const router = express.Router();
 const OIL_CHANGE_INTERVAL_KM = 8500;
+const { notifyOwnerSafely } = require("../services/whatsappNotifications");
 
 function canWrite(user) {
   return ["OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"].includes(user?.role);
@@ -183,6 +184,12 @@ router.post("/:id/purchase-requests", authRequired, async (req, res) => {
         items: { create: [{ itemId: item.id, originalQty: qty, notes: req.body.notes ? String(req.body.notes).trim() : null }] },
       },
       include: { items: { include: { item: true } }, maintenance: { include: { truck: true } } },
+    });
+    await notifyOwnerSafely({
+      event: "Permintaan sparepart servis",
+      title: `${request.number} · ${maintenance.truck?.plateNumber || "Armada"}`,
+      details: `${item.name} · ${qty.toLocaleString("id-ID")} ${item.unit} · ${request.reason}`,
+      path: "/purchasing",
     });
     res.status(201).json({ ok: true, request });
   } catch (e) {

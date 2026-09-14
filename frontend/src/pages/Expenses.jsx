@@ -506,6 +506,9 @@ export default function Expenses() {
                       <span style={{ ...s.statusPill, ...statusVariant(x.status) }}>
                         {x.status === "APPROVED" ? "Disetujui" : x.status === "PAID" ? "Dibayar" : "Diajukan"}
                       </span>
+                      {x.status === "APPROVED" && x.approvedBy?.name ? (
+                        <small style={s.approverText}>Oleh {x.approvedBy.name}</small>
+                      ) : null}
                       {x.duplicateFlag ? (
                         <span style={{ ...s.statusPill, ...s.dupPill }}>
                           Duplicate{typeof x.duplicateCount === "number" ? ` (${x.duplicateCount})` : ""}
@@ -915,6 +918,12 @@ export default function Expenses() {
                 <div style={s.detailLabel}>Status</div>
                 <div style={s.detailValue}>{detailItem.status || "SUBMITTED"}</div>
               </div>
+              {detailItem.status === "APPROVED" ? (
+                <div>
+                  <div style={s.detailLabel}>Disetujui oleh</div>
+                  <div style={s.detailValue}>{detailItem.approvedBy?.name || "-"}</div>
+                </div>
+              ) : null}
               <div>
                 <div style={s.detailLabel}>Metode Pembayaran</div>
                 <div style={s.detailValue}>{detailItem.paymentMethod || "-"}</div>
@@ -1421,6 +1430,12 @@ function makeStyles(isMobile) {
       fontSize: 14,
       boxSizing: "border-box",
       resize: "vertical",
+    },
+    approverText: {
+      color: BRAND.textMuted,
+      fontSize: 10,
+      fontWeight: 600,
+      whiteSpace: "nowrap",
     },
   };
 }

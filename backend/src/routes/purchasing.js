@@ -4,6 +4,7 @@ const { authRequired } = require("../middleware/authRequired");
 const { requireRole } = require("../middleware/requireRole");
 const { SYSTEM_ACCOUNTS, cashCode, postJournal } = require("../services/accounting");
 const { esc, num: fmtNum, money, date: fmtDate, documentHtml } = require("../utils/printDocument");
+const { notifyOwnerSafely } = require("../services/whatsappNotifications");
 const router = express.Router();
 
 const seq = (prefix) => `${prefix}-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
@@ -117,6 +118,14 @@ router.post("/requests", async (req, res) => {
     }
   }
   const request = await prisma.purchaseRequest.create({ data: { number: seq("PR"), urgency, purpose, truckId, reason, notes, status: submit ? "WAITING_APPROVAL" : "DRAFT", createdById: req.user.id, items: { create: preparedItems } }, include: { items: { include: { item: true } } } });
+  if (request.status === "WAITING_APPROVAL") {
+    await notifyOwnerSafely({
+      event: "Permintaan pembelian baru",
+      title: request.number,
+      details: `${request.items.map(row => `${row.item.name} · ${row.originalQty} ${row.item.unit}`).join(", ")} · ${reason}`,
+      path: "/purchasing",
+    });
+  }
   res.json({ ok: true, request });
 });
 router.patch("/requests/:id/approval", requireRole("OWNER", "ADMIN"), async (req, res) => {
