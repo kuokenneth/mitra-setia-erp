@@ -12,6 +12,16 @@ const statusLabel = { DRAFT: "Draft", SENT: "Terkirim", PARTIALLY_PAID: "Dibayar
 const initialData = { customers: [], trucks: [], invoices: [], eligibleOrders: [], eligibleSources: [], stats: { invoiced: 0, received: 0, outstanding: 0, overdue: 0 } };
 const afterDays = days => { const d = new Date(); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10); };
 const customerKey = source => source?.customerId ? `id:${source.customerId}` : `name:${String(source?.customerName || "").trim().toLocaleLowerCase("id-ID")}`;
+const sourcePlateNumbers = source => {
+  const plates = source?.type === "ORDER"
+    ? (source.order?.tripAllocations?.length
+      ? source.order.tripAllocations.map(row => row.trip?.truck?.plateNumber || row.trip?.plateNumberSnap)
+      : (source.order?.trips || []).map(trip => trip.truck?.plateNumber || trip.plateNumberSnap))
+    : source?.type === "MATERIAL"
+      ? (source.invoices || []).map(invoice => invoice.trip?.truck?.plateNumber || invoice.trip?.plateNumberSnap)
+      : (source?.trips || []).map(trip => trip.truck?.plateNumber || trip.plateNumberSnap);
+  return [...new Set(plates.filter(Boolean))];
+};
 const manualLine = type => type === "MATERIAL" ? { date: new Date().toISOString().slice(0,10), truckId: "", documentNo: "", cargoName: "", qty: "", unit: "PCS", rate: "" } : { date: new Date().toISOString().slice(0,10), truckId: "", unloadingDate: "", cargoName: type === "CANGKANG" ? "Cangkang" : "Pupuk", sentPackages: "", sentKg: "", receivedPackages: "", receivedKg: "", billableKg: "", rate: "" };
 
 function TruckSearch({ trucks, value, onChange }) {
@@ -87,7 +97,10 @@ export default function Receivables() {
   }
   async function sendInvoice(invoice) {
     setBusy(true); setError("");
-    try { await api(`/receivables/invoices/${invoice.id}/send`, { method: "PATCH" }); await load(); }
+    try {
+      const result = await api(`/receivables/invoices/${invoice.id}/send`, { method: "PATCH" });
+      setData(current => ({ ...current, invoices: current.invoices.map(item => item.id === result.invoice.id ? result.invoice : item) }));
+    }
     catch (err) { setError(err.message); }
     finally { setBusy(false); }
   }
@@ -171,8 +184,17 @@ export default function Receivables() {
     <section className="ar-panel">
       <div className="ar-panel-heading"><div><span>DAFTAR INVOICE</span><h2>Tagihan & pembayaran</h2><p>{rows.length} invoice ditampilkan</p></div><div className="ar-status-legend"><span><i className="draft"/>Draft</span><span><i className="sent"/>Terkirim</span><span><i className="paid"/>Lunas</span></div></div>
       <div className="ar-tools"><input className="ar-search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Cari nomor invoice, pesanan, atau pelanggan..."/><select className="ar-filter" value={filter} onChange={e => setFilter(e.target.value)}><option value="ALL">Semua Status</option><option value="DRAFT">Draft</option><option value="SENT">Terkirim</option><option value="PARTIALLY_PAID">Dibayar Sebagian</option><option value="PAID">Lunas</option><option value="OVERDUE">Jatuh Tempo</option><option value="VOID">Dibatalkan</option></select><button className="ar-refresh" onClick={load} aria-label="Muat ulang"><FiRefreshCw className={loading ? "ar-spin" : ""}/></button></div>
-      <div className={`ar-table-wrap ${loading && !rows.length ? "initial-loading" : ""}`}>{loading && !rows.length && <LoadingState label="Memuat piutang" note="Menghitung invoice, pembayaran, dan sisa tagihan…" rows={5} />}<table><thead><tr><th>Invoice</th><th>Pelanggan</th><th>Jatuh Tempo</th><th>Total</th><th>Dibayar</th><th>Sisa</th><th>Status</th><th>Tindakan</th></tr></thead><tbody>
-        {rows.map(invoice => <tr key={invoice.id}><td><b>{invoice.number}</b><small>{invoice.sourceType?.startsWith("MANUAL_") ? `Tagihan Tunggal · ${invoice.sourceType.replace("MANUAL_FERTILIZER","Pupuk").replace("MANUAL_CANGKANG","Cangkang").replace("MANUAL_MATERIAL","Ambang / Material")}` : invoice.order?.orderNo || (invoice.materialInvoices?.length ? `${invoice.materialInvoices.length} Faktur Muatan` : invoice.singleTrip?.tripNo)}</small>{invoice.order?.shipment?.loss > 0 && <small style={{ color: "#b45309" }}>Selisih {invoice.order.shipment.loss.toLocaleString("id-ID")} {invoice.order.shipment.unit || ""}</small>}</td><td><b>{invoice.customerName}</b><small>{invoice.order?.fromText} {invoice.order && "→"} {invoice.order?.toText}</small></td><td>{tanggal(invoice.dueAt)}</td><td>{rupiah(invoice.total)}</td><td className="paid">{rupiah(invoice.paid)}</td><td><b>{rupiah(invoice.balance)}</b></td><td><span className={`ar-status ${invoice.displayStatus}`}>{statusLabel[invoice.displayStatus]}</span></td><td><div className="ar-actions">{invoice.status === "DRAFT" && !invoice.sourceType?.startsWith("MANUAL_") && <button onClick={() => openInvoiceDetail(invoice)}><FiFileText/> Detail & Harga</button>}<button onClick={() => printInvoice(invoice)}><FiPrinter/> Cetak</button>{invoice.status === "DRAFT" && <button onClick={() => sendInvoice(invoice)} disabled={busy || invoice.total <= 0} title={invoice.total <= 0 ? "Lengkapi harga terlebih dahulu" : "Kirim invoice"}><FiSend/> Kirim</button>}{["SENT", "PARTIALLY_PAID"].includes(invoice.status) && <button onClick={() => openPayment(invoice)}><FiCreditCard/> Bayar</button>}{canVoid && !invoice.payments.length && !["PAID", "VOID"].includes(invoice.status) && <button className="void" onClick={() => voidInvoice(invoice)}>Batalkan</button>}</div></td></tr>)}
+      <div className={`ar-table-wrap ${loading && !rows.length ? "initial-loading" : ""}`}>{loading && !rows.length && <LoadingState label="Memuat piutang" note="Menghitung invoice, pembayaran, dan sisa tagihan…" rows={5} />}<table className="ar-invoice-table"><colgroup><col className="invoice"/><col className="customer"/><col className="due"/><col className="money"/><col className="money"/><col className="money"/><col className="status"/><col className="actions"/></colgroup><thead><tr><th>Invoice</th><th>Pelanggan</th><th>Jatuh Tempo</th><th>Total</th><th>Dibayar</th><th>Sisa</th><th>Status</th><th>Tindakan</th></tr></thead><tbody>
+        {rows.map(invoice => <tr key={invoice.id}>
+          <td className="ar-invoice-cell" data-label="Invoice"><b>{invoice.number}</b><small>{invoice.sourceType?.startsWith("MANUAL_") ? `Tagihan Tunggal · ${invoice.sourceType.replace("MANUAL_FERTILIZER","Pupuk").replace("MANUAL_CANGKANG","Cangkang").replace("MANUAL_MATERIAL","Ambang / Material")}` : invoice.order?.orderNo || (invoice.materialInvoices?.length ? `${invoice.materialInvoices.length} Faktur Muatan` : invoice.singleTrip?.tripNo)}</small>{invoice.order?.shipment?.loss > 0 && <small className="ar-loss">Selisih {invoice.order.shipment.loss.toLocaleString("id-ID")} {invoice.order.shipment.unit || ""}</small>}</td>
+          <td className="ar-customer-cell" data-label="Pelanggan"><b>{invoice.customerName}</b><small>{invoice.order?.fromText} {invoice.order && "→"} {invoice.order?.toText}</small></td>
+          <td data-label="Jatuh Tempo"><span className="ar-date-value">{tanggal(invoice.dueAt)}</span></td>
+          <td className="ar-money-cell" data-label="Total">{rupiah(invoice.total)}</td>
+          <td className="ar-money-cell paid" data-label="Dibayar">{rupiah(invoice.paid)}</td>
+          <td className="ar-money-cell ar-balance-cell" data-label="Sisa"><b>{rupiah(invoice.balance)}</b></td>
+          <td data-label="Status"><span className={`ar-status ${invoice.displayStatus}`}>{statusLabel[invoice.displayStatus]}</span></td>
+          <td className="ar-action-cell" data-label="Tindakan"><div className="ar-actions">{invoice.status === "DRAFT" && !invoice.sourceType?.startsWith("MANUAL_") && <button onClick={() => openInvoiceDetail(invoice)}><FiFileText/> Detail</button>}<button onClick={() => printInvoice(invoice)}><FiPrinter/> Cetak</button>{invoice.status === "DRAFT" && <button onClick={() => sendInvoice(invoice)} disabled={busy || invoice.total <= 0} title={invoice.total <= 0 ? "Lengkapi harga terlebih dahulu" : "Kirim invoice"}><FiSend/> Kirim</button>}{["SENT", "PARTIALLY_PAID"].includes(invoice.status) && <button onClick={() => openPayment(invoice)}><FiCreditCard/> Bayar</button>}{canVoid && !invoice.payments.length && !["PAID", "VOID"].includes(invoice.status) && <button className="void" onClick={() => voidInvoice(invoice)}>Batalkan</button>}</div></td>
+        </tr>)}
       </tbody></table></div>
       {!loading && !rows.length && <div className="ar-empty"><FiFileText/><h3>Belum ada invoice</h3><p>{data.eligibleSources?.length ? "Buat invoice dari order, Faktur Muatan, atau Trip Tunggal yang siap ditagih." : "Selesaikan perjalanan terlebih dahulu agar dapat ditagih."}</p></div>}
     </section>
@@ -200,7 +222,8 @@ export default function Receivables() {
               const numbers = isOrder ? source.order?.orderNo : isMaterial ? (source.invoices || []).map(row => row.number).join(", ") : (source.trips || []).map(row => row.tripNo).join(", ");
               const weight = isOrder ? `${Number(source.order?.shipment?.delivered || 0).toLocaleString("id-ID")} ${source.order?.unit || ""}` : isMaterial ? (source.invoices || []).flatMap(row => row.lines || []).map(line => `${line.qty} ${line.unit}`).join(" · ") : `${Number(source.totalWeightKg || 0).toLocaleString("id-ID")} kg`;
               const count = isOrder ? `${source.order?.shipment?.delivered ? "Realisasi selesai" : "Order selesai"}` : `${isMaterial ? source.invoices?.length : source.trips?.length} ${isMaterial ? "faktur" : "trip"}`;
-              return <button type="button" key={sourceKey} className={`ar-source-choice ${selected ? "selected" : ""}`} onClick={() => chooseOrder(sourceKey)}><i>{selected && <FiCheck/>}</i><span><small>{category}</small><b>{numbers || source.label}</b><em>{count}</em></span><strong>{weight || "—"}</strong></button>;
+              const plateNumbers = sourcePlateNumbers(source);
+              return <button type="button" key={sourceKey} className={`ar-source-choice ${selected ? "selected" : ""}`} onClick={() => chooseOrder(sourceKey)}><i>{selected && <FiCheck/>}</i><span><small>{category}</small><b>{numbers || source.label}</b><em>{count}{plateNumbers.length ? ` · Armada: ${plateNumbers.join(", ")}` : " · Armada belum tercatat"}</em></span><strong>{weight || "—"}</strong></button>;
             })}
           </div>
           {invoiceOrder && <div className="ar-order-summary"><span><small>Rute pengiriman</small><strong>{invoiceOrder.fromText || "—"} → {invoiceOrder.toText || "—"}</strong></span><span><small>Realisasi muatan</small><strong>{invoiceOrder.shipment?.delivered ?? 0} / {invoiceOrder.shipment?.planned ?? invoiceOrder.qty ?? 0} {invoiceOrder.unit || ""}</strong>{invoiceOrder.shipment?.loss > 0 && <small style={{ color: "#b45309" }}>Kehilangan {invoiceOrder.shipment.loss.toLocaleString("id-ID")} {invoiceOrder.unit || ""}</small>}</span></div>}

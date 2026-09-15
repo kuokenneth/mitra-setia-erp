@@ -61,3 +61,36 @@
 .ar-manual-modal>.ar-modal-actions{flex:0 0 auto;padding:14px 22px;background:#fff}.ar-manual-action-note{margin-right:auto;color:#718078;font-size:10px}.ar-manual-modal>.ar-modal-actions button{min-width:128px}
 @media(max-width:900px){.ar-manual-modal{width:min(760px,calc(100vw - 24px));max-height:calc(100dvh - 20px)}.ar-manual-types{grid-template-columns:repeat(3,minmax(0,1fr))}.ar-manual-info{grid-template-columns:1fr}.ar-manual-info>*{grid-column:1!important}.ar-manual-summary{grid-template-columns:1fr}.ar-manual-total{grid-column:1}.ar-manual-action-note{display:none}}
 @media(max-width:600px){.ar-manual-modal{width:100%;max-height:calc(100dvh - 12px)}.ar-manual-modal>.ar-form{padding:12px}.ar-manual-types{grid-template-columns:1fr}.ar-manual-types button{min-height:52px}.ar-manual-modal .ar-modal-head{padding:17px 18px}.ar-manual-table{margin:0 12px}.ar-manual-lines>.ar-section-title{margin:0 12px}.ar-manual-lines>.ar-add-line{margin:0 12px 12px}.ar-manual-modal>.ar-modal-actions{padding:12px}.ar-manual-modal>.ar-modal-actions button{min-width:0}}
+
+/* Responsive and tactile invoice action buttons. */
+.ar-page td:last-child{min-width:260px}
+.ar-actions{display:flex;flex-wrap:wrap;gap:7px;min-width:0}
+.ar-actions button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;padding:6px 11px;cursor:pointer;touch-action:manipulation;transition:transform .14s ease,background .14s ease,border-color .14s ease,box-shadow .14s ease}
+.ar-actions button:hover:not(:disabled){border-color:#89bea0;background:#e4f5ea;box-shadow:0 4px 10px rgba(20,102,58,.09);transform:translateY(-1px)}
+.ar-actions button:active:not(:disabled){box-shadow:none;transform:translateY(1px) scale(.98)}
+.ar-actions button:focus-visible{outline:3px solid rgba(13,124,61,.18);outline-offset:2px}
+.ar-actions button:disabled{cursor:not-allowed;opacity:.5}
+.ar-actions .void:hover:not(:disabled){border-color:#f3a6a6;background:#fff1f1}
+@media(max-width:1180px){.ar-page td:last-child{min-width:230px}.ar-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.ar-actions button{width:100%;min-width:0}}
+@media(max-width:760px){.ar-page td:last-child{min-width:210px}.ar-actions{gap:6px}.ar-actions button{min-height:40px;padding-inline:8px}}
+
+/* Invoice table: airy ledger on desktop, compact cards on small screens. */
+.ar-table-wrap{border:0;background:#f3f7f4;padding:8px}
+.ar-page .ar-invoice-table{width:100%;min-width:1080px;table-layout:fixed;border-collapse:separate;border-spacing:0 8px}
+.ar-invoice-table col.invoice{width:16%}.ar-invoice-table col.customer{width:21%}.ar-invoice-table col.due{width:10%}.ar-invoice-table col.money{width:9%}.ar-invoice-table col.status{width:8%}.ar-invoice-table col.actions{width:18%}
+.ar-invoice-table thead th{padding:7px 13px;background:transparent;border:0;color:#718078;font-size:9px;letter-spacing:.1em}
+.ar-page .ar-invoice-table tbody td{padding:15px 13px;border-top:1px solid #dfe9e3;border-bottom:1px solid #dfe9e3;background:#fff;vertical-align:middle}
+.ar-page .ar-invoice-table tbody td:first-child{border-left:1px solid #dfe9e3;border-radius:12px 0 0 12px}
+.ar-page .ar-invoice-table tbody td:last-child{min-width:0;border-right:1px solid #dfe9e3;border-radius:0 12px 12px 0}
+.ar-invoice-table tbody tr{filter:drop-shadow(0 4px 8px rgba(31,70,47,.035));transition:transform .16s ease,filter .16s ease}
+.ar-invoice-table tbody tr:hover{filter:drop-shadow(0 7px 13px rgba(31,70,47,.075));transform:translateY(-1px)}
+.ar-invoice-table .ar-invoice-cell b{display:block;color:#176b40;font-size:12px;line-height:1.35}.ar-invoice-table .ar-customer-cell b{display:block;color:#26372d;font-size:12px}.ar-invoice-table .ar-loss{color:#b45309!important}.ar-invoice-table .ar-date-value,.ar-invoice-table .ar-money-cell{font-variant-numeric:tabular-nums;white-space:nowrap}.ar-invoice-table .ar-money-cell{color:#405047}.ar-invoice-table .ar-money-cell.paid{color:#168247}.ar-invoice-table .ar-balance-cell{color:#1e3327}.ar-invoice-table .ar-balance-cell b{font-size:12px}
+.ar-invoice-table .ar-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.ar-invoice-table .ar-actions button{width:100%;min-width:0;padding-inline:7px}.ar-invoice-table .ar-actions button:only-child{grid-column:1/-1}
+@media(max-width:760px){
+  .ar-table-wrap{overflow:visible;margin-inline:10px;padding:0;background:transparent}
+  .ar-page .ar-invoice-table{display:block;min-width:0;border-spacing:0}.ar-invoice-table colgroup,.ar-invoice-table thead{display:none}.ar-invoice-table tbody{display:grid;gap:10px}.ar-invoice-table tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:hidden;border:1px solid #dfe9e3;border-radius:14px;background:#fff;filter:drop-shadow(0 5px 10px rgba(31,70,47,.045))}
+  .ar-page .ar-invoice-table tbody td,.ar-page .ar-invoice-table tbody td:first-child,.ar-page .ar-invoice-table tbody td:last-child{display:grid;align-content:start;min-width:0;padding:11px 13px;border:0;border-bottom:1px solid #edf2ef;border-radius:0;background:#fff}
+  .ar-invoice-table tbody td:before{display:block;margin-bottom:5px;color:#7a887f;font-size:8px;font-weight:850;letter-spacing:.09em;text-transform:uppercase;content:attr(data-label)}
+  .ar-page .ar-invoice-table .ar-invoice-cell,.ar-page .ar-invoice-table .ar-customer-cell,.ar-page .ar-invoice-table .ar-action-cell{grid-column:1/-1}.ar-page .ar-invoice-table .ar-customer-cell{background:#f8fbf9}.ar-page .ar-invoice-table .ar-action-cell{border-bottom:0;padding:10px}
+  .ar-invoice-table .ar-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.ar-invoice-table .ar-actions button{min-height:42px;font-size:10px}
+}

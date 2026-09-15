@@ -12,7 +12,7 @@ router.get("/overview", async (_req, res) => {
     prisma.inventoryLocation.findMany({ orderBy: { name: "asc" } }),
     prisma.operationalLocation.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
     prisma.materialStockReceipt.findMany({ include: { customer: true, location: true, allocations: { include: { materialInvoiceLine: { include: { materialInvoice: { include: { trip: { include: { truck: true } } } } } } } } }, orderBy: { receivedAt: "desc" } }),
-    prisma.trip.findMany({ where: { status: { notIn: ["COMPLETED", "CANCELLED"] }, OR: [{ cargoCategorySnap: "MATERIAL" }, { order: { cargoCategory: "MATERIAL" } }] }, include: { truck: true, order: true, dispatchLetter: true }, orderBy: { createdAt: "desc" } }),
+    prisma.trip.findMany({ where: { status: { notIn: ["COMPLETED", "CANCELLED"] }, purpose: { not: "EMPTY_RETURN" } }, include: { truck: true, order: true, dispatchLetter: true }, orderBy: { createdAt: "desc" } }),
   ]);
   res.json({ customers, locations: storageLocations, storageLocations, destinations, receipts, trips });
 });
@@ -55,15 +55,36 @@ router.post("/allocate", async (req, res) => {
     if (!body.customerId || !body.tripId || !body.destinationLocationId || !Array.isArray(body.lines) || !body.lines.length) throw new Error("Customer, trip, tujuan, dan material wajib dipilih");
     const [customer, trip, destination] = await Promise.all([
       prisma.customer.findUnique({ where: { id: body.customerId } }),
-      prisma.trip.findUnique({ where: { id: body.tripId }, include: { dispatchLetter: true } }),
+      prisma.trip.findUnique({
+        where: { id: body.tripId },
+        include: {
+          dispatchLetter: true,
+          order: { select: { id: true, cargoCategory: true } },
+          orderAllocations: { include: { order: { select: { id: true, cargoCategory: true } } } },
+        },
+      }),
       prisma.operationalLocation.findFirst({ where: { id: body.destinationLocationId, isActive: true } }),
     ]);
     if (!customer || !trip || !destination) throw new Error("Customer, trip, atau tujuan tidak ditemukan");
+    if (["COMPLETED", "CANCELLED"].includes(trip.status)) throw new Error("Trip yang sudah ditutup tidak dapat menerima alokasi material");
+    const relatedOrderIds = [...new Set([
+      trip.order?.id || null,
+      ...trip.orderAllocations.map(row => row.orderId),
+    ].filter(Boolean))];
+    const materialOrderIds = [...new Set([
+      trip.order?.cargoCategory === "MATERIAL" ? trip.order.id : null,
+      ...trip.orderAllocations.filter(row => row.order?.cargoCategory === "MATERIAL").map(row => row.orderId),
+    ].filter(Boolean))];
+    if (trip.purpose === "EMPTY_RETURN") throw new Error("Material tidak dapat dialokasikan ke Trip Kembali Kosong");
+    const requestedOrderId = clean(body.orderId) || null;
+    if (requestedOrderId && !relatedOrderIds.includes(requestedOrderId)) throw new Error("Order tidak terhubung dengan trip yang dipilih");
+    if (!requestedOrderId && materialOrderIds.length > 1) throw new Error("Pilih order material tujuan karena trip memuat lebih dari satu order material");
+    const resolvedOrderId = requestedOrderId || (materialOrderIds.length === 1 ? materialOrderIds[0] : null);
     const result = await prisma.$transaction(async tx => {
       const sequence = Math.max(1, Math.round(Number(body.stopSequence) || 1));
       await tx.materialInvoice.updateMany({ where: { tripId: trip.id, stopSequence: { gte: sequence } }, data: { stopSequence: { increment: 1 } } });
       const invoice = await tx.materialInvoice.create({ data: {
-        orderId: body.orderId || null, tripId: trip.id, number: trip.dispatchLetter ? trip.dispatchLetter.number : "FM-" + new Date().getFullYear() + "-" + String(Date.now()).slice(-7),
+        orderId: resolvedOrderId, tripId: trip.id, number: trip.dispatchLetter ? trip.dispatchLetter.number : "FM-" + new Date().getFullYear() + "-" + String(Date.now()).slice(-7),
         materialName: body.lines.length === 1 ? clean(body.lines[0].itemName) : "Multiple materials",
         qty: body.lines.reduce((sum, row) => sum + Number(row.qty || 0), 0), unit: body.lines.length === 1 ? clean(body.lines[0].unit).toUpperCase() : "LINES",
         billingCustomerName: customer.name, destinationLocationId: destination.id, stopSequence: sequence, notes: clean(body.notes) || null,
@@ -79,8 +100,12 @@ router.post("/allocate", async (req, res) => {
         for (const stock of stocks) {
           if (remaining <= 1e-9) break;
           const take = Math.min(remaining, stock.qtyRemaining);
+          const reduced = await tx.materialStockReceipt.updateMany({
+            where: { id: stock.id, qtyRemaining: { gte: take } },
+            data: { qtyRemaining: { decrement: take } },
+          });
+          if (reduced.count !== 1) throw new Error(clean(input.itemName) + ": stok berubah saat dialokasikan, silakan ulangi");
           await tx.materialStockAllocation.create({ data: { receiptId: stock.id, materialInvoiceLineId: line.id, qty: take } });
-          await tx.materialStockReceipt.update({ where: { id: stock.id }, data: { qtyRemaining: { decrement: take } } });
           remaining -= take;
         }
       }

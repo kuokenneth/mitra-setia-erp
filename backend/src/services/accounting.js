@@ -10,13 +10,13 @@ function journalNumber() {
 
 async function postJournal(tx, { date = new Date(), description, sourceType, sourceId, createdById, lines }) {
   if (!sourceType || !sourceId) throw new Error("Referensi jurnal wajib diisi");
-  const existing = await tx.journalEntry.findUnique({ where: { sourceType_sourceId: { sourceType, sourceId } } });
+  const existing = await tx.journalEntry.findUnique({ where: { sourceType_sourceId: { sourceType, sourceId } }, select: { id: true } });
   if (existing) return existing;
   const debit = lines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
   const credit = lines.reduce((sum, line) => sum + Number(line.credit || 0), 0);
   if (debit <= 0 || debit !== credit) throw new Error("Jurnal tidak seimbang");
   const codes = [...new Set(lines.map(line => line.code))];
-  const accounts = await tx.account.findMany({ where: { code: { in: codes }, isActive: true } });
+  const accounts = await tx.account.findMany({ where: { code: { in: codes }, isActive: true }, select: { id: true, code: true } });
   if (accounts.length !== codes.length) throw new Error("Akun sistem accounting belum lengkap");
   const ids = Object.fromEntries(accounts.map(account => [account.code, account.id]));
   return tx.journalEntry.create({ data: {

@@ -49,10 +49,13 @@ router.post("/manual-invoices", async (req, res) => {
     const discount = amount(req.body.discount || 0, "Diskon");
     const total = subtotal + tax - discount;
     if (total <= 0) throw new Error("Total tagihan harus lebih dari nol");
-    const invoice = await prisma.$transaction(async tx => {
+    const invoiceId = await prisma.$transaction(async tx => {
       const number = await nextInvoiceNumber(tx, "INV-TGL");
-      return tx.invoice.create({ data: { number, billingKey: `MANUAL:${type}:${Date.now()}`, sourceType: `MANUAL_${type}`, customerId: customer.id, customerName: customer.name, customerPhone: customer.phone || null, billingAddress: customer.address || null, dueAt: dueDate, subtotal, contractSubtotal: subtotal, materialSubtotal: type === "MATERIAL" ? subtotal : 0, tax, discount, total, notes: String(notes || "").trim() || null, manualData: { title: String(title || "").trim(), fromText: String(fromText || "").trim(), toText: String(toText || "").trim(), reference: String(reference || "").trim(), type }, createdById: req.user.id, manualLines: { create: prepared } }, include: invoiceInclude });
+      const created = await tx.invoice.create({ data: { number, billingKey: `MANUAL:${type}:${Date.now()}`, sourceType: `MANUAL_${type}`, customerId: customer.id, customerName: customer.name, customerPhone: customer.phone || null, billingAddress: customer.address || null, dueAt: dueDate, subtotal, contractSubtotal: subtotal, materialSubtotal: type === "MATERIAL" ? subtotal : 0, tax, discount, total, notes: String(notes || "").trim() || null, manualData: { title: String(title || "").trim(), fromText: String(fromText || "").trim(), toText: String(toText || "").trim(), reference: String(reference || "").trim(), type }, createdById: req.user.id, manualLines: { create: prepared } }, select: { id: true } });
+      return created.id;
     });
+    const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId }, include: invoiceInclude });
+    if (!invoice) throw new Error("Invoice berhasil dibuat tetapi gagal dimuat kembali");
     res.status(201).json({ ok: true, invoice: summarize(invoice) });
   } catch (error) { res.status(400).json({ error: error.message || "Gagal membuat tagihan tunggal" }); }
 });
@@ -150,7 +153,7 @@ router.get("/overview", async (_req, res) => {
       prisma.invoice.findMany({ include: invoiceInclude, orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }] }),
       prisma.order.findMany({
         where: { status: "COMPLETED", invoices: { none: { sourceType: "ORDER", status: { not: "VOID" } } } },
-        include: { customer: true, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true } }, tripAllocations: { where: { trip: { status: "COMPLETED" } }, select: { qtyPlanned: true, qtyActual: true } }, materialInvoices: { select: { id: true, billingCustomerName: true, billedInvoiceId: true, destinationCompletedAt: true, lines: { select: { id: true, itemName: true, qty: true, unit: true, totalAmount: true } } } } },
+        include: { customer: true, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true, plateNumberSnap: true, truck: { select: { plateNumber: true } } } }, tripAllocations: { where: { trip: { status: "COMPLETED" } }, select: { qtyPlanned: true, qtyActual: true, trip: { select: { plateNumberSnap: true, truck: { select: { plateNumber: true } } } } } }, materialInvoices: { select: { id: true, billingCustomerName: true, billedInvoiceId: true, destinationCompletedAt: true, lines: { select: { id: true, itemName: true, qty: true, unit: true, totalAmount: true } } } } },
         orderBy: { updatedAt: "desc" },
       }),
       prisma.materialInvoice.findMany({ where: { billedInvoiceId: null, destinationCompletedAt: { not: null } }, include: { lines: true, trip: { include: { truck: true } }, destinationLocation: true }, orderBy: { issuedAt: "asc" } }),
@@ -201,9 +204,12 @@ router.post("/invoices", async (req, res) => {
     if (!customerName?.trim()) throw new Error("Nama pelanggan wajib diisi");
     if (Number.isNaN(dueDate.getTime())) throw new Error("Tanggal jatuh tempo tidak valid");
 
-    const invoice = await prisma.$transaction(async (tx) => {
+    const invoiceId = await prisma.$transaction(async (tx) => {
       if (sourceType === "MATERIAL") {
-        const items = await tx.materialInvoice.findMany({ where: { id: { in: materialInvoiceIds }, billedInvoiceId: null, destinationCompletedAt: { not: null } }, include: { lines: true } });
+        const items = await tx.materialInvoice.findMany({
+          where: { id: { in: materialInvoiceIds }, billedInvoiceId: null, destinationCompletedAt: { not: null } },
+          select: { id: true, billingCustomerName: true },
+        });
         if (!items.length || items.length !== materialInvoiceIds.length) throw new Error("Faktur Muatan tidak tersedia atau sudah ditagih");
         const resolvedCustomerId = customerId || null;
         const customerKey = customerName.trim().toLocaleLowerCase("id-ID");
@@ -212,8 +218,8 @@ router.post("/invoices", async (req, res) => {
         const total = 0;
         const number = await nextInvoiceNumber(tx, "INV");
         const sourceKey = [...materialInvoiceIds].sort().join(",");
-        const created = await tx.invoice.create({ data: { number, billingKey: `MATERIAL:${sourceKey}`, sourceType, customerId: resolvedCustomerId, customerName: customerName.trim(), customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null, dueAt: dueDate, subtotal, contractSubtotal: 0, materialSubtotal: subtotal, tax, discount, total, notes: notes?.trim() || null, createdById: req.user.id }, include: invoiceInclude });
-        await tx.materialInvoice.updateMany({ where: { id: { in: materialInvoiceIds } }, data: { billedInvoiceId: created.id } }); return created;
+        const created = await tx.invoice.create({ data: { number, billingKey: `MATERIAL:${sourceKey}`, sourceType, customerId: resolvedCustomerId, customerName: customerName.trim(), customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null, dueAt: dueDate, subtotal, contractSubtotal: 0, materialSubtotal: subtotal, tax, discount, total, notes: notes?.trim() || null, createdById: req.user.id }, select: { id: true } });
+        await tx.materialInvoice.updateMany({ where: { id: { in: materialInvoiceIds } }, data: { billedInvoiceId: created.id } }); return created.id;
       }
       if (sourceType === "SINGLE_TRIP") {
         const trip = await tx.trip.findFirst({ where: { id: singleTripId, purpose: "SINGLE_TRIP", status: "COMPLETED", singleInvoice: null } });
@@ -222,12 +228,16 @@ router.post("/invoices", async (req, res) => {
         const total = contractSubtotal + tax - discount;
         if (total <= 0) throw new Error("Total invoice harus lebih dari nol");
         const number = await nextInvoiceNumber(tx, "INV");
-        return tx.invoice.create({ data: { number, billingKey: `SINGLE_TRIP:${trip.id}`, sourceType, singleTripId: trip.id, customerName: customerName.trim(), customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null, dueAt: dueDate, subtotal: contractSubtotal, contractSubtotal, tax, discount, total, notes: notes?.trim() || null, createdById: req.user.id }, include: invoiceInclude });
+        const created = await tx.invoice.create({ data: { number, billingKey: `SINGLE_TRIP:${trip.id}`, sourceType, singleTripId: trip.id, customerName: customerName.trim(), customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null, dueAt: dueDate, subtotal: contractSubtotal, contractSubtotal, tax, discount, total, notes: notes?.trim() || null, createdById: req.user.id }, select: { id: true } });
+        return created.id;
       }
       if (sourceType === "SINGLE_TRIP_GROUP") {
         const ids = [...new Set(singleTripIds)].filter(Boolean);
         if (!ids.length) throw new Error("Pilih minimal satu Trip Tunggal");
-        const trips = await tx.trip.findMany({ where: { id: { in: ids }, purpose: "SINGLE_TRIP", status: "COMPLETED", cargoCategorySnap: { in: ["FERTILIZER", "CANGKANG"] }, invoiceLines: { none: {} }, singleInvoice: null }, include: { billingCustomer: true } });
+        const trips = await tx.trip.findMany({
+          where: { id: { in: ids }, purpose: "SINGLE_TRIP", status: "COMPLETED", cargoCategorySnap: { in: ["FERTILIZER", "CANGKANG"] }, invoiceLines: { none: {} }, singleInvoice: null },
+          select: { id: true, tripNo: true, qtyActual: true, qtyPlanned: true, unitSnap: true, cargoCategorySnap: true, billingCustomerId: true, billingCustomerName: true, billingCustomer: { select: { cargoLossTolerancePercent: true } } },
+        });
         if (trips.length !== ids.length) throw new Error("Sebagian trip tidak tersedia atau sudah ditagih");
         const customerKey = customerName.trim().toLocaleLowerCase("id-ID");
         const category = String(trips[0].cargoCategorySnap || "");
@@ -238,9 +248,19 @@ router.post("/invoices", async (req, res) => {
         const total = 0;
         const number = await nextInvoiceNumber(tx, "INV");
         const billingIds = ids.slice().sort();
-        return tx.invoice.create({ data: { number, billingKey: `SINGLE_TRIP_GROUP:${billingIds.join(",")}`, sourceType, customerId: trips[0].billingCustomerId || null, customerName: customerName.trim(), customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null, dueAt: dueDate, subtotal, contractSubtotal: subtotal, plannedQuantity: lines.reduce((sum, line) => sum + Number(line.plannedWeightKg || 0), 0), deliveredQuantity: lines.reduce((sum, line) => sum + line.actualWeightKg, 0), billableQuantity: lines.reduce((sum, line) => sum + Number(line.billableWeightKg || 0), 0), cargoLossQuantity: lines.reduce((sum, line) => sum + billingWeight(line.plannedWeightKg, line.actualWeightKg, tolerancePercent).claimableLoss, 0), tolerancePercent, tax, discount, total, notes: notes?.trim() || null, createdById: req.user.id, singleTripLines: { create: lines } }, include: invoiceInclude });
+        const created = await tx.invoice.create({ data: { number, billingKey: `SINGLE_TRIP_GROUP:${billingIds.join(",")}`, sourceType, customerId: trips[0].billingCustomerId || null, customerName: customerName.trim(), customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null, dueAt: dueDate, subtotal, contractSubtotal: subtotal, plannedQuantity: lines.reduce((sum, line) => sum + Number(line.plannedWeightKg || 0), 0), deliveredQuantity: lines.reduce((sum, line) => sum + line.actualWeightKg, 0), billableQuantity: lines.reduce((sum, line) => sum + Number(line.billableWeightKg || 0), 0), cargoLossQuantity: lines.reduce((sum, line) => sum + billingWeight(line.plannedWeightKg, line.actualWeightKg, tolerancePercent).claimableLoss, 0), tolerancePercent, tax, discount, total, notes: notes?.trim() || null, createdById: req.user.id, singleTripLines: { create: lines } }, select: { id: true } });
+        return created.id;
       }
-      const order = await tx.order.findUnique({ where: { id: orderId }, include: { customer: true, invoices: true, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true } }, tripAllocations: { where: { trip: { status: "COMPLETED" } }, select: { qtyPlanned: true, qtyActual: true } }, materialInvoices: { select: { id: true, billingCustomerName: true, billedInvoiceId: true, destinationCompletedAt: true, lines: { select: { totalAmount: true } } } } } });
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        select: {
+          id: true, status: true, qty: true, unit: true, customerId: true,
+          customer: { select: { cargoLossTolerancePercent: true } },
+          invoices: { select: { sourceType: true, status: true } },
+          trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true } },
+          tripAllocations: { where: { trip: { status: "COMPLETED" } }, select: { qtyPlanned: true, qtyActual: true } },
+        },
+      });
       if (!order || order.status !== "COMPLETED") throw new Error("Invoice hanya dapat dibuat dari pesanan yang selesai");
       if (order.invoices.some((item) => item.sourceType === "ORDER" && item.status !== "VOID")) throw new Error("Pesanan ini sudah memiliki invoice");
       const shipment = shipmentSummary(order);
@@ -250,7 +270,6 @@ router.post("/invoices", async (req, res) => {
       const deliveredKg = quantityKg(deliveredQuantity, order.unit);
       const tolerancePercent = Number(order.customer?.cargoLossTolerancePercent || 0);
       const billing = billingWeight(plannedKg, deliveredKg, tolerancePercent);
-      const baseSubtotal = 0;
       const subtotal = 0;
       const cargoLossAmount = 0;
       const total = 0;
@@ -264,10 +283,12 @@ router.post("/invoices", async (req, res) => {
           cargoLossQuantity: plannedKg > 0 ? billing.claimableLoss : null,
           cargoLossAmount, materialSubtotal: 0, tax, discount, total, notes: notes?.trim() || null, createdById: req.user.id,
         },
-        include: invoiceInclude,
+        select: { id: true },
       });
-      return tx.invoice.findUnique({ where: { id: created.id }, include: invoiceInclude });
+      return created.id;
     });
+    const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId }, include: invoiceInclude });
+    if (!invoice) throw new Error("Invoice berhasil dibuat tetapi gagal dimuat kembali");
     res.status(201).json({ ok: true, invoice: summarize(invoice) });
   } catch (error) {
     const status = error.code === "P2002" ? 409 : 400;
@@ -405,7 +426,7 @@ router.get("/invoices/:id/print", async (req, res) => {
       ${shipmentRows ? `<div class="box" style="margin-top:14px;line-height:1.8"><b>Ongkos/Kg</b> : ${money(weightRows[0]?.ratePerKg || invoice.ratePerKg || 0)}<br><b>Perhitungan</b> : ${num(weightRows.reduce((sum,row)=>sum+row.billableKg,0))} kg × ${money(weightRows[0]?.ratePerKg || invoice.ratePerKg || 0)}<br><span class="muted">Susut fisik ${num(totalPhysicalLossKg)} kg · jatah toleransi ${num(totalToleranceKg)} kg (${num(invoice.tolerancePercent || 0)}%) · susut yang diklaim ${num(totalClaimableLossKg)} kg</span><br><span class="muted">KG ditagih = KG kirim − susut yang melebihi toleransi.</span></div>` : ""}
       <table style="width:42%;margin-left:auto"><tbody><tr><td>Subtotal</td><td class="right"><b>${money(invoice.subtotal)}</b></td></tr>${invoice.tax ? `<tr><td>Pajak</td><td class="right">${money(invoice.tax)}</td></tr>` : ""}${invoice.discount ? `<tr><td>Diskon</td><td class="right">-${money(invoice.discount)}</td></tr>` : ""}<tr><td><b>TOTAL TAGIHAN</b></td><td class="right"><b>${money(invoice.total)}</b></td></tr></tbody></table>
       ${invoice.notes ? `<div class="box" style="margin-top:14px"><span class="muted">Catatan</span><br>${esc(invoice.notes)}</div>` : ""}
-      <div class="signatures"><div>Pelanggan</div><div>Dibuat oleh<br>${esc(invoice.createdBy?.name || "-")}</div><div>CV. Mitra Setia</div></div>`;
+      <div class="signatures"><div>Pelanggan</div><div>Dibuat oleh</div><div>CV. Mitra Setia</div></div>`;
     res.type("html").send(documentHtml({ title: "TAGIHAN ONGKOS ANGKUT", subtitle: invoice.number, meta: `Tanggal invoice: ${esc(date(invoice.issuedAt))}<br>Customer: ${esc(invoice.customerName)}`, body, landscape: Boolean(materialRows && !shipmentRows) }));
   } catch (error) {
     res.status(400).send(error.message || "Gagal membuat dokumen invoice");
@@ -418,14 +439,23 @@ function statusLabelForPrint(status) {
 
 router.patch("/invoices/:id/send", async (req, res) => {
   try {
-    const current = await prisma.invoice.findUnique({ where: { id: req.params.id } });
+    const current = await prisma.invoice.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, number: true, status: true, total: true },
+    });
     if (!current || current.status !== "DRAFT") return res.status(400).json({ error: "Hanya invoice draft yang dapat dikirim" });
     if (current.total <= 0) return res.status(400).json({ error: "Lengkapi harga di Detail Invoice sebelum mengirim" });
-    const invoice = await prisma.$transaction(async tx => {
-      const updated = await tx.invoice.update({ where: { id: req.params.id }, data: { status: "SENT", sentAt: new Date() }, include: invoiceInclude });
+    const invoiceId = await prisma.$transaction(async tx => {
+      const updated = await tx.invoice.update({
+        where: { id: current.id },
+        data: { status: "SENT", sentAt: new Date() },
+        select: { id: true, number: true, total: true, sentAt: true },
+      });
       await postJournal(tx, { date: updated.sentAt, description: `Invoice ${updated.number}`, sourceType: "CUSTOMER_INVOICE", sourceId: updated.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.AR, debit: updated.total }, { code: SYSTEM_ACCOUNTS.REVENUE, credit: updated.total }] });
-      return updated;
+      return updated.id;
     });
+    const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId }, include: invoiceInclude });
+    if (!invoice) throw new Error("Invoice berhasil dikirim tetapi gagal dimuat kembali");
     res.json({ ok: true, invoice: summarize(invoice) });
   } catch (error) { res.status(400).json({ error: error.message || "Gagal mengirim invoice" }); }
 });

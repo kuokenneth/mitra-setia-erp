@@ -90,6 +90,19 @@ const divider = {
   marginTop: 14,
 };
 
+function materialWeightKg(invoices) {
+  const lines = (invoices || []).flatMap((invoice) => invoice.lines || []);
+  if (!lines.length) return null;
+  let total = 0;
+  for (const line of lines) {
+    if (line.totalKg != null && Number(line.totalKg) > 0) total += Number(line.totalKg);
+    else if (String(line.unit || "").toUpperCase() === "KG" && Number(line.qty) > 0) total += Number(line.qty);
+    else if (String(line.unit || "").toUpperCase() === "TON" && Number(line.qty) > 0) total += Number(line.qty) * 1000;
+    else return null;
+  }
+  return total > 0 ? total : null;
+}
+
 const badgeBase = {
   display: "inline-flex",
   alignItems: "center",
@@ -350,7 +363,9 @@ export default function TripDetail() {
   const currentPhaseIndex = currentPhase === "SERVICE_AT_BASE" ? 2 : DELIVERY_PHASES.findIndex((phase) => phase.value === currentPhase);
   const currentStepIndex = Math.max(0, STATUS_STEPS.findIndex((step) => step.value === currentStatus));
   const plannedWeight = trip?.purpose === "SINGLE_TRIP" && trip?.cargoCategorySnap === "MATERIAL" ? null : trip?.qtyPlanned == null ? null : Number(trip.qtyPlanned);
-  const arrivalWeight = trip?.qtyActual == null ? null : Number(trip.qtyActual);
+  const materialKg = (trip?.cargoCategorySnap === "MATERIAL" || order?.cargoCategory === "MATERIAL") ? materialWeightKg(trip?.materialInvoices) : null;
+  const materialWeight = materialKg == null ? null : String(trip?.unitSnap || "TON").toUpperCase() === "KG" ? materialKg : materialKg / 1000;
+  const arrivalWeight = materialWeight ?? (trip?.qtyActual == null ? null : Number(trip.qtyActual));
   const cargoDifference = plannedWeight == null || arrivalWeight == null ? null : Math.max(0, plannedWeight - arrivalWeight);
   const weightUnit = trip?.unitSnap || order?.unit || "TON";
   const loadingProofs = (trip?.arrivalProofs || []).filter((proof) => proof.proofType === "LOADING");
@@ -374,8 +389,23 @@ export default function TripDetail() {
     }
   }
 
+  async function completeDirectlyForTest() {
+    if (!window.confirm("Selesaikan trip ini langsung untuk pengujian? Seluruh tujuan yang belum selesai akan dianggap sudah tiba dan selesai bongkar.")) return;
+    try {
+      setSaveErr("");
+      setSaving(true);
+      await api(`/trips/${id}/status`, { method: "PATCH", body: JSON.stringify({ status: "COMPLETED", forceComplete: true }) });
+      await load();
+    } catch (e) {
+      setSaveErr(e?.message || "Gagal menyelesaikan trip secara langsung");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function setStatus(next) {
-    const needsWeight = trip?.purpose === "DELIVERY" && (next === "ARRIVED" || (next === "COMPLETED" && trip.qtyActual == null));
+    const hasMaterialWeight = (trip?.cargoCategorySnap === "MATERIAL" || order?.cargoCategory === "MATERIAL") && materialWeightKg(trip?.materialInvoices) != null;
+    const needsWeight = trip?.purpose === "DELIVERY" && !hasMaterialWeight && (next === "ARRIVED" || (next === "COMPLETED" && trip.qtyActual == null));
     if (needsWeight) {
       setSaveErr("");
       setArrivalEntry({ nextStatus: next, qtyActual: trip.qtyActual == null ? "" : String(trip.qtyActual) });
@@ -618,13 +648,16 @@ export default function TripDetail() {
                   <div style={{ fontSize: 12, color: "#7A8780", marginTop: 3 }}>Keberangkatan dan kedatangan diperbarui otomatis dari GPS. Penyelesaian trip tetap dikonfirmasi manual.</div>
                 </div>
                 {canWrite ? (
-                  <button
-                    style={{ ...btnDanger, height: 36, display: "inline-flex", alignItems: "center", gap: 7, boxShadow: "none", fontSize: 12 }}
-                    onClick={() => window.confirm("Batalkan trip ini?") && setStatus("CANCELLED")}
-                    disabled={saving}
-                  >
-                    <FiX size={14} /> Batalkan trip
-                  </button>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {role === "OWNER" && !["COMPLETED", "CANCELLED"].includes(currentStatus) && <button type="button" style={{ ...btnGhost, height: 36, display: "inline-flex", alignItems: "center", gap: 7, borderColor: "#E2B96B", background: "#FFF8E8", color: "#8A5A00", boxShadow: "none", fontSize: 12 }} onClick={completeDirectlyForTest} disabled={saving}><FiCheck size={14}/> Selesaikan langsung (uji)</button>}
+                    <button
+                      style={{ ...btnDanger, height: 36, display: "inline-flex", alignItems: "center", gap: 7, boxShadow: "none", fontSize: 12 }}
+                      onClick={() => window.confirm("Batalkan trip ini?") && setStatus("CANCELLED")}
+                      disabled={saving}
+                    >
+                      <FiX size={14} /> Batalkan trip
+                    </button>
+                  </div>
                 ) : null}
               </div>
               {trip.purpose !== "EMPTY_RETURN" && (
@@ -702,15 +735,14 @@ export default function TripDetail() {
             </div>
           </div>
 
-          {trip.purpose === "DELIVERY" && <section className="trip-detail-v3-card trip-allocation-card" style={{ ...panel, marginTop: 14, boxShadow: "none", borderRadius: 13, padding: 20 }}>
+          {trip.purpose === "DELIVERY" && <section className="trip-allocation-card">
             <header className="trip-allocation-head"><div><span>MUATAN TERBAGI</span><h2>Alokasi Order dalam Trip</h2><p>Beberapa customer memakai kendaraan dan GPS yang sama, tetapi tonase, tujuan, dan tagihannya tetap terpisah.</p></div></header>
             <div className="trip-allocation-list">
-              {(trip.orderAllocations || []).map((allocation) => <div className={`trip-allocation-row ${allocation.destinationCompletedAt ? "completed" : ""}`} key={allocation.id} style={{ display: "grid", gridTemplateColumns: "34px 1fr auto auto", alignItems: "center", gap: 12, padding: "10px 12px", border: "1px solid #E2EAE5", borderRadius: 9 }}>
-                <b style={{ width: 28, height: 28, display: "grid", placeItems: "center", borderRadius: 8, color: "#0D7C3D", background: "#EDF6F0" }}>{allocation.stopSequence || 1}</b>
-                <span><strong>{allocation.order?.orderNo}</strong> · {allocation.order?.customer?.name || allocation.order?.customerName || "Tanpa customer"}<small style={{ display: "block", color: "#718078", marginTop: 3 }}>{allocation.order?.cargoName || "Muatan"} · tujuan {allocation.order?.destinationLocation?.name || allocation.order?.toText || "-"}{allocation.isPrimary ? " · order utama" : " · order tambahan"}</small></span>
-                <strong>{Number(allocation.qtyPlanned || 0).toLocaleString("id-ID")} {allocation.unitSnap || ""}</strong>
-                {allocation.order?.cargoCategory === "MATERIAL" ? <span style={{ color: "#718078", fontSize: 12 }}>Mengikuti Faktur Muatan</span> : allocation.destinationCompletedAt ? <strong style={{ color: "#0D7C3D", fontSize: 12 }}>Selesai</strong> : allocation.destinationArrivedAt ? <button type="button" disabled={saving} onClick={() => completeOrderStop(allocation.id)} style={{ ...btnGhost, height: 34, background: "#0D7C3D", color: "white" }}>Selesai bongkar</button> : <span style={{ color: "#718078", fontSize: 12 }}>Menunggu tiba</span>}
-              </div>)}
+              {(trip.orderAllocations || []).map((allocation) => <article className={`trip-allocation-row ${allocation.destinationCompletedAt ? "completed" : ""}`} key={allocation.id}>
+                <b>{allocation.stopSequence || 1}</b>
+                <div><strong>{allocation.order?.orderNo}</strong><span> · {allocation.order?.customer?.name || allocation.order?.customerName || "Tanpa customer"}</span><small>{allocation.order?.cargoName || "Muatan"} · tujuan {allocation.order?.destinationLocation?.name || allocation.order?.toText || "-"}{allocation.isPrimary ? " · order utama" : " · order tambahan"}</small></div>
+                <div className="trip-allocation-value"><strong>{Number(allocation.qtyPlanned || 0).toLocaleString("id-ID")} {allocation.unitSnap || ""}</strong>{allocation.order?.cargoCategory === "MATERIAL" ? <span>Mengikuti Faktur Muatan</span> : allocation.destinationCompletedAt ? <span className="completed">Selesai</span> : allocation.destinationArrivedAt ? <button type="button" disabled={saving} onClick={() => completeOrderStop(allocation.id)}>Selesai bongkar</button> : <span>Menunggu tiba</span>}</div>
+              </article>)}
             </div>
             {canWrite && ["PLANNED", "DISPATCHED"].includes(currentStatus) && !["TO_DESTINATION", "AT_DESTINATION"].includes(currentPhase) && <form className="trip-allocation-form" onSubmit={addOrderAllocation} style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
               <select required value={allocationForm.orderId} onChange={(e) => { const candidate = allocationCandidates.find((item) => item.id === e.target.value); setAllocationForm((form) => ({ ...form, orderId: e.target.value, unit: candidate?.unit || form.unit })); }} style={{ flex: "1 1 280px", height: 40, border: "1px solid #DCE5E0", borderRadius: 8, padding: "0 10px" }}><option value="">Pilih order pupuk tambahan</option>{allocationCandidates.filter((candidate) => candidate.remainingQty == null || candidate.remainingQty > 0).map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.orderNo} · {candidate.customer?.name || candidate.customerName || "Tanpa customer"} · sisa {candidate.remainingQty ?? "-"} {candidate.unit || ""} → {candidate.destinationLocation?.name || candidate.toText}</option>)}</select>
@@ -721,15 +753,19 @@ export default function TripDetail() {
             </form>}
           </section>}
 
-          {((trip.materialInvoices || []).length > 0 || (trip.purpose === "SINGLE_TRIP" && trip.cargoCategorySnap === "MATERIAL")) && <section className="trip-detail-v3-card" style={{ ...panel, marginTop: 14, boxShadow: "none", borderRadius: 13, padding: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}><div style={{ fontWeight: 650, fontSize: 16 }}>Tujuan Faktur Muatan</div>{canWrite && trip.purpose === "SINGLE_TRIP" && trip.cargoCategorySnap === "MATERIAL" && !["COMPLETED", "CANCELLED"].includes(currentStatus) && <button type="button" onClick={openSingleMaterialInvoice} style={{ ...btnGhost, background: "#0D7C3D", color: "white" }}><FiPlus /> Tambah Faktur Muatan</button>}</div>
-            <p style={{ color: "#718078", fontSize: 13 }}>Tujuan diproses sesuai urutan. Trip belum dapat selesai selama masih ada tujuan terbuka.</p>
-            {!(trip.materialInvoices || []).length && <div style={{ padding: 18, border: "1px dashed #CBDDD2", borderRadius: 10, color: "#718078", textAlign: "center" }}>Belum ada Faktur Muatan. Tambahkan customer yang ditagih dan tujuan bongkar.</div>}
-            {(trip.materialInvoices || []).map((invoice) => <div key={invoice.id} style={{ display: "grid", gridTemplateColumns: "36px 1fr auto", gap: 10, alignItems: "center", padding: "11px 0", borderTop: "1px solid #E2EAE5" }}><b style={{ width: 28, height: 28, display: "grid", placeItems: "center", borderRadius: 8, background: "#EDF6F0", color: "#0D7C3D" }}>{invoice.stopSequence || 1}</b><span><strong>{invoice.destinationLocation?.name || "Tujuan belum tersedia"}</strong><small style={{ display: "block", marginTop: 3, color: "#718078" }}>{invoice.billingCustomerName || "Customer material"} · {invoice.materialName}</small></span>{invoice.destinationCompletedAt ? <strong style={{ color: "#0D7C3D" }}>Selesai</strong> : invoice.destinationArrivedAt ? <button type="button" disabled={saving} onClick={() => completeMaterialStop(invoice.id)} style={{ ...btnGhost, background: "#0D7C3D", color: "white" }}>Selesai bongkar</button> : <span style={{ color: "#718078", fontSize: 12 }}>Menunggu tiba</span>}</div>)}
+          {trip.purpose !== "EMPTY_RETURN" && <section className="trip-material-destinations-panel">
+            <header><div><span>MUATAN MATERIAL</span><h2>Tujuan Faktur Muatan</h2><p>Tujuan material dicatat terpisah untuk pengiriman dan penagihan, serta tidak menahan penyelesaian Trip.</p></div>{canWrite && !["COMPLETED", "CANCELLED"].includes(currentStatus) && <button type="button" onClick={openSingleMaterialInvoice}><FiPlus /> Tambah Material</button>}</header>
+            <div className="trip-material-destination-list">
+              {!(trip.materialInvoices || []).length && <div className="trip-material-destination-empty"><FiPackage/><strong>Belum ada Faktur Muatan</strong><span>Tambahkan customer yang ditagih dan tujuan bongkar.</span></div>}
+              {(trip.materialInvoices || []).map((invoice) => {
+                const invoiceLines = invoice.lines?.length ? invoice.lines : [{ itemName: invoice.materialName, qty: invoice.qty, unit: invoice.unit }];
+                return <article key={invoice.id}><b>{invoice.stopSequence || 1}</b><div><strong>{invoice.destinationLocation?.name || "Tujuan belum tersedia"}</strong><small>{invoice.billingCustomerName || "Customer material"}</small><div className="trip-material-line-summary">{invoiceLines.map((line) => <span key={line.id || `${line.itemName}-${line.unit}`}><em>{line.itemName}</em><b>{Number(line.qty || 0).toLocaleString("id-ID")} {line.unit || ""}</b></span>)}</div></div><div className="trip-material-destination-status">{invoice.destinationCompletedAt ? <strong>Selesai</strong> : invoice.destinationArrivedAt ? <button type="button" disabled={saving} onClick={() => completeMaterialStop(invoice.id)}>Selesai bongkar</button> : <span>Menunggu tiba</span>}</div></article>;
+              })}
+            </div>
           </section>}
 
           {singleMaterialOpen && <div className="trip-material-overlay" onMouseDown={() => setSingleMaterialOpen(false)}><form className="trip-material-modal" onSubmit={createSingleMaterialInvoice} onMouseDown={(e) => e.stopPropagation()}>
-            <header><div><span>FAKTUR MUATAN · TRIP TUNGGAL</span><h2>Pilih material yang akan diangkut</h2><p>Material diambil dari saldo penerimaan milik customer.</p></div><button type="button" onClick={() => setSingleMaterialOpen(false)}><FiX /></button></header>
+            <header><div><span>FAKTUR MUATAN · MUATAN MATERIAL</span><h2>Pilih material yang akan diangkut</h2><p>Material dapat menjadi muatan utama atau tambahan bersama pupuk/cangkang.</p></div><button type="button" onClick={() => setSingleMaterialOpen(false)}><FiX /></button></header>
             <div className="trip-material-form">
               <label className="wide">Customer pemilik &amp; yang ditagih<select required value={singleMaterialForm.customerId} onChange={(e) => selectMaterialCustomer(e.target.value)}><option value="">Pilih dari Master Customer</option>{materialCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
               <div className="wide trip-material-picker">

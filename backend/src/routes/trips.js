@@ -38,6 +38,24 @@ function endOfToday() {
 
 const ACTIVE_TRIP_STATUSES = ["PLANNED", "DISPATCHED", "ARRIVED"];
 
+function materialWeightKg(invoices) {
+  const lines = (invoices || []).flatMap(invoice => invoice.lines || []);
+  if (!lines.length) return null;
+  let total = 0;
+  for (const line of lines) {
+    const explicitKg = Number(line.totalKg);
+    if (line.totalKg != null && Number.isFinite(explicitKg) && explicitKg > 0) {
+      total += explicitKg;
+      continue;
+    }
+    const qty = Number(line.qty);
+    const unit = String(line.unit || "").trim().toUpperCase();
+    if (!Number.isFinite(qty) || qty <= 0 || !["KG", "TON"].includes(unit)) return null;
+    total += unit === "TON" ? qty * 1000 : qty;
+  }
+  return total > 0 ? total : null;
+}
+
 async function nextSingleTripNumber(tx) {
   const now = new Date();
   const dateParts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now).map((part) => [part.type, part.value]));
@@ -884,6 +902,7 @@ router.patch("/:id/status", authRequired, async (req, res) => {
     const nextStatus = str(req.body?.status);
     const ts = toDate(req.body?.timestamp) || new Date();
     const submittedQtyActual = req.body?.qtyActual === "" || req.body?.qtyActual == null ? null : Number(req.body.qtyActual);
+    const forceComplete = req.body?.forceComplete === true;
 
     if (!nextStatus) return res.status(400).json({ error: "status is required" });
 
@@ -894,18 +913,18 @@ router.patch("/:id/status", authRequired, async (req, res) => {
       const trip = await tx.trip.findUnique({
         where: { id },
         include: {
-          order: { select: { id: true } },
+          order: { select: { id: true, cargoCategory: true } },
           orderAllocations: { include: { order: { select: { cargoCategory: true } } } },
-          materialInvoices: { select: { id: true, destinationLocationId: true, destinationCompletedAt: true } },
+          materialInvoices: { select: { id: true, destinationLocationId: true, destinationCompletedAt: true, lines: { select: { qty: true, unit: true, totalKg: true } } } },
           truck: { select: { id: true, plateNumber: true, currentLocation: true } },
           driverUser: { select: { id: true, name: true } },
         },
       });
       if (!trip) throw new Error("Trip not found");
-      if (nextStatus === "COMPLETED" && trip.materialInvoices.some((invoice) => invoice.destinationLocationId && !invoice.destinationCompletedAt)) {
-        throw new Error("Selesaikan seluruh tujuan Faktur Muatan sebelum menutup trip");
-      }
-      if (nextStatus === "COMPLETED" && trip.orderAllocations.some((allocation) => allocation.order?.cargoCategory !== "MATERIAL" && !allocation.destinationCompletedAt)) {
+      const ownerOverride = forceComplete && nextStatus === "COMPLETED" && req.user?.role === "OWNER";
+      if (forceComplete && !ownerOverride) throw new Error("Penyelesaian langsung hanya tersedia untuk OWNER");
+      if (ownerOverride && ["COMPLETED", "CANCELLED"].includes(trip.status)) throw new Error("Trip yang sudah ditutup tidak dapat diselesaikan ulang");
+      if (!ownerOverride && nextStatus === "COMPLETED" && trip.orderAllocations.some((allocation) => allocation.order?.cargoCategory !== "MATERIAL" && !allocation.destinationCompletedAt)) {
         throw new Error("Selesaikan bongkar seluruh order sebelum menutup trip");
       }
 
@@ -914,9 +933,17 @@ router.patch("/:id/status", authRequired, async (req, res) => {
 
       if (!writer && !driver) throw new Error("Forbidden");
 
-      const needsArrivalWeight = trip.purpose === "DELIVERY" && ["ARRIVED", "COMPLETED"].includes(nextStatus);
-      const resolvedQtyActual = submittedQtyActual ?? trip.qtyActual;
-      if (needsArrivalWeight && (!Number.isFinite(resolvedQtyActual) || resolvedQtyActual <= 0)) {
+      const isMaterialTrip = trip.cargoCategorySnap === "MATERIAL" || trip.order?.cargoCategory === "MATERIAL" || trip.orderAllocations.some(allocation => allocation.order?.cargoCategory === "MATERIAL");
+      const resolvesArrivalWeight = ["ARRIVED", "COMPLETED"].includes(nextStatus);
+      const derivedMaterialKg = isMaterialTrip && resolvesArrivalWeight ? materialWeightKg(trip.materialInvoices) : null;
+      const derivedMaterialQty = derivedMaterialKg == null ? null : String(trip.unitSnap || "TON").toUpperCase() === "KG" ? derivedMaterialKg : derivedMaterialKg / 1000;
+      if (derivedMaterialQty != null && submittedQtyActual != null && Math.abs(derivedMaterialQty - submittedQtyActual) > 0.001) {
+        throw new Error(`Berat tiba harus sama dengan total Faktur Muatan (${derivedMaterialQty} ${trip.unitSnap || "TON"})`);
+      }
+      const needsArrivalWeight = trip.purpose === "DELIVERY" && ["ARRIVED", "COMPLETED"].includes(nextStatus) && derivedMaterialQty == null;
+      const overrideFallbackQty = ownerOverride && Number(trip.qtyPlanned) > 0 ? Number(trip.qtyPlanned) : null;
+      const resolvedQtyActual = derivedMaterialQty ?? submittedQtyActual ?? trip.qtyActual ?? overrideFallbackQty;
+      if (!ownerOverride && needsArrivalWeight && (!Number.isFinite(resolvedQtyActual) || resolvedQtyActual <= 0)) {
         throw new Error("Berat tiba wajib diisi sebelum trip tiba atau selesai");
       }
 
@@ -973,9 +1000,9 @@ router.patch("/:id/status", authRequired, async (req, res) => {
 
       // timestamps + snapshots
       const data = { status: nextStatus };
-      if (submittedQtyActual !== null) {
-        if (!Number.isFinite(submittedQtyActual) || submittedQtyActual <= 0) throw new Error("Berat tiba harus lebih dari nol");
-        data.qtyActual = submittedQtyActual;
+      if (resolvedQtyActual !== null) {
+        if (!Number.isFinite(resolvedQtyActual) || resolvedQtyActual <= 0) throw new Error("Berat tiba harus lebih dari nol");
+        data.qtyActual = resolvedQtyActual;
       }
 
       if (nextStatus === "DISPATCHED") {
@@ -986,7 +1013,16 @@ router.patch("/:id/status", authRequired, async (req, res) => {
         }
       }
       if (nextStatus === "ARRIVED") { data.arrivedAt = ts; data.phase = "AT_DESTINATION"; }
-      if (nextStatus === "COMPLETED") { data.completedAt = ts; data.phase = "COMPLETED"; }
+      if (nextStatus === "COMPLETED") {
+        data.completedAt = ts;
+        data.phase = "COMPLETED";
+        if (ownerOverride) {
+          data.dispatchedAt = trip.dispatchedAt || ts;
+          data.pickupArrivedAt = trip.pickupArrivedAt || ts;
+          data.loadedAt = trip.loadedAt || ts;
+          data.arrivedAt = trip.arrivedAt || ts;
+        }
+      }
 
       // ✅ ensure snapshots exist (helps search + display)
       if (!trip.plateNumberSnap && trip.truck?.plateNumber) data.plateNumberSnap = trip.truck.plateNumber;
@@ -1001,6 +1037,27 @@ router.patch("/:id/status", authRequired, async (req, res) => {
       await updateTruckOperationalState(tx, trip, nextStatus, ts);
 
       if (["ARRIVED", "COMPLETED"].includes(nextStatus)) {
+        if (ownerOverride) {
+          await tx.materialInvoice.updateMany({
+            where: { tripId: trip.id, destinationCompletedAt: null },
+            data: { destinationArrivedAt: ts, destinationCompletedAt: ts },
+          });
+          await tx.tripOrderAllocation.updateMany({
+            where: { tripId: trip.id, destinationCompletedAt: null },
+            data: { destinationArrivedAt: ts, destinationCompletedAt: ts },
+          });
+          await tx.tripOperationalAction.create({
+            data: {
+              tripId: trip.id,
+              warningCode: "OWNER_TEST_COMPLETION",
+              actionType: "RESOLVE",
+              note: "Trip diselesaikan langsung oleh OWNER untuk pengujian sistem.",
+              status: "RESOLVED",
+              createdById: req.user.id,
+              resolvedAt: ts,
+            },
+          });
+        }
         await tx.tripOrderAllocation.updateMany({
           where: { tripId: trip.id, isPrimary: true },
           data: { qtyActual: resolvedQtyActual },

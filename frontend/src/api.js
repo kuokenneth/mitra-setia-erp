@@ -67,6 +67,10 @@ export async function api(path, options = {}) {
 export async function openPrintDocument(path) {
   const popup = window.open("", "_blank");
   try {
+    if (!popup) throw new Error("Popup diblokir browser");
+    popup.document.open();
+    popup.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Menyiapkan dokumen…</title></head><body style="font-family:Arial,sans-serif;padding:24px;color:#334c3e">Menyiapkan dokumen cetak…</body></html>');
+    popup.document.close();
     const token = getAccessToken();
     const url = `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
     const response = await fetch(url, {
@@ -74,11 +78,11 @@ export async function openPrintDocument(path) {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     const html = await response.text();
-    if (!response.ok) throw new Error(`Dokumen tidak dapat dibuat (${response.status})`);
-    if (!popup) throw new Error("Popup diblokir browser");
-    popup.document.open();
-    popup.document.write(html);
-    popup.document.close();
+    if (!response.ok) throw new Error(html || `Dokumen tidak dapat dibuat (${response.status})`);
+    if (!html.trim()) throw new Error("Dokumen cetak kosong");
+    const documentUrl = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+    popup.location.replace(documentUrl);
+    window.setTimeout(() => URL.revokeObjectURL(documentUrl), 60000);
   } catch (error) {
     popup?.close();
     throw error;
