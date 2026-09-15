@@ -23,14 +23,14 @@ export default function PublicLayout() {
   );
 
   const [isMobile, setIsMobile] = useState(
-    typeof window !== "undefined" ? window.innerWidth <= 1100 : false
+    typeof window !== "undefined" ? window.innerWidth <= 1280 : false
   );
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const onResize = () => {
-      const compact = window.innerWidth <= 1100;
+      const compact = window.innerWidth <= 1280;
       setIsMobile(compact);
       if (!compact) setMenuOpen(false);
     };
@@ -204,12 +204,10 @@ export default function PublicLayout() {
               {/* Logo/Brand */}
               <Link to="/" style={brand} data-testid="logo">
                 <img src="/logo3.png" alt="CV. Mitra Setia" style={logoImg} />
-                {!isMobile && (
-                  <div>
-                    <p style={brandTitle}>CV. Mitra Setia</p>
-                    <p style={brandSub}>Transportasi & Logistik</p>
-                  </div>
-                )}
+                <div>
+                  <p style={brandTitle}>CV. Mitra Setia</p>
+                  <p style={brandSub}>Transportasi & Logistik</p>
+                </div>
               </Link>
 
               {/* Desktop Navigation */}

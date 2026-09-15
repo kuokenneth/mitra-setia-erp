@@ -37,7 +37,7 @@ export default function Landing() {
   const [counts, setCounts] = useState({ deliveries: 0, clients: 0, fleet: 0, years: 0 });
 
   const isMobile = vw <= 768;
-  const isTablet = vw <= 1024;
+  const isTablet = vw <= 1280;
 
   useEffect(() => {
     const onResize = () => setVw(window.innerWidth);
@@ -116,7 +116,8 @@ export default function Landing() {
   const container = {
     maxWidth: 1280,
     margin: "0 auto",
-    padding: isMobile ? "0 20px" : "0 48px",
+    padding: isMobile ? "0 20px" : isTablet ? "0 32px" : "0 48px",
+    boxSizing: "border-box",
   };
 
   const services = [
@@ -655,17 +656,18 @@ export default function Landing() {
         />
 
         {/* Hero Content */}
-        <div style={{ ...container, position: "relative", zIndex: 10, width: "100%" }}>
+        <div className="landing-hero-container" style={{ ...container, position: "relative", zIndex: 10, width: "100%" }}>
           <div
+            className="landing-hero-content"
             style={{
-              maxWidth: 800,
-              paddingTop: isMobile ? 104 : 80,
-              paddingBottom: isMobile ? 60 : 80,
+              maxWidth: isTablet ? 720 : 800,
+              paddingTop: isMobile ? 96 : isTablet ? 100 : 80,
+              paddingBottom: isMobile ? 48 : isTablet ? 56 : 80,
             }}
           >
             {/* Tagline */}
             <div
-              className="reveal"
+              className="reveal landing-hero-eyebrow"
               data-reveal
               style={{
                 display: "inline-block",
@@ -677,7 +679,7 @@ export default function Landing() {
                 color: BRAND.white,
                 letterSpacing: "1px",
                 textTransform: "uppercase",
-                marginBottom: 24,
+                marginBottom: isTablet ? 18 : 24,
               }}
             >
               Solusi Logistik Terpercaya
@@ -685,15 +687,16 @@ export default function Landing() {
 
             {/* Main Heading */}
             <h1
-              className="reveal"
+              className="reveal landing-hero-title"
               data-reveal
               style={{
                 margin: 0,
-                fontSize: isMobile ? 36 : isTablet ? 48 : 60,
-                lineHeight: 1.15,
+                fontSize: isMobile ? 34 : isTablet ? 44 : 60,
+                lineHeight: isTablet ? 1.1 : 1.15,
                 fontWeight: 700,
                 color: BRAND.white,
-                marginBottom: 24,
+                marginBottom: isTablet ? 18 : 24,
+                overflowWrap: "anywhere",
               }}
             >
               Meningkatkan{" "}
@@ -713,14 +716,14 @@ export default function Landing() {
 
             {/* Description */}
             <p
-              className="reveal"
+              className="reveal landing-hero-description"
               data-reveal
               style={{
-                fontSize: isMobile ? 16 : 18,
-                lineHeight: 1.8,
+                fontSize: isMobile ? 15 : isTablet ? 16 : 18,
+                lineHeight: isTablet ? 1.65 : 1.8,
                 color: "rgba(255,255,255,0.85)",
-                marginBottom: 40,
-                maxWidth: 600,
+                marginBottom: isTablet ? 28 : 40,
+                maxWidth: isTablet ? 560 : 600,
               }}
             >
               <span style={{ color: "#d4e8dc", fontWeight: 600 }}>CV. Mitra Setia</span>{" "}
@@ -733,7 +736,7 @@ export default function Landing() {
 
             {/* CTA Buttons */}
             <div
-              className="reveal"
+              className="reveal landing-hero-actions"
               data-reveal
               style={{ display: "flex", gap: 16, flexWrap: "wrap" }}
             >
@@ -746,7 +749,7 @@ export default function Landing() {
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 8,
-                  padding: "16px 32px",
+                  padding: isTablet ? "13px 22px" : "16px 32px",
                   background: BRAND.white,
                   color: BRAND.primary,
                   fontSize: 15,
@@ -776,7 +779,7 @@ export default function Landing() {
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 8,
-                  padding: "16px 32px",
+                  padding: isTablet ? "13px 22px" : "16px 32px",
                   background: "transparent",
                   border: `2px solid rgba(255,255,255,0.5)`,
                   color: BRAND.white,
