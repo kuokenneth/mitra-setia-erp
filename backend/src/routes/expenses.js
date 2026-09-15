@@ -9,7 +9,7 @@ const router = express.Router();
 const allowedRoles = ["OWNER", "ADMIN", "STAFF"];
 const proofRoles = ["OWNER", "ADMIN", "STAFF"];
 const TRIP_EXPENSE_LIMIT = Number(process.env.TRIP_EXPENSE_LIMIT || 0);
-const { notifyOwnerSafely } = require("../services/whatsappNotifications");
+const { notifyOwnerSafely } = require("../services/emailNotifications");
 const EXPENSE_CATEGORIES = ["TRIP_ALLOWANCE", "REMAINING_TRIP_ALLOWANCE", "UNLOADING_FEE", "FUEL_LOAN", "DRIVER_SALARY", "FUEL", "TOLL_PARKING", "LOADING_UNLOADING", "REPAIR_MAINTENANCE", "SPAREPART", "OFFICE_OPERATIONAL", "OTHER"];
 
 function ensureRole(req, res) {
@@ -87,37 +87,26 @@ router.get("/", authRequired, async (req, res) => {
     prisma.expense.count({ where }),
   ]);
 
-  // duplicate detection: same tripId + same driver
-  const withDup = await Promise.all(
-    items.map(async (x) => {
-      const tripId = x.trip?.id || x.tripId;
-      const driverId = x.trip?.driverUserId || null;
-      if (!tripId || !driverId) return { ...x, duplicateFlag: false, duplicateCount: 0, duplicates: [] };
-
-      const duplicates = await prisma.expense.findMany({
-        where: { tripId, trip: { is: { driverUserId: driverId } } },
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          createdAt: true,
-          amount: true,
-          currency: true,
-          reason: true,
-          status: true,
-          accountName: true,
-          accountNumber: true,
-          bankName: true,
-        },
-      });
-
-      return {
-        ...x,
-        duplicateFlag: duplicates.length > 1,
-        duplicateCount: duplicates.length,
-        duplicates,
-      };
-    })
-  );
+  // Load duplicate candidates in one query instead of one query per visible row.
+  // A trip has one driver, so grouping by trip preserves the previous behavior.
+  const tripIds = [...new Set(items.map(x => x.tripId).filter(Boolean))];
+  const duplicateRows = tripIds.length ? await prisma.expense.findMany({
+    where: { tripId: { in: tripIds } },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true, tripId: true, createdAt: true, amount: true, currency: true,
+      reason: true, status: true, accountName: true, accountNumber: true, bankName: true,
+    },
+  }) : [];
+  const duplicatesByTrip = duplicateRows.reduce((map, row) => {
+    if (!map.has(row.tripId)) map.set(row.tripId, []);
+    map.get(row.tripId).push(row);
+    return map;
+  }, new Map());
+  const withDup = items.map(x => {
+    const duplicates = x.tripId ? (duplicatesByTrip.get(x.tripId) || []) : [];
+    return { ...x, duplicateFlag: duplicates.length > 1, duplicateCount: duplicates.length, duplicates };
+  });
 
   res.json({ items: withDup, total, skip, take });
 });

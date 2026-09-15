@@ -53,6 +53,7 @@ export default function Expenses() {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [actionBusy, setActionBusy] = useState({});
   const [err, setErr] = useState("");
   const [trips, setTrips] = useState([]);
   const [expenseTrucks, setExpenseTrucks] = useState([]);
@@ -112,6 +113,38 @@ export default function Expenses() {
   });
 
   const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/$/, "");
+
+  function setRowBusy(id, action) {
+    setActionBusy(current => {
+      if (action) return { ...current, [id]: action };
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+  }
+
+  function updateRow(id, updated) {
+    setItems(current => current.map(item => item.id === id ? { ...item, ...updated } : item));
+  }
+
+  async function prepareProofFile(file) {
+    if (!file?.type?.startsWith("image/") || file.size < 900 * 1024 || typeof createImageBitmap !== "function") return file;
+    try {
+      const bitmap = await createImageBitmap(file);
+      const maxSide = 1800;
+      const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(bitmap.width * scale);
+      canvas.height = Math.round(bitmap.height * scale);
+      canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close?.();
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.82));
+      if (!blob || blob.size >= file.size) return file;
+      return new File([blob], `${file.name.replace(/\.[^.]+$/, "") || "bukti"}.jpg`, { type: "image/jpeg", lastModified: Date.now() });
+    } catch {
+      return file;
+    }
+  }
 
   function resetForm() {
     setForm({
@@ -305,8 +338,9 @@ export default function Expenses() {
   }
 
   async function uploadProof(expenseId, file, replace = false) {
+    const uploadFile = await prepareProofFile(file);
     const formData = new FormData();
-    formData.append("files", file);
+    formData.append("files", uploadFile);
 
     const token = getAccessToken();
     const res = await fetch(`${API_BASE}/api/uploads`, {
@@ -320,7 +354,7 @@ export default function Expenses() {
     const item = data.items?.[0];
     if (!item?.url) throw new Error("Gagal mengunggah");
 
-    await api(`/expenses/${expenseId}/proof`, {
+    const updated = await api(`/expenses/${expenseId}/proof`, {
       method: replace ? "PATCH" : "POST",
       body: JSON.stringify({
         proofUrl: item.url,
@@ -329,14 +363,18 @@ export default function Expenses() {
         proofSize: item.size,
       }),
     });
+    return updated.expense || updated;
   }
 
   async function onApprove(id) {
+    setRowBusy(id, "approve");
     try {
-      await api(`/expenses/${id}/approve`, { method: "POST" });
-      load();
+      const updated = await api(`/expenses/${id}/approve`, { method: "POST" });
+      updateRow(id, updated);
     } catch (e) {
       setErr(e.message || "Failed to approve expense");
+    } finally {
+      setRowBusy(id, "");
     }
   }
 
@@ -516,29 +554,31 @@ export default function Expenses() {
                       ) : null}
                     </div>
                   </td>
-                  <td style={s.td}>
-                    <div style={s.actionsRow}>
+                  <td style={s.td} className="expense-actions-cell">
+                    <div style={s.actionsRow} className="expense-actions">
                       {x.proofUrl ? (
                         <div onClick={(e) => e.stopPropagation()}>
                           <ProtectedFilePreview url={x.proofUrl} mimeType={x.proofMimeType} fileName={x.proofFileName || "Bukti expense"} imageStyle={{ width: 86, height: 58, objectFit: "cover", borderRadius: 7 }} onError={(e) => setErr(e.message)} />
                         </div>
                       ) : null}
                       {canUploadProof && x.status === "SUBMITTED" && (
-                        <label style={s.linkBtn} onClick={(e) => e.stopPropagation()}>
-                          Unggah Bukti
+                        <label style={s.linkBtn} className={`expense-action-button ${actionBusy[x.id] ? "is-busy" : ""}`} onClick={(e) => e.stopPropagation()}>
+                          {actionBusy[x.id] === "upload" ? "Mengunggah…" : "Unggah Bukti"}
                           <input
                             type="file"
-                            accept="image/*,application/pdf"
+                            accept="image/jpeg,image/png,image/webp,application/pdf"
                             style={{ display: "none" }}
                             onChange={async (e) => {
                               const file = e.target.files?.[0];
                               if (!file) return;
+                              setRowBusy(x.id, "upload");
                               try {
-                                await uploadProof(x.id, file);
-                                load();
+                                const updated = await uploadProof(x.id, file);
+                                updateRow(x.id, updated);
                               } catch (err) {
                                 setErr(err.message || "Gagal mengunggah proof");
                               } finally {
+                                setRowBusy(x.id, "");
                                 e.target.value = "";
                               }
                             }}
@@ -546,11 +586,11 @@ export default function Expenses() {
                         </label>
                       )}
                       {canUploadProof && x.status === "PAID" && (
-                        <label style={s.linkBtn} onClick={(e) => e.stopPropagation()}>
-                          Ganti Bukti
+                        <label style={s.linkBtn} className={`expense-action-button ${actionBusy[x.id] ? "is-busy" : ""}`} onClick={(e) => e.stopPropagation()}>
+                          {actionBusy[x.id] === "replace" ? "Mengganti…" : "Ganti Bukti"}
                           <input
                             type="file"
-                            accept="image/*,application/pdf"
+                            accept="image/jpeg,image/png,image/webp,application/pdf"
                             style={{ display: "none" }}
                             onChange={async (e) => {
                               const file = e.target.files?.[0];
@@ -559,12 +599,14 @@ export default function Expenses() {
                                 e.target.value = "";
                                 return;
                               }
+                              setRowBusy(x.id, "replace");
                               try {
-                                await uploadProof(x.id, file, true);
-                                load();
+                                const updated = await uploadProof(x.id, file, true);
+                                updateRow(x.id, updated);
                               } catch (err) {
                                 setErr(err.message || "Gagal mengganti bukti");
                               } finally {
+                                setRowBusy(x.id, "");
                                 e.target.value = "";
                               }
                             }}
@@ -574,12 +616,14 @@ export default function Expenses() {
                       {canApprove && x.status === "PAID" && (
                         <button
                           style={s.approveBtn}
+                          className={`expense-action-button expense-action-approve ${actionBusy[x.id] ? "is-busy" : ""}`}
+                          disabled={Boolean(actionBusy[x.id])}
                           onClick={(e) => {
                             e.stopPropagation();
                             onApprove(x.id);
                           }}
                         >
-                          Setujui
+                          {actionBusy[x.id] === "approve" ? "Menyetujui…" : "Setujui"}
                         </button>
                       )}
                       {x.status === "SUBMITTED" && <button

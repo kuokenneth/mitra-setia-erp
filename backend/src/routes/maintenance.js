@@ -5,7 +5,7 @@ const { authRequired } = require("../middleware/authRequired");
 
 const router = express.Router();
 const OIL_CHANGE_INTERVAL_KM = 8500;
-const { notifyOwnerSafely } = require("../services/whatsappNotifications");
+const { notifyOwnerSafely } = require("../services/emailNotifications");
 
 function canWrite(user) {
   return ["OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"].includes(user?.role);

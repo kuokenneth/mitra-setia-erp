@@ -4,7 +4,7 @@ const { authRequired } = require("../middleware/authRequired");
 const { requireRole } = require("../middleware/requireRole");
 const { SYSTEM_ACCOUNTS, cashCode, postJournal } = require("../services/accounting");
 const { esc, num: fmtNum, money, date: fmtDate, documentHtml } = require("../utils/printDocument");
-const { notifyOwnerSafely } = require("../services/whatsappNotifications");
+const { notifyOwnerSafely } = require("../services/emailNotifications");
 const router = express.Router();
 
 const seq = (prefix) => `${prefix}-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
