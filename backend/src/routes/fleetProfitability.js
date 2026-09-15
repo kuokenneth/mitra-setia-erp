@@ -28,34 +28,49 @@ function tripDate(trip) {
 }
 
 function allocatedRevenue(trip) {
-  const singleLine = trip.invoiceLines?.find(line => ["SENT", "PARTIALLY_PAID", "PAID"].includes(line.invoice?.status));
-  if (singleLine) return Number(singleLine.amount || 0);
+  const activeStatuses = ["SENT", "PARTIALLY_PAID", "PAID"];
+  const singleRevenue = (trip.invoiceLines || []).reduce((sum, line) =>
+    activeStatuses.includes(line.invoice?.status) ? sum + Number(line.amount || 0) : sum
+  , 0);
   const materialRevenue = (trip.materialInvoices || []).reduce((sum, materialInvoice) => {
-    if (!["SENT", "PARTIALLY_PAID", "PAID"].includes(materialInvoice.billedInvoice?.status)) return sum;
+    if (!activeStatuses.includes(materialInvoice.billedInvoice?.status)) return sum;
     return sum + (materialInvoice.lines || []).reduce((lineSum, line) => lineSum + Number(line.totalAmount || 0), 0);
   }, 0);
-  if (materialRevenue > 0) return materialRevenue;
+  const supplementalRevenue = singleRevenue + materialRevenue;
   const invoice = trip.order?.invoices?.find(item => item.sourceType === "ORDER" && item.status !== "VOID");
-  if (!invoice || !["SENT", "PARTIALLY_PAID", "PAID"].includes(invoice.status)) return 0;
+  if (!invoice || !activeStatuses.includes(invoice.status)) return supplementalRevenue;
   const plannedQuantity = Math.max(0, Number(trip.qtyPlanned || 0));
   const deliveredQuantity = Math.max(0, Number(trip.qtyActual ?? trip.qtyPlanned ?? 0));
   const loss = Math.max(0, plannedQuantity - deliveredQuantity);
   const tolerance = Math.max(0, Number(invoice.tolerancePercent || 0));
   const billableQuantity = plannedQuantity > 0 && loss <= plannedQuantity * tolerance / 100 + 1e-9 ? plannedQuantity : deliveredQuantity;
   const unitMultiplier = String(trip.unitSnap || trip.order?.unit || "").toUpperCase() === "TON" ? 1000 : 1;
-  if (Number(invoice.billableQuantity || 0) > 0) return invoice.total * billableQuantity * unitMultiplier / Number(invoice.billableQuantity);
+  if (Number(invoice.billableQuantity || 0) > 0) return supplementalRevenue + invoice.total * billableQuantity * unitMultiplier / Number(invoice.billableQuantity);
   const orderedQuantity = Math.max(0, Number(trip.order.qty || 0));
-  if (orderedQuantity > 0) return invoice.total * deliveredQuantity / orderedQuantity;
+  if (orderedQuantity > 0) return supplementalRevenue + invoice.total * deliveredQuantity / orderedQuantity;
 
   // Legacy orders without an order quantity retain the previous proportional
   // allocation so their historical profitability does not disappear.
   const eligible = trip.order.trips.filter(item => item.status !== "CANCELLED");
-  if (!eligible.length) return 0;
+  if (!eligible.length) return supplementalRevenue;
   const quantities = eligible.map(item => Math.max(0, Number(item.qtyActual ?? item.qtyPlanned ?? 0)));
   const totalQuantity = quantities.reduce((sum, value) => sum + value, 0);
   const index = eligible.findIndex(item => item.id === trip.id);
-  if (index < 0) return 0;
-  return totalQuantity > 0 ? invoice.total * quantities[index] / totalQuantity : invoice.total / eligible.length;
+  if (index < 0) return supplementalRevenue;
+  const orderRevenue = totalQuantity > 0 ? invoice.total * quantities[index] / totalQuantity : invoice.total / eligible.length;
+  return supplementalRevenue + orderRevenue;
+}
+
+function revenueDocuments(trip) {
+  const activeStatuses = ["SENT", "PARTIALLY_PAID", "PAID"];
+  const documents = new Map();
+  const add = invoice => {
+    if (invoice?.id && activeStatuses.includes(invoice.status)) documents.set(invoice.id, invoice);
+  };
+  add(trip.order?.invoices?.find(invoice => invoice.sourceType === "ORDER" && invoice.status !== "VOID"));
+  (trip.invoiceLines || []).forEach(line => add(line.invoice));
+  (trip.materialInvoices || []).forEach(invoice => add(invoice.billedInvoice));
+  return [...documents.values()];
 }
 
 function cargoLossValue(trip) {
@@ -132,8 +147,8 @@ router.get("/", async (req, res) => {
       const tripDetails = operationalTrips.map(item => {
         const tripRevenue = Math.round(allocatedRevenue(item));
         const expenseTotal = item.expenses.reduce((sum, expense) => sum + expense.amount, 0);
-        const orderInvoice = item.order?.invoices?.find(invoice => invoice.sourceType === "ORDER" && invoice.status !== "VOID");
-        const invoiceTotal = orderInvoice?.total || 0;
+        const revenueInvoices = revenueDocuments(item);
+        const invoiceTotal = revenueInvoices.reduce((sum, invoice) => sum + Number(invoice.total || 0), 0);
         const tripCargoLoss = Math.round(cargoLossValue(item));
         return {
           id: item.id,
@@ -144,7 +159,7 @@ router.get("/", async (req, res) => {
           toText: item.toText || item.order?.toText,
           orderNo: item.order?.orderNo || null,
           customerName: item.order?.customerName || null,
-          invoiceNumber: orderInvoice?.number || null,
+          invoiceNumber: revenueInvoices.map(invoice => invoice.number).filter(Boolean).join(" + ") || null,
           invoiceTotal,
           allocatedRevenue: tripRevenue,
           allocationPercent: invoiceTotal > 0 ? round((tripRevenue / invoiceTotal) * 100) : 0,

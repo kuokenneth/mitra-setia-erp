@@ -23,13 +23,17 @@ export default function PublicLayout() {
   );
 
   const [isMobile, setIsMobile] = useState(
-    typeof window !== "undefined" ? window.innerWidth <= 768 : false
+    typeof window !== "undefined" ? window.innerWidth <= 1100 : false
   );
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth <= 768);
+    const onResize = () => {
+      const compact = window.innerWidth <= 1100;
+      setIsMobile(compact);
+      if (!compact) setMenuOpen(false);
+    };
     const onScroll = () => setScrolled(window.scrollY > 50);
 
     window.addEventListener("resize", onResize);
@@ -67,7 +71,9 @@ export default function PublicLayout() {
   const wrap = {
     maxWidth: 1280,
     margin: "0 auto",
-    padding: isMobile ? "12px 20px" : "16px 48px",
+    width: "100%",
+    boxSizing: "border-box",
+    padding: isMobile ? "10px 20px" : "12px 48px",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
@@ -85,8 +91,8 @@ export default function PublicLayout() {
   };
 
   const logoImg = {
-    width: 60,
-    height: 60,
+    width: isMobile ? 48 : 56,
+    height: isMobile ? 48 : 56,
     borderRadius: 8,
     objectFit: "contain",
     display: "block",
@@ -185,7 +191,7 @@ export default function PublicLayout() {
   const outletWrap = {
     width: "100%",
     minHeight: hideChrome ? "100dvh" : "auto",
-    paddingTop: hideChrome ? 0 : 0, // Landing handles its own padding
+    paddingTop: 0, // Landing reserves the fixed navbar height in its hero.
   };
 
   return (
@@ -347,6 +353,8 @@ export default function PublicLayout() {
       {/* Global Styles */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        html, body { margin: 0; padding: 0; overflow-x: clip; }
+        #root { width: 100%; min-height: 100dvh; }
       `}</style>
     </div>
   );

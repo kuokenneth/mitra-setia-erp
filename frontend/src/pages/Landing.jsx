@@ -659,7 +659,7 @@ export default function Landing() {
           <div
             style={{
               maxWidth: 800,
-              paddingTop: isMobile ? 120 : 80,
+              paddingTop: isMobile ? 104 : 80,
               paddingBottom: isMobile ? 60 : 80,
             }}
           >
