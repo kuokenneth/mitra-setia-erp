@@ -1,6 +1,7 @@
 // src/layouts/PublicLayout.jsx - Corporate Green Design
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
+import "./PublicLayout.css";
 
 export default function PublicLayout() {
   const { pathname } = useLocation();
@@ -26,6 +27,8 @@ export default function PublicLayout() {
     typeof window !== "undefined" ? window.innerWidth <= 1280 : false
   );
   const [scrolled, setScrolled] = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [activeSection, setActiveSection] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -34,7 +37,11 @@ export default function PublicLayout() {
       setIsMobile(compact);
       if (!compact) setMenuOpen(false);
     };
-    const onScroll = () => setScrolled(window.scrollY > 50);
+    const onScroll = () => {
+      setScrolled(window.scrollY > 50);
+      const available = document.documentElement.scrollHeight - window.innerHeight;
+      setScrollProgress(available > 0 ? Math.min(100, (window.scrollY / available) * 100) : 0);
+    };
 
     window.addEventListener("resize", onResize);
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -45,6 +52,17 @@ export default function PublicLayout() {
       window.removeEventListener("scroll", onScroll);
     };
   }, []);
+
+  useEffect(() => {
+    if (pathname !== "/") return undefined;
+    const ids = ["about", "services", "why-us", "contact"];
+    const observer = new IntersectionObserver(entries => {
+      const visible = entries.filter(entry => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (visible) setActiveSection(visible.target.id);
+    }, { rootMargin: "-30% 0px -55%", threshold: [0, 0.1, 0.4] });
+    ids.map(id => document.getElementById(id)).filter(Boolean).forEach(section => observer.observe(section));
+    return () => observer.disconnect();
+  }, [pathname]);
 
   const page = {
     minHeight: "100dvh",
@@ -64,8 +82,8 @@ export default function PublicLayout() {
     right: 0,
     zIndex: 1000,
     transition: "all 0.3s ease",
-    background: BRAND.white,
-    boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
+    background: showTransparent ? "transparent" : BRAND.white,
+    boxShadow: showTransparent ? "none" : "0 6px 18px rgba(0,0,0,0.08)",
   };
 
   const wrap = {
@@ -150,8 +168,8 @@ export default function PublicLayout() {
     fontWeight: 600,
     fontSize: 14,
     textDecoration: "none",
-    background: BRAND.primary,
-    color: BRAND.white,
+    background: showTransparent ? "#B9DB4C" : BRAND.primary,
+    color: showTransparent ? "#14321E" : BRAND.white,
     border: "none",
     transition: "all 0.3s ease",
   };
@@ -199,10 +217,10 @@ export default function PublicLayout() {
       {!hideChrome && (
         <>
           {/* Corporate Navbar */}
-          <nav style={topbar} data-testid="main-navigation">
-            <div style={wrap}>
+          <nav style={topbar} className={`public-nav ${scrolled ? "is-scrolled" : ""}`} data-testid="main-navigation">
+            <div style={wrap} className="public-nav-inner">
               {/* Logo/Brand */}
-              <Link to="/" style={brand} data-testid="logo">
+              <Link to="/" style={brand} className="public-brand" data-testid="logo">
                 <img src="/logo3.png" alt="CV. Mitra Setia" style={logoImg} />
                 <div>
                   <p style={brandTitle}>CV. Mitra Setia</p>
@@ -212,14 +230,15 @@ export default function PublicLayout() {
 
               {/* Desktop Navigation */}
               {!isMobile && (
-                <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
+                <div className="public-links" style={{ display: "flex", alignItems: "center", gap: 32 }}>
                   {navLinks.map((link) => (
                     <a
-                      key={link.label}
-                      href={link.href}
-                      style={navLinkStyle}
+                    key={link.label}
+                    href={link.href}
+                    style={navLinkStyle}
+                    className={activeSection && link.href.endsWith(activeSection) ? "active" : ""}
                       data-testid={`nav-${link.label.toLowerCase().replace(/\s/g, '-')}`}
-                      onMouseEnter={(e) => (e.currentTarget.style.color = BRAND.primary)}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = showTransparent ? "#B9DB4C" : BRAND.primary)}
                       onMouseLeave={(e) => (e.currentTarget.style.color = showTransparent ? BRAND.white : BRAND.text)}
                     >
                       {link.label}
@@ -229,7 +248,7 @@ export default function PublicLayout() {
               )}
 
               {/* CTA Buttons */}
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div className="public-actions" style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 {!isMobile && (
                   <a
                     href="https://wa.me/62XXXXXXXXXX"
@@ -254,9 +273,10 @@ export default function PublicLayout() {
                 <Link
                   to="/login"
                   style={loginBtn}
+                  className="public-login"
                   data-testid="nav-login-btn"
-                  onMouseEnter={(e) => (e.currentTarget.style.background = BRAND.primaryDark)}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = BRAND.primary)}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = showTransparent ? "#CBEA66" : BRAND.primaryDark)}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = showTransparent ? "#B9DB4C" : BRAND.primary)}
                 >
                   Login
                 </Link>
@@ -265,6 +285,7 @@ export default function PublicLayout() {
                 {isMobile && (
                   <button
                     style={hamburger}
+                    className="public-menu-button"
                     onClick={() => setMenuOpen(!menuOpen)}
                     aria-label="Toggle menu"
                     data-testid="mobile-menu-btn"
@@ -276,11 +297,12 @@ export default function PublicLayout() {
                 )}
               </div>
             </div>
+            <span className="public-scroll-progress" style={{ width: `${scrollProgress}%` }} />
           </nav>
 
           {/* Mobile Menu */}
           {isMobile && (
-            <div style={mobileMenu} data-testid="mobile-menu">
+            <div style={mobileMenu} className="public-mobile-menu" data-testid="mobile-menu">
               {/* Close Button */}
               <div style={{ display: "flex", justifyContent: "flex-end", padding: 20 }}>
                 <button
@@ -314,6 +336,7 @@ export default function PublicLayout() {
                       borderBottom: `1px solid ${BRAND.border}`,
                     }}
                     onClick={() => setMenuOpen(false)}
+                    className={activeSection && link.href.endsWith(activeSection) ? "active" : ""}
                   >
                     {link.label}
                   </a>
