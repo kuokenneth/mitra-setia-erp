@@ -9,12 +9,12 @@ export default function PublicLayout() {
   // Corporate Green Color Palette
   const BRAND = useMemo(
     () => ({
-      primary: "#0D7C3D",
-      primaryDark: "#0A6331",
+      primary: "#0B6038",
+      primaryDark: "#075631",
       primaryLight: "#10A050",
       secondary: "#F5F9F7",
       accent: "#D4E8DC",
-      text: "#1A1A1A",
+      text: "#17352A",
       textLight: "#4A4A4A",
       textMuted: "#6B7280",
       white: "#FFFFFF",
@@ -55,7 +55,7 @@ export default function PublicLayout() {
 
   useEffect(() => {
     if (pathname !== "/") return undefined;
-    const ids = ["about", "services", "why-us", "contact"];
+    const ids = ["services", "why-us", "contact"];
     const observer = new IntersectionObserver(entries => {
       const visible = entries.filter(entry => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
       if (visible) setActiveSection(visible.target.id);
@@ -135,9 +135,8 @@ export default function PublicLayout() {
   };
 
   const navLinks = [
-    { label: "Tentang Kami", href: "/#about" },
     { label: "Layanan", href: "/#services" },
-    { label: "Keunggulan", href: "/#why-us" },
+    { label: "Mengapa Kami", href: "/#why-us" },
     { label: "Kontak", href: "/#contact" },
   ];
 
@@ -249,27 +248,6 @@ export default function PublicLayout() {
 
               {/* CTA Buttons */}
               <div className="public-actions" style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                {!isMobile && (
-                  <a
-                    href="https://wa.me/62XXXXXXXXXX"
-                    target="_blank"
-                    rel="noreferrer"
-                    style={contactBtn}
-                    data-testid="nav-whatsapp-btn"
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = BRAND.primary;
-                      e.currentTarget.style.borderColor = BRAND.primary;
-                      e.currentTarget.style.color = BRAND.white;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "transparent";
-                      e.currentTarget.style.borderColor = showTransparent ? BRAND.white : BRAND.primary;
-                      e.currentTarget.style.color = showTransparent ? BRAND.white : BRAND.primary;
-                    }}
-                  >
-                    Hubungi Kami
-                  </a>
-                )}
                 <Link
                   to="/login"
                   style={loginBtn}
@@ -342,7 +320,7 @@ export default function PublicLayout() {
                   </a>
                 ))}
                 <a
-                  href="https://wa.me/62XXXXXXXXXX"
+                  href="https://wa.me/6285389191318"
                   target="_blank"
                   rel="noreferrer"
                   style={{

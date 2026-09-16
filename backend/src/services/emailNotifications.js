@@ -61,7 +61,7 @@ async function sendOwnerEmail({ event, title, details, path }) {
               <div style="color:#0d7c3d;font-size:12px;font-weight:700;letter-spacing:.08em">MITRA SETIA ERP</div>
               <h2 style="margin:10px 0 6px">${escapeHtml(event || "Notifikasi baru")}</h2>
               <div style="font-size:16px;font-weight:700;margin-bottom:12px">${escapeHtml(title || "-")}</div>
-              <p style="color:#59665e;line-height:1.6;margin:0">${escapeHtml(details || "-")}</p>
+              <p style="color:#59665e;line-height:1.6;margin:0;white-space:pre-line">${escapeHtml(details || "-")}</p>
               ${link ? `<a href="${escapeHtml(link)}" style="display:inline-block;margin-top:22px;background:#0d7c3d;color:#fff;text-decoration:none;padding:11px 18px;border-radius:8px;font-weight:700">Buka di ERP</a>` : ""}
             </div>
             <p style="font-size:11px;color:#849087;text-align:center">Email otomatis dari Mitra Setia ERP.</p>

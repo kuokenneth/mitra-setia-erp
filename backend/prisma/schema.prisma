@@ -301,6 +301,7 @@ model PurchaseRequest {
   approvedBy     User?                 @relation("PurchaseRequestApprovedBy", fields: [approvedById], references: [id])
   approvedAt     DateTime?
   approvalNotes  String?
+  approvalReminderSentAt DateTime?
   items          PurchaseRequestItem[]
   purchaseOrders PurchaseOrder[]
   createdAt      DateTime              @default(now())
@@ -1391,6 +1392,7 @@ model Expense {
   approvedById String?
   approvedBy   User?     @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
   approvedAt   DateTime?
+  approvalReminderSentAt DateTime?
 
   createdAt DateTime @default(now())
 

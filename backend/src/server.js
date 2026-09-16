@@ -33,6 +33,8 @@ const { publishUpdate } = require("./realtime");
 const { auditTrail } = require("./middleware/auditTrail");
 const { authRequired } = require("./middleware/authRequired");
 const { startGpsEventRetention } = require("./services/gpsEventRetention");
+const { startDailyOwnerSummary } = require("./services/dailyOwnerSummary");
+const { startApprovalReminderEmails } = require("./services/approvalReminderEmails");
 
 const app = express();
 app.set("trust proxy", 1);
@@ -152,4 +154,6 @@ const port = process.env.PORT || 4000;
 app.listen(port, () => {
   console.log(`Backend running on http://localhost:${port}`);
   startGpsEventRetention();
+  startDailyOwnerSummary();
+  startApprovalReminderEmails();
 });
