@@ -14,6 +14,7 @@ import {
   FiClock,
   FiExternalLink,
   FiFile,
+  FiFileText,
   FiAlertTriangle,
   FiMapPin,
   FiPackage,
@@ -765,6 +766,8 @@ export default function OrderDetail() {
 
               <div style={{ display: "grid", gridTemplateColumns: isNarrow ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: 12, marginTop: 14 }}>
                 <InfoTile icon={FiUser} label="Pelanggan" value={customerName} sub={order.customer?.phone || undefined} />
+                <InfoTile icon={FiFileText} label="Nomor DO" value={order.deliveryOrderNo || "-"} sub="Delivery Order" />
+                <InfoTile icon={FiFileText} label="Nomor SPK" value={order.spkNo || "-"} sub="Surat Perintah Kerja" />
                 <InfoTile icon={FiPackage} label="Muatan" value={isMaterialShipment ? materialCargoLabel : cargo} sub={isMaterialShipment ? `${materialInvoices.length} faktur muatan` : (order.orderType ? String(order.orderType).replaceAll("_", " ") : undefined)} />
                 <InfoTile icon={FiMapPin} label="Rute" value={route} sub="Lokasi asal dan tujuan" />
                 <InfoTile icon={FiCalendar} label="Jadwal" value={fmtDate(order.plannedAt)} sub="Deadline selesai pengiriman" />

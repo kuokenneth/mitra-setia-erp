@@ -310,6 +310,8 @@ export default function Orders() {
   const [form, setForm] = useState({
     customerId: "",
     customerName: "",
+    deliveryOrderNo: "",
+    spkNo: "",
     cargoName: "",
     cargoCategory: "FERTILIZER",
     qty: "",
@@ -384,6 +386,8 @@ export default function Orders() {
     setForm({
       customerId: "",
       customerName: "",
+      deliveryOrderNo: "",
+      spkNo: "",
       cargoName: "",
       cargoCategory: "FERTILIZER",
       qty: "",
@@ -425,6 +429,8 @@ export default function Orders() {
       const payload = {
         customerId: form.customerId,
         customerName: form.customerName || null,
+        deliveryOrderNo: form.deliveryOrderNo.trim(),
+        spkNo: form.spkNo.trim(),
         cargoName: form.cargoName || null,
         cargoCategory: form.cargoCategory,
         qty: form.cargoCategory === "MATERIAL" || !form.qty ? null : Number(form.qty),
@@ -472,7 +478,7 @@ export default function Orders() {
       {err && <div className="orders-v3-error">{err}</div>}
 
       <section className="orders-v3-tools">
-        <label className="orders-v3-search"><FiSearch /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nomor pesanan, tujuan, atau muatan…" data-testid="search-input" />{loading && <LoadingMini />}</label>
+        <label className="orders-v3-search"><FiSearch /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari pesanan, DO, SPK, tujuan, atau muatan…" data-testid="search-input" />{loading && <LoadingMini />}</label>
         <Select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="status-filter"><option value="">Semua status</option>{statusOptions.filter(Boolean).map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</Select>
         <Input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Nama customer" />
         <span className={`date-placeholder-wrap ${dateFrom ? "has-value" : ""}`} data-placeholder="Dari tanggal"><Input className="tablet-date-input" aria-label="Tanggal mulai" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></span>
@@ -496,7 +502,7 @@ export default function Orders() {
             const inProgressPercent = total > 0 ? Math.min(100 - completedPercent, Math.max(0, (inProgress / total) * 100)) : 0;
             const unit = order.unit || "";
             return <article key={order.id} onClick={() => nav(`/orders/${order.id}`)} data-testid={`order-row-${order.id}`}>
-              <div className="orders-v3-identity"><StatusBadge status={order.status} /><h3>{order.orderNo}</h3><p>{customerName}</p><small>Dibuat oleh {order.createdBy?.name || order.createdBy?.email || "Data lama"}</small></div>
+              <div className="orders-v3-identity"><StatusBadge status={order.status} /><h3>{order.orderNo}</h3><p>{customerName}</p><div className="orders-v3-docrefs"><span><b>DO</b>{order.deliveryOrderNo || "—"}</span><span><b>SPK</b>{order.spkNo || "—"}</span></div><small>Dibuat oleh {order.createdBy?.name || order.createdBy?.email || "Data lama"}</small></div>
               <div className="orders-v3-route"><span><FiMapPin /></span><div><small>RUTE PENGIRIMAN</small><p><b>{order.fromText || "Asal belum diisi"}</b><FiArrowRight /><b>{order.toText || "Tujuan belum diisi"}</b></p></div></div>
               <div className="orders-v3-meta">
                 <div className="orders-v3-load"><FiPackage /><span><small>PROGRES MUATAN</small>{total == null ? <><strong>{order.cargoName || "Muatan material"}</strong><em>Jumlah mengikuti faktur muatan</em></> : <><strong>{completed} dari {total} {unit} selesai</strong><i><b className="completed" style={{ width: `${completedPercent}%` }} /><b className="processing" style={{ width: `${inProgressPercent}%` }} /></i><em><span className="orders-progress-completed">{completed} {unit} selesai</span>{inProgress > 0 && <span className="orders-progress-processing">{inProgress} {unit} sedang diproses</span>}<span>{remaining ?? Math.max(0, total - allocated)} {unit} belum dibuatkan trip</span></em></>}</span></div>
@@ -545,6 +551,11 @@ export default function Orders() {
               Customer / perusahaan
             </label>
             <select required value={form.customerId} onChange={(e) => { const selected = customers.find(item => item.id === e.target.value); setForm(current => ({ ...current, customerId: e.target.value, customerName: selected?.name || "" })); }} style={{ width: "100%", height: 42, border: `1px solid ${BRAND.border}`, borderRadius: 8, padding: "0 10px", background: "white" }}><option value="">Pilih customer</option>{customers.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+          </div>
+
+          <div className="orders-v3-document-numbers" style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div><label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>Nomor DO (Delivery Order) <b style={{ color: BRAND.danger }}>*</b></label><Input required value={form.deliveryOrderNo} onChange={(e) => update("deliveryOrderNo", e.target.value)} placeholder="Contoh: DO-2026-00125" /></div>
+            <div><label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 500, color: BRAND.textMuted }}>Nomor SPK <b style={{ color: BRAND.danger }}>*</b></label><Input required value={form.spkNo} onChange={(e) => update("spkNo", e.target.value)} placeholder="Contoh: SPK-LOG-2026-078" /></div>
           </div>
 
           <div style={{ gridColumn: "1 / -1" }}>
@@ -723,10 +734,10 @@ export default function Orders() {
           <Button variant="secondary" onClick={() => !creating && setShowCreate(false)} disabled={creating}>
             Batal
           </Button>
-          <Button variant="secondary" onClick={() => createOrder("DRAFT")} disabled={creating}>
+          <Button variant="secondary" onClick={() => createOrder("DRAFT")} disabled={creating || !form.deliveryOrderNo.trim() || !form.spkNo.trim()}>
             {creating ? "Menyimpan..." : "Simpan Draft"}
           </Button>
-          <Button variant="primary" onClick={() => createOrder("CONFIRMED")} disabled={creating}>
+          <Button variant="primary" onClick={() => createOrder("CONFIRMED")} disabled={creating || !form.deliveryOrderNo.trim() || !form.spkNo.trim()}>
             {creating ? "Menyimpan..." : "Konfirmasi Pesanan"}
           </Button>
         </div>

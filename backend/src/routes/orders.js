@@ -97,6 +97,8 @@ router.get("/", authRequired, async (req, res) => {
       const qFilter = {
         OR: [
           { orderNo: { contains: q, mode: "insensitive" } },
+          { deliveryOrderNo: { contains: q, mode: "insensitive" } },
+          { spkNo: { contains: q, mode: "insensitive" } },
           { customerName: { contains: q, mode: "insensitive" } },
           { cargoName: { contains: q, mode: "insensitive" } },
           { fromText: { contains: q, mode: "insensitive" } },
@@ -201,6 +203,10 @@ router.post("/", authRequired, async (req, res) => {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
 
     const body = req.body || {};
+    const deliveryOrderNo = String(body.deliveryOrderNo || "").trim();
+    const spkNo = String(body.spkNo || "").trim();
+    if (!deliveryOrderNo) return res.status(400).json({ error: "Nomor DO wajib diisi" });
+    if (!spkNo) return res.status(400).json({ error: "Nomor SPK wajib diisi" });
     if (!body.customerId) return res.status(400).json({ error: "Customer wajib dipilih dari Master Customer" });
     const selectedCustomer = await prisma.customer.findUnique({ where: { id: body.customerId } });
     if (!selectedCustomer) return res.status(400).json({ error: "Customer tidak ditemukan" });
@@ -225,6 +231,8 @@ router.post("/", authRequired, async (req, res) => {
       const order = await tx.order.create({
         data: {
           orderNo,
+          deliveryOrderNo,
+          spkNo,
           orderType: body.orderType || "OUTBOUND",
           customerId: selectedCustomer.id,
           customerName: selectedCustomer.name,
@@ -428,6 +436,8 @@ router.patch("/:id", authRequired, async (req, res) => {
       where: { id },
       data: {
         orderType: body.orderType ?? undefined,
+        deliveryOrderNo: body.deliveryOrderNo !== undefined ? String(body.deliveryOrderNo || "").trim() || null : undefined,
+        spkNo: body.spkNo !== undefined ? String(body.spkNo || "").trim() || null : undefined,
         customerId: body.customerId ?? undefined,
         customerName: body.customerName ?? undefined,
         description: body.description ?? undefined,

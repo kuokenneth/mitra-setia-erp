@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 const { prisma } = require("../prisma");
 const { signToken, requireAuth } = require("../auth");
 const { rateLimit } = require("../middleware/rateLimit");
+const { notifyOwnerSafely } = require("../services/emailNotifications");
 
 const router = express.Router();
 
@@ -68,6 +69,25 @@ router.post("/register", rateLimit({ windowMs: 60 * 60 * 1000, max: 10 }), async
         isActive: true,
         createdAt: true,
       },
+    });
+
+    const registeredAt = new Intl.DateTimeFormat("id-ID", {
+      dateStyle: "full",
+      timeStyle: "short",
+      timeZone: "Asia/Jakarta",
+    }).format(user.createdAt);
+
+    await notifyOwnerSafely({
+      event: "User baru terdaftar",
+      title: user.name || user.email,
+      details: [
+        `Nama: ${user.name || "Belum diisi"}`,
+        `Email: ${user.email}`,
+        `Role: ${user.role}`,
+        `Status: ${user.isActive ? "Aktif" : "Tidak aktif"}`,
+        `Waktu daftar: ${registeredAt} WIB`,
+      ].join("\n"),
+      path: "/users",
     });
 
     return res.json({ ok: true, user });

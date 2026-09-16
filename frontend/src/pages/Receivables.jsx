@@ -51,7 +51,7 @@ export default function Receivables() {
   const [modal, setModal] = useState("");
   const [selected, setSelected] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [invoiceForm, setInvoiceForm] = useState({ billingCustomerKey: "", sourceKey: "", sourceType: "ORDER", orderId: "", customerId: "", materialInvoiceIds: [], materialLineAmounts: {}, singleTripId: "", singleTripIds: [], ratePerKg: "", customerName: "", customerPhone: "", billingAddress: "", dueAt: afterDays(30), contractSubtotal: "", tax: 0, discount: 0, notes: "" });
+  const [invoiceForm, setInvoiceForm] = useState({ billingCustomerKey: "", sourceKey: "", sourceType: "ORDER", orderId: "", customerId: "", materialInvoiceIds: [], materialLineAmounts: {}, singleTripId: "", singleTripIds: [], ratePerKg: "", tolerancePercent: "0", customerName: "", customerPhone: "", billingAddress: "", dueAt: afterDays(30), contractSubtotal: "", tax: 0, discount: 0, notes: "" });
   const [paymentForm, setPaymentForm] = useState({ amount: "", method: "BANK_TRANSFER", reference: "", receivedAt: new Date().toISOString().slice(0, 10), notes: "" });
   const [pricingForm, setPricingForm] = useState({ contractSubtotal: "", ratePerKg: "", tolerancePercent: "0", materialLineRates: {}, tax: 0, discount: 0, dueAt: afterDays(30), notes: "" });
   const [manualForm, setManualForm] = useState({ type: "FERTILIZER", customerId: "", dueAt: afterDays(30), title: "Rincian ongkos angkut pupuk", fromText: "", toText: "", reference: "", tax: 0, discount: 0, notes: "", lines: [manualLine("FERTILIZER")] });
@@ -73,7 +73,7 @@ export default function Receivables() {
   }), [data.invoices, filter, query]);
 
   function openInvoice() {
-    setInvoiceForm({ billingCustomerKey: "", sourceKey: "", sourceType: "ORDER", orderId: "", customerId: "", materialInvoiceIds: [], materialLineAmounts: {}, singleTripId: "", singleTripIds: [], ratePerKg: "", customerName: "", customerPhone: "", billingAddress: "", dueAt: afterDays(30), contractSubtotal: "", tax: 0, discount: 0, notes: "" });
+    setInvoiceForm({ billingCustomerKey: "", sourceKey: "", sourceType: "ORDER", orderId: "", customerId: "", materialInvoiceIds: [], materialLineAmounts: {}, singleTripId: "", singleTripIds: [], ratePerKg: "", tolerancePercent: "0", customerName: "", customerPhone: "", billingAddress: "", dueAt: afterDays(30), contractSubtotal: "", tax: 0, discount: 0, notes: "" });
     setError(""); setModal("invoice");
   }
   function openManualInvoice() { setManualForm({ type: "FERTILIZER", customerId: "", dueAt: afterDays(30), title: "Rincian ongkos angkut pupuk", fromText: "", toText: "", reference: "", tax: 0, discount: 0, notes: "", lines: [manualLine("FERTILIZER")] }); setError(""); setModal("manual-invoice"); }
@@ -83,7 +83,7 @@ export default function Receivables() {
   function chooseCustomer(key) {
     const customer = data.customers.find(item => `id:${item.id}` === key);
     const source = data.eligibleSources.find(item => customerKey(item) === key);
-    setInvoiceForm(form => ({ ...form, billingCustomerKey: key, sourceKey: "", sourceType: "ORDER", orderId: "", customerId: customer?.id || source?.customerId || "", materialInvoiceIds: [], materialLineAmounts: {}, singleTripId: "", singleTripIds: [], ratePerKg: "", customerName: customer?.name || source?.customerName || "", customerPhone: customer?.phone || source?.customerPhone || "", billingAddress: customer?.address || source?.billingAddress || "", contractSubtotal: "" }));
+    setInvoiceForm(form => ({ ...form, billingCustomerKey: key, sourceKey: "", sourceType: "ORDER", orderId: "", customerId: customer?.id || source?.customerId || "", materialInvoiceIds: [], materialLineAmounts: {}, singleTripId: "", singleTripIds: [], ratePerKg: "", tolerancePercent: String(customer?.cargoLossTolerancePercent ?? 0), customerName: customer?.name || source?.customerName || "", customerPhone: customer?.phone || source?.customerPhone || "", billingAddress: customer?.address || source?.billingAddress || "", contractSubtotal: "" }));
   }
   function chooseOrder(sourceKey) {
     const source = data.eligibleSources.find(item => `${item.type}:${item.id}` === sourceKey);
@@ -250,8 +250,8 @@ export default function Receivables() {
         </section>
         <section className="ar-form-section">
           <div className="ar-section-title"><span>3</span><div><strong>Rincian tagihan</strong><small>Isi nominal dalam Rupiah.</small></div></div>
-          <label>Jatuh tempo<input required type="date" value={invoiceForm.dueAt} onChange={e => setInvoiceForm({...invoiceForm, dueAt:e.target.value})}/></label>
-          {selectedSource?.type !== "MATERIAL" && <div className="ar-order-summary"><span><small>HARGA DIISI SETELAH DRAFT</small><strong>Berat ditagih × harga per kg</strong></span><span><small>Toleransi customer</small><strong>{Number((data.customers || []).find(customer => customer.id === invoiceForm.customerId)?.cargoLossTolerancePercent || 0).toLocaleString("id-ID")} %</strong></span></div>}
+          <div className="ar-grid2"><label>Jatuh tempo<input required type="date" value={invoiceForm.dueAt} onChange={e => setInvoiceForm({...invoiceForm, dueAt:e.target.value})}/></label>{selectedSource?.type !== "MATERIAL" && <label>Persentase susut (%)<input required min="0" max="100" step="0.01" type="number" value={invoiceForm.tolerancePercent} onChange={e => setInvoiceForm({...invoiceForm, tolerancePercent:e.target.value})}/><small className="ar-optional">Default customer; dapat diubah untuk penagihan ini.</small></label>}</div>
+          {selectedSource?.type !== "MATERIAL" && <div className="ar-order-summary"><span><small>HARGA DIISI SETELAH DRAFT</small><strong>Berat ditagih × harga per kg</strong></span><span><small>Susut yang digunakan</small><strong>{Number(invoiceForm.tolerancePercent || 0).toLocaleString("id-ID")} %</strong></span></div>}
           {materialSubtotal > 0 && <div className="ar-order-summary"><span><small>FAKTUR MUATAN</small><strong>Tambahan material</strong></span><span><small>Subtotal material</small><strong>{rupiah(materialSubtotal)}</strong></span></div>}
           <div className="ar-grid2"><label>Pajak<input min="0" type="number" inputMode="numeric" value={invoiceForm.tax} onChange={e => setInvoiceForm({...invoiceForm, tax:e.target.value})}/></label><label>Diskon<input min="0" type="number" inputMode="numeric" value={invoiceForm.discount} onChange={e => setInvoiceForm({...invoiceForm, discount:e.target.value})}/></label></div>
           <label>Catatan <small className="ar-optional">Opsional</small><textarea rows="2" value={invoiceForm.notes} onChange={e => setInvoiceForm({...invoiceForm, notes:e.target.value})} placeholder="Keterangan tambahan untuk pelanggan"/></label>

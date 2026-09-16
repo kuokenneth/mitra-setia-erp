@@ -521,6 +521,8 @@ model Customer {
 model Order {
   id      String @id @default(cuid())
   orderNo String @unique
+  deliveryOrderNo String?
+  spkNo String?
 
   orderType OrderType @default(OUTBOUND)
 
