@@ -27,11 +27,18 @@ enum UserStatus {
 
 enum StockUnitStatus {
   IN_STOCK
+  IN_TRANSIT
   ASSIGNED
   RETREADING
   REPAIRING
   SCRAPPED
   LOST
+}
+
+enum EmergencyPartDispatchStatus {
+  IN_TRANSIT
+  INSTALLED
+  CANCELLED
 }
 
 enum RetreadStatus {
@@ -1354,6 +1361,39 @@ model StockMovement {
   @@index([createdById])
   @@index([fromLocationId])
   @@index([toLocationId])
+}
+
+model EmergencyPartDispatch {
+  id                   String                      @id @default(cuid())
+  status               EmergencyPartDispatchStatus @default(IN_TRANSIT)
+  targetTruckId        String
+  carrierTruckId       String
+  itemId               String
+  stockUnitId          String?
+  fromLocationId       String
+  qty                  Float                       @default(1)
+  damageProofUrl       String
+  damageProofFileName  String?
+  damageProofMimeType  String?
+  installProofUrl      String?
+  installProofFileName String?
+  installProofMimeType String?
+  oldStockUnitId       String?
+  oldPartDisposition   String?
+  note                 String?
+  createdById          String?
+  installedById        String?
+  sentAt               DateTime                    @default(now())
+  installedAt          DateTime?
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
+
+  @@index([status])
+  @@index([targetTruckId])
+  @@index([carrierTruckId])
+  @@index([itemId])
+  @@index([stockUnitId])
+  @@index([sentAt])
 }
 
 model Expense {

@@ -310,6 +310,90 @@ router.patch(
   }
 );
 
+async function hydrateEmergencyDispatches(rows) {
+  const ids = (key) => [...new Set(rows.map((row) => row[key]).filter(Boolean))];
+  const [trucks, items, units, locations] = await Promise.all([
+    prisma.truck.findMany({ where: { id: { in: [...new Set([...ids("targetTruckId"), ...ids("carrierTruckId")])] } }, select: { id: true, plateNumber: true, brand: true, model: true } }),
+    prisma.item.findMany({ where: { id: { in: ids("itemId") } } }),
+    prisma.stockUnit.findMany({ where: { id: { in: [...new Set([...ids("stockUnitId"), ...ids("oldStockUnitId")])] } }, include: { item: true } }),
+    prisma.inventoryLocation.findMany({ where: { id: { in: ids("fromLocationId") } } }),
+  ]);
+  const map = (values) => new Map(values.map((value) => [value.id, value]));
+  const truckMap = map(trucks), itemMap = map(items), unitMap = map(units), locationMap = map(locations);
+  return rows.map((row) => ({ ...row, targetTruck: truckMap.get(row.targetTruckId), carrierTruck: truckMap.get(row.carrierTruckId), item: itemMap.get(row.itemId), stockUnit: unitMap.get(row.stockUnitId), oldStockUnit: unitMap.get(row.oldStockUnitId), fromLocation: locationMap.get(row.fromLocationId) }));
+}
+
+router.get("/emergency-dispatches", authRequired, requireRole(...inventoryAccess), async (_req, res) => {
+  const rows = await prisma.emergencyPartDispatch.findMany({ orderBy: { sentAt: "desc" }, take: 200 });
+  res.json({ items: await hydrateEmergencyDispatches(rows) });
+});
+
+router.post("/emergency-dispatches", authRequired, requireRole(...inventoryAccess), async (req, res) => {
+  try {
+    const { targetTruckId, carrierTruckId, itemId, stockUnitId, fromLocationId, damageProofUrl, damageProofFileName, damageProofMimeType, note } = req.body || {};
+    const qty = Number(req.body?.qty || 0);
+    if (!targetTruckId || !carrierTruckId || !itemId || !fromLocationId) throw new Error("Truk tujuan, truk pembawa, barang, dan lokasi stok wajib dipilih");
+    if (targetTruckId === carrierTruckId) throw new Error("Truk pembawa harus berbeda dari truk yang rusak");
+    if (!damageProofUrl || !/^(image|video)\//.test(String(damageProofMimeType || ""))) throw new Error("Bukti kerusakan foto atau video wajib diunggah");
+    if (!Number.isFinite(qty) || qty <= 0) throw new Error("Jumlah barang tidak valid");
+    const [targetTruck, carrierTruck, item] = await Promise.all([prisma.truck.findUnique({ where: { id: targetTruckId } }), prisma.truck.findUnique({ where: { id: carrierTruckId } }), prisma.item.findUnique({ where: { id: itemId } })]);
+    if (!targetTruck || !carrierTruck || !item) throw new Error("Data armada atau barang tidak ditemukan");
+    if (item.isSerialized && !stockUnitId) throw new Error("Pilih unit serial yang akan dikirim");
+    const created = await prisma.$transaction(async (tx) => {
+      await ensureStockRow(tx, itemId, fromLocationId);
+      const stock = await tx.inventoryStock.findUnique({ where: { itemId_locationId: { itemId, locationId: fromLocationId } } });
+      const requestedQty = item.isSerialized ? 1 : qty;
+      if (Number(stock?.qty || 0) < requestedQty) throw new Error(`Stok tidak cukup. Tersedia ${Number(stock?.qty || 0)}`);
+      let unit = null;
+      if (item.isSerialized) {
+        unit = await tx.stockUnit.findUnique({ where: { id: stockUnitId } });
+        if (!unit || unit.itemId !== itemId || unit.locationId !== fromLocationId || unit.status !== "IN_STOCK") throw new Error("Unit serial tidak tersedia di lokasi ini");
+        await tx.stockUnit.update({ where: { id: stockUnitId }, data: { status: "IN_TRANSIT", locationId: null } });
+        if (unit.inventoryBatchId) await tx.inventoryBatch.updateMany({ where: { id: unit.inventoryBatchId, remainingQty: { gte: 1 } }, data: { remainingQty: { decrement: 1 } } });
+      } else {
+        let remaining = requestedQty;
+        const batches = await tx.inventoryBatch.findMany({ where: { itemId, locationId: fromLocationId, remainingQty: { gt: 0 } }, orderBy: [{ receivedAt: "asc" }, { createdAt: "asc" }] });
+        for (const batch of batches) { if (remaining <= 0) break; const used = Math.min(remaining, Number(batch.remainingQty || 0)); await tx.inventoryBatch.update({ where: { id: batch.id }, data: { remainingQty: { decrement: used } } }); remaining -= used; }
+      }
+      await tx.inventoryStock.update({ where: { itemId_locationId: { itemId, locationId: fromLocationId } }, data: { qty: { decrement: requestedQty } } });
+      const dispatch = await tx.emergencyPartDispatch.create({ data: { targetTruckId, carrierTruckId, itemId, stockUnitId: item.isSerialized ? stockUnitId : null, fromLocationId, qty: requestedQty, damageProofUrl, damageProofFileName: damageProofFileName || null, damageProofMimeType, note: note || null, createdById: req.user.id } });
+      await tx.stockMovement.create({ data: { type: "OUT", itemId, qty: requestedQty, stockUnitId: item.isSerialized ? stockUnitId : null, fromLocationId, createdById: req.user.id, note: `Pengiriman darurat ${dispatch.id} · ${targetTruck.plateNumber} via ${carrierTruck.plateNumber}` } });
+      return dispatch;
+    });
+    res.status(201).json({ item: (await hydrateEmergencyDispatches([created]))[0] });
+  } catch (e) { res.status(400).json({ error: String(e.message || e) }); }
+});
+
+router.post("/emergency-dispatches/:id/install", authRequired, requireRole(...inventoryAccess), async (req, res) => {
+  try {
+    const { installProofUrl, installProofFileName, installProofMimeType, oldStockUnitId, oldPartDisposition, note } = req.body || {};
+    if (!installProofUrl || !/^(image|video)\//.test(String(installProofMimeType || ""))) throw new Error("Bukti pemasangan foto atau video wajib diunggah");
+    const updated = await prisma.$transaction(async (tx) => {
+      const dispatch = await tx.emergencyPartDispatch.findUnique({ where: { id: req.params.id } });
+      if (!dispatch || dispatch.status !== "IN_TRANSIT") throw new Error("Pengiriman tidak ditemukan atau sudah diproses");
+      const item = await tx.item.findUnique({ where: { id: dispatch.itemId } });
+      const now = new Date();
+      if (oldStockUnitId) {
+        const active = await tx.truckSparePartAssignment.findFirst({ where: { truckId: dispatch.targetTruckId, stockUnitId: oldStockUnitId, removedAt: null } });
+        if (!active) throw new Error("Sparepart lama tidak sedang terpasang pada truk tujuan");
+        await tx.truckSparePartAssignment.update({ where: { id: active.id }, data: { removedAt: now, note: [active.note, `Diganti melalui pengiriman darurat ${dispatch.id}`].filter(Boolean).join(" · ") } });
+        const disposition = oldPartDisposition || "SCRAPPED";
+        const nextStatus = disposition === "REPAIRING" ? "REPAIRING" : disposition === "LOST" ? "LOST" : "SCRAPPED";
+        await tx.stockUnit.update({ where: { id: oldStockUnitId }, data: { status: nextStatus, locationId: null, ...(nextStatus === "SCRAPPED" ? { scrappedAt: now } : {}) } });
+        await tx.stockMovement.create({ data: { type: "ADJUST", itemId: item.id, qty: 1, stockUnitId: oldStockUnitId, createdById: req.user.id, note: `Unit lama ${disposition} · pengiriman darurat ${dispatch.id}` } });
+      }
+      if (item.isSerialized) {
+        const unit = await tx.stockUnit.findUnique({ where: { id: dispatch.stockUnitId } });
+        if (!unit || unit.status !== "IN_TRANSIT") throw new Error("Unit kiriman tidak lagi berstatus dalam perjalanan");
+        await tx.truckSparePartAssignment.create({ data: { truckId: dispatch.targetTruckId, stockUnitId: unit.id, installedAt: now, installCost: unit.purchasePrice, currency: unit.currency || "IDR", note: `Pemasangan darurat ${dispatch.id}${note ? ` · ${note}` : ""}`, createdById: req.user.id } });
+        await tx.stockUnit.update({ where: { id: unit.id }, data: { status: "ASSIGNED", locationId: null } });
+      }
+      return tx.emergencyPartDispatch.update({ where: { id: dispatch.id }, data: { status: "INSTALLED", installedAt: now, installedById: req.user.id, installProofUrl, installProofFileName: installProofFileName || null, installProofMimeType, oldStockUnitId: oldStockUnitId || null, oldPartDisposition: oldStockUnitId ? (oldPartDisposition || "SCRAPPED") : null, note: [dispatch.note, note].filter(Boolean).join(" · ") || null } });
+    });
+    res.json({ item: (await hydrateEmergencyDispatches([updated]))[0] });
+  } catch (e) { res.status(400).json({ error: String(e.message || e) }); }
+});
+
 ////////////////////////////////////////////////////
 // LOCATIONS
 ////////////////////////////////////////////////////

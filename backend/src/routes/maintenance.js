@@ -36,17 +36,29 @@ router.get("/trucks", authRequired, async (req, res) => {
       take: 200,
     });
 
-    const previousOilChanges = await prisma.truckMaintenance.findMany({
-      where: { truckId: { in: trucks.map((truck) => truck.id) }, isOilChange: true, status: "DONE" },
-      orderBy: [{ oilChangedAt: "desc" }, { createdAt: "desc" }],
-      select: { id: true, truckId: true, oilChangedAt: true, odometerKm: true, photos: true },
-    });
+    const truckIds = trucks.map((truck) => truck.id);
+    const [previousOilChanges, previousServices] = await Promise.all([
+      prisma.truckMaintenance.findMany({
+        where: { truckId: { in: truckIds }, isOilChange: true, status: "DONE" },
+        orderBy: [{ oilChangedAt: "desc" }, { createdAt: "desc" }],
+        select: { id: true, truckId: true, oilChangedAt: true, odometerKm: true, photos: true },
+      }),
+      prisma.truckMaintenance.findMany({
+        where: { truckId: { in: truckIds }, status: "DONE" },
+        orderBy: [{ doneAt: "desc" }, { createdAt: "desc" }],
+        select: { id: true, truckId: true, title: true, status: true, createdAt: true, doneAt: true, odometerKm: true },
+      }),
+    ]);
     const previousByTruck = new Map();
     for (const change of previousOilChanges) {
       if (!previousByTruck.has(change.truckId)) previousByTruck.set(change.truckId, change);
     }
+    const previousServiceByTruck = new Map();
+    for (const service of previousServices) {
+      if (!previousServiceByTruck.has(service.truckId)) previousServiceByTruck.set(service.truckId, service);
+    }
 
-    res.json({ trucks: trucks.map((truck) => ({ ...truck, lastOilChange: previousByTruck.get(truck.id) || null })) });
+    res.json({ trucks: trucks.map((truck) => ({ ...truck, lastOilChange: previousByTruck.get(truck.id) || null, lastService: previousServiceByTruck.get(truck.id) || null })) });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Failed to load trucks" });

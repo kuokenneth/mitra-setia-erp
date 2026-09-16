@@ -1,10 +1,10 @@
 // src/pages/Inventory.jsx - Corporate Minimalist Design
 import { useEffect, useMemo, useState } from "react";
-import { api, openPrintDocument } from "../api";
+import { api, openPrintDocument, uploadFiles } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import LoadingState from "../components/LoadingState";
-import { FiArrowDownCircle, FiArrowUpCircle, FiBox, FiFileText, FiMapPin, FiPlus, FiSearch, FiX } from "react-icons/fi";
+import { FiArrowDownCircle, FiArrowUpCircle, FiBox, FiFileText, FiMapPin, FiPlus, FiSearch, FiTruck, FiX } from "react-icons/fi";
 import "./Inventory.css";
 
 // Corporate Green Color Palette (matching Landing/Dashboard)
@@ -375,6 +375,17 @@ function Modal({ open, title, eyebrow = "INVENTORY", description, tone = "green"
   );
 }
 
+function EmergencySearchPicker({ label, placeholder, items, value, onChange, itemLabel, itemMeta, icon = FiTruck }) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const selected = items.find((item) => item.id === value) || null;
+  const normalized = query.trim().toLocaleLowerCase("id-ID");
+  const results = items.filter((item) => `${itemLabel(item)} ${itemMeta(item)}`.toLocaleLowerCase("id-ID").includes(normalized)).slice(0, 8);
+  const Icon = icon;
+  function choose(item) { onChange(item.id); setQuery(""); setOpen(false); }
+  return <div className={`emergency-picker ${open ? "is-open" : ""}`} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}><span>{label}</span>{selected ? <div className="emergency-picker-selected"><i><Icon /></i><div><strong>{itemLabel(selected)}</strong><small>{itemMeta(selected)}</small></div><button type="button" onClick={() => { onChange(""); setQuery(""); setOpen(true); }}><FiX /></button></div> : <div className="emergency-picker-control"><FiSearch/><input value={query} placeholder={placeholder} onFocus={() => setOpen(true)} onChange={(event) => { setQuery(event.target.value); setOpen(true); }}/>{open && <div className="emergency-picker-results">{results.map((item) => <button type="button" key={item.id} onMouseDown={(event) => { event.preventDefault(); choose(item); }} onClick={() => choose(item)}><i><Icon /></i><span><strong>{itemLabel(item)}</strong><small>{itemMeta(item)}</small></span></button>)}{!results.length && <em>Tidak ada hasil yang cocok</em>}</div>}</div>}</div>;
+}
+
 function fmtDate(d) {
   if (!d) return "—";
   try {
@@ -416,6 +427,17 @@ export default function Inventory() {
   const [units, setUnits] = useState([]);
   const [movements, setMovements] = useState([]);
   const [batches, setBatches] = useState([]);
+  const [emergencyDispatches, setEmergencyDispatches] = useState([]);
+  const [openEmergency, setOpenEmergency] = useState(false);
+  const [installDispatch, setInstallDispatch] = useState(null);
+  const [emergencyProof, setEmergencyProof] = useState(null);
+  const [installProof, setInstallProof] = useState(null);
+  const [emergencyUnits, setEmergencyUnits] = useState([]);
+  const [oldAssignments, setOldAssignments] = useState([]);
+  const [emergencyBusy, setEmergencyBusy] = useState(false);
+  const [emergencyPreparing, setEmergencyPreparing] = useState(false);
+  const [emergencyForm, setEmergencyForm] = useState({ targetTruckId: "", carrierTruckId: "", itemId: "", fromLocationId: "", stockUnitId: "", qty: 1, note: "" });
+  const [installForm, setInstallForm] = useState({ oldStockUnitId: "", oldPartDisposition: "SCRAPPED", note: "" });
   const [itemPage, setItemPage] = useState(1);
   const [unitPage, setUnitPage] = useState(1);
   const [itemPagination, setItemPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
@@ -534,6 +556,56 @@ export default function Inventory() {
   async function loadTrucks() {
     const data = await api("/trucks");
     setTrucks(data.trucks || data.items || []);
+  }
+
+  async function loadEmergencyDispatches() {
+    const data = await api("/inventory/emergency-dispatches");
+    setEmergencyDispatches(data.items || []);
+  }
+
+  function openEmergencyForm() {
+    setErr("");
+    setEmergencyForm({ targetTruckId: "", carrierTruckId: "", itemId: "", fromLocationId: "", stockUnitId: "", qty: 1, note: "" });
+    setEmergencyUnits([]); setEmergencyProof(null); setOpenEmergency(true);
+    const loaders = [];
+    if (!trucks.length) loaders.push(loadTrucks());
+    if (!locations.length) loaders.push(loadLocations());
+    if (!items.length) loaders.push(loadItems());
+    if (loaders.length) {
+      setEmergencyPreparing(true);
+      Promise.all(loaders).catch((error) => setErr(error.message || "Gagal memuat data pengiriman")).finally(() => setEmergencyPreparing(false));
+    }
+  }
+
+  async function loadEmergencyUnits(itemId, locationId) {
+    if (!itemId || !locationId || !items.find((item) => item.id === itemId)?.isSerialized) return setEmergencyUnits([]);
+    const data = await api(`/inventory/units?itemId=${encodeURIComponent(itemId)}&locationId=${encodeURIComponent(locationId)}&status=IN_STOCK&limit=200`);
+    setEmergencyUnits(data.units || data.items || []);
+  }
+
+  async function createEmergencyDispatch(event) {
+    event.preventDefault(); setEmergencyBusy(true); setErr("");
+    try {
+      if (!emergencyProof) throw new Error("Bukti kerusakan foto atau video wajib dipilih");
+      const proof = (await uploadFiles([emergencyProof]))[0];
+      await api("/inventory/emergency-dispatches", { method: "POST", body: JSON.stringify({ ...emergencyForm, qty: Number(emergencyForm.qty), damageProofUrl: proof.url, damageProofFileName: proof.fileName, damageProofMimeType: proof.mimeType }) });
+      setOpenEmergency(false); await Promise.all([loadEmergencyDispatches(), loadItems(), loadUnits(), loadMovements()]);
+    } catch (e) { setErr(e.message || "Gagal membuat pengiriman darurat"); } finally { setEmergencyBusy(false); }
+  }
+
+  async function openInstallDispatch(dispatch) {
+    setInstallDispatch(dispatch); setInstallProof(null); setInstallForm({ oldStockUnitId: "", oldPartDisposition: "SCRAPPED", note: "" });
+    try { const data = await api(`/inventory/trucks/${dispatch.targetTruckId}/spareparts?currentOnly=1`); setOldAssignments(data.rows || []); } catch { setOldAssignments([]); }
+  }
+
+  async function confirmEmergencyInstall(event) {
+    event.preventDefault(); setEmergencyBusy(true); setErr("");
+    try {
+      if (!installProof) throw new Error("Bukti pemasangan foto atau video wajib dipilih");
+      const proof = (await uploadFiles([installProof]))[0];
+      await api(`/inventory/emergency-dispatches/${installDispatch.id}/install`, { method: "POST", body: JSON.stringify({ ...installForm, installProofUrl: proof.url, installProofFileName: proof.fileName, installProofMimeType: proof.mimeType }) });
+      setInstallDispatch(null); await Promise.all([loadEmergencyDispatches(), loadUnits(), loadMovements()]);
+    } catch (e) { setErr(e.message || "Gagal mengonfirmasi pemasangan"); } finally { setEmergencyBusy(false); }
   }
 
   async function loadItems(page = itemPage) {
@@ -678,6 +750,7 @@ export default function Inventory() {
       if (tab === "UNITS") await loadUnits();
       if (tab === "MOVEMENTS") await loadMovements();
       if (tab === "BATCHES") await loadBatches();
+      if (tab === "EMERGENCY") await loadEmergencyDispatches();
     } catch (e) {
       setErr(String(e?.message || e));
     } finally {
@@ -1079,6 +1152,7 @@ export default function Inventory() {
               <button className={tab === "UNITS" ? "active" : ""} onClick={() => setTab("UNITS")}>Unit Berseri</button>
               <button className={tab === "MOVEMENTS" ? "active" : ""} onClick={() => setTab("MOVEMENTS")}>Pergerakan</button>
               <button className={tab === "BATCHES" ? "active" : ""} onClick={() => setTab("BATCHES")}>Harga Masuk</button>
+              <button className={tab === "EMERGENCY" ? "active" : ""} onClick={() => { setTab("EMERGENCY"); loadEmergencyDispatches(); }}>Pengiriman Darurat</button>
             </div>
 
             <div className="inventory-search"><FiSearch />
@@ -1164,10 +1238,28 @@ export default function Inventory() {
 
             {tab === "MOVEMENTS" ? <MovementsTable movements={filteredMovements} loading={loading} from={mvFrom} to={mvTo} onFromChange={setMvFrom} onToChange={setMvTo} onApply={refresh} /> : null}
             {tab === "BATCHES" ? <BatchesTable batches={batches} loading={loading} /> : null}
+            {tab === "EMERGENCY" ? <div className="inventory-emergency"><div className="inventory-emergency-head"><div><h2>Pengiriman Sparepart Darurat</h2><p>Stok keluar saat dikirim dan pemasangan dikonfirmasi saat barang diterima.</p></div><button type="button" onClick={openEmergencyForm}><FiPlus/> Buat Pengiriman</button></div><div className="inventory-emergency-list">{emergencyDispatches.map((dispatch) => <article key={dispatch.id}><span className={dispatch.status.toLowerCase()}>{dispatch.status === "IN_TRANSIT" ? "DALAM PERJALANAN" : "TERPASANG"}</span><h3>{dispatch.item?.name || "Sparepart"} · {dispatch.qty} {dispatch.item?.unit || ""}</h3><p>{dispatch.fromLocation?.name || "Gudang"} → <b>{dispatch.targetTruck?.plateNumber}</b></p><small>Dibawa {dispatch.carrierTruck?.plateNumber || "—"}{dispatch.stockUnit ? ` · Serial ${dispatch.stockUnit.serialNumber || dispatch.stockUnit.barcode}` : ""}</small>{dispatch.status === "IN_TRANSIT" && <button type="button" onClick={() => openInstallDispatch(dispatch)}>Konfirmasi diterima & pasang</button>}</article>)}{!emergencyDispatches.length && <div className="inventory-emergency-empty">Belum ada pengiriman sparepart darurat.</div>}</div></div> : null}
           </div>
         </div>
 
         {/* MODALS */}
+        <Modal open={openEmergency} eyebrow="PENGIRIMAN DARURAT" title="Kirim sparepart ke armada" description="Pilih armada dan barang, lalu sertakan bukti kerusakan sebelum stok dikeluarkan." onClose={() => setOpenEmergency(false)}>
+          <form className="inventory-emergency-form redesigned" onSubmit={createEmergencyDispatch}>
+            {emergencyPreparing && <div className="emergency-form-loading"><span></span> Menyiapkan data kendaraan dan stok…</div>}
+            <section><header><b>01</b><div><strong>Rute pengiriman</strong><small>Tentukan kendaraan penerima dan pembawa barang.</small></div></header><div className="emergency-section-grid">
+              <EmergencySearchPicker label="Truk tujuan" placeholder="Cari nomor polisi, merek, atau model..." items={trucks} value={emergencyForm.targetTruckId} onChange={(targetTruckId) => setEmergencyForm((form) => ({ ...form, targetTruckId, carrierTruckId: targetTruckId === form.carrierTruckId ? "" : form.carrierTruckId }))} itemLabel={(truck) => truck.plateNumber} itemMeta={(truck) => [truck.brand, truck.model, truck.currentLocation].filter(Boolean).join(" · ") || "Armada"}/>
+              <EmergencySearchPicker label="Truk pembawa" placeholder="Cari armada pembawa..." items={trucks.filter((truck) => truck.id !== emergencyForm.targetTruckId)} value={emergencyForm.carrierTruckId} onChange={(carrierTruckId) => setEmergencyForm((form) => ({ ...form, carrierTruckId }))} itemLabel={(truck) => truck.plateNumber} itemMeta={(truck) => [truck.brand, truck.model, truck.currentLocation].filter(Boolean).join(" · ") || "Armada"}/>
+            </div></section>
+            <section><header><b>02</b><div><strong>Barang dari Inventory</strong><small>Pilih sparepart dan gudang asal stok.</small></div></header><div className="emergency-section-grid">
+              <EmergencySearchPicker label="Sparepart" placeholder="Cari SKU atau nama barang..." items={items} value={emergencyForm.itemId} onChange={(itemId) => { setEmergencyForm((form) => ({ ...form, itemId, stockUnitId: "" })); loadEmergencyUnits(itemId, emergencyForm.fromLocationId); }} itemLabel={(item) => item.name} itemMeta={(item) => `${item.sku} · ${item.isSerialized ? "Berserial" : `${Number(item.qtyTotal || 0).toLocaleString("id-ID")} ${item.unit}`}`} icon={FiBox}/>
+              <label>Lokasi stok<select required value={emergencyForm.fromLocationId} onChange={(event) => { const fromLocationId=event.target.value; setEmergencyForm((form) => ({ ...form, fromLocationId, stockUnitId:"" })); loadEmergencyUnits(emergencyForm.itemId, fromLocationId); }}><option value="">Pilih gudang asal</option>{locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
+              {items.find((item) => item.id === emergencyForm.itemId)?.isSerialized ? <label>Unit serial<select required value={emergencyForm.stockUnitId} onChange={(event) => setEmergencyForm((form) => ({ ...form, stockUnitId:event.target.value, qty:1 }))}><option value="">Pilih serial yang dikirim</option>{emergencyUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.serialNumber || unit.barcode || unit.id}</option>)}</select></label> : <label>Jumlah<input required type="number" min="0.01" step="0.01" value={emergencyForm.qty} onChange={(event) => setEmergencyForm((form) => ({ ...form, qty:event.target.value }))}/></label>}
+            </div></section>
+            <section><header><b>03</b><div><strong>Bukti dan keterangan</strong><small>Foto atau video kerusakan wajib sebelum barang dikirim.</small></div></header><label className={`emergency-proof-upload ${emergencyProof ? "has-file" : ""}`}><input required type="file" accept="image/*,video/*" onChange={(event) => setEmergencyProof(event.target.files?.[0] || null)}/><FiFileText/><span><strong>{emergencyProof ? emergencyProof.name : "Pilih foto atau video kerusakan"}</strong><small>{emergencyProof ? "Klik untuk mengganti file" : "Ambil dari kamera atau galeri perangkat"}</small></span></label><label className="emergency-note">Catatan tambahan <em>Opsional</em><textarea rows="2" value={emergencyForm.note} onChange={(event) => setEmergencyForm((form) => ({ ...form, note:event.target.value }))} placeholder="Lokasi kendaraan, kondisi barang, atau instruksi penyerahan..."/></label></section>
+            <footer><span>Stok berkurang setelah tombol kirim ditekan.</span><button type="button" onClick={() => setOpenEmergency(false)}>Batal</button><button disabled={emergencyPreparing || emergencyBusy || !emergencyForm.targetTruckId || !emergencyForm.carrierTruckId || !emergencyForm.itemId}>{emergencyBusy ? "Mengirim…" : emergencyPreparing ? "Menyiapkan data…" : "Keluarkan stok & kirim"}</button></footer>
+          </form>
+        </Modal>
+        <Modal open={Boolean(installDispatch)} eyebrow="KONFIRMASI PEMASANGAN" title="Barang diterima dan dipasang" description={installDispatch ? `${installDispatch.item?.name} untuk ${installDispatch.targetTruck?.plateNumber}` : ""} onClose={() => setInstallDispatch(null)}><form className="inventory-emergency-form" onSubmit={confirmEmergencyInstall}><label className="wide">Sparepart lama yang diganti (opsional)<select value={installForm.oldStockUnitId} onChange={(e) => setInstallForm((f) => ({ ...f, oldStockUnitId:e.target.value }))}><option value="">Tidak mengganti unit berserial</option>{oldAssignments.map((assignment) => <option key={assignment.stockUnitId || assignment.id} value={assignment.stockUnitId}>{assignment.stockUnit?.item?.name} · {assignment.stockUnit?.serialNumber || assignment.stockUnit?.barcode}</option>)}</select></label>{installForm.oldStockUnitId && <label className="wide">Tindakan unit lama<select value={installForm.oldPartDisposition} onChange={(e) => setInstallForm((f) => ({ ...f, oldPartDisposition:e.target.value }))}><option value="SCRAPPED">Rusak / Scrap</option><option value="REPAIRING">Kirim untuk perbaikan</option><option value="LOST">Hilang / tidak kembali</option></select></label>}<label className="wide">Bukti pemasangan (foto/video)<input required type="file" accept="image/*,video/*" onChange={(e) => setInstallProof(e.target.files?.[0] || null)}/></label><label className="wide">Catatan pemasangan<input value={installForm.note} onChange={(e) => setInstallForm((f) => ({ ...f, note:e.target.value }))}/></label><footer><button type="button" onClick={() => setInstallDispatch(null)}>Batal</button><button disabled={emergencyBusy}>{emergencyBusy ? "Menyimpan…" : "Konfirmasi terpasang"}</button></footer></form></Modal>
         <Modal open={openBarcode} title="Set / Edit Unit Barcode" onClose={() => setOpenBarcode(false)}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
             <div>

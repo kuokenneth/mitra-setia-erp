@@ -57,7 +57,9 @@ export default function Expenses() {
   const [err, setErr] = useState("");
   const [trips, setTrips] = useState([]);
   const [expenseTrucks, setExpenseTrucks] = useState([]);
+  const [allocationMode, setAllocationMode] = useState("GENERAL");
   const [tripSearch, setTripSearch] = useState("");
+  const [truckSearch, setTruckSearch] = useState("");
   const [tripLoading, setTripLoading] = useState(false);
   const [emptyReturnOpen, setEmptyReturnOpen] = useState(false);
   const [eligibleTrucks, setEligibleTrucks] = useState([]);
@@ -147,6 +149,9 @@ export default function Expenses() {
   }
 
   function resetForm() {
+    setAllocationMode("GENERAL");
+    setTripSearch("");
+    setTruckSearch("");
     setForm({
       tripId: "",
       truckId: "",
@@ -161,6 +166,15 @@ export default function Expenses() {
       clientName: "",
       notes: "",
     });
+  }
+
+  function selectAllocationMode(mode) {
+    setAllocationMode(mode);
+    setForm((current) => ({
+      ...current,
+      tripId: mode === "TRIP" ? current.tripId : "",
+      truckId: mode === "TRUCK" ? current.truckId : "",
+    }));
   }
 
   function onChangeForm(field, value) {
@@ -428,6 +442,16 @@ export default function Expenses() {
 
   const pageCount = Math.max(1, Math.ceil(total / take));
   const showBankFields = form.paymentMethod === "BANK_TRANSFER";
+  const filteredExpenseTrucks = expenseTrucks.filter((truck) => {
+    const query = truckSearch.trim().toLocaleLowerCase("id-ID");
+    if (!query) return true;
+    return [truck.plateNumber, truck.brand, truck.model]
+      .filter(Boolean)
+      .join(" ")
+      .toLocaleLowerCase("id-ID")
+      .includes(query);
+  });
+  const selectedExpenseTruck = expenseTrucks.find((truck) => truck.id === form.truckId) || null;
 
   const statusCounts = items.reduce(
     (acc, x) => {
@@ -691,10 +715,22 @@ export default function Expenses() {
             <form className="expense-create-form" onSubmit={onSubmit}>
               <div style={s.formGrid} className="expense-create-fields">
                 <div className="expense-form-section-title"><span>01</span><div><strong>Alokasi biaya</strong><small>Hubungkan ke perjalanan, armada, atau biarkan sebagai biaya umum.</small></div></div>
-                <div style={{ gridColumn: "1 / -1" }}>
+                <div className="expense-allocation-picker">
+                  <button type="button" className={allocationMode === "TRIP" ? "active" : ""} onClick={() => selectAllocationMode("TRIP")}>
+                    <i><FiArrowRight /></i><span><strong>Perjalanan</strong><small>Biaya untuk satu trip</small></span>
+                  </button>
+                  <button type="button" className={allocationMode === "TRUCK" ? "active" : ""} onClick={() => selectAllocationMode("TRUCK")}>
+                    <i><FiTruck /></i><span><strong>Armada</strong><small>Biaya kendaraan langsung</small></span>
+                  </button>
+                  <button type="button" className={allocationMode === "GENERAL" ? "active" : ""} onClick={() => selectAllocationMode("GENERAL")}>
+                    <i><FiFileText /></i><span><strong>Biaya umum</strong><small>Tidak terkait trip/armada</small></span>
+                  </button>
+                </div>
+
+                {allocationMode === "TRIP" && <div className="expense-allocation-detail">
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12, marginBottom: 8 }}>
                     <div>
-                      <label style={{ ...s.label, marginBottom: 3 }}>Perjalanan (opsional)</label>
+                      <label style={{ ...s.label, marginBottom: 3 }}>Pilih perjalanan</label>
                       <div style={{ color: BRAND.textMuted, fontSize: 11 }}>Trip dapat dipilih sampai status Tiba; trip Selesai tidak ditampilkan.</div>
                     </div>
                     <button type="button" onClick={openEmptyReturn} style={{ ...s.secondaryBtn, padding: "9px 13px", whiteSpace: "nowrap" }}>
@@ -710,20 +746,10 @@ export default function Expenses() {
                     />
                     <select
                       value={form.tripId}
-                      disabled={Boolean(form.truckId)}
-                      onChange={(e) => {
-                        const tripId = e.target.value;
-                        setForm((current) => ({ ...current, tripId, truckId: tripId ? "" : current.truckId }));
-                      }}
+                      onChange={(e) => setForm((current) => ({ ...current, tripId: e.target.value, truckId: "" }))}
                       style={s.select}
                     >
-                      <option value="">
-                        {form.truckId
-                          ? "Kosongkan armada langsung untuk memilih perjalanan"
-                          : tripLoading
-                            ? "Memuat perjalanan..."
-                            : "Pilih perjalanan"}
-                      </option>
+                      <option value="">{tripLoading ? "Memuat perjalanan..." : "Pilih perjalanan"}</option>
                       {trips.map((t) => (
                         <option key={t.id} value={t.id}>
                           {(t.purpose === "EMPTY_RETURN" ? "KEMBALI KOSONG • " : "") +
@@ -759,32 +785,36 @@ export default function Expenses() {
                       )}
                     </div>
                   )}
-                </div>
+                </div>}
 
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label style={s.label}>Armada langsung (opsional)</label>
-                  <select
-                    value={form.truckId}
-                    disabled={Boolean(form.tripId)}
-                    onChange={(e) => {
-                      const truckId = e.target.value;
-                      setForm((current) => ({ ...current, truckId, tripId: truckId ? "" : current.tripId }));
-                    }}
-                    style={s.select}
-                  >
-                    <option value="">
-                      {form.tripId ? "Armada mengikuti perjalanan yang dipilih" : "Tidak terkait armada tertentu"}
-                    </option>
-                    {expenseTrucks.map((truck) => (
-                      <option key={truck.id} value={truck.id}>
-                        {truck.plateNumber} • {[truck.brand, truck.model].filter(Boolean).join(" ") || "Armada"}
-                      </option>
-                    ))}
-                  </select>
+                {allocationMode === "TRUCK" && <div className="expense-allocation-detail">
+                  <label style={s.label}>Cari dan pilih armada</label>
+                  {selectedExpenseTruck ? <div className="expense-truck-selected">
+                    <i><FiTruck /></i>
+                    <div><strong>{selectedExpenseTruck.plateNumber}</strong><span>{[selectedExpenseTruck.brand, selectedExpenseTruck.model].filter(Boolean).join(" ") || "Armada"}</span></div>
+                    <button type="button" onClick={() => { setForm((current) => ({ ...current, truckId: "" })); setTruckSearch(""); }}><FiX /> Ganti</button>
+                  </div> : <>
+                    <div className="expense-truck-search"><FiSearch /><input
+                      autoFocus
+                      value={truckSearch}
+                      onChange={(e) => setTruckSearch(e.target.value)}
+                      placeholder="Ketik nomor polisi, merek, atau model..."
+                      style={s.input}
+                    /></div>
+                    <div className="expense-truck-results">
+                      {filteredExpenseTrucks.slice(0, 8).map((truck) => <button type="button" key={truck.id} onClick={() => {
+                        setForm((current) => ({ ...current, truckId: truck.id, tripId: "" }));
+                        setTruckSearch("");
+                      }}><i><FiTruck /></i><span><strong>{truck.plateNumber}</strong><small>{[truck.brand, truck.model].filter(Boolean).join(" ") || "Armada"}</small></span><FiArrowRight /></button>)}
+                      {!filteredExpenseTrucks.length && <div className="expense-truck-empty">Armada tidak ditemukan. Coba kata pencarian lain.</div>}
+                    </div>
+                  </>}
                   <div style={{ color: BRAND.textMuted, fontSize: 11, marginTop: 6 }}>
                     Pilih ini untuk pajak, servis, sparepart, atau biaya kendaraan yang tidak terkait dengan satu perjalanan tertentu.
                   </div>
-                </div>
+                </div>}
+
+                {allocationMode === "GENERAL" && <div className="expense-general-note"><FiCheckCircle /><div><strong>Dicatat sebagai biaya umum</strong><span>Cocok untuk biaya kantor atau transaksi yang tidak perlu dikaitkan ke perjalanan maupun kendaraan.</span></div></div>}
 
                 <div className="expense-form-section-title"><span>02</span><div><strong>Pembayaran</strong><small>Catat tujuan pembayaran dan nilai transaksi.</small></div></div>
 
