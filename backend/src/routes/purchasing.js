@@ -5,9 +5,9 @@ const { requireRole } = require("../middleware/requireRole");
 const { SYSTEM_ACCOUNTS, cashCode, postJournal } = require("../services/accounting");
 const { esc, num: fmtNum, money, date: fmtDate, documentHtml } = require("../utils/printDocument");
 const { notifyOwnerSafely } = require("../services/emailNotifications");
+const { nextDailyNumber } = require("../utils/documentNumber");
 const router = express.Router();
 
-const seq = (prefix) => `${prefix}-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
 const includePO = { supplier: true, request: { include: { maintenance: { include: { truck: true } } } }, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } }, partRepair: { include: { stockUnit: true } } } }, receipts: { include: { items: { include: { purchaseOrderItem: { include: { item: true } } } }, location: true, createdBy: { select: { name: true } }, supplierBillLine: { include: { bill: true } } } }, payments: { include: { createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } } } };
 
 router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"));
@@ -118,7 +118,7 @@ router.post("/requests", async (req, res) => {
       preparedItems.push({ itemId: row.itemId, originalQty: Number(row.qty), notes: row.notes });
     }
   }
-  const request = await prisma.purchaseRequest.create({ data: { number: seq("PR"), urgency, purpose, truckId, reason, notes, damageProofUrl, damageProofFileName: damageProofFileName || null, damageProofMimeType, damageProofSize: damageProofSize == null ? null : Number(damageProofSize), status: submit ? "WAITING_APPROVAL" : "DRAFT", createdById: req.user.id, items: { create: preparedItems } }, include: { items: { include: { item: true } } } });
+  const request = await prisma.$transaction(async tx => tx.purchaseRequest.create({ data: { number: await nextDailyNumber(tx, "purchaseRequest", "PR"), urgency, purpose, truckId, reason, notes, damageProofUrl, damageProofFileName: damageProofFileName || null, damageProofMimeType, damageProofSize: damageProofSize == null ? null : Number(damageProofSize), status: submit ? "WAITING_APPROVAL" : "DRAFT", createdById: req.user.id, items: { create: preparedItems } }, include: { items: { include: { item: true } } } }));
   if (request.status === "WAITING_APPROVAL") {
     await notifyOwnerSafely({
       event: "Permintaan pembelian baru",
@@ -184,7 +184,7 @@ router.post("/orders", async (req, res) => {
     });
     const wrongSupplier = request.items.find(row => row.tireRetread?.supplierId && row.tireRetread.supplierId !== supplierId);
     if (wrongSupplier) throw new Error("Supplier PO harus sama dengan vendor yang dipilih saat Lepas & Masak");
-    const po = await prisma.purchaseOrder.create({ data: { number: seq("PO"), requestId, supplierId, tax: Number(tax), shippingCost: Number(shippingCost), discount: Number(discount), paymentTerms, deliveryAddress, estimatedArrival: estimatedArrival ? new Date(estimatedArrival) : null, createdById: req.user.id, items: { create: poItems } }, include: includePO });
+    const po = await prisma.$transaction(async tx => tx.purchaseOrder.create({ data: { number: await nextDailyNumber(tx, "purchaseOrder", "PO"), requestId, supplierId, tax: Number(tax), shippingCost: Number(shippingCost), discount: Number(discount), paymentTerms, deliveryAddress, estimatedArrival: estimatedArrival ? new Date(estimatedArrival) : null, createdById: req.user.id, items: { create: poItems } }, include: includePO }));
     await prisma.partRepair.updateMany({ where: { id: { in: request.items.map(row => row.partRepairId).filter(Boolean) } }, data: { supplierId } });
     res.json({ ok: true, order: po });
   } catch (e) { res.status(500).json({ error: e.message || "Gagal membuat Purchase Order" }); }
@@ -209,7 +209,7 @@ router.post("/receipts", async (req, res) => {
     if (invoiceAmount != null && (!Number.isFinite(invoiceAmount) || invoiceAmount < 0)) throw new Error("Nilai invoice supplier tidak valid");
     const invoiceDate = supplierInvoiceDate ? new Date(supplierInvoiceDate) : null;
     if (invoiceDate && Number.isNaN(invoiceDate.getTime())) throw new Error("Tanggal invoice supplier tidak valid");
-    const rec = await tx.goodsReceipt.create({ data: { number: seq("GR"), purchaseOrderId, locationId, deliveryNote, deliveryNoteProofUrl, deliveryNoteFileName: deliveryNoteFileName || null, deliveryNoteMimeType: deliveryNoteMimeType || null, deliveryNoteSize: Number.isFinite(Number(deliveryNoteSize)) ? Number(deliveryNoteSize) : null, notes, supplierInvoiceNumber: supplierInvoiceNumber ? String(supplierInvoiceNumber).trim() : null, supplierInvoiceDate: invoiceDate, supplierInvoiceAmount: invoiceAmount == null ? null : Math.round(invoiceAmount), supplierInvoiceProofUrl: supplierInvoiceProofUrl || null, supplierInvoiceFileName: supplierInvoiceFileName || null, supplierInvoiceMimeType: supplierInvoiceMimeType || null, supplierInvoiceSize: Number.isFinite(Number(supplierInvoiceSize)) ? Number(supplierInvoiceSize) : null, createdById: req.user.id } });
+    const rec = await tx.goodsReceipt.create({ data: { number: await nextDailyNumber(tx, "goodsReceipt", "GR"), purchaseOrderId, locationId, deliveryNote, deliveryNoteProofUrl, deliveryNoteFileName: deliveryNoteFileName || null, deliveryNoteMimeType: deliveryNoteMimeType || null, deliveryNoteSize: Number.isFinite(Number(deliveryNoteSize)) ? Number(deliveryNoteSize) : null, notes, supplierInvoiceNumber: supplierInvoiceNumber ? String(supplierInvoiceNumber).trim() : null, supplierInvoiceDate: invoiceDate, supplierInvoiceAmount: invoiceAmount == null ? null : Math.round(invoiceAmount), supplierInvoiceProofUrl: supplierInvoiceProofUrl || null, supplierInvoiceFileName: supplierInvoiceFileName || null, supplierInvoiceMimeType: supplierInvoiceMimeType || null, supplierInvoiceSize: Number.isFinite(Number(supplierInvoiceSize)) ? Number(supplierInvoiceSize) : null, createdById: req.user.id } });
     for (const row of items) {
       const poi = po.items.find(i => i.id === row.purchaseOrderItemId); const qty = Number(row.qty);
       if (!poi || qty <= 0 || poi.receivedQty + qty > poi.qty) throw new Error("Jumlah penerimaan melebihi sisa PO");
@@ -322,7 +322,7 @@ router.post("/bills", async (req, res) => {
     const allocations = records.map(receipt => ({ receiptId: receipt.id, amount: lines.filter(line => line.receipt.id === receipt.id).reduce((sum, line) => sum + line.amount, 0) }));
     const previousValue = lines.reduce((sum, line) => sum + Number(line.item.qty) * Number(line.item.purchaseOrderItem.unitPrice || 0), 0);
     const bill = await prisma.$transaction(async tx => {
-      const created = await tx.supplierBill.create({ data: { number: seq("BILL"), supplierId, invoiceNumber: String(invoiceNumber).trim(), invoiceDate: new Date(invoiceDate), dueDate: dueDate ? new Date(dueDate) : null, amount: total, status: total === 0 ? "PAID" : "OPEN", notes: notes || null, proofUrl, proofFileName: proofFileName || null, proofMimeType: proofMimeType || null, proofSize: Number.isFinite(Number(proofSize)) ? Number(proofSize) : null, createdById: req.user.id, receipts: { create: allocations }, items: { create: lines.map(line => ({ receiptItemId: line.item.id, qty: line.item.qty, unitPrice: line.unitPrice, amount: line.amount })) } } });
+      const created = await tx.supplierBill.create({ data: { number: await nextDailyNumber(tx, "supplierBill", "BILL"), supplierId, invoiceNumber: String(invoiceNumber).trim(), invoiceDate: new Date(invoiceDate), dueDate: dueDate ? new Date(dueDate) : null, amount: total, status: total === 0 ? "PAID" : "OPEN", notes: notes || null, proofUrl, proofFileName: proofFileName || null, proofMimeType: proofMimeType || null, proofSize: Number.isFinite(Number(proofSize)) ? Number(proofSize) : null, createdById: req.user.id, receipts: { create: allocations }, items: { create: lines.map(line => ({ receiptItemId: line.item.id, qty: line.item.qty, unitPrice: line.unitPrice, amount: line.amount })) } } });
       for (const line of lines) {
         await tx.purchaseOrderItem.update({ where: { id: line.item.purchaseOrderItemId }, data: { unitPrice: line.unitPrice } });
         if (line.item.purchaseOrderItem.partRepairId) {
@@ -350,7 +350,7 @@ router.post("/payments", async (req, res) => {
   if (!amount || amount <= 0 || amount > bill.amount - committed) return res.status(400).json({ error: "Jumlah pembayaran melebihi sisa tagihan supplier" });
   if (!req.body.proofUrl) return res.status(400).json({ error: "Bukti pembayaran wajib dilampirkan" });
   const payment = await prisma.$transaction(async tx => {
-    const created = await tx.purchasePayment.create({ data: { number: seq("PAY"), supplierBillId: bill.id, amount, method: req.body.method, reference: req.body.reference, proofUrl: req.body.proofUrl, proofFileName: req.body.proofFileName || null, proofMimeType: req.body.proofMimeType || null, proofSize: Number.isFinite(Number(req.body.proofSize)) ? Number(req.body.proofSize) : null, createdById: req.user.id } });
+    const created = await tx.purchasePayment.create({ data: { number: await nextDailyNumber(tx, "purchasePayment", "PAY"), supplierBillId: bill.id, amount, method: req.body.method, reference: req.body.reference, proofUrl: req.body.proofUrl, proofFileName: req.body.proofFileName || null, proofMimeType: req.body.proofMimeType || null, proofSize: Number.isFinite(Number(req.body.proofSize)) ? Number(req.body.proofSize) : null, createdById: req.user.id } });
     await tx.supplierBill.update({ where: { id: bill.id }, data: { status: "WAITING_PAYMENT_APPROVAL" } });
     return created;
   });

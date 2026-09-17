@@ -3,6 +3,7 @@ const express = require("express");
 const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { esc, num: fmtNum, money, date: fmtDate, documentHtml } = require("../utils/printDocument");
+const { nextDailyNumber } = require("../utils/documentNumber");
 
 const router = express.Router();
 
@@ -30,30 +31,10 @@ function toDate(v) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function pad4(n) {
-  return String(n).padStart(4, "0");
-}
-
 // Daily sequential order number in Jakarta time.
 // Format: ORD-YYYY-DD/MM-0001
 async function nextOrderNo(tx) {
-  const dateParts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).map((part) => [part.type, part.value]));
-  const prefix = `ORD-${dateParts.year}-${dateParts.day}/${dateParts.month}-`;
-
-  const last = await tx.order.findFirst({
-    where: { orderNo: { startsWith: prefix } },
-    orderBy: { orderNo: "desc" },
-    select: { orderNo: true },
-  });
-
-  let nextSeq = 1;
-  if (last?.orderNo) {
-    const tail = last.orderNo.slice(prefix.length);
-    const parsed = parseInt(tail, 10);
-    if (Number.isFinite(parsed)) nextSeq = parsed + 1;
-  }
-
-  return `${prefix}${pad4(nextSeq)}`;
+  return nextDailyNumber(tx, "order", "ORD", { field: "orderNo" });
 }
 
 /**

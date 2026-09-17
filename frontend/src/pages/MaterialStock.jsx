@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { FiArchive, FiCalendar, FiCamera, FiFileText, FiMapPin, FiPackage, FiPlus, FiSearch, FiTrash2, FiTruck, FiUser, FiX } from "react-icons/fi";
+import { FiArchive, FiArrowRight, FiCalendar, FiCamera, FiFileText, FiMapPin, FiPackage, FiPlus, FiSearch, FiTrash2, FiTruck, FiUser, FiX } from "react-icons/fi";
 import { api, uploadFiles } from "../api";
-import { ProtectedFilePreview } from "../components/ProtectedFile";
+import { openProtectedFile } from "../components/ProtectedFile";
 import "./MaterialStock.css";
 import "./MaterialStockButtons.css";
 import "./MaterialStockEntry.css";
+import "./MaterialStockProof.css";
 
 const emptyLine=()=>({itemName:"",qty:"",unit:"PCS"});
 
@@ -21,7 +22,17 @@ export default function MaterialStock(){
   async function openReceipt(){setError("");try{const master=await api("/customers");setData(current=>({...current,customers:master.items||[],locations:current.storageLocations||[]}));setOpen(true)}catch(e){setError("Master Customer gagal dimuat: "+e.message)}}
   function openAllocation(){setError("");setAllocation({customerId:"",tripId:"",destinationLocationId:"",selected:{},notes:""});setAvailable([]);setData(current=>({...current,locations:current.destinations||[]}));setAllocateOpen(true)}
   useEffect(()=>{load()},[]);
-  const rows=useMemo(()=>data.receipts.filter(row=>(row.customer.name+" "+row.itemName+" "+row.deliveryNote).toLowerCase().includes(search.toLowerCase())),[data,search]);
+  const rows=useMemo(()=>{
+    const groups=new Map();
+    for(const receipt of data.receipts){
+      const key=[receipt.customerId,receipt.itemName.trim().toLocaleLowerCase("id-ID"),receipt.unit.trim().toUpperCase(),receipt.locationId||""].join("|");
+      const group=groups.get(key)||{...receipt,id:key,qtyReceived:0,qtyRemaining:0,receipts:[],proofs:[],deliveryNotes:[]};
+      group.qtyReceived+=Number(receipt.qtyReceived||0);group.qtyRemaining+=Number(receipt.qtyRemaining||0);group.receipts.push(receipt);
+      if(receipt.proofUrl)group.proofs.push(receipt);if(receipt.deliveryNote)group.deliveryNotes.push(receipt.deliveryNote);groups.set(key,group);
+    }
+    const needle=search.trim().toLocaleLowerCase("id-ID");
+    return [...groups.values()].filter(row=>!needle||(row.customer.name+" "+row.itemName+" "+row.deliveryNotes.join(" ")+" "+(row.location?.name||"")).toLocaleLowerCase("id-ID").includes(needle));
+  },[data.receipts,search]);
   const totalAvailable=data.receipts.filter(row=>row.qtyRemaining>0).reduce((sum,row)=>sum+row.qtyRemaining,0);
   function updateLine(index,key,value){setEntryLines(lines=>lines.map((line,i)=>i===index?{...line,[key]:value}:line))}
   function removeLine(index){setEntryLines(lines=>lines.length===1?lines:lines.filter((_,i)=>i!==index))}
@@ -45,9 +56,9 @@ export default function MaterialStock(){
   return <div className="material-stock-page">
     <header><div><span>OPERASIONAL</span><h1>Ambang / Material</h1><p>Stok titipan customer berdasarkan bukti penerimaan.</p></div><div className="material-head-actions"><button className="secondary" onClick={openAllocation}><FiPackage/> Alokasikan ke Trip</button><button onClick={openReceipt}><FiPlus/> Material Masuk</button></div></header>
     {error&&!open&&!allocateOpen&&<div className="material-error">{error}</div>}
-    <section className="material-summary"><article><FiArchive/><span><small>BARIS BARANG MASUK</small><strong>{data.receipts.length}</strong></span></article><article><FiPackage/><span><small>SALDO TERSEDIA</small><strong>{totalAvailable.toLocaleString("id-ID")}</strong></span></article><article><FiCamera/><span><small>BUKTI TERSIMPAN</small><strong>{data.receipts.filter(x=>x.proofUrl).length}</strong></span></article></section>
+    <section className="material-summary"><article><FiArchive/><span><small>JENIS STOK CUSTOMER</small><strong>{rows.length}</strong></span></article><article><FiPackage/><span><small>SALDO TERSEDIA</small><strong>{totalAvailable.toLocaleString("id-ID")}</strong></span></article><article><FiCamera/><span><small>BUKTI TERSIMPAN</small><strong>{data.receipts.filter(x=>x.proofUrl).length}</strong></span></article></section>
     <div className="material-board"><div className="material-tools"><label><FiSearch/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari customer, barang, atau nomor penerimaan"/></label></div>
-      <table><thead><tr><th>Customer / Penerimaan</th><th>Material</th><th>Masuk</th><th>Sudah diangkut</th><th>Sisa</th><th>Lokasi</th><th>Bukti</th></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td><b>{row.customer.name}</b><small>{row.deliveryNote} · {new Date(row.receivedAt).toLocaleDateString("id-ID")}</small></td><td><b>{row.itemName}</b><small>{row.sourceName||"Sumber tidak dicatat"}</small></td><td>{row.qtyReceived.toLocaleString("id-ID")} {row.unit}</td><td>{(row.qtyReceived-row.qtyRemaining).toLocaleString("id-ID")} {row.unit}</td><td><strong className="material-balance">{row.qtyRemaining.toLocaleString("id-ID")} {row.unit}</strong></td><td>{row.location?.name||"—"}</td><td>{row.proofUrl?<ProtectedFilePreview url={row.proofUrl} mimeType={row.proofMimeType} fileName={row.proofFileName||"Bukti penerimaan"} imageStyle={{width:62,height:42,objectFit:"cover",borderRadius:7}}/>:"—"}</td></tr>)}</tbody></table>
+      <table><thead><tr><th>Customer / Penerimaan</th><th>Material</th><th>Total Masuk</th><th>Sudah diangkut</th><th>Sisa</th><th>Lokasi</th><th>Bukti</th></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td><b>{row.customer.name}</b><small>{row.receipts.length} penerimaan · terakhir {new Date(row.receipts[0].receivedAt).toLocaleDateString("id-ID")}</small></td><td><b>{row.itemName}</b><small>{row.unit} · saldo digabung</small></td><td>{row.qtyReceived.toLocaleString("id-ID")} {row.unit}</td><td>{(row.qtyReceived-row.qtyRemaining).toLocaleString("id-ID")} {row.unit}</td><td><strong className="material-balance">{row.qtyRemaining.toLocaleString("id-ID")} {row.unit}</strong></td><td>{row.location?.name||"—"}</td><td><details className="material-proof-menu"><summary><FiCamera/> {row.proofs.length} bukti</summary><div>{row.proofs.map(proof=><button type="button" key={proof.id} onClick={()=>openProtectedFile(proof.proofUrl).catch(e=>setError(e.message))}><span><b>{proof.number}</b><small>{new Date(proof.receivedAt).toLocaleDateString("id-ID")}</small></span><FiArrowRight/></button>)}</div></details></td></tr>)}</tbody></table>
       {!rows.length&&<div className="material-empty">Belum ada material masuk.</div>}
     </div>
 

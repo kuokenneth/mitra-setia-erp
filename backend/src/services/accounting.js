@@ -2,11 +2,7 @@ const SYSTEM_ACCOUNTS = {
   CASH: "1001", BANK: "1002", AR: "1101", INVENTORY: "1201",
   AP: "2001", EQUITY: "3001", REVENUE: "4001", EXPENSE: "5001",
 };
-
-function journalNumber() {
-  const d = new Date();
-  return `JRN-${d.toISOString().slice(0,10).replaceAll("-","")}-${String(Date.now()).slice(-7)}-${Math.random().toString(36).slice(2,5).toUpperCase()}`;
-}
+const { nextDailyNumber } = require("../utils/documentNumber");
 
 async function postJournal(tx, { date = new Date(), description, sourceType, sourceId, createdById, lines }) {
   if (!sourceType || !sourceId) throw new Error("Referensi jurnal wajib diisi");
@@ -20,7 +16,7 @@ async function postJournal(tx, { date = new Date(), description, sourceType, sou
   if (accounts.length !== codes.length) throw new Error("Akun sistem accounting belum lengkap");
   const ids = Object.fromEntries(accounts.map(account => [account.code, account.id]));
   return tx.journalEntry.create({ data: {
-    number: journalNumber(), date: new Date(date), description, sourceType, sourceId,
+    number: await nextDailyNumber(tx, "journalEntry", "JRN", { date: new Date(date) }), date: new Date(date), description, sourceType, sourceId,
     createdById: createdById || null,
     lines: { create: lines.map(line => ({ accountId: ids[line.code], description: line.description || null, debit: Number(line.debit || 0), credit: Number(line.credit || 0) })) },
   }});

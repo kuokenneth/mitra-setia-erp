@@ -507,6 +507,9 @@ export default function Maintenance() {
   const [useLocationId, setUseLocationId] = useState("");
   const [useQty, setUseQty] = useState("");
   const [useNote, setUseNote] = useState("");
+  const [stockSource, setStockSource] = useState("INVENTORY");
+  const [donorStocks, setDonorStocks] = useState([]);
+  const [donorTruckId, setDonorTruckId] = useState("");
   const [useOilDate, setUseOilDate] = useState(localDateValue());
   const [useOilOdometer, setUseOilOdometer] = useState("");
   const [usingStock, setUsingStock] = useState(false);
@@ -776,6 +779,13 @@ export default function Maintenance() {
     setDonorAssignmentId("");
   }
 
+  async function loadDonorStocks(itemId) {
+    if (!activeJob?.id || !itemId) return;
+    const res = await api(`/maintenance/${activeJob.id}/donor-stock?itemId=${encodeURIComponent(itemId)}`);
+    setDonorStocks(res.stocks || []);
+    setDonorTruckId("");
+  }
+
   async function loadReturnAssignments() {
     if (!activeJob?.id) return;
     const res = await api(`/maintenance/${activeJob.id}/assigned-units`);
@@ -849,7 +859,8 @@ export default function Maintenance() {
     const qty = Number(useQty);
 
     if (!useItemId) return setErr("Select item");
-    if (!useLocationId) return setErr("Select location");
+    if (stockSource === "INVENTORY" && !useLocationId) return setErr("Pilih lokasi stok");
+    if (stockSource === "DONOR" && !donorTruckId) return setErr("Pilih mobil donor");
     if (!Number.isFinite(qty) || qty <= 0) return setErr("Qty must be > 0");
     if (selectedUseItem?.category === "OIL" && !useOilDate) return setErr("Tanggal ganti oli wajib diisi");
     if (selectedUseItem?.category === "OIL" && (!Number.isInteger(Number(useOilOdometer)) || Number(useOilOdometer) < 0)) return setErr("Odometer saat ganti oli wajib diisi");
@@ -860,11 +871,12 @@ export default function Maintenance() {
     setUsingStock(true);
     setErr("");
     try {
-      await api(`/maintenance/${activeJob.id}/use-stock`, {
+      await api(stockSource === "DONOR" ? `/maintenance/${activeJob.id}/transfer-donor-stock` : `/maintenance/${activeJob.id}/use-stock`, {
         method: "POST",
         body: JSON.stringify({
           itemId: useItemId,
-          locationId: useLocationId,
+          locationId: stockSource === "INVENTORY" ? useLocationId : undefined,
+          donorTruckId: stockSource === "DONOR" ? donorTruckId : undefined,
           qty,
           note: useNote || undefined,
           oilChangedAt: selectedUseItem?.category === "OIL" ? useOilDate : undefined,
@@ -873,6 +885,7 @@ export default function Maintenance() {
       });
       setUseQty("");
       setUseNote("");
+      if (stockSource === "DONOR") await loadDonorStocks(useItemId);
       if (selectedUseItem?.category === "OIL") setUseOilOdometer("");
       await refreshDetail();
       await load();
@@ -1165,6 +1178,7 @@ export default function Maintenance() {
               >
                 <div>
                   <div style={{ fontSize: 15, fontWeight: 600, color: BRAND.text }}>{j.title}</div>
+                  <small style={{ display: "block", marginTop: 3, color: BRAND.primary, fontWeight: 700 }}>{j.number}</small>
                   <div style={{ fontSize: 13, color: BRAND.textMuted, marginTop: 4 }}>
                     <FiTruck /> {j.truck?.plateNumber || "—"} <span>•</span> <FiCalendar /> {fmtDateTime(j.createdAt)}
                   </div>
@@ -1308,7 +1322,7 @@ export default function Maintenance() {
           <div className="maintenance-detail-layout" style={{ display: "grid", gridTemplateColumns: "minmax(320px, 0.8fr) minmax(620px, 1.6fr)", gap: 20 }}>
             <section className="maintenance-detail-hero">
               <div className="maintenance-detail-hero-main">
-                <div><small>DETAIL PEKERJAAN SERVIS</small><h2>{activeJob.title}</h2><p><b>{activeJob.truck?.plateNumber || "—"}</b><span>•</span><FiCalendar /> Masuk {fmtDateTime(activeJob.createdAt)}</p></div>
+                <div><small>DETAIL PEKERJAAN SERVIS · {activeJob.number}</small><h2>{activeJob.title}</h2><p><b>{activeJob.truck?.plateNumber || "—"}</b><span>•</span><FiCalendar /> Masuk {fmtDateTime(activeJob.createdAt)}</p></div>
                 <div className="maintenance-hero-side"><StatusBadge status={activeJob.status} />{allowed && <div className="maintenance-hero-actions"><Button variant="primary" icon={FiCheck} onClick={() => setJobStatus("DONE")} disabled={activeJob.status !== "OPEN"} data-testid="mark-done-hero-btn">Selesaikan</Button><Button variant="secondary" icon={FiRefreshCw} onClick={refreshDetail}>Muat Ulang</Button><Button variant="danger" icon={FiX} onClick={() => setJobStatus("CANCELLED")} disabled={activeJob.status !== "OPEN"} data-testid="cancel-job-hero-btn">Batalkan</Button></div>}</div>
               </div>
               <div className="maintenance-detail-metrics">
@@ -1636,19 +1650,24 @@ export default function Maintenance() {
                     border: `1px solid ${BRAND.border}`,
                   }}
                 >
-                  <div className="maintenance-part-box-title"><span>B</span><div><strong>Gunakan stok non-serial</strong><small>Oli, grease, baut, dan barang berdasarkan jumlah.</small></div></div>
+                  <div className="maintenance-part-box-title"><span>B</span><div><strong>Pasang sparepart non-serial</strong><small>Oli, grease, baut, atau komponen yang dicatat berdasarkan jumlah.</small></div></div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 1.4fr) 1fr", gap: 10, marginBottom: 10 }}>
-                    <SearchableItemPicker
+                  <div className="maintenance-source-switch" role="tablist" aria-label="Sumber stok non-serial">
+                    <button type="button" className={stockSource === "INVENTORY" ? "active" : ""} onClick={() => { setStockSource("INVENTORY"); setDonorTruckId(""); }}><span>01</span><div><strong>Dari Inventory</strong><small>Ambil stok dari lokasi gudang</small></div></button>
+                    <button type="button" className={stockSource === "DONOR" ? "active" : ""} onClick={() => { setStockSource("DONOR"); setUseLocationId(""); if (useItemId) loadDonorStocks(useItemId).catch((e) => setErr(e.message)); }} disabled={selectedUseItem?.category === "OIL"}><span>02</span><div><strong>Dari mobil lain</strong><small>Ambil sparepart dari armada lain</small></div></button>
+                  </div>
+
+                  <div className={`maintenance-serialized-grid source-${stockSource.toLowerCase()}`}>
+                    <div className="maintenance-part-field item-field"><label>Jenis sparepart</label><SearchableItemPicker
                       items={nonSerializedItems}
                       value={useItemId}
-                      onChange={(itemId) => { setUseItemId(itemId); loadPartHistory(itemId, "stock"); }}
+                      onChange={(itemId) => { const picked = nonSerializedItems.find((item) => item.id === itemId); setUseItemId(itemId); setDonorTruckId(""); loadPartHistory(itemId, "stock"); if (picked?.category === "OIL") setStockSource("INVENTORY"); else if (stockSource === "DONOR") loadDonorStocks(itemId).catch((e) => setErr(e.message)); }}
                       disabled={!allowed || activeJob.status !== "OPEN"}
                       placeholder="Cari SKU / nama sparepart..."
                       testId="non-serialized-item-search"
-                    />
+                    /></div>
 
-                    <Select
+                    {stockSource === "INVENTORY" ? <div className="maintenance-part-field"><label>Lokasi stok Inventory</label><Select
                       value={useLocationId}
                       onChange={(e) => setUseLocationId(e.target.value)}
                       disabled={!allowed || activeJob.status !== "OPEN"}
@@ -1660,7 +1679,10 @@ export default function Maintenance() {
                           {l.name}
                         </option>
                       ))}
-                    </Select>
+                    </Select></div> : <div className="maintenance-part-field"><label>Mobil donor</label><Select value={donorTruckId} onChange={(e) => setDonorTruckId(e.target.value)} disabled={!allowed || activeJob.status !== "OPEN" || !useItemId}>
+                      <option value="">Pilih nomor polisi donor</option>
+                      {donorStocks.map((stock) => <option key={stock.truckId} value={stock.truckId}>{stock.truck?.plateNumber} · tersedia {Number(stock.qty).toLocaleString("id-ID")} {stock.item?.unit}</option>)}
+                    </Select></div>}
                   </div>
 
                   <LastPartChange item={selectedUseItem} history={stockHistory} loading={historyLoading.stock} />
@@ -1718,7 +1740,7 @@ export default function Maintenance() {
                       disabled={!allowed || activeJob.status !== "OPEN" || usingStock}
                       data-testid="use-stock-btn"
                     >
-                      {usingStock ? "Menyimpan..." : "Gunakan Stok"}
+                      {usingStock ? "Menyimpan..." : stockSource === "DONOR" ? "Pindahkan & Pasang" : "Gunakan Stok"}
                     </Button>
                   </div>
                 </div>
@@ -1801,7 +1823,7 @@ export default function Maintenance() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(activeJob.movements || []).filter((m) => m.type === "OUT" && !m.stockUnitId).map((m) => (
+                      {(activeJob.movements || []).filter((m) => !m.stockUnitId && (m.type === "OUT" || (m.type === "ADJUST" && m.fromTruckId))).map((m) => (
                         <tr key={m.id} style={{ borderBottom: `1px solid ${BRAND.border}` }}>
                           <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{fmtDateTime(m.createdAt)}</td>
                           <td style={{ padding: "12px 8px", fontWeight: 500, color: BRAND.text }}>{m.type}</td>
@@ -1811,11 +1833,11 @@ export default function Maintenance() {
                           <td style={{ padding: "12px 8px", fontWeight: 600, color: BRAND.text }}>{m.qty}</td>
                           <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{m.unitPrice == null ? "—" : fmtMoney(m.unitPrice)}</td>
                           <td style={{ padding: "12px 8px", fontWeight: 600, color: BRAND.primary }}>{m.totalCost == null ? "—" : fmtMoney(m.totalCost)}</td>
-                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{m.fromLocation?.name || "—"}</td>
+                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{m.fromTruck?.plateNumber ? `${m.fromTruck.plateNumber} → ${m.toTruck?.plateNumber || activeJob.truck?.plateNumber}` : m.fromLocation?.name || "—"}</td>
                           <td style={{ padding: "12px 8px", color: BRAND.textMuted }}>{m.note || "—"}</td>
                         </tr>
                       ))}
-                      {(activeJob.movements || []).filter((m) => m.type === "OUT" && !m.stockUnitId).length === 0 && (
+                      {(activeJob.movements || []).filter((m) => !m.stockUnitId && (m.type === "OUT" || (m.type === "ADJUST" && m.fromTruckId))).length === 0 && (
                         <tr>
                           <td colSpan={8} style={{ padding: 16, color: BRAND.textMuted, textAlign: "center" }}>
                             Belum ada suku cadang non-serialized yang digunakan.

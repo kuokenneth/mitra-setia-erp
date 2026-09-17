@@ -2,6 +2,7 @@
 const express = require("express");
 const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
+const { nextDailyNumber } = require("../utils/documentNumber");
 
 const router = express.Router();
 
@@ -57,13 +58,7 @@ function materialWeightKg(invoices) {
 }
 
 async function nextSingleTripNumber(tx) {
-  const now = new Date();
-  const dateParts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now).map((part) => [part.type, part.value]));
-  const { year, day, month } = dateParts;
-  const prefix = `TRIP-${year}-${day}/${month}-`;
-  const last = await tx.trip.findFirst({ where: { tripNo: { startsWith: prefix } }, orderBy: { tripNo: "desc" }, select: { tripNo: true } });
-  const sequence = last?.tripNo ? Number(last.tripNo.slice(prefix.length)) + 1 : 1;
-  return `${prefix}${String(sequence).padStart(4, "0")}`;
+  return nextDailyNumber(tx, "trip", "TRIP", { field: "tripNo" });
 }
 
 /**

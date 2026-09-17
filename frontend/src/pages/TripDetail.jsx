@@ -24,6 +24,7 @@ import {
   FiX,
 } from "react-icons/fi";
 import "./TripDetailRedesign.css";
+import "./TripProofFix.css";
 
 //////////////////////
 // THEME (match Orders / Maintenance)
@@ -816,7 +817,7 @@ export default function TripDetail() {
             {currentStatus === "PLANNED" && <div className="trip-proof-locked">Upload tersedia setelah kendaraan tiba di lokasi muat.</div>}
             {!loadingProofs.length ? <div className="trip-proof-empty">Belum ada bukti timbangan muat.</div> : <div className="trip-proof-grid">{loadingProofs.map((proof) => {
               const isPdf = String(proof.mimeType || "").toLowerCase().includes("pdf") || String(proof.url || "").toLowerCase().includes(".pdf");
-              return <article key={proof.id}>{isPdf ? <button type="button" onClick={() => openProtectedFile(proof.url).catch((error) => setErr(error.message))}><FiFileText/> Buka PDF</button> : <ProtectedImage url={proof.url} alt={proof.fileName || "Bukti timbang muat"}/>}<strong>{proof.fileName || "Bukti timbang muat"}</strong><small>{fmtDateTime(proof.createdAt)}</small></article>;
+              return <article key={proof.id}>{isPdf ? <button type="button" onClick={() => openProtectedFile(proof.url).catch((error) => setErr(error.message))}><FiFileText/> Buka PDF</button> : <ProtectedImage url={proof.url} alt={proof.fileName || "Bukti timbang muat"} style={{display:"block",width:"100%",height:105,objectFit:"cover",borderRadius:8}}/>}<strong>{proof.fileName || "Bukti timbang muat"}</strong><small>{fmtDateTime(proof.createdAt)}</small></article>;
             })}</div>}
           </div>
 

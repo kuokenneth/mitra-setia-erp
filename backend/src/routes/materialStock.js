@@ -2,6 +2,7 @@ const express = require("express");
 const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { requireRole } = require("../middleware/requireRole");
+const { nextDailyNumber } = require("../utils/documentNumber");
 const router = express.Router();
 router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF"));
 const clean = value => String(value || "").trim();
@@ -25,15 +26,22 @@ router.post("/receipts", async (req, res) => {
     const [customer, storageLocation] = await Promise.all([prisma.customer.findUnique({ where: { id: body.customerId } }), body.locationId ? prisma.inventoryLocation.findUnique({ where: { id: body.locationId } }) : null]);
     if (!customer) throw new Error("Customer wajib berasal dari Master Customer");
     if (!storageLocation) throw new Error("Lokasi penyimpanan wajib berasal dari Lokasi Inventory");
-    const batchRef = "MB-" + new Date().getFullYear() + "-" + String(Date.now()).slice(-7);
-    const receipts = await prisma.$transaction(lines.map((line, index) => prisma.materialStockReceipt.create({ data: {
-      number: batchRef + "-" + String(index + 1).padStart(2, "0"), customerId: body.customerId,
-      itemName: line.itemName, qtyReceived: line.qty, qtyRemaining: line.qty, unit: line.unit,
-      sourceName: clean(body.sourceName) || null, deliveryNote: batchRef,
-      receivedAt: body.receivedAt ? new Date(body.receivedAt) : new Date(), locationId: body.locationId,
-      proofUrl: body.proof.url, proofFileName: body.proof.fileName || null, proofMimeType: body.proof.mimeType || null,
-      proofSize: Number(body.proof.size) || null, notes: clean(body.notes) || null, createdById: req.user.id,
-    }, include: { customer: true, location: true } })));
+    const receipts = await prisma.$transaction(async tx => {
+      const created = [];
+      for (const line of lines) {
+        const documentNumber = await nextDailyNumber(tx, "materialStockReceipt", "MB");
+        created.push(await tx.materialStockReceipt.create({ data: {
+          number: documentNumber, customerId: body.customerId,
+          itemName: line.itemName, qtyReceived: line.qty, qtyRemaining: line.qty, unit: line.unit,
+          sourceName: clean(body.sourceName) || null, deliveryNote: clean(body.deliveryNote) || documentNumber,
+          receivedAt: body.receivedAt ? new Date(body.receivedAt) : new Date(), locationId: body.locationId,
+          proofUrl: body.proof.url, proofFileName: body.proof.fileName || null, proofMimeType: body.proof.mimeType || null,
+          proofSize: Number(body.proof.size) || null, notes: clean(body.notes) || null, createdById: req.user.id,
+        }, include: { customer: true, location: true } }));
+      }
+      return created;
+    });
+    const batchRef = receipts[0]?.number || null;
     res.status(201).json({ batchRef, receipts });
   } catch (e) { res.status(400).json({ error: e.message || "Gagal mencatat material masuk" }); }
 });
@@ -84,7 +92,7 @@ router.post("/allocate", async (req, res) => {
       const sequence = Math.max(1, Math.round(Number(body.stopSequence) || 1));
       await tx.materialInvoice.updateMany({ where: { tripId: trip.id, stopSequence: { gte: sequence } }, data: { stopSequence: { increment: 1 } } });
       const invoice = await tx.materialInvoice.create({ data: {
-        orderId: resolvedOrderId, tripId: trip.id, number: trip.dispatchLetter ? trip.dispatchLetter.number : "FM-" + new Date().getFullYear() + "-" + String(Date.now()).slice(-7),
+        orderId: resolvedOrderId, tripId: trip.id, number: trip.dispatchLetter ? trip.dispatchLetter.number : await nextDailyNumber(tx, "materialInvoice", "FM"),
         materialName: body.lines.length === 1 ? clean(body.lines[0].itemName) : "Multiple materials",
         qty: body.lines.reduce((sum, row) => sum + Number(row.qty || 0), 0), unit: body.lines.length === 1 ? clean(body.lines[0].unit).toUpperCase() : "LINES",
         billingCustomerName: customer.name, destinationLocationId: destination.id, stopSequence: sequence, notes: clean(body.notes) || null,

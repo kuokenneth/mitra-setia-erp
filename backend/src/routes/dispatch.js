@@ -7,6 +7,7 @@ const fs = require("fs");
 const puppeteer = require("puppeteer");
 const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
+const { nextDailyNumber } = require("../utils/documentNumber");
 
 const router = express.Router();
 
@@ -14,29 +15,9 @@ function canWrite(user) {
   return ["OWNER", "ADMIN", "STAFF"].includes(user?.role);
 }
 
-function pad5(n) {
-  return String(n).padStart(5, "0");
-}
-
-// Format: SP-YYYY-00001
+// Format: SP-YYYY-DD/MM-0001, with a sequence that restarts each Jakarta day.
 async function nextDispatchNo(tx) {
-  const year = new Date().getFullYear();
-  const prefix = `SP-${year}-`;
-
-  const last = await tx.dispatchLetter.findFirst({
-    where: { number: { startsWith: prefix } },
-    orderBy: { createdAt: "desc" },
-    select: { number: true },
-  });
-
-  let nextSeq = 1;
-  if (last?.number) {
-    const tail = last.number.replace(prefix, "");
-    const parsed = parseInt(tail, 10);
-    if (Number.isFinite(parsed)) nextSeq = parsed + 1;
-  }
-
-  return `${prefix}${pad5(nextSeq)}`;
+  return nextDailyNumber(tx, "dispatchLetter", "SP");
 }
 
 function fmtDateId(d) {

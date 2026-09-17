@@ -287,32 +287,32 @@ model Supplier {
 }
 
 model PurchaseRequest {
-  id             String                @id @default(cuid())
-  number         String                @unique
-  status         PurchaseRequestStatus @default(DRAFT)
-  urgency        String                @default("NORMAL")
-  purpose        String?
-  truckId        String?
-  maintenanceId  String?
-  maintenance    TruckMaintenance?     @relation(fields: [maintenanceId], references: [id], onDelete: SetNull)
-  directUse      Boolean               @default(false)
-  reason         String
-  notes          String?
-  damageProofUrl      String?
-  damageProofFileName String?
-  damageProofMimeType String?
-  damageProofSize     Int?
-  createdById    String
-  createdBy      User                  @relation("PurchaseRequestCreatedBy", fields: [createdById], references: [id])
-  approvedById   String?
-  approvedBy     User?                 @relation("PurchaseRequestApprovedBy", fields: [approvedById], references: [id])
-  approvedAt     DateTime?
-  approvalNotes  String?
+  id                     String                @id @default(cuid())
+  number                 String                @unique
+  status                 PurchaseRequestStatus @default(DRAFT)
+  urgency                String                @default("NORMAL")
+  purpose                String?
+  truckId                String?
+  maintenanceId          String?
+  maintenance            TruckMaintenance?     @relation(fields: [maintenanceId], references: [id], onDelete: SetNull)
+  directUse              Boolean               @default(false)
+  reason                 String
+  notes                  String?
+  damageProofUrl         String?
+  damageProofFileName    String?
+  damageProofMimeType    String?
+  damageProofSize        Int?
+  createdById            String
+  createdBy              User                  @relation("PurchaseRequestCreatedBy", fields: [createdById], references: [id])
+  approvedById           String?
+  approvedBy             User?                 @relation("PurchaseRequestApprovedBy", fields: [approvedById], references: [id])
+  approvedAt             DateTime?
+  approvalNotes          String?
   approvalReminderSentAt DateTime?
-  items          PurchaseRequestItem[]
-  purchaseOrders PurchaseOrder[]
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
+  items                  PurchaseRequestItem[]
+  purchaseOrders         PurchaseOrder[]
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
 
   @@index([status])
   @@index([maintenanceId])
@@ -526,10 +526,10 @@ model Customer {
 // ORDER + TRIP
 ////////////////////////////////////////////////////
 model Order {
-  id      String @id @default(cuid())
-  orderNo String @unique
+  id              String  @id @default(cuid())
+  orderNo         String  @unique
   deliveryOrderNo String?
-  spkNo String?
+  spkNo           String?
 
   orderType OrderType @default(OUTBOUND)
 
@@ -1023,6 +1023,9 @@ model Truck {
 
   maintenances         TruckMaintenance[]
   sparePartAssignments TruckSparePartAssignment[]
+  nonSerializedParts   TruckPartStock[]
+  stockMovesFrom       StockMovement[]            @relation("StockMovementFromTruck")
+  stockMovesTo         StockMovement[]            @relation("StockMovementToTruck")
   monthlyCosts         TruckMonthlyCost[]
   expenses             Expense[]
   gpsEvents            GpsEvent[]
@@ -1100,6 +1103,7 @@ model TruckMonthlyCost {
 
 model TruckMaintenance {
   id           String            @id @default(cuid())
+  number       String            @unique
   truckId      String
   title        String
   note         String?
@@ -1219,10 +1223,27 @@ model Item {
   purchaseRequestItems PurchaseRequestItem[]
   purchaseOrderItems   PurchaseOrderItem[]
   inventoryBatches     InventoryBatch[]
+  truckStocks          TruckPartStock[]
   retreadsFrom         TireRetread[]         @relation("RetreadFromItem")
   retreadsTo           TireRetread[]         @relation("RetreadToItem")
 
   @@index([category])
+}
+
+// Current quantity of a non-serialized sparepart physically attached to / kept on a truck.
+model TruckPartStock {
+  id        String   @id @default(cuid())
+  truckId   String
+  itemId    String
+  qty       Float    @default(0)
+  unitPrice Int?
+  updatedAt DateTime @updatedAt
+
+  truck Truck @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  item  Item  @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@unique([truckId, itemId])
+  @@index([itemId, qty])
 }
 
 model TireRetread {
@@ -1344,9 +1365,13 @@ model StockMovement {
 
   fromLocationId String?
   toLocationId   String?
+  fromTruckId    String?
+  toTruckId      String?
 
   fromLocation InventoryLocation? @relation("FromLocation", fields: [fromLocationId], references: [id])
   toLocation   InventoryLocation? @relation("ToLocation", fields: [toLocationId], references: [id])
+  fromTruck    Truck?             @relation("StockMovementFromTruck", fields: [fromTruckId], references: [id], onDelete: SetNull)
+  toTruck      Truck?             @relation("StockMovementToTruck", fields: [toTruckId], references: [id], onDelete: SetNull)
 
   maintenanceId String?
   maintenance   TruckMaintenance? @relation(fields: [maintenanceId], references: [id])
@@ -1361,6 +1386,8 @@ model StockMovement {
   @@index([createdById])
   @@index([fromLocationId])
   @@index([toLocationId])
+  @@index([fromTruckId])
+  @@index([toTruckId])
 }
 
 model EmergencyPartDispatch {
@@ -1431,9 +1458,9 @@ model Expense {
   createdById String?
   createdBy   User?   @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
 
-  approvedById String?
-  approvedBy   User?     @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
-  approvedAt   DateTime?
+  approvedById           String?
+  approvedBy             User?     @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
+  approvedAt             DateTime?
   approvalReminderSentAt DateTime?
 
   createdAt DateTime @default(now())

@@ -4,17 +4,29 @@ const { authRequired } = require("../middleware/authRequired");
 const { requireRole } = require("../middleware/requireRole");
 const { SYSTEM_ACCOUNTS, cashCode, postJournal } = require("../services/accounting");
 const { esc, num, money, date, documentHtml } = require("../utils/printDocument");
+const { nextDailyNumber } = require("../utils/documentNumber");
 
 const router = express.Router();
 // Keep the running server aligned with the generated Prisma relations.
 router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF"));
 
 const invoiceInclude = {
-  order: { select: { id: true, orderNo: true, deliveryOrderNo: true, spkNo: true, cargoName: true, customerName: true, customer: { select: { name: true, cargoLossTolerancePercent: true } }, qty: true, unit: true, fromText: true, toText: true, trips: { where: { status: "COMPLETED" }, include: { truck: true, dispatchLetter: true } }, tripAllocations: { where: { trip: { status: "COMPLETED" } }, include: { trip: { include: { truck: true, dispatchLetter: true } } } }, materialInvoices: { select: { billingCustomerName: true, lines: { select: { totalAmount: true } } } } } },
+  order: { select: { id: true, orderNo: true, deliveryOrderNo: true, spkNo: true, cargoName: true, customerName: true, customer: { select: { name: true, cargoLossTolerancePercent: true } }, qty: true, unit: true, fromText: true, toText: true, trips: { where: { status: "COMPLETED" }, include: { truck: true, dispatchLetter: true, arrivalProofs: { orderBy: { createdAt: "asc" } } } }, tripAllocations: { where: { trip: { status: "COMPLETED" } }, include: { trip: { include: { truck: true, dispatchLetter: true, arrivalProofs: { orderBy: { createdAt: "asc" } } } } } }, materialInvoices: { select: { billingCustomerName: true, lines: { select: { totalAmount: true } } } } } },
   customer: true,
-  singleTrip: { include: { truck: true } },
-  singleTripLines: { include: { trip: { include: { truck: true, dispatchLetter: true } } }, orderBy: { trip: { completedAt: "asc" } } },
-  materialInvoices: { include: { trip: { include: { truck: true } }, destinationLocation: true, lines: true } },
+  singleTrip: { include: { truck: true, arrivalProofs: { orderBy: { createdAt: "asc" } } } },
+  singleTripLines: {
+    include: {
+      trip: {
+        include: {
+          truck: true,
+          dispatchLetter: true,
+          arrivalProofs: { orderBy: { createdAt: "asc" } },
+        },
+      },
+    },
+    orderBy: { trip: { completedAt: "asc" } },
+  },
+  materialInvoices: { include: { trip: { include: { truck: true } }, destinationLocation: true, lines: { include: { stockAllocations: { include: { receipt: { include: { customer: true, location: true } } } } } } } },
   manualLines: { include: { truck: { select: { id: true, plateNumber: true, brand: true, model: true } } }, orderBy: { position: "asc" } },
   createdBy: { select: { name: true } },
   payments: { include: { createdBy: { select: { name: true } } }, orderBy: { receivedAt: "desc" } },
@@ -67,29 +79,11 @@ function amount(value, name) {
 }
 
 async function nextNumber(tx, model, prefix) {
-  const year = new Date().getFullYear();
-  const start = `${prefix}-${year}-`;
-  const last = await tx[model].findFirst({ where: { number: { startsWith: start } }, orderBy: { number: "desc" }, select: { number: true } });
-  const sequence = last ? Number(last.number.slice(start.length)) + 1 : 1;
-  return `${start}${String(sequence).padStart(5, "0")}`;
+  return nextDailyNumber(tx, model, prefix);
 }
 
 async function nextInvoiceNumber(tx, prefix) {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Jakarta",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const value = type => parts.find(part => part.type === type)?.value;
-  const start = `${prefix}-${value("year")}-${value("day")}/${value("month")}-`;
-  const last = await tx.invoice.findFirst({
-    where: { number: { startsWith: start } },
-    orderBy: { number: "desc" },
-    select: { number: true },
-  });
-  const sequence = last ? Number(last.number.slice(start.length)) + 1 : 1;
-  return `${start}${String(sequence).padStart(4, "0")}`;
+  return nextDailyNumber(tx, "invoice", prefix);
 }
 
 function summarize(invoice) {
@@ -156,7 +150,7 @@ router.get("/overview", async (_req, res) => {
         include: { customer: true, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true, plateNumberSnap: true, truck: { select: { plateNumber: true } } } }, tripAllocations: { where: { trip: { status: "COMPLETED" } }, select: { qtyPlanned: true, qtyActual: true, trip: { select: { plateNumberSnap: true, truck: { select: { plateNumber: true } } } } } }, materialInvoices: { select: { id: true, billingCustomerName: true, billedInvoiceId: true, destinationCompletedAt: true, lines: { select: { id: true, itemName: true, qty: true, unit: true, totalAmount: true } } } } },
         orderBy: { updatedAt: "desc" },
       }),
-      prisma.materialInvoice.findMany({ where: { billedInvoiceId: null, destinationCompletedAt: { not: null } }, include: { lines: true, trip: { include: { truck: true } }, destinationLocation: true }, orderBy: { issuedAt: "asc" } }),
+      prisma.materialInvoice.findMany({ where: { billedInvoiceId: null, destinationCompletedAt: { not: null } }, include: { lines: { include: { stockAllocations: { include: { receipt: { include: { customer: true, location: true } } } } } }, trip: { include: { truck: true } }, destinationLocation: true }, orderBy: { issuedAt: "asc" } }),
       prisma.trip.findMany({ where: { purpose: "SINGLE_TRIP", status: "COMPLETED", cargoCategorySnap: { in: ["FERTILIZER", "CANGKANG"] }, billingCustomerName: { not: null }, invoiceLines: { none: {} }, singleInvoice: null }, include: { truck: true, billingCustomer: true }, orderBy: { completedAt: "asc" } }),
     ]);
     const rows = invoices.map(summarize);
@@ -363,6 +357,16 @@ router.get("/invoices/:id/print", async (req, res) => {
     const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id }, include: invoiceInclude });
     if (!invoice) return res.status(404).send("Invoice tidak ditemukan");
 
+    const materialEvidence = [...new Map((invoice.materialInvoices || []).flatMap(materialInvoice =>
+      (materialInvoice.lines || []).flatMap(line => (line.stockAllocations || []).map(allocation => allocation.receipt))
+    ).filter(Boolean).map(receipt => [receipt.id, receipt])).values()];
+    const proofTrips = invoice.singleTripLines?.length
+      ? invoice.singleTripLines.map(line => line.trip)
+      : invoice.singleTrip ? [invoice.singleTrip]
+        : invoice.order?.tripAllocations?.length ? invoice.order.tripAllocations.map(row => row.trip)
+          : invoice.order?.trips || [];
+    const deliveryEvidence = proofTrips.flatMap(trip => (trip?.arrivalProofs || []).map(proof => ({ ...proof, trip })));
+
     let rowNumber = 0;
     const orderEntries = invoice.order
       ? (invoice.order.tripAllocations?.length
@@ -406,6 +410,8 @@ router.get("/invoices/:id/print", async (req, res) => {
         </tr>`;
       });
     }).join("");
+    const evidenceHtml = materialEvidence.length ? `<section style="margin-top:16px"><h3>REFERENSI BUKTI MATERIAL</h3><p class="muted">Foto asli tersedia pada Detail Invoice di sistem.</p><table><thead><tr><th>No. Penerimaan</th><th>Tanggal</th><th>Material</th><th>Qty Masuk</th><th>Lokasi</th><th>Nama File</th></tr></thead><tbody>${materialEvidence.map(receipt => `<tr><td>${esc(receipt.number)}</td><td>${esc(date(receipt.receivedAt))}</td><td>${esc(receipt.itemName)}</td><td>${esc(num(receipt.qtyReceived))} ${esc(receipt.unit)}</td><td>${esc(receipt.location?.name || "-")}</td><td>${esc(receipt.proofFileName || "Bukti foto")}</td></tr>`).join("")}</tbody></table></section>` : "";
+    const deliveryEvidenceHtml = deliveryEvidence.length ? `<section style="margin-top:16px"><h3>REFERENSI BUKTI PENGIRIMAN</h3><p class="muted">Foto/PDF asli tersedia pada Detail Invoice di sistem.</p><table><thead><tr><th>Trip</th><th>No. Polisi</th><th>Jenis Bukti</th><th>Tanggal</th><th>Nama File</th></tr></thead><tbody>${deliveryEvidence.map(proof => `<tr><td>${esc(proof.trip?.tripNo || "-")}</td><td>${esc(proof.trip?.truck?.plateNumber || proof.trip?.plateNumberSnap || "-")}</td><td>${esc(proof.proofType === "LOADING" ? "Timbang muat" : "Timbang sampai")}</td><td>${esc(date(proof.createdAt, true))}</td><td>${esc(proof.fileName || "Bukti pengiriman")}</td></tr>`).join("")}</tbody></table></section>` : "";
     const manualType = invoice.sourceType?.startsWith("MANUAL_") ? invoice.sourceType.slice(7) : null;
     const manualRows = (invoice.manualLines || []).map((line, index) => {
       const row = line.data || {};
@@ -430,7 +436,7 @@ router.get("/invoices/:id/print", async (req, res) => {
       ${shipmentRows ? `<div class="box" style="margin-top:14px;line-height:1.8"><b>Ongkos/Kg</b> : ${money(weightRows[0]?.ratePerKg || invoice.ratePerKg || 0)}<br><b>Perhitungan</b> : ${num(weightRows.reduce((sum,row)=>sum+row.billableKg,0))} kg × ${money(weightRows[0]?.ratePerKg || invoice.ratePerKg || 0)}<br><span class="muted">Susut fisik ${num(totalPhysicalLossKg)} kg · jatah toleransi ${num(totalToleranceKg)} kg (${num(invoice.tolerancePercent || 0)}%) · susut yang diklaim ${num(totalClaimableLossKg)} kg</span><br><span class="muted">KG ditagih = KG kirim − susut yang melebihi toleransi.</span></div>` : ""}
       <table style="width:42%;margin-left:auto"><tbody><tr><td>Subtotal</td><td class="right"><b>${money(invoice.subtotal)}</b></td></tr>${invoice.tax ? `<tr><td>Pajak</td><td class="right">${money(invoice.tax)}</td></tr>` : ""}${invoice.discount ? `<tr><td>Diskon</td><td class="right">-${money(invoice.discount)}</td></tr>` : ""}<tr><td><b>TOTAL TAGIHAN</b></td><td class="right"><b>${money(invoice.total)}</b></td></tr></tbody></table>
       ${invoice.notes ? `<div class="box" style="margin-top:14px"><span class="muted">Catatan</span><br>${esc(invoice.notes)}</div>` : ""}
-      <div class="signatures"><div>Pelanggan</div><div>Dibuat oleh</div><div>CV. Mitra Setia</div></div>`;
+      <div class="signatures"><div>Pelanggan</div><div>Dibuat oleh</div><div>CV. Mitra Setia</div></div>${evidenceHtml}${deliveryEvidenceHtml}`;
     res.type("html").send(documentHtml({ title: "TAGIHAN ONGKOS ANGKUT", subtitle: invoice.number, meta: `Tanggal invoice: ${esc(date(invoice.issuedAt))}<br>Customer: ${esc(invoice.customerName)}`, body, landscape: Boolean(materialRows && !shipmentRows) }));
   } catch (error) {
     res.status(400).send(error.message || "Gagal membuat dokumen invoice");
