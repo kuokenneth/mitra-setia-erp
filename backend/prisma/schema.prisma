@@ -1528,12 +1528,15 @@ model JournalLine {
 }
 
 model StoredFile {
-  id        String   @id @default(cuid())
-  fileName  String
-  mimeType  String
-  size      Int
-  data      Bytes
-  createdAt DateTime @default(now())
+  id              String   @id @default(cuid())
+  fileName        String
+  mimeType        String
+  size            Int
+  data            Bytes?
+  storageProvider String   @default("DATABASE")
+  storageKey      String?  @unique
+  createdAt       DateTime @default(now())
 
   @@index([createdAt])
+  @@index([storageProvider])
 }

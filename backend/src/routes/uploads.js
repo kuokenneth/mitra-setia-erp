@@ -1,8 +1,10 @@
 // backend/src/routes/uploads.js
 const express = require("express");
 const multer = require("multer");
+const { randomUUID } = require("crypto");
 const { authRequired } = require("../middleware/authRequired");
 const { prisma } = require("../prisma");
+const { deleteObject, getObject, isR2Configured, putObject } = require("../services/r2Storage");
 
 const router = express.Router();
 
@@ -40,8 +42,20 @@ router.get("/:id", authRequired, async (req, res) => {
     res.setHeader("Content-Disposition", `inline; filename="${safeName}"`);
     res.setHeader("Cache-Control", "private, max-age=86400");
     res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
-    res.send(Buffer.from(file.data));
+    if (file.storageProvider === "R2" && file.storageKey) {
+      const object = await getObject(file.storageKey);
+      if (!object.Body) return res.status(404).send("Isi bukti tidak ditemukan");
+      object.Body.on("error", error => {
+        console.error("R2 download stream failed", error);
+        if (!res.headersSent) res.status(502).end("Gagal mengambil bukti dari penyimpanan");
+        else res.destroy(error);
+      });
+      return object.Body.pipe(res);
+    }
+    if (!file.data) return res.status(404).send("Isi bukti tidak ditemukan");
+    return res.send(Buffer.from(file.data));
   } catch (e) {
+    console.error("File download failed", e);
     res.status(400).send(e.message || "Gagal membuka bukti");
   }
 });
@@ -63,11 +77,27 @@ router.post("/", authRequired, (req, res, next) => {
     if (files.some((file) => !hasValidSignature(file))) {
       return res.status(400).json({ error: "Isi file tidak sesuai dengan format PDF atau gambar yang dipilih" });
     }
+    const useR2 = isR2Configured();
     const out = await Promise.all(files.map(async (f) => {
-      const stored = await prisma.storedFile.create({ data: { fileName: f.originalname || "bukti", mimeType: f.mimetype || "application/octet-stream", size: f.size, data: f.buffer } });
+      const fileName = f.originalname || "bukti";
+      const mimeType = f.mimetype || "application/octet-stream";
+      if (!useR2) {
+        const stored = await prisma.storedFile.create({ data: { fileName, mimeType, size: f.size, data: f.buffer } });
+        return { url: `/api/uploads/${stored.id}`, fileName: stored.fileName, mimeType: stored.mimeType, size: stored.size };
+      }
+      const now = new Date();
+      const key = `proofs/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, "0")}/${randomUUID()}`;
+      await putObject({ key, body: f.buffer, contentType: mimeType, metadata: { originalname: encodeURIComponent(fileName) } });
+      let stored;
+      try {
+        stored = await prisma.storedFile.create({ data: { fileName, mimeType, size: f.size, storageProvider: "R2", storageKey: key, data: null } });
+      } catch (error) {
+        await deleteObject(key).catch(cleanupError => console.error("R2 cleanup failed", cleanupError));
+        throw error;
+      }
       return { url: `/api/uploads/${stored.id}`, fileName: stored.fileName, mimeType: stored.mimeType, size: stored.size };
     }));
-    res.json({ items: out, storage: "database" });
+    res.json({ items: out, storage: useR2 ? "r2" : "database" });
   } catch (e) {
     console.error(e);
     res.status(400).json({ error: e.message || "Upload failed" });

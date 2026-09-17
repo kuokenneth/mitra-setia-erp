@@ -41,3 +41,26 @@
 .purchasing .approval-person{display:block;margin-top:5px;color:#587064;font-size:10px;font-weight:650}
 .request-damage-proof{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;grid-column:1/-1;padding:14px;border:1px dashed #9fc5ad;border-radius:11px;background:linear-gradient(135deg,#f5fbf7,#edf8f1);color:#405248;cursor:pointer;transition:.18s ease}.request-damage-proof:hover{border-color:#4b9768;box-shadow:0 5px 16px rgba(34,105,62,.08)}.request-damage-proof.has-file{border-style:solid;border-color:#67a87e;background:#eff9f3}.request-damage-proof input{position:absolute;width:1px;height:1px;overflow:hidden;opacity:0}.request-proof-icon{display:grid;width:42px;height:42px;place-items:center;border-radius:10px;background:#d9eee1;color:#237247;font-size:19px}.request-proof-copy{min-width:0}.request-proof-copy strong,.request-proof-copy small{display:block}.request-proof-copy strong{font-size:11px}.request-proof-copy small{overflow:hidden;margin-top:3px;color:#728078;font-size:9px;font-weight:500;text-overflow:ellipsis;white-space:nowrap}.request-proof-action{padding:7px 10px;border:1px solid #bad5c3;border-radius:8px;background:#fff;color:#267148;font-size:9px;font-weight:800;white-space:nowrap}
 .request-table{min-width:1060px}.request-row-proof{display:flex;align-items:center;gap:9px;min-width:145px}.request-row-proof>div:first-child{flex:0 0 auto}.request-row-proof span,.request-row-proof span b,.request-row-proof span small{display:block}.request-row-proof span b{color:#236f46;font-size:11px}.request-row-proof span small{margin-top:3px;color:#748178;font-size:9px}.request-proof-empty{color:#97a199;font-size:11px;white-space:nowrap}
+
+/* Keep the PO amount and its billing note on separate, readable lines. */
+.po-card footer > div{display:flex;flex-direction:column;align-items:flex-start;gap:5px}
+.po-card footer small{display:block}
+
+.po-card .po-actions button{cursor:pointer;transition:transform .16s ease,background-color .16s ease,border-color .16s ease,color .16s ease,box-shadow .16s ease}
+.po-card .po-actions button:hover{transform:translateY(-2px);border-color:#77b28d;background:#e0f4e7;color:#096a33;box-shadow:0 7px 16px rgba(22,111,60,.13)}
+.po-card .po-actions button:active{transform:translateY(0) scale(.97);box-shadow:0 2px 6px rgba(22,111,60,.11)}
+.po-card .po-actions button:focus-visible{outline:3px solid rgba(38,144,86,.22);outline-offset:2px}
+.po-card .po-actions button.receive{background:#e8f7ed;border-color:#a9d3b7}
+.po-card .po-actions button:disabled{cursor:not-allowed;opacity:.55;transform:none;box-shadow:none}
+@media(max-width:560px){.po-card .po-actions{display:grid;grid-template-columns:1fr}.po-card .po-actions button{width:100%;min-height:42px}}
+
+.request-table .request-decision-actions button,.request-table .create-po-btn,.request-table .view-po-btn{cursor:pointer;transition:transform .16s ease,background-color .16s ease,border-color .16s ease,color .16s ease,box-shadow .16s ease}
+.request-table .request-decision-actions button:hover,.request-table .create-po-btn:hover,.request-table .view-po-btn:hover{transform:translateY(-2px);box-shadow:0 7px 15px rgba(25,88,50,.14)}
+.request-table .request-decision-actions button:active,.request-table .create-po-btn:active,.request-table .view-po-btn:active{transform:translateY(0) scale(.96);box-shadow:0 2px 5px rgba(25,88,50,.1)}
+.request-table .request-decision-actions button:focus-visible,.request-table .create-po-btn:focus-visible,.request-table .view-po-btn:focus-visible{outline:3px solid rgba(38,144,86,.22);outline-offset:2px}
+.request-table .request-decision-actions .approve{border:1px solid #9bcbaa;background:#e5f6eb;color:#0a7136}
+.request-table .request-decision-actions .approve:hover{border-color:#48a369;background:#d4f0de;color:#075a2b}
+.request-table .request-decision-actions .reject{border:1px solid #e8b4b1;background:#fff0ef;color:#b42318}
+.request-table .request-decision-actions .reject:hover{border-color:#d96c66;background:#ffe1df;color:#921b12;box-shadow:0 7px 15px rgba(180,35,24,.13)}
+.request-table .create-po-btn:hover{border-color:#69ae82;background:#dcf2e4;color:#096a33}
+.request-table .view-po-btn:hover{border-color:#a8bdb0;background:#f2f7f4;color:#263f31}
