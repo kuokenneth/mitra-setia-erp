@@ -316,13 +316,17 @@ router.get("/:id", authRequired, async (req, res) => {
       select: { id: true, oilChangedAt: true, odometerKm: true, photos: true, movements: { where: { item: { category: "OIL" } }, include: { item: true } } },
     });
     const serializedCost = (job.sparePartAssignments || []).reduce((sum, a) => {
+     if (a.removedAt) return sum;
      const v = Number(a.installCost || 0);
      return sum + (Number.isFinite(v) ? v : 0);
     }, 0);
     const nonSerializedCost = (job.movements || []).reduce((sum, movement) => {
-      if (movement.type !== "OUT" || movement.stockUnitId) return sum;
+      if (movement.stockUnitId) return sum;
       const value = Number(movement.totalCost || 0);
-      return sum + (Number.isFinite(value) ? value : 0);
+      if (!Number.isFinite(value)) return sum;
+      if (movement.type === "OUT") return sum + value;
+      if (movement.type === "IN" && String(movement.note || "").startsWith("RETURN_OF:")) return sum - value;
+      return sum;
     }, 0);
     const totalCost = serializedCost + nonSerializedCost;
 
@@ -471,6 +475,80 @@ router.get("/:id/available-units", authRequired, async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Failed to load available units" });
+  }
+});
+
+////////////////////////////////////////////////////
+// RETURN AN UNUSED SERIALIZED UNIT TO INVENTORY
+////////////////////////////////////////////////////
+router.post("/:id/return-unit", authRequired, async (req, res) => {
+  try {
+    if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
+    const maintenanceId = req.params.id;
+    const assignmentId = String(req.body.assignmentId || "");
+    if (!assignmentId) return res.status(400).json({ error: "assignmentId is required" });
+
+    const returned = await prisma.$transaction(async (tx) => {
+      const job = await tx.truckMaintenance.findUnique({ where: { id: maintenanceId }, select: { id: true, status: true, truckId: true, truck: { select: { plateNumber: true } } } });
+      if (!job || job.status !== "OPEN") throw new Error("Pengembalian hanya dapat dilakukan saat servis masih berjalan");
+      const assignment = await tx.truckSparePartAssignment.findFirst({
+        where: { id: assignmentId, maintenanceId, truckId: job.truckId, removedAt: null },
+        include: { stockUnit: { include: { item: true, inventoryBatch: true } } },
+      });
+      if (!assignment || assignment.stockUnit.status !== "ASSIGNED") throw new Error("Unit tidak lagi terpasang pada servis ini");
+      const outMovement = await tx.stockMovement.findFirst({ where: { maintenanceId, stockUnitId: assignment.stockUnitId, type: "OUT", fromLocationId: { not: null } }, orderBy: { createdAt: "desc" } });
+      const locationId = outMovement?.fromLocationId || assignment.stockUnit.inventoryBatch?.locationId;
+      if (!locationId) throw new Error("Lokasi asal unit tidak ditemukan");
+      const now = new Date();
+
+      await tx.truckSparePartAssignment.update({ where: { id: assignment.id }, data: { removedAt: now, note: [assignment.note, "Pemasangan dibatalkan; kembali ke Inventory"].filter(Boolean).join(" · ") } });
+      await tx.stockUnit.update({ where: { id: assignment.stockUnitId }, data: { status: "IN_STOCK", locationId, scrappedAt: null } });
+      await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: assignment.stockUnit.itemId, locationId } }, create: { itemId: assignment.stockUnit.itemId, locationId, qty: 1 }, update: { qty: { increment: 1 } } });
+      if (assignment.stockUnit.inventoryBatchId) await tx.inventoryBatch.update({ where: { id: assignment.stockUnit.inventoryBatchId }, data: { remainingQty: { increment: 1 } } });
+      await tx.stockMovement.create({ data: { type: "IN", itemId: assignment.stockUnit.itemId, qty: 1, unitPrice: assignment.installCost, totalCost: assignment.installCost, note: `RETURN_ASSIGNMENT:${assignment.id} · Pemasangan dibatalkan dari ${job.truck.plateNumber}`, createdById: req.user.id, toLocationId: locationId, maintenanceId, stockUnitId: assignment.stockUnitId } });
+      return assignment;
+    });
+    res.json({ returned });
+  } catch (e) {
+    console.error(e);
+    res.status(400).json({ error: e.message || "Gagal mengembalikan unit" });
+  }
+});
+
+////////////////////////////////////////////////////
+// RETURN UNUSED NON-SERIALIZED STOCK TO ITS SOURCE LOCATION
+////////////////////////////////////////////////////
+router.post("/:id/return-stock", authRequired, async (req, res) => {
+  try {
+    if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
+    const maintenanceId = req.params.id;
+    const movementId = String(req.body.movementId || "");
+    const requestedQty = num(req.body.qty, 0);
+    if (!movementId || requestedQty <= 0) return res.status(400).json({ error: "Movement dan jumlah pengembalian wajib diisi" });
+
+    const returned = await prisma.$transaction(async (tx) => {
+      const job = await tx.truckMaintenance.findUnique({ where: { id: maintenanceId }, select: { id: true, status: true, truckId: true, truck: { select: { plateNumber: true } } } });
+      if (!job || job.status !== "OPEN") throw new Error("Pengembalian hanya dapat dilakukan saat servis masih berjalan");
+      const movement = await tx.stockMovement.findFirst({ where: { id: movementId, maintenanceId, type: "OUT", stockUnitId: null }, include: { item: true } });
+      if (!movement || !movement.fromLocationId) throw new Error("Pemakaian stok dari Inventory tidak ditemukan");
+      if (movement.item.category === "OIL") throw new Error("Oli yang sudah digunakan tidak dapat dikembalikan ke Inventory");
+      const priorReturns = await tx.stockMovement.findMany({ where: { maintenanceId, type: "IN", note: { startsWith: `RETURN_OF:${movement.id}` } }, select: { qty: true } });
+      const alreadyReturned = priorReturns.reduce((sum, row) => sum + Number(row.qty || 0), 0);
+      const availableToReturn = Number(movement.qty) - alreadyReturned;
+      if (requestedQty > availableToReturn + 0.000001) throw new Error(`Maksimal yang dapat dikembalikan ${availableToReturn} ${movement.item.unit}`);
+      const truckStock = await tx.truckPartStock.findUnique({ where: { truckId_itemId: { truckId: job.truckId, itemId: movement.itemId } } });
+      if (Number(truckStock?.qty || 0) < requestedQty) throw new Error("Jumlah stok yang tercatat di mobil tidak mencukupi");
+      const returnCost = movement.unitPrice == null ? null : Math.round(Number(movement.unitPrice) * requestedQty);
+
+      await tx.truckPartStock.update({ where: { truckId_itemId: { truckId: job.truckId, itemId: movement.itemId } }, data: { qty: { decrement: requestedQty } } });
+      await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: movement.itemId, locationId: movement.fromLocationId } }, create: { itemId: movement.itemId, locationId: movement.fromLocationId, qty: requestedQty }, update: { qty: { increment: requestedQty } } });
+      await tx.inventoryBatch.create({ data: { itemId: movement.itemId, locationId: movement.fromLocationId, receivedQty: requestedQty, remainingQty: requestedQty, unitPrice: movement.unitPrice, receivedAt: new Date() } });
+      return tx.stockMovement.create({ data: { type: "IN", itemId: movement.itemId, qty: requestedQty, unitPrice: movement.unitPrice, totalCost: returnCost, note: `RETURN_OF:${movement.id} · Pemakaian dibatalkan dari ${job.truck.plateNumber}`, createdById: req.user.id, toLocationId: movement.fromLocationId, maintenanceId } });
+    });
+    res.json({ returned });
+  } catch (e) {
+    console.error(e);
+    res.status(400).json({ error: e.message || "Gagal mengembalikan stok" });
   }
 });
 

@@ -12,7 +12,7 @@ router.get("/overview", async (_req, res) => {
     prisma.customer.findMany({ orderBy: { name: "asc" } }),
     prisma.inventoryLocation.findMany({ orderBy: { name: "asc" } }),
     prisma.operationalLocation.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
-    prisma.materialStockReceipt.findMany({ include: { customer: true, location: true, allocations: { include: { materialInvoiceLine: { include: { materialInvoice: { include: { trip: { include: { truck: true } } } } } } } } }, orderBy: { receivedAt: "desc" } }),
+    prisma.materialStockReceipt.findMany({ where: { qtyRemaining: { gt: 0 } }, include: { customer: true, location: true, allocations: { include: { materialInvoiceLine: { include: { materialInvoice: { include: { trip: { include: { truck: true } } } } } } } } }, orderBy: { receivedAt: "desc" } }),
     prisma.trip.findMany({ where: { status: { notIn: ["COMPLETED", "CANCELLED"] }, purpose: { not: "EMPTY_RETURN" } }, include: { truck: true, order: true, dispatchLetter: true }, orderBy: { createdAt: "desc" } }),
   ]);
   res.json({ customers, locations: storageLocations, storageLocations, destinations, receipts, trips });

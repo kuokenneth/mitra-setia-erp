@@ -406,7 +406,7 @@ model GoodsReceipt {
   createdBy               User                 @relation("GoodsReceiptCreatedBy", fields: [createdById], references: [id])
   items                   GoodsReceiptItem[]
   inventoryBatches        InventoryBatch[]
-  supplierBillLine        SupplierBillReceipt?
+  supplierBillLines       SupplierBillReceipt[]
 }
 
 model SupplierBill {
@@ -426,6 +426,7 @@ model SupplierBill {
   status        SupplierBillStatus    @default(OPEN)
   receipts      SupplierBillReceipt[]
   items         SupplierBillItem[]
+  attachments   SupplierBillAttachment[]
   payments      PurchasePayment[]
   createdById   String
   createdBy     User                  @relation("SupplierBillCreatedBy", fields: [createdById], references: [id])
@@ -436,15 +437,29 @@ model SupplierBill {
   @@index([supplierId, status])
 }
 
+model SupplierBillAttachment {
+  id        String       @id @default(cuid())
+  billId    String
+  bill      SupplierBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  url       String
+  fileName  String?
+  mimeType  String?
+  size      Int?
+  createdAt DateTime     @default(now())
+
+  @@index([billId])
+}
+
 model SupplierBillReceipt {
   id        String       @id @default(cuid())
   billId    String
   bill      SupplierBill @relation(fields: [billId], references: [id], onDelete: Cascade)
-  receiptId String       @unique
+  receiptId String
   receipt   GoodsReceipt @relation(fields: [receiptId], references: [id])
   amount    Int
 
   @@index([billId])
+  @@unique([billId, receiptId])
 }
 
 model SupplierBillItem {

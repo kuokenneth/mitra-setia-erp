@@ -1,8 +1,13 @@
 .material-proof-menu { position: relative; width: max-content; }
-.material-proof-menu > summary { display: inline-flex; align-items: center; gap: 6px; min-width: 84px; padding: 7px 10px; border: 1px solid #cfe1d5; border-radius: 8px; background: #f3f9f5; color: #267249; font-size: 10px; font-weight: 800; cursor: pointer; list-style: none; }
-.material-proof-menu > summary::-webkit-details-marker { display: none; }
-.material-proof-menu > div { position: absolute; z-index: 8; top: calc(100% + 5px); right: 0; display: grid; width: 230px; max-height: 220px; overflow: auto; padding: 6px; border: 1px solid #dce6df; border-radius: 10px; background: #fff; box-shadow: 0 12px 30px rgba(24,57,38,.16); }
-.material-proof-menu button { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px; border: 0; border-radius: 7px; background: transparent; color: #33483c; text-align: left; cursor: pointer; }
-.material-proof-menu button:hover { background: #f0f7f2; }
-.material-proof-menu button span { display: grid; gap: 2px; }
-.material-proof-menu button small { margin: 0; font-size: 8px; }
+.material-proof-trigger { display: inline-flex; align-items: center; gap: 6px; min-width: 84px; padding: 7px 10px; border: 1px solid #cfe1d5; border-radius: 8px; background: #f3f9f5; color: #267249; font-size: 10px; font-weight: 800; cursor: pointer; }
+.material-proof-menu > div { position: absolute; z-index: 8; top: calc(100% + 5px); right: 0; display: none; width: 230px; max-height: 220px; overflow: auto; padding: 6px; border: 1px solid #dce6df; border-radius: 10px; background: #fff; box-shadow: 0 12px 30px rgba(24,57,38,.16); }
+.material-proof-menu:hover > div,
+.material-proof-menu:focus-within > div,
+.material-proof-menu.is-open > div { display: grid; }
+.material-proof-menu > div > button { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px; border: 0; border-radius: 7px; background: transparent; color: #33483c; text-align: left; cursor: pointer; }
+.material-proof-menu > div > button:hover { background: #f0f7f2; }
+.material-proof-menu > div > button span { display: grid; gap: 2px; }
+.material-proof-menu > div > button small { margin: 0; font-size: 8px; }
+
+.material-proof-menu::after { position: absolute; top: 100%; right: 0; width: 100%; height: 6px; content: ""; }
+.material-board tbody tr:nth-last-child(-n+2) .material-proof-menu > div { top: auto; bottom: calc(100% + 5px); }

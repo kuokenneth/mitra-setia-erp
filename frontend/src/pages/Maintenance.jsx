@@ -826,6 +826,30 @@ export default function Maintenance() {
     }
   }
 
+  async function returnSerializedUnit(assignment) {
+    if (!activeJob?.id || !assignment?.id) return;
+    if (!window.confirm(`Kembalikan ${assignment.stockUnit?.serialNumber || assignment.stockUnit?.barcode || "unit ini"} ke Inventory?`)) return;
+    setAssigning(true); setErr("");
+    try {
+      await api(`/maintenance/${activeJob.id}/return-unit`, { method: "POST", body: JSON.stringify({ assignmentId: assignment.id }) });
+      await refreshDetail(); await load();
+    } catch (e) { setErr(e.message || "Gagal mengembalikan unit ke Inventory"); }
+    finally { setAssigning(false); }
+  }
+
+  async function returnNonSerializedStock(movement) {
+    if (!activeJob?.id || !movement?.id) return;
+    const alreadyReturned = (activeJob.movements || []).filter((row) => row.type === "IN" && String(row.note || "").startsWith(`RETURN_OF:${movement.id}`)).reduce((sum, row) => sum + Number(row.qty || 0), 0);
+    const remaining = Math.max(0, Number(movement.qty || 0) - alreadyReturned);
+    if (!remaining || !window.confirm(`Kembalikan ${remaining} ${movement.item?.unit || "unit"} ${movement.item?.name || "barang"} ke ${movement.fromLocation?.name || "Inventory"}?`)) return;
+    setUsingStock(true); setErr("");
+    try {
+      await api(`/maintenance/${activeJob.id}/return-stock`, { method: "POST", body: JSON.stringify({ movementId: movement.id, qty: remaining }) });
+      await refreshDetail(); await load();
+    } catch (e) { setErr(e.message || "Gagal mengembalikan stok ke Inventory"); }
+    finally { setUsingStock(false); }
+  }
+
   async function installDonorUnit() {
     if (!activeJob?.id || !donorAssignmentId) return;
     setAssigning(true); setErr("");
@@ -1784,6 +1808,7 @@ export default function Maintenance() {
                             {!a.removedAt && a.stockUnit?.status === "ASSIGNED" && activeJob.status === "OPEN" ? (
                               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                                 {a.stockUnit?.item?.category === "TIRE" && <Button variant="secondary" onClick={() => startTireAction(a, "RETREAD")}>Lepas & Masak</Button>}
+                                <Button variant="secondary" onClick={() => returnSerializedUnit(a)} disabled={assigning}>Kembali ke Inventory</Button>
                                 <Button variant="secondary" onClick={() => startRepair(a)}>Kirim Perbaikan</Button>
                                 <Button variant="danger" onClick={() => startTireAction(a, "SCRAP")}>Lepas & Scrap</Button>
                               </div>
@@ -1820,11 +1845,14 @@ export default function Maintenance() {
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Total Biaya</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Dari</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Catatan</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Tindakan</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(activeJob.movements || []).filter((m) => !m.stockUnitId && (m.type === "OUT" || (m.type === "ADJUST" && m.fromTruckId))).map((m) => (
-                        <tr key={m.id} style={{ borderBottom: `1px solid ${BRAND.border}` }}>
+                      {(activeJob.movements || []).filter((m) => !m.stockUnitId && (m.type === "OUT" || (m.type === "ADJUST" && m.fromTruckId))).map((m) => {
+                        const returnedQty=(activeJob.movements||[]).filter(row=>row.type==="IN"&&String(row.note||"").startsWith(`RETURN_OF:${m.id}`)).reduce((sum,row)=>sum+Number(row.qty||0),0);
+                        const returnableQty=m.type==="OUT"&&m.fromLocationId&&m.item?.category!=="OIL"?Math.max(0,Number(m.qty||0)-returnedQty):0;
+                        return <tr key={m.id} style={{ borderBottom: `1px solid ${BRAND.border}` }}>
                           <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{fmtDateTime(m.createdAt)}</td>
                           <td style={{ padding: "12px 8px", fontWeight: 500, color: BRAND.text }}>{m.type}</td>
                           <td style={{ padding: "12px 8px", color: BRAND.textLight }}>
@@ -1835,11 +1863,11 @@ export default function Maintenance() {
                           <td style={{ padding: "12px 8px", fontWeight: 600, color: BRAND.primary }}>{m.totalCost == null ? "—" : fmtMoney(m.totalCost)}</td>
                           <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{m.fromTruck?.plateNumber ? `${m.fromTruck.plateNumber} → ${m.toTruck?.plateNumber || activeJob.truck?.plateNumber}` : m.fromLocation?.name || "—"}</td>
                           <td style={{ padding: "12px 8px", color: BRAND.textMuted }}>{m.note || "—"}</td>
-                        </tr>
-                      ))}
+                          <td style={{ padding: "12px 8px" }}>{returnableQty>0&&activeJob.status==="OPEN"?<Button variant="secondary" onClick={()=>returnNonSerializedStock(m)} disabled={usingStock}>Kembalikan {returnableQty}</Button>:<span style={{color:BRAND.textMuted}}>{returnedQty>0?`Dikembalikan ${returnedQty}`:"—"}</span>}</td>
+                        </tr>})}
                       {(activeJob.movements || []).filter((m) => !m.stockUnitId && (m.type === "OUT" || (m.type === "ADJUST" && m.fromTruckId))).length === 0 && (
                         <tr>
-                          <td colSpan={8} style={{ padding: 16, color: BRAND.textMuted, textAlign: "center" }}>
+                          <td colSpan={9} style={{ padding: 16, color: BRAND.textMuted, textAlign: "center" }}>
                             Belum ada suku cadang non-serialized yang digunakan.
                           </td>
                         </tr>
