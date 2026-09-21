@@ -109,6 +109,71 @@ async function getDuplicateItemField({ sku, name, excludeId }) {
 }
 
 /**
+ * POST /inventory/legacy-tires/assign
+ * Register historical tires that are already installed on a truck.
+ * No warehouse balance, purchase receipt, or price is created.
+ */
+router.post(
+  "/legacy-tires/assign",
+  authRequired,
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
+  async (req, res) => {
+    const createdById = req.user?.id || null;
+    const { truckId, itemId, newItem, installedAt, note, units } = req.body || {};
+    const defaultInstalledDate = installedAt ? new Date(installedAt) : new Date();
+    if (Number.isNaN(defaultInstalledDate.getTime())) return res.status(400).json({ ok: false, error: "Tanggal pemasangan default tidak valid" });
+    const rows = Array.isArray(units) ? units.map((row) => ({
+      serialNumber: String(row?.serialNumber || "").trim(),
+      barcode: String(row?.barcode || "").trim() || null,
+      position: String(row?.position || "").trim() || null,
+      installedAt: row?.installedAt ? new Date(row.installedAt) : defaultInstalledDate,
+    })).filter((row) => row.serialNumber) : [];
+    if (!truckId) return res.status(400).json({ ok: false, error: "Pilih mobil terlebih dahulu" });
+    if (!itemId && (!String(newItem?.sku || "").trim() || !String(newItem?.name || "").trim())) return res.status(400).json({ ok: false, error: "Pilih jenis ban atau isi jenis ban baru" });
+    if (!rows.length) return res.status(400).json({ ok: false, error: "Masukkan minimal satu nomor seri ban" });
+    if (new Set(rows.map((row) => row.serialNumber.toLowerCase())).size !== rows.length) return res.status(400).json({ ok: false, error: "Nomor seri tidak boleh duplikat" });
+    if (rows.some((row) => Number.isNaN(row.installedAt.getTime()))) return res.status(400).json({ ok: false, error: "Ada tanggal pemasangan yang tidak valid" });
+    if (rows.some((row) => row.installedAt.getTime() > Date.now() + 60000)) return res.status(400).json({ ok: false, error: "Tanggal pemasangan tidak boleh di masa depan" });
+
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const truck = await tx.truck.findUnique({ where: { id: String(truckId) } });
+        if (!truck) throw new Error("Mobil tidak ditemukan");
+        let tireItem;
+        if (itemId) {
+          tireItem = await tx.item.findUnique({ where: { id: String(itemId) } });
+          if (!tireItem || tireItem.category !== "TIRE" || !tireItem.isSerialized) throw new Error("Item yang dipilih harus berupa Ban berserial");
+        } else {
+          const sku = String(newItem.sku).trim();
+          const name = String(newItem.name).trim();
+          const duplicate = await tx.item.findFirst({ where: { OR: [{ sku: { equals: sku, mode: "insensitive" } }, { name: { equals: name, mode: "insensitive" } }] } });
+          if (duplicate) throw new Error("SKU atau nama jenis ban sudah digunakan; pilih item yang sudah ada");
+          tireItem = await tx.item.create({ data: { sku, name, unit: "PCS", category: "TIRE", isSerialized: true } });
+        }
+
+        const serials = rows.map((row) => row.serialNumber);
+        const barcodes = rows.map((row) => row.barcode).filter(Boolean);
+        const existing = await tx.stockUnit.findFirst({ where: { OR: [{ serialNumber: { in: serials } }, ...(barcodes.length ? [{ barcode: { in: barcodes } }] : [])] } });
+        if (existing) throw new Error(`Nomor seri atau barcode sudah terdaftar: ${existing.serialNumber || existing.barcode}`);
+
+        const created = [];
+        for (const row of rows) {
+          const unit = await tx.stockUnit.create({ data: { itemId: tireItem.id, serialNumber: row.serialNumber, barcode: row.barcode, purchasePrice: null, purchasedAt: null, status: "ASSIGNED", locationId: null } });
+          const assignmentNote = ["Migrasi data ban lama", row.position ? `Posisi: ${row.position}` : null, note ? String(note).trim() : null].filter(Boolean).join(" · ");
+          const assignment = await tx.truckSparePartAssignment.create({ data: { truckId: truck.id, stockUnitId: unit.id, installedAt: row.installedAt, installCost: null, currency: "IDR", note: assignmentNote, createdById } });
+          await tx.stockMovement.create({ data: { type: "ADJUST", itemId: tireItem.id, qty: 1, unitPrice: null, totalCost: null, note: `Migrasi ban lama terpasang · ${truck.plateNumber}${row.position ? ` · ${row.position}` : ""}`, createdById, toTruckId: truck.id, stockUnitId: unit.id, createdAt: row.installedAt } });
+          created.push({ unit, assignment });
+        }
+        return { item: tireItem, truck, created };
+      });
+      res.status(201).json({ ok: true, count: result.created.length, ...result });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: String(e.message || e) });
+    }
+  }
+);
+
+/**
  * Helper: ensures InventoryStock row exists, returns it.
  */
 async function ensureStockRow(tx, itemId, locationId) {
@@ -470,7 +535,7 @@ router.get(
 );
 
 /**
- * GET /inventory/movements?itemId=&type=&from=YYYY-MM-DD&to=YYYY-MM-DD&limit=50
+ * GET /inventory/movements?itemId=&type=&from=YYYY-MM-DD&to=YYYY-MM-DD&q=&page=1&limit=20
  */
 router.get(
   "/movements",
@@ -479,19 +544,31 @@ router.get(
   async (req, res) => {
     const itemId = req.query.itemId ? String(req.query.itemId) : undefined;
     const type = req.query.type ? String(req.query.type) : undefined;
+    const q = String(req.query.q || "").trim();
     const from = req.query.from ? new Date(`${String(req.query.from)}T00:00:00.000`) : undefined;
     const to = req.query.to ? new Date(`${String(req.query.to)}T23:59:59.999`) : undefined;
-    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit || "50", 10)));
+    const page = Math.max(1, parseInt(req.query.page || "1", 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || "20", 10) || 20));
     if ((from && Number.isNaN(from.getTime())) || (to && Number.isNaN(to.getTime()))) {
       return res.status(400).json({ ok: false, error: "Format tanggal tidak valid" });
     }
 
-    const movements = await prisma.stockMovement.findMany({
-      where: {
+    const where = {
         ...(itemId ? { itemId } : {}),
         ...(type ? { type } : {}),
         ...(from || to ? { createdAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}),
-      },
+        ...(q ? { OR: [
+          { note: { contains: q, mode: "insensitive" } },
+          { item: { sku: { contains: q, mode: "insensitive" } } },
+          { item: { name: { contains: q, mode: "insensitive" } } },
+          { stockUnit: { serialNumber: { contains: q, mode: "insensitive" } } },
+          { stockUnit: { barcode: { contains: q, mode: "insensitive" } } },
+        ] } : {}),
+    };
+    const [total, movements] = await prisma.$transaction([
+      prisma.stockMovement.count({ where }),
+      prisma.stockMovement.findMany({
+      where,
       include: {
           item: true,
           createdBy: true,
@@ -507,11 +584,12 @@ router.get(
             },
           },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      skip: (page - 1) * limit,
       take: limit,
-    });
+    })]);
 
-    res.json({ ok: true, movements });
+    res.json({ ok: true, movements, pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) } });
   }
 );
 

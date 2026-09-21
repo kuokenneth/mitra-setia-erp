@@ -25,6 +25,11 @@ const BRAND = {
   warningLight: "#FEF3C7",
 };
 
+function localDateTimeValue(date = new Date()) {
+  const offset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
 //////////////////////
 // STYLES
 //////////////////////
@@ -440,8 +445,10 @@ export default function Inventory() {
   const [installForm, setInstallForm] = useState({ oldStockUnitId: "", oldPartDisposition: "SCRAPPED", note: "" });
   const [itemPage, setItemPage] = useState(1);
   const [unitPage, setUnitPage] = useState(1);
+  const [movementPage, setMovementPage] = useState(1);
   const [itemPagination, setItemPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
   const [unitPagination, setUnitPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
+  const [movementPagination, setMovementPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
   const [stockReportDate, setStockReportDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [printMenuOpen, setPrintMenuOpen] = useState(false);
 
@@ -454,6 +461,11 @@ export default function Inventory() {
   const [editItemForm, setEditItemForm] = useState(null);
   const [openReceive, setOpenReceive] = useState(false);
   const [openAssign, setOpenAssign] = useState(false);
+  const [openLegacyTire, setOpenLegacyTire] = useState(false);
+  const [legacyTireBusy, setLegacyTireBusy] = useState(false);
+  const [legacyTireNewItem, setLegacyTireNewItem] = useState(false);
+  const [legacyTireForm, setLegacyTireForm] = useState({ truckId: "", itemId: "", installedAt: localDateTimeValue(), note: "", sku: "", name: "" });
+  const [legacyTireRows, setLegacyTireRows] = useState([{ serialNumber: "", barcode: "", position: "", installedAt: localDateTimeValue() }]);
   const [openCreateLocation, setOpenCreateLocation] = useState(false);
   const [openConsume, setOpenConsume] = useState(false);
   const [openBarcode, setOpenBarcode] = useState(false);
@@ -533,20 +545,6 @@ export default function Inventory() {
       return text.includes(qNorm);
     });
   }, [units, qNorm]);
-
-  const filteredMovements = useMemo(() => {
-    if (!qNorm) return movements;
-    return movements.filter((m) => {
-      const text = `
-        ${m.type || ""}
-        ${m.item?.sku || ""} ${m.item?.name || ""}
-        ${m.note || ""}
-        ${m.fromLocation?.name || ""} ${m.toLocation?.name || ""}
-        ${m.stockUnitId || ""}
-      `.toLowerCase();
-      return text.includes(qNorm);
-    });
-  }, [movements, qNorm]);
 
   async function loadLocations() {
     const data = await api("/inventory/locations");
@@ -629,9 +627,10 @@ export default function Inventory() {
     setUnitPagination(data.pagination || { page, limit: 20, total: (data.units || []).length, totalPages: 1 });
   }
 
-  async function loadMovements() {
+  async function loadMovements(page = movementPage) {
     const qs = buildQuery({
-      limit: 120,
+      page,
+      limit: 20,
       itemId: unitItemId || undefined,
       from: mvFrom || undefined,
       to: mvTo || undefined,
@@ -639,6 +638,7 @@ export default function Inventory() {
     });
     const data = await api(`/inventory/movements${qs}`);
     setMovements(data.movements || []);
+    setMovementPagination(data.pagination || { page, limit:20, total:(data.movements || []).length, totalPages:1 });
   }
 
   async function loadBatches() {
@@ -768,6 +768,11 @@ export default function Inventory() {
     setUnitPage(page);
     setLoading(true);
     try { await loadUnits(page); } catch (e) { setErr(String(e?.message || e)); } finally { setLoading(false); }
+  }
+  async function changeMovementPage(page) {
+    setMovementPage(page);
+    setLoading(true);
+    try { await loadMovements(page); } catch (e) { setErr(String(e?.message || e)); } finally { setLoading(false); }
   }
   useLiveRefresh(refresh);
 
@@ -999,6 +1004,40 @@ export default function Inventory() {
     }
   }
 
+  async function openLegacyTireForm() {
+    setErr("");
+    setLegacyTireNewItem(false);
+    const defaultDate=localDateTimeValue();
+    setLegacyTireForm({ truckId: "", itemId: "", installedAt: defaultDate, note: "", sku: "", name: "" });
+    setLegacyTireRows([{ serialNumber: "", barcode: "", position: "", installedAt: defaultDate }]);
+    try {
+      const [, itemData] = await Promise.all([loadTrucks(), api("/inventory/items")]);
+      setReceiveItems(itemData.items || []);
+      setOpenLegacyTire(true);
+    } catch (e) { setErr(e.message || "Gagal menyiapkan data ban lama"); }
+  }
+
+  async function saveLegacyTires(event) {
+    event.preventDefault(); setLegacyTireBusy(true); setErr("");
+    try {
+      const units = legacyTireRows.map((row) => ({ ...row, serialNumber: row.serialNumber.trim(), barcode: row.barcode.trim(), position: row.position.trim(), installedAt:new Date(row.installedAt||legacyTireForm.installedAt).toISOString() })).filter((row) => row.serialNumber);
+      if (!units.length) throw new Error("Masukkan minimal satu nomor seri ban");
+      await api("/inventory/legacy-tires/assign", { method: "POST", body: JSON.stringify({
+        truckId: legacyTireForm.truckId,
+        itemId: legacyTireNewItem ? undefined : legacyTireForm.itemId,
+        newItem: legacyTireNewItem ? { sku: legacyTireForm.sku, name: legacyTireForm.name } : undefined,
+        installedAt: new Date(legacyTireForm.installedAt).toISOString(),
+        note: legacyTireForm.note || undefined,
+        units,
+      }) });
+      setOpenLegacyTire(false); setTab("UNITS"); setUnitStatus("ASSIGNED"); setUnitPage(1);
+      const [, unitData] = await Promise.all([loadItems(), api("/inventory/units?status=ASSIGNED&page=1&limit=20"), loadMovements()]);
+      setUnits(unitData.units || []);
+      setUnitPagination(unitData.pagination || { page:1, limit:20, total:(unitData.units || []).length, totalPages:1 });
+    } catch (e) { setErr(e.message || "Gagal mengalokasikan ban lama"); }
+    finally { setLegacyTireBusy(false); }
+  }
+
   async function updateBarcode() {
     setErr("");
     try {
@@ -1112,6 +1151,8 @@ export default function Inventory() {
 
             <button className="inventory-action inventory-action--soft" onClick={() => { setCreateItemError(""); setOpenCreateItem(true); }}><FiPlus /> Tambah Item</button>
 
+            <button className="inventory-action inventory-action--legacy" onClick={openLegacyTireForm}><FiTruck /> Alokasikan Ban Lama</button>
+
             <button
               className="inventory-action inventory-action--out"
               onClick={async () => {
@@ -1158,7 +1199,7 @@ export default function Inventory() {
             <div className="inventory-search"><FiSearch />
               <input
                 value={q}
-                onChange={(e) => { setQ(e.target.value); setItemPage(1); setUnitPage(1); }}
+                onChange={(e) => { setQ(e.target.value); setItemPage(1); setUnitPage(1); setMovementPage(1); }}
                 placeholder="Cari berdasarkan nama / SKU / barcode..."
                 onKeyDown={(e) => {
                   if (e.key === "Enter") refresh();
@@ -1236,13 +1277,22 @@ export default function Inventory() {
               </>
             ) : null}
 
-            {tab === "MOVEMENTS" ? <MovementsTable movements={filteredMovements} loading={loading} from={mvFrom} to={mvTo} onFromChange={setMvFrom} onToChange={setMvTo} onApply={refresh} /> : null}
+            {tab === "MOVEMENTS" ? <><MovementsTable movements={movements} loading={loading} from={mvFrom} to={mvTo} onFromChange={(value)=>{setMvFrom(value);setMovementPage(1)}} onToChange={(value)=>{setMvTo(value);setMovementPage(1)}} onApply={()=>{setMovementPage(1);loadMovements(1)}}/><Pagination pagination={movementPagination} onChange={changeMovementPage}/></> : null}
             {tab === "BATCHES" ? <BatchesTable batches={batches} loading={loading} /> : null}
             {tab === "EMERGENCY" ? <div className="inventory-emergency"><div className="inventory-emergency-head"><div><h2>Pengiriman Sparepart Darurat</h2><p>Stok keluar saat dikirim dan pemasangan dikonfirmasi saat barang diterima.</p></div><button type="button" onClick={openEmergencyForm}><FiPlus/> Buat Pengiriman</button></div><div className="inventory-emergency-list">{emergencyDispatches.map((dispatch) => <article key={dispatch.id}><span className={dispatch.status.toLowerCase()}>{dispatch.status === "IN_TRANSIT" ? "DALAM PERJALANAN" : "TERPASANG"}</span><h3>{dispatch.item?.name || "Sparepart"} · {dispatch.qty} {dispatch.item?.unit || ""}</h3><p>{dispatch.fromLocation?.name || "Gudang"} → <b>{dispatch.targetTruck?.plateNumber}</b></p><small>Dibawa {dispatch.carrierTruck?.plateNumber || "—"}{dispatch.stockUnit ? ` · Serial ${dispatch.stockUnit.serialNumber || dispatch.stockUnit.barcode}` : ""}</small>{dispatch.status === "IN_TRANSIT" && <button type="button" onClick={() => openInstallDispatch(dispatch)}>Konfirmasi diterima & pasang</button>}</article>)}{!emergencyDispatches.length && <div className="inventory-emergency-empty">Belum ada pengiriman sparepart darurat.</div>}</div></div> : null}
           </div>
         </div>
 
         {/* MODALS */}
+        <Modal open={openLegacyTire} eyebrow="MIGRASI DATA LAMA" title="Alokasikan ban langsung ke mobil" description="Catat ban yang sudah terpasang sebelum sistem digunakan. Harga dan stok gudang tidak terpengaruh." onClose={() => !legacyTireBusy && setOpenLegacyTire(false)}>
+          <form className="legacy-tire-form" onSubmit={saveLegacyTires}>
+            <section><header><b>01</b><span><strong>Mobil dan tanggal default</strong><small>Tanggal setiap ban tetap dapat diubah pada tabel.</small></span></header><div className="legacy-tire-grid"><label>Mobil<TruckSearchSelect trucks={trucks} value={legacyTireForm.truckId} onChange={(truckId) => setLegacyTireForm((form) => ({ ...form, truckId }))} placeholder="Cari nomor polisi..."/></label><label>Tanggal default baris baru<input required type="datetime-local" max={localDateTimeValue()} value={legacyTireForm.installedAt} onChange={(event) => setLegacyTireForm((form) => ({ ...form, installedAt:event.target.value }))}/></label></div></section>
+            <section><header><b>02</b><span><strong>Jenis ban</strong><small>Pilih master yang tersedia atau buat jenis ban baru.</small></span></header><div className="legacy-tire-mode"><button type="button" className={!legacyTireNewItem?"active":""} onClick={()=>setLegacyTireNewItem(false)}>Pilih jenis ban</button><button type="button" className={legacyTireNewItem?"active":""} onClick={()=>setLegacyTireNewItem(true)}>Jenis ban baru</button></div>{legacyTireNewItem?<div className="legacy-tire-grid"><label>SKU ban<input required value={legacyTireForm.sku} onChange={(event)=>setLegacyTireForm((form)=>({...form,sku:event.target.value}))} placeholder="Contoh: BAN-1100-R20"/></label><label>Nama / jenis ban<input required value={legacyTireForm.name} onChange={(event)=>setLegacyTireForm((form)=>({...form,name:event.target.value}))} placeholder="Contoh: Ban 11.00 R20"/></label></div>:<label>Jenis ban<select required value={legacyTireForm.itemId} onChange={(event)=>setLegacyTireForm((form)=>({...form,itemId:event.target.value}))}><option value="">Pilih jenis ban...</option>{receiveItems.filter((item)=>item.category==="TIRE"&&item.isSerialized).map((item)=><option key={item.id} value={item.id}>{item.sku} — {item.name}</option>)}</select></label>}</section>
+            <section><header><b>03</b><span><strong>Daftar ban terpasang</strong><small>Nomor seri dapat memakai tanggal yang sama maupun berbeda.</small></span></header><div className="legacy-tire-table"><div className="legacy-tire-table-head"><span>No.</span><span>Nomor seri</span><span>Tanggal dipasang</span><span>Barcode</span><span>Posisi</span><span/></div>{legacyTireRows.map((row,index)=><div className="legacy-tire-row" key={index}><b>{index+1}</b><input required value={row.serialNumber} onChange={(event)=>setLegacyTireRows((rows)=>rows.map((current,rowIndex)=>rowIndex===index?{...current,serialNumber:event.target.value}:current))} placeholder="Nomor seri ban"/><input required type="datetime-local" max={localDateTimeValue()} value={row.installedAt} onChange={(event)=>setLegacyTireRows((rows)=>rows.map((current,rowIndex)=>rowIndex===index?{...current,installedAt:event.target.value}:current))}/><input value={row.barcode} onChange={(event)=>setLegacyTireRows((rows)=>rows.map((current,rowIndex)=>rowIndex===index?{...current,barcode:event.target.value}:current))} placeholder="Opsional"/><input value={row.position} onChange={(event)=>setLegacyTireRows((rows)=>rows.map((current,rowIndex)=>rowIndex===index?{...current,position:event.target.value}:current))} placeholder="Depan kiri"/><button type="button" disabled={legacyTireRows.length===1} onClick={()=>setLegacyTireRows((rows)=>rows.filter((_,rowIndex)=>rowIndex!==index))}><FiX/></button></div>)}</div><button className="legacy-tire-add" type="button" onClick={()=>setLegacyTireRows((rows)=>[...rows,{serialNumber:"",barcode:"",position:"",installedAt:legacyTireForm.installedAt}])}><FiPlus/> Tambah ban</button></section>
+            <label className="legacy-tire-note">Catatan <em>Opsional</em><textarea rows="2" value={legacyTireForm.note} onChange={(event)=>setLegacyTireForm((form)=>({...form,note:event.target.value}))} placeholder="Kondisi awal atau keterangan data lama..."/></label>
+            <footer><span>Tidak membuat harga pembelian maupun saldo gudang.</span><button type="button" disabled={legacyTireBusy} onClick={()=>setOpenLegacyTire(false)}>Batal</button><button disabled={legacyTireBusy||!legacyTireForm.truckId||(!legacyTireNewItem&&!legacyTireForm.itemId)}>{legacyTireBusy?"Menyimpan...":`Simpan ${legacyTireRows.length} Ban`}</button></footer>
+          </form>
+        </Modal>
         <Modal open={openEmergency} eyebrow="PENGIRIMAN DARURAT" title="Kirim sparepart ke armada" description="Pilih armada dan barang, lalu sertakan bukti kerusakan sebelum stok dikeluarkan." onClose={() => setOpenEmergency(false)}>
           <form className="inventory-emergency-form redesigned" onSubmit={createEmergencyDispatch}>
             {emergencyPreparing && <div className="emergency-form-loading"><span></span> Menyiapkan data kendaraan dan stok…</div>}
@@ -1997,7 +2047,7 @@ function UnitsTable({
                 <th style={th}>Location</th>
                 <th style={th}>Asal Pembelian</th>
                 <th style={th}>Kendaraan</th>
-                <th style={th}>Tindakan</th>
+                <th style={{ ...th, minWidth: 190 }}>Tindakan</th>
               </tr>
             </thead>
             <tbody>
@@ -2023,30 +2073,30 @@ function UnitsTable({
                       {u.retreadCount > 0 || latestRetread ? <div style={{ fontSize: 12, marginTop: 4, color: BRAND.primary }}>Masak {u.retreadCount || 0}×{latestRetread?.supplier?.name ? ` · ${latestRetread.supplier.name}` : ""}</div> : null}
                     </td>
                     <td style={tdSoft}>{truck?.plateNumber || "-"}</td>
-                    <td style={td}>
-                      <div style={{ display: "flex", gap: 6 }}>
+                    <td style={{ ...td, minWidth: 190 }}>
+                      <div className="inventory-unit-actions">
                         {u.status === "IN_STOCK" ? (
                           <Btn
-                            style={{ ...btn, height: 28, padding: "0 10px", fontSize: 11 }}
+                            style={{ ...btn, height: 30, padding: "0 10px", fontSize: 11 }}
                             onClick={() => onAssign(u)}
                           >
                             Assign
                           </Btn>
                         ) : null}
                         {u.status === "RETREADING" ? (
-                          <Btn style={{ ...btnPrimary, height: 28, padding: "0 10px", fontSize: 11 }} onClick={() => onCompleteRetread(u)}>
+                          <Btn style={{ ...btnPrimary, height: 30, padding: "0 10px", fontSize: 11 }} onClick={() => onCompleteRetread(u)}>
                             Selesai Masak
                           </Btn>
                         ) : null}
                         <Btn
-                          style={{ ...btn, height: 28, padding: "0 10px", fontSize: 11 }}
+                          style={{ ...btn, height: 30, padding: "0 10px", fontSize: 11 }}
                           onClick={() => onBarcode(u)}
                         >
                           Barcode
                         </Btn>
                         {u.status !== "SCRAPPED" && u.status !== "RETREADING" ? (
                           <Btn
-                            style={{ ...btnDanger, height: 28, padding: "0 10px", fontSize: 11 }}
+                            style={{ ...btnDanger, height: 30, padding: "0 10px", fontSize: 11 }}
                             onClick={() => onScrap(u)}
                           >
                             {u.status === "ASSIGNED" ? "Lepas & Scrap" : "Scrap"}

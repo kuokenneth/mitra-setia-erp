@@ -61,6 +61,7 @@ export default function Trucks() {
   const [movQ, setMovQ] = useState("");
   const [movFrom, setMovFrom] = useState("");
   const [movTo, setMovTo] = useState("");
+  const [movPage, setMovPage] = useState(1);
   const [monthTotal, setMonthTotal] = useState(0);
   const [monthCurrency, setMonthCurrency] = useState("IDR");
   const [stnkRenewal, setStnkRenewal] = useState(null);
@@ -348,7 +349,20 @@ export default function Trucks() {
     setSelectedTruck(truck);
     setAssignments([]);
     setMovErr("");
+    setMovPage(1);
   }
+
+  const movementPageSize = 10;
+  const movementTotalPages = Math.max(1, Math.ceil(assignments.length / movementPageSize));
+  const pagedAssignments = useMemo(() => {
+    const safePage = Math.min(movPage, movementTotalPages);
+    const start = (safePage - 1) * movementPageSize;
+    return assignments.slice(start, start + movementPageSize);
+  }, [assignments, movPage, movementTotalPages]);
+
+  useEffect(() => {
+    if (movPage > movementTotalPages) setMovPage(movementTotalPages);
+  }, [movPage, movementTotalPages]);
 
   const totalPages = useMemo(() => {
     const n = Math.ceil((items.length || 0) / pageSize);
@@ -650,17 +664,17 @@ export default function Trucks() {
               <input
                 style={s.searchInput}
                 value={movQ}
-                onChange={(e) => setMovQ(e.target.value)}
+                onChange={(e) => { setMovQ(e.target.value); setMovPage(1); }}
                 placeholder="Cari nama barang atau catatan…"
               />
             </div>
 
             <div style={s.movDates}>
-              <input type="date" style={s.dateInput} value={movFrom} onChange={(e) => setMovFrom(e.target.value)} />
-              <input type="date" style={s.dateInput} value={movTo} onChange={(e) => setMovTo(e.target.value)} />
+              <input type="date" style={s.dateInput} value={movFrom} onChange={(e) => { setMovFrom(e.target.value); setMovPage(1); }} />
+              <input type="date" style={s.dateInput} value={movTo} onChange={(e) => { setMovTo(e.target.value); setMovPage(1); }} />
             </div>
 
-            <button style={s.ghostBtn} disabled={asgLoading} onClick={() => { setMovQ(""); setMovFrom(""); setMovTo(""); loadAssignments(selectedTruck.id); }}>Atur Ulang</button>
+            <button style={s.ghostBtn} disabled={asgLoading} onClick={() => { setMovQ(""); setMovFrom(""); setMovTo(""); setMovPage(1); loadAssignments(selectedTruck.id); }}>Atur Ulang</button>
 
             <span style={s.monthBadge}>
               Bulan ini: {fmtMoney(monthTotal, monthCurrency)}
@@ -687,7 +701,7 @@ export default function Trucks() {
                 ) : assignments.length === 0 ? (
                   <tr><td style={s.empty} colSpan={6}>Belum ada riwayat suku cadang kendaraan ini.</td></tr>
                 ) : (
-                  assignments.map((a) => (
+                  pagedAssignments.map((a) => (
                     <tr key={a.id} style={s.tr}>
                       <td style={s.td}>{fmtDateTime(a.installedAt)}</td>
                       <td style={s.td}>{a.removedAt ? fmtDateTime(a.removedAt) : "-"}</td>
@@ -713,6 +727,7 @@ export default function Trucks() {
                 )}
               </tbody>
             </table>
+            {!asgLoading && assignments.length > 0 && <div className="fleet-movement-pagination"><span>Menampilkan {(movPage-1)*movementPageSize+1}–{Math.min(movPage*movementPageSize,assignments.length)} dari {assignments.length} data</span><div><button type="button" disabled={movPage<=1} onClick={()=>setMovPage((page)=>Math.max(1,page-1))}>← Sebelumnya</button><b>Halaman {movPage} / {movementTotalPages}</b><button type="button" disabled={movPage>=movementTotalPages} onClick={()=>setMovPage((page)=>Math.min(movementTotalPages,page+1))}>Berikutnya →</button></div></div>}
           </div>
           </div>
         </div>

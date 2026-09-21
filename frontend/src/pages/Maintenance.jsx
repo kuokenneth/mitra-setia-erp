@@ -302,6 +302,46 @@ function SearchableStockUnitPicker({ units, value, onChange, disabled, placehold
   );
 }
 
+function SearchableDonorUnitPicker({ assignments, value, onChange, disabled, testId }) {
+  const [query, setQuery] = useState("");
+  const selected = assignments.find((assignment) => assignment.id === value) || null;
+  const filtered = useMemo(() => {
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return assignments.slice(0, 100);
+    return assignments.filter((assignment) => `${assignment.stockUnit?.serialNumber || ""} ${assignment.stockUnit?.barcode || ""} ${assignment.truck?.plateNumber || ""}`.toLowerCase().includes(keyword)).slice(0, 100);
+  }, [assignments, query]);
+  const label = (assignment) => `${assignment.stockUnit?.serialNumber || assignment.stockUnit?.barcode || assignment.id.slice(0, 8)} • ${assignment.truck?.plateNumber || "Nomor polisi tidak tersedia"}`;
+  return <div>
+    <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari nomor seri / nomor polisi donor..." disabled={disabled} data-testid={testId} />
+    <div style={{ maxHeight: 160, overflowY: "auto", marginTop: 8, border: `1px solid ${BRAND.border}`, borderRadius: 6, background: BRAND.white }}>
+      {!filtered.length ? <div style={{ padding: 12, fontSize: 13, color: BRAND.textMuted }}>Tidak ada unit atau mobil donor yang cocok.</div> : filtered.map((assignment) => <button type="button" key={assignment.id} disabled={disabled} onClick={() => { onChange(assignment.id); setQuery(""); }} style={{ display: "block", width: "100%", padding: "10px 12px", border: "none", borderBottom: `1px solid ${BRAND.border}`, background: assignment.id === value ? BRAND.successBg : BRAND.white, boxShadow: assignment.id === value ? `inset 4px 0 0 ${BRAND.primary}` : "none", color: BRAND.text, textAlign: "left", cursor: disabled ? "not-allowed" : "pointer", fontSize: 13 }}>
+        {assignment.id === value && <strong style={{ color: BRAND.primary, marginRight: 7 }}>✓</strong>}{label(assignment)}
+      </button>)}
+    </div>
+    <div style={{ minHeight: 18, marginTop: 8, padding: "9px 11px", borderRadius: 6, border: `1px solid ${selected ? BRAND.primary : BRAND.border}`, background: selected ? BRAND.successBg : BRAND.secondary, fontSize: 12, color: selected ? BRAND.primary : BRAND.textMuted, fontWeight: selected ? 700 : 400 }}>{selected ? `✓ DONOR DIPILIH: ${label(selected)}` : "Pilih unit berdasarkan nomor seri atau nomor polisi mobil donor."}</div>
+  </div>;
+}
+
+function SearchableSwapUnitPicker({ assignments, value, onChange, disabled, plateNumber, testId }) {
+  const [query, setQuery] = useState("");
+  const selected = assignments.find((assignment) => assignment.stockUnitId === value) || null;
+  const filtered = useMemo(() => {
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return assignments.slice(0, 100);
+    return assignments.filter((assignment) => `${assignment.stockUnit?.serialNumber || ""} ${assignment.stockUnit?.barcode || ""} ${assignment.stockUnit?.item?.sku || ""} ${assignment.stockUnit?.item?.name || ""} ${plateNumber || ""}`.toLowerCase().includes(keyword)).slice(0, 100);
+  }, [assignments, plateNumber, query]);
+  const label = (assignment) => `${assignment.stockUnit?.serialNumber || assignment.stockUnit?.barcode || assignment.stockUnitId.slice(0, 8)} • ${plateNumber || "Mobil servis"}`;
+  return <div>
+    <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari nomor seri / nomor polisi mobil servis..." disabled={disabled} data-testid={testId} />
+    <div style={{ maxHeight: 160, overflowY: "auto", marginTop: 8, border: `1px solid ${BRAND.border}`, borderRadius: 6, background: BRAND.white }}>
+      {!filtered.length ? <div style={{ padding: 12, fontSize: 13, color: BRAND.textMuted }}>Tidak ada unit mobil servis yang cocok.</div> : filtered.map((assignment) => <button type="button" key={assignment.assignmentId || assignment.stockUnitId} disabled={disabled} onClick={() => { onChange(assignment.stockUnitId); setQuery(""); }} style={{ display: "block", width: "100%", padding: "10px 12px", border: "none", borderBottom: `1px solid ${BRAND.border}`, background: assignment.stockUnitId === value ? BRAND.warningBg : BRAND.white, boxShadow: assignment.stockUnitId === value ? `inset 4px 0 0 ${BRAND.warning}` : "none", color: BRAND.text, textAlign: "left", cursor: disabled ? "not-allowed" : "pointer", fontSize: 13 }}>
+        {assignment.stockUnitId === value && <strong style={{ color: BRAND.warning, marginRight: 7 }}>✓</strong>}{label(assignment)}
+      </button>)}
+    </div>
+    <div style={{ minHeight: 18, marginTop: 8, padding: "9px 11px", borderRadius: 6, border: `1px solid ${selected ? BRAND.warning : BRAND.border}`, background: selected ? BRAND.warningBg : BRAND.secondary, fontSize: 12, color: selected ? BRAND.text : BRAND.textMuted, fontWeight: selected ? 700 : 400 }}>{selected ? `✓ UNIT TUKAR DIPILIH: ${label(selected)}` : "Pilih unit dari mobil servis yang akan dipasang ke mobil donor."}</div>
+  </div>;
+}
+
 function SearchableInstalledUnitPicker({ assignments, value, onChange, disabled, loading, testId }) {
   const [query, setQuery] = useState("");
   const selected = assignments.find((assignment) => assignment.stockUnitId === value) || null;
@@ -1621,18 +1661,14 @@ export default function Maintenance() {
                       disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId}
                       placeholder="Cari serial / barcode unit baru..."
                       testId="stock-unit-search"
-                    /></div> : <div className="maintenance-part-field"><label>Unit dan mobil donor</label><Select value={donorAssignmentId} onChange={(e) => setDonorAssignmentId(e.target.value)} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId}>
-                      <option value="">Pilih unit dari mobil lain...</option>
-                      {donorUnits.map((a) => <option key={a.id} value={a.id}>{a.stockUnit?.serialNumber || a.stockUnit?.barcode} · {a.truck?.plateNumber}</option>)}
-                    </Select></div>}
-                    {serializedSource === "DONOR" && <div className="maintenance-part-field"><label>Cara pemindahan</label><Select value={donorMode} onChange={(e) => { setDonorMode(e.target.value); if (e.target.value === "TAKE_ONLY") setReturnStockUnitId(""); }} disabled={!allowed || activeJob.status !== "OPEN" || !donorAssignmentId}>
-                      <option value="TAKE_ONLY">Ambil saja — mobil donor dibiarkan tanpa unit</option>
-                      <option value="SWAP">Tukar sparepart antar mobil</option>
-                    </Select></div>}
-                    {serializedSource === "DONOR" && donorMode === "SWAP" && <div className="maintenance-part-field"><label>Unit dari mobil servis untuk ditukar</label><Select value={returnStockUnitId} onChange={(e) => setReturnStockUnitId(e.target.value)} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId}>
-                      <option value="">Pilih unit lama untuk mobil donor...</option>
-                      {returnAssignments.filter((a) => a.stockUnit?.itemId === assignItemId).map((a) => <option key={a.assignmentId} value={a.stockUnitId}>{a.stockUnit?.serialNumber || a.stockUnit?.barcode || a.stockUnitId}</option>)}
-                    </Select></div>}
+                    /></div> : <div className="maintenance-part-field"><label>Unit dan mobil donor</label><SearchableDonorUnitPicker assignments={donorUnits} value={donorAssignmentId} onChange={setDonorAssignmentId} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId} testId="donor-unit-search" /></div>}
+                    {serializedSource === "DONOR" && <div className="maintenance-donor-transfer-column">
+                      <div className="maintenance-part-field"><label>Cara pemindahan</label><Select value={donorMode} onChange={(e) => { setDonorMode(e.target.value); if (e.target.value === "TAKE_ONLY") setReturnStockUnitId(""); }} disabled={!allowed || activeJob.status !== "OPEN" || !donorAssignmentId}>
+                        <option value="TAKE_ONLY">Ambil saja — mobil donor dibiarkan tanpa unit</option>
+                        <option value="SWAP">Tukar sparepart antar mobil</option>
+                      </Select></div>
+                      {donorMode === "SWAP" && <div className="maintenance-part-field"><label>Unit dari mobil servis untuk ditukar</label><SearchableSwapUnitPicker assignments={returnAssignments.filter((a) => a.stockUnit?.itemId === assignItemId)} value={returnStockUnitId} onChange={setReturnStockUnitId} plateNumber={activeJob?.truck?.plateNumber} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId} testId="swap-unit-search" /></div>}
+                    </div>}
                     {serializedSource === "INVENTORY" && <div className="maintenance-part-field"><label>Unit lama yang dilepas <em>Opsional</em></label><Select value={returnStockUnitId} onChange={(e) => setReturnStockUnitId(e.target.value)} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId}>
                       <option value="">Tidak mengganti unit lama</option>
                       {returnAssignments.map((a) => <option key={a.assignmentId} value={a.stockUnitId}>Ganti {a.stockUnit?.item?.name} · {a.stockUnit?.serialNumber || a.stockUnit?.barcode || a.stockUnitId}</option>)}

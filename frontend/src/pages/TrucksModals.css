@@ -102,8 +102,10 @@
 .fleet-add-form button { min-height: 43px; border-radius: 9px !important; }
 .fleet-add-form > p { margin: -4px 0 0 !important; padding: 10px 12px; border-radius: 8px; background: #f5f8f6; color: #78857d !important; }
 
-.fleet-movement-modal { background: #fff !important; }
+.fleet-movement-modal { display: flex !important; flex-direction: column; height: min(900px, calc(100dvh - 48px)); max-height: calc(100dvh - 48px) !important; overflow: hidden !important; background: #fff !important; }
 .fleet-modal-hero { align-items: center !important; }
+.fleet-movement-modal > .fleet-modal-hero,
+.fleet-movement-modal > .fleet-movement-filters { flex: 0 0 auto; }
 .fleet-modal-hero > div:last-child button { border-radius: 9px !important; }
 .fleet-movement-filters {
   margin: 0 !important;
@@ -116,10 +118,16 @@
 .fleet-movement-filters input { border-radius: 8px !important; }
 .fleet-movement-filters button { border-radius: 8px !important; }
 .fleet-movement-filters > span { margin-left: auto; padding: 9px 12px !important; border-radius: 8px !important; background: #eaf3ed !important; color: #476d56 !important; }
-.fleet-movement-table-wrap { margin: 18px 20px 20px !important; border-color: #dfe6e1 !important; border-radius: 11px !important; }
+.fleet-movement-table-wrap { flex: 1 1 auto; min-height: 0; margin: 18px 20px 20px !important; overflow: auto !important; overscroll-behavior: contain; border-color: #dfe6e1 !important; border-radius: 11px !important; }
 .fleet-movement-table th { padding: 12px 14px !important; background: #f5f8f6 !important; color: #718078 !important; font-size: 10px !important; }
 .fleet-movement-table td { padding: 14px !important; border-color: #edf0ee !important; }
 .fleet-movement-table tbody tr:hover { background: #f9fbfa; }
+.fleet-movement-pagination { position: sticky; z-index: 3; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border-top: 1px solid #e5ebe7; background: #f8faf9; color: #718078; font-size: 11px; box-shadow: 0 -5px 14px rgba(35,65,46,.05); }
+.fleet-movement-pagination > div { display: flex; align-items: center; gap: 8px; }
+.fleet-movement-pagination button { padding: 7px 10px; border: 1px solid #d6e0d9; border-radius: 7px; background: #fff; color: #405248; font: inherit; font-weight: 700; cursor: pointer; }
+.fleet-movement-pagination button:hover:not(:disabled) { border-color: #96c2a6; color: #0d7c3d; background: #f1f9f4; }
+.fleet-movement-pagination button:disabled { cursor: not-allowed; opacity: .45; }
+.fleet-movement-pagination b { min-width: 92px; color: #405248; text-align: center; }
 
 @media (max-width: 720px) {
   .fleet-v2-overlay { padding: 12px !important; }
@@ -128,6 +136,9 @@
   .fleet-add-form > * { grid-column: 1 !important; }
   .fleet-movement-filters > span { width: 100%; margin-left: 0; box-sizing: border-box; }
   .fleet-modal-hero { align-items: flex-start !important; }
+  .fleet-movement-pagination { align-items: stretch; flex-direction: column; }
+  .fleet-movement-pagination > div { justify-content: space-between; }
+  .fleet-movement-pagination b { min-width: 0; }
 }
 
 /* Keep the complete create form reachable on tablet landscape and portrait. */
