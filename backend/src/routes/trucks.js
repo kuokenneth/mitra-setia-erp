@@ -31,7 +31,7 @@ function positiveNumber(value, fallback, minimum = 0) {
 router.get(
   "/",
   authRequired,
-  requireRole("OWNER", "ADMIN", "STAFF"),
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     try {
       const now = new Date();

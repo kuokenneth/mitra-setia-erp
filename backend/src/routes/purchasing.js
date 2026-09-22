@@ -8,7 +8,7 @@ const { notifyOwnerSafely } = require("../services/emailNotifications");
 const { nextDailyNumber } = require("../utils/documentNumber");
 const router = express.Router();
 
-const includePO = { supplier: true, request: { include: { maintenance: { include: { truck: true } } } }, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } }, partRepair: { include: { stockUnit: true } } } }, receipts: { include: { items: { include: { purchaseOrderItem: { include: { item: true } }, supplierBillItem: { include: { bill: true } } } }, location: true, createdBy: { select: { name: true } }, supplierBillLines: { include: { bill: true } } } }, payments: { include: { createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } } } };
+const includePO = { supplier: true, request: { include: { maintenance: { include: { truck: true } } } }, cancelledBy: { select: { id: true, name: true, email: true } }, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } }, partRepair: { include: { stockUnit: true } } } }, receipts: { include: { items: { include: { purchaseOrderItem: { include: { item: true } }, supplierBillItem: { include: { bill: true } } } }, location: true, createdBy: { select: { name: true } }, supplierBillLines: { include: { bill: true } } } }, payments: { include: { createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } } } };
 
 router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"));
 router.get("/overview", async (_req, res) => {
@@ -51,7 +51,7 @@ router.get("/orders/:id/print", async (req, res) => {
   res.type("html").send(documentHtml({
     title: "PURCHASE ORDER",
     subtitle: po.number,
-    meta: `Status: ${esc(po.status)}<br>Tanggal: ${fmtDate(po.createdAt)}`,
+    meta: `Status: ${esc(po.status)}<br>Tanggal: ${fmtDate(po.createdAt)}${po.status === "CANCELLED" ? `<br>Dibatalkan: ${fmtDate(po.cancelledAt, true)}<br>Alasan: ${esc(po.cancellationReason || "-")}` : ""}`,
     body: `<div class="summary"><div class="box">Supplier<b>${esc(po.supplier.name)}</b><span>${esc(po.supplier.address || "-")}</span></div><div class="box">Pengiriman<b>${esc(po.deliveryAddress || "-")}</b><span>Estimasi: ${fmtDate(po.estimatedArrival)}</span></div><div class="box">Termin<b>${esc(po.paymentTerms || "-")}</b><span>PR: ${esc(po.request?.number || "-")}</span></div></div><table><thead><tr><th>No</th><th>SKU</th><th>Barang</th><th class="right">Qty</th><th>Satuan</th><th class="right">Harga</th><th class="right">Jumlah</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="6" class="right">Subtotal</td><td class="right">${money(subtotal)}</td></tr><tr><td colspan="6" class="right">Ongkir + Pajak - Diskon</td><td class="right">${money(Number(po.shippingCost) + Number(po.tax) - Number(po.discount))}</td></tr><tr><td colspan="6" class="right"><b>TOTAL</b></td><td class="right"><b>${money(total)}</b></td></tr></tfoot></table><div class="signatures"><div>Dibuat oleh</div><div>Supplier</div><div>Disetujui oleh</div></div>`,
   }));
 });
@@ -195,12 +195,39 @@ router.patch("/orders/:id/status", requireRole("OWNER", "ADMIN"), async (req, re
   if (!allowed.includes(req.body.status)) return res.status(400).json({ error: "Status PO tidak valid" });
   res.json({ ok: true, order: await prisma.purchaseOrder.update({ where: { id: req.params.id }, data: { status: req.body.status } }) });
 });
+router.patch("/orders/:id/cancel", requireRole("OWNER", "ADMIN"), async (req, res) => {
+  try {
+    const reason = String(req.body.reason || "").trim();
+    if (reason.length < 3) throw new Error("Alasan pembatalan wajib diisi");
+    const order = await prisma.purchaseOrder.findUnique({
+      where: { id: req.params.id },
+      include: { receipts: { select: { id: true } }, payments: { select: { id: true } }, items: { select: { receivedQty: true } } },
+    });
+    if (!order) return res.status(404).json({ error: "Purchase Order tidak ditemukan" });
+    if (order.status === "CANCELLED") throw new Error("Purchase Order sudah dibatalkan");
+    if (!["DRAFT", "APPROVED", "SENT_TO_SUPPLIER"].includes(order.status)) throw new Error("PO dengan status ini tidak dapat dibatalkan");
+    if (order.receipts.length || order.items.some(item => Number(item.receivedQty || 0) > 0)) throw new Error("PO yang sudah menerima barang tidak dapat dibatalkan");
+    if (order.payments.length) throw new Error("PO yang sudah memiliki pembayaran tidak dapat dibatalkan");
+    const updated = await prisma.$transaction(async tx => {
+      const cancelledAt = new Date();
+      await tx.purchaseRequest.update({
+        where: { id: order.requestId },
+        data: { status: "CANCELLED", approvalNotes: reason, approvedById: req.user.id, approvedAt: cancelledAt },
+      });
+      return tx.purchaseOrder.update({ where: { id: order.id }, data: { status: "CANCELLED", cancelledAt, cancellationReason: reason, cancelledById: req.user.id }, include: includePO });
+    });
+    res.json({ ok: true, order: updated });
+  } catch (error) {
+    res.status(400).json({ error: error.message || "Gagal membatalkan Purchase Order" });
+  }
+});
 router.post("/receipts", async (req, res) => {
   const { purchaseOrderId, locationId, deliveryNote, deliveryNoteProofUrl, deliveryNoteFileName, deliveryNoteMimeType, deliveryNoteSize, notes, supplierInvoiceNumber, supplierInvoiceDate, supplierInvoiceAmount, supplierInvoiceProofUrl, supplierInvoiceFileName, supplierInvoiceMimeType, supplierInvoiceSize, items = [] } = req.body;
   try {
   const receipt = await prisma.$transaction(async tx => {
     const po = await tx.purchaseOrder.findUnique({ where: { id: purchaseOrderId }, include: { request: { include: { maintenance: true } }, items: { include: { item: true, tireRetread: true, partRepair: true } } } });
     if (!po) throw new Error("Purchase Order tidak ditemukan");
+    if (!["SENT_TO_SUPPLIER", "PARTIALLY_RECEIVED"].includes(po.status)) throw new Error(po.status === "CANCELLED" ? "Purchase Order sudah dibatalkan" : "Purchase Order belum siap menerima barang");
     // The maintenance relation is traceability only. Receipt always enters stock;
     // mechanics install/use the item manually from the linked service afterward.
     const directMaintenance = null;

@@ -153,6 +153,7 @@ enum PurchaseRequestStatus {
   WAITING_APPROVAL
   APPROVED
   REJECTED
+  CANCELLED
 }
 
 enum PurchaseOrderStatus {
@@ -161,6 +162,7 @@ enum PurchaseOrderStatus {
   SENT_TO_SUPPLIER
   PARTIALLY_RECEIVED
   FULLY_RECEIVED
+  CANCELLED
 }
 
 enum PurchasePaymentStatus {
@@ -231,6 +233,7 @@ model User {
   purchaseRequests            PurchaseRequest[]          @relation("PurchaseRequestCreatedBy")
   purchaseRequestsApproved    PurchaseRequest[]          @relation("PurchaseRequestApprovedBy")
   purchaseOrdersCreated       PurchaseOrder[]            @relation("PurchaseOrderCreatedBy")
+  purchaseOrdersCancelled     PurchaseOrder[]            @relation("PurchaseOrderCancelledBy")
   goodsReceiptsCreated        GoodsReceipt[]             @relation("GoodsReceiptCreatedBy")
   materialStocksCreated       MaterialStockReceipt[]     @relation("MaterialStockCreatedBy")
   supplierBillsCreated        SupplierBill[]             @relation("SupplierBillCreatedBy")
@@ -354,6 +357,10 @@ model PurchaseOrder {
   estimatedArrival DateTime?
   createdById      String
   createdBy        User                @relation("PurchaseOrderCreatedBy", fields: [createdById], references: [id])
+  cancelledAt      DateTime?
+  cancellationReason String?
+  cancelledById    String?
+  cancelledBy      User?               @relation("PurchaseOrderCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
   items            PurchaseOrderItem[]
   receipts         GoodsReceipt[]
   payments         PurchasePayment[]
@@ -361,6 +368,7 @@ model PurchaseOrder {
   updatedAt        DateTime            @updatedAt
 
   @@index([status])
+  @@index([cancelledById])
 }
 
 model PurchaseOrderItem {
