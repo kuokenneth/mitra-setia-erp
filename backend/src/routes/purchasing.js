@@ -8,6 +8,74 @@ const { notifyOwnerSafely } = require("../services/emailNotifications");
 const { nextDailyNumber } = require("../utils/documentNumber");
 const router = express.Router();
 
+async function backfillLegacyConsumptionAllocations(tx, batch) {
+  const consumedQty = Math.max(0, Number(batch.receivedQty || 0) - Number(batch.remainingQty || 0));
+  const existing = await tx.stockMovementBatchAllocation.aggregate({
+    where: { batchId: batch.id },
+    _sum: { qty: true },
+  });
+  let qtyToLink = consumedQty - Number(existing._sum.qty || 0);
+  if (qtyToLink <= 0.000001 || batch.unitPrice == null) return;
+
+  const candidates = await tx.stockMovement.findMany({
+    where: {
+      type: "OUT",
+      itemId: batch.itemId,
+      fromLocationId: batch.locationId,
+      stockUnitId: null,
+      maintenanceId: { not: null },
+      createdAt: { gte: batch.receivedAt },
+      unitPrice: batch.unitPrice,
+    },
+    include: { batchAllocations: { select: { batchId: true, qty: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+  for (const movement of candidates) {
+    if (qtyToLink <= 0.000001) break;
+    if (movement.batchAllocations.some(allocation => allocation.batchId === batch.id)) continue;
+    const alreadyLinked = movement.batchAllocations.reduce((sum, allocation) => sum + Number(allocation.qty), 0);
+    const availableQty = Math.max(0, Number(movement.qty) - alreadyLinked);
+    const linkedQty = Math.min(availableQty, qtyToLink);
+    if (linkedQty <= 0.000001) continue;
+    await tx.stockMovementBatchAllocation.create({ data: { movementId: movement.id, batchId: batch.id, qty: linkedQty } });
+    qtyToLink -= linkedQty;
+  }
+}
+
+async function refreshAllocatedMovementCosts(tx, batchId) {
+  const allocations = await tx.stockMovementBatchAllocation.findMany({
+    where: { batchId },
+    select: { movementId: true },
+    distinct: ["movementId"],
+  });
+  for (const { movementId } of allocations) {
+    const movement = await tx.stockMovement.findUnique({
+      where: { id: movementId },
+      include: { batchAllocations: { include: { batch: { select: { unitPrice: true } } } } },
+    });
+    if (!movement) continue;
+    const allocatedQty = movement.batchAllocations.reduce((sum, allocation) => sum + Number(allocation.qty), 0);
+    if (allocatedQty + 0.000001 < Number(movement.qty)) continue;
+    const fullyPriced = movement.batchAllocations.every(allocation => allocation.batch.unitPrice != null);
+    const totalCost = fullyPriced
+      ? Math.round(movement.batchAllocations.reduce((sum, allocation) => sum + Number(allocation.qty) * Number(allocation.batch.unitPrice), 0))
+      : null;
+    const unitPrice = totalCost == null || Number(movement.qty) <= 0 ? null : Math.round(totalCost / Number(movement.qty));
+    await tx.stockMovement.update({ where: { id: movement.id }, data: { totalCost, unitPrice } });
+
+    const returns = await tx.stockMovement.findMany({
+      where: { type: "IN", note: { startsWith: `RETURN_OF:${movement.id}` } },
+      select: { id: true, qty: true },
+    });
+    for (const returned of returns) {
+      await tx.stockMovement.update({
+        where: { id: returned.id },
+        data: { unitPrice, totalCost: unitPrice == null ? null : Math.round(Number(returned.qty) * unitPrice) },
+      });
+    }
+  }
+}
+
 const includePO = { supplier: true, request: { include: { maintenance: { include: { truck: true } } } }, cancelledBy: { select: { id: true, name: true, email: true } }, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } }, partRepair: { include: { stockUnit: true } } } }, receipts: { include: { items: { include: { purchaseOrderItem: { include: { item: true } }, supplierBillItem: { include: { bill: true } } } }, location: true, createdBy: { select: { name: true } }, supplierBillLines: { include: { bill: true } } } }, payments: { include: { createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } } } };
 
 router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"));
@@ -223,30 +291,33 @@ router.patch("/orders/:id/cancel", requireRole("OWNER", "ADMIN"), async (req, re
     res.status(400).json({ error: error.message || "Gagal membatalkan Purchase Order" });
   }
 });
-router.post("/receipts", async (req, res) => {
-  const { purchaseOrderId, locationId, deliveryNote, deliveryNoteProofUrl, deliveryNoteFileName, deliveryNoteMimeType, deliveryNoteSize, notes, supplierInvoiceNumber, supplierInvoiceDate, supplierInvoiceAmount, supplierInvoiceProofUrl, supplierInvoiceFileName, supplierInvoiceMimeType, supplierInvoiceSize, items = [] } = req.body;
-  try {
-  const receipt = await prisma.$transaction(async tx => {
+async function createGoodsReceipt(tx, payload, userId) {
+    const { purchaseOrderId, locationId, deliveryNote, deliveryNoteProofUrl, deliveryNoteFileName, deliveryNoteMimeType, deliveryNoteSize, notes, supplierInvoiceNumber, supplierInvoiceDate, supplierInvoiceAmount, supplierInvoiceProofUrl, supplierInvoiceFileName, supplierInvoiceMimeType, supplierInvoiceSize, items = [] } = payload;
     const po = await tx.purchaseOrder.findUnique({ where: { id: purchaseOrderId }, include: { request: { include: { maintenance: true } }, items: { include: { item: true, tireRetread: true, partRepair: true } } } });
     if (!po) throw new Error("Purchase Order tidak ditemukan");
     if (!["SENT_TO_SUPPLIER", "PARTIALLY_RECEIVED"].includes(po.status)) throw new Error(po.status === "CANCELLED" ? "Purchase Order sudah dibatalkan" : "Purchase Order belum siap menerima barang");
-    // The maintenance relation is traceability only. Receipt always enters stock;
-    // mechanics install/use the item manually from the linked service afterward.
-    const directMaintenance = null;
+    // Service requests marked for direct use still enter the receiving location
+    // first, then leave it immediately for the linked truck. This preserves the
+    // auditable IN -> OUT stock trail without leaving artificial warehouse stock.
+    const isDirectServiceRequest = Boolean(po.request?.directUse || po.request?.purpose === "MAINTENANCE_STOCK_REQUEST");
+    if (isDirectServiceRequest && po.request?.maintenance?.status !== "OPEN") throw new Error("Servis tujuan sudah tidak terbuka; barang tidak dapat langsung dipakai ke mobil");
+    const directMaintenance = isDirectServiceRequest ? po.request.maintenance : null;
     if (!locationId || !items.length) throw new Error("Lokasi dan item penerimaan wajib diisi");
     if (!deliveryNoteProofUrl) throw new Error("Foto bukti surat penerimaan wajib dilampirkan");
     const invoiceAmount = supplierInvoiceAmount === "" || supplierInvoiceAmount == null ? null : Number(supplierInvoiceAmount);
     if (invoiceAmount != null && (!Number.isFinite(invoiceAmount) || invoiceAmount < 0)) throw new Error("Nilai invoice supplier tidak valid");
     const invoiceDate = supplierInvoiceDate ? new Date(supplierInvoiceDate) : null;
     if (invoiceDate && Number.isNaN(invoiceDate.getTime())) throw new Error("Tanggal invoice supplier tidak valid");
-    const rec = await tx.goodsReceipt.create({ data: { number: await nextDailyNumber(tx, "goodsReceipt", "GR"), purchaseOrderId, locationId, deliveryNote, deliveryNoteProofUrl, deliveryNoteFileName: deliveryNoteFileName || null, deliveryNoteMimeType: deliveryNoteMimeType || null, deliveryNoteSize: Number.isFinite(Number(deliveryNoteSize)) ? Number(deliveryNoteSize) : null, notes, supplierInvoiceNumber: supplierInvoiceNumber ? String(supplierInvoiceNumber).trim() : null, supplierInvoiceDate: invoiceDate, supplierInvoiceAmount: invoiceAmount == null ? null : Math.round(invoiceAmount), supplierInvoiceProofUrl: supplierInvoiceProofUrl || null, supplierInvoiceFileName: supplierInvoiceFileName || null, supplierInvoiceMimeType: supplierInvoiceMimeType || null, supplierInvoiceSize: Number.isFinite(Number(supplierInvoiceSize)) ? Number(supplierInvoiceSize) : null, createdById: req.user.id } });
+    const rec = await tx.goodsReceipt.create({ data: { number: await nextDailyNumber(tx, "goodsReceipt", "GR"), purchaseOrderId, locationId, deliveryNote, deliveryNoteProofUrl, deliveryNoteFileName: deliveryNoteFileName || null, deliveryNoteMimeType: deliveryNoteMimeType || null, deliveryNoteSize: Number.isFinite(Number(deliveryNoteSize)) ? Number(deliveryNoteSize) : null, notes, supplierInvoiceNumber: supplierInvoiceNumber ? String(supplierInvoiceNumber).trim() : null, supplierInvoiceDate: invoiceDate, supplierInvoiceAmount: invoiceAmount == null ? null : Math.round(invoiceAmount), supplierInvoiceProofUrl: supplierInvoiceProofUrl || null, supplierInvoiceFileName: supplierInvoiceFileName || null, supplierInvoiceMimeType: supplierInvoiceMimeType || null, supplierInvoiceSize: Number.isFinite(Number(supplierInvoiceSize)) ? Number(supplierInvoiceSize) : null, createdById: userId } });
     for (const row of items) {
       const poi = po.items.find(i => i.id === row.purchaseOrderItemId); const qty = Number(row.qty); const unitPrice = Math.round(Number(row.unitPrice));
       if (!poi || qty <= 0 || poi.receivedQty + qty > poi.qty) throw new Error("Jumlah penerimaan melebihi sisa PO");
       if (!Number.isFinite(unitPrice) || unitPrice <= 0) throw new Error(`${poi.item.name}: harga satuan sementara wajib lebih dari Rp0`);
       poi.unitPrice = unitPrice;
       const receiptItem = await tx.goodsReceiptItem.create({ data: { receiptId: rec.id, purchaseOrderItemId: poi.id, qty, condition: row.condition || "GOOD" } });
-      const batch = directMaintenance ? null : await tx.inventoryBatch.create({ data: { itemId: poi.itemId, locationId, goodsReceiptId: rec.id, goodsReceiptItemId: receiptItem.id, purchaseOrderItemId: poi.id, receivedQty: qty, remainingQty: qty, unitPrice: poi.unitPrice, receivedAt: rec.receivedAt } });
+      const batch = await tx.inventoryBatch.create({ data: { itemId: poi.itemId, locationId, goodsReceiptId: rec.id, goodsReceiptItemId: receiptItem.id, purchaseOrderItemId: poi.id, receivedQty: qty, remainingQty: qty, unitPrice: poi.unitPrice, receivedAt: rec.receivedAt } });
+      await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: poi.itemId, locationId } }, create: { itemId: poi.itemId, locationId, qty }, update: { qty: { increment: qty } } });
+      await tx.stockMovement.create({ data: { type: "IN", itemId: poi.itemId, qty, unitPrice: poi.unitPrice, totalCost: Math.round(qty * poi.unitPrice), toLocationId: locationId, maintenanceId: directMaintenance?.id || null, createdById: userId, note: `${directMaintenance ? `Penerimaan untuk servis ${directMaintenance.title}` : "Penerimaan"} · ${po.number}` } });
       if (poi.item.isSerialized) {
         const units = poi.tireRetreadId
           ? [{ retreadUnitId: poi.tireRetread.stockUnitId }]
@@ -308,16 +379,27 @@ router.post("/receipts", async (req, res) => {
           }
           const serialNumber = String(unit.serialNumber || "").trim();
           if (!serialNumber) throw new Error(`${poi.item.name}: serial number wajib diisi`);
-          const stockUnit = await tx.stockUnit.create({ data: { itemId: poi.itemId, locationId: directMaintenance ? null : locationId, inventoryBatchId: batch?.id || null, serialNumber, barcode: unit.barcode ? String(unit.barcode).trim() : null, purchasePrice: poi.unitPrice, purchasedAt: rec.receivedAt, currency: "IDR", status: directMaintenance ? "ASSIGNED" : "IN_STOCK" } });
-          if (directMaintenance) await tx.truckSparePartAssignment.create({ data: { truckId: directMaintenance.truckId, stockUnitId: stockUnit.id, installedAt: rec.receivedAt, installCost: poi.unitPrice, currency: "IDR", note: `Pembelian langsung ${po.number}`, maintenanceId: directMaintenance.id, createdById: req.user.id } });
+          const stockUnit = await tx.stockUnit.create({ data: { itemId: poi.itemId, locationId, inventoryBatchId: batch.id, serialNumber, barcode: unit.barcode ? String(unit.barcode).trim() : null, purchasePrice: poi.unitPrice, purchasedAt: rec.receivedAt, currency: "IDR", status: "IN_STOCK" } });
+          if (directMaintenance) {
+            await tx.truckSparePartAssignment.create({ data: { truckId: directMaintenance.truckId, stockUnitId: stockUnit.id, installedAt: rec.receivedAt, installCost: poi.unitPrice, currency: "IDR", note: `Pembelian langsung ${po.number}`, maintenanceId: directMaintenance.id, createdById: userId } });
+            await tx.stockUnit.update({ where: { id: stockUnit.id }, data: { status: "ASSIGNED", locationId: null } });
+            await tx.stockMovement.create({ data: { type: "OUT", itemId: poi.itemId, qty: 1, unitPrice: poi.unitPrice, totalCost: poi.unitPrice, fromLocationId: locationId, toTruckId: directMaintenance.truckId, maintenanceId: directMaintenance.id, stockUnitId: stockUnit.id, createdById: userId, note: `Langsung dipasang pada ${directMaintenance.title} · ${po.number}` } });
+          }
         }
       }
       await tx.purchaseOrderItem.update({ where: { id: poi.id }, data: { receivedQty: { increment: qty }, unitPrice } });
       if (directMaintenance) {
-        if (!poi.item.isSerialized) await tx.stockMovement.create({ data: { type: "OUT", itemId: poi.itemId, qty, unitPrice: poi.unitPrice, totalCost: Math.round(qty * poi.unitPrice), maintenanceId: directMaintenance.id, createdById: req.user.id, note: `Pembelian langsung & dipakai pada ${directMaintenance.title} · ${po.number}` } });
-      } else {
-        await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: poi.itemId, locationId } }, create: { itemId: poi.itemId, locationId, qty }, update: { qty: { increment: qty } } });
-        await tx.stockMovement.create({ data: { type: "IN", itemId: poi.itemId, qty, unitPrice: poi.unitPrice, totalCost: Math.round(qty * poi.unitPrice), toLocationId: locationId, createdById: req.user.id, note: `Penerimaan ${po.number}` } });
+        await tx.inventoryStock.update({ where: { itemId_locationId: { itemId: poi.itemId, locationId } }, data: { qty: { decrement: qty } } });
+        await tx.inventoryBatch.update({ where: { id: batch.id }, data: { remainingQty: { decrement: qty } } });
+        if (!poi.item.isSerialized) {
+          const existingTruckStock = await tx.truckPartStock.findUnique({ where: { truckId_itemId: { truckId: directMaintenance.truckId, itemId: poi.itemId } } });
+          const oldQty = Number(existingTruckStock?.qty || 0);
+          const oldValue = existingTruckStock?.unitPrice == null ? 0 : oldQty * Number(existingTruckStock.unitPrice);
+          const nextUnitPrice = oldQty > 0 && existingTruckStock?.unitPrice == null ? null : Math.round((oldValue + qty * poi.unitPrice) / (oldQty + qty));
+          await tx.truckPartStock.upsert({ where: { truckId_itemId: { truckId: directMaintenance.truckId, itemId: poi.itemId } }, create: { truckId: directMaintenance.truckId, itemId: poi.itemId, qty, unitPrice: poi.unitPrice }, update: { qty: { increment: qty }, unitPrice: nextUnitPrice } });
+          const outMovement = await tx.stockMovement.create({ data: { type: "OUT", itemId: poi.itemId, qty, unitPrice: poi.unitPrice, totalCost: Math.round(qty * poi.unitPrice), fromLocationId: locationId, toTruckId: directMaintenance.truckId, maintenanceId: directMaintenance.id, createdById: userId, note: `Pembelian langsung & dipakai pada ${directMaintenance.title} · ${po.number}` } });
+          await tx.stockMovementBatchAllocation.create({ data: { movementId: outMovement.id, batchId: batch.id, qty } });
+        }
       }
     }
     const all = await tx.purchaseOrderItem.findMany({ where: { purchaseOrderId } });
@@ -326,11 +408,38 @@ router.post("/receipts", async (req, res) => {
       const poi = po.items.find(i => i.id === row.purchaseOrderItemId);
       return sum + Number(row.qty) * Number(poi?.unitPrice || 0);
     }, 0) + (fullyReceived ? Number(po.tax) + Number(po.shippingCost) - Number(po.discount) : 0);
-    if (receiptValue > 0) await postJournal(tx, { date: rec.receivedAt, description: `${directMaintenance ? "Pembelian langsung servis" : "Penerimaan barang"} ${rec.number}`, sourceType: "GOODS_RECEIPT", sourceId: rec.id, createdById: req.user.id, lines: [{ code: directMaintenance ? SYSTEM_ACCOUNTS.EXPENSE : SYSTEM_ACCOUNTS.INVENTORY, debit: receiptValue }, { code: SYSTEM_ACCOUNTS.AP, credit: receiptValue }] });
+    if (receiptValue > 0) await postJournal(tx, { date: rec.receivedAt, description: `${directMaintenance ? "Pembelian langsung servis" : "Penerimaan barang"} ${rec.number}`, sourceType: "GOODS_RECEIPT", sourceId: rec.id, createdById: userId, lines: [{ code: directMaintenance ? SYSTEM_ACCOUNTS.EXPENSE : SYSTEM_ACCOUNTS.INVENTORY, debit: receiptValue }, { code: SYSTEM_ACCOUNTS.AP, credit: receiptValue }] });
     await tx.purchaseOrder.update({ where: { id: purchaseOrderId }, data: { status: fullyReceived ? "FULLY_RECEIVED" : "PARTIALLY_RECEIVED" } }); return rec;
-  }); res.json({ ok: true, receipt });
+}
+
+router.post("/receipts", async (req, res) => {
+  try {
+    const receipt = await prisma.$transaction(tx => createGoodsReceipt(tx, req.body, req.user.id), { timeout: 30000 });
+    res.json({ ok: true, receipt });
   } catch (e) {
     res.status(400).json({ error: e.message || "Gagal menerima barang" });
+  }
+});
+
+router.post("/receipts/batch", async (req, res) => {
+  try {
+    const entries = Array.isArray(req.body.receipts) ? req.body.receipts : [];
+    if (!entries.length) throw new Error("Pilih minimal satu Purchase Order untuk diterima");
+    const ids = [...new Set(entries.map(entry => String(entry.purchaseOrderId || "")).filter(Boolean))];
+    if (ids.length !== entries.length) throw new Error("Daftar Purchase Order penerimaan tidak valid");
+    const receipts = await prisma.$transaction(async tx => {
+      const orders = await tx.purchaseOrder.findMany({ where: { id: { in: ids } }, select: { id: true, supplierId: true } });
+      if (orders.length !== ids.length) throw new Error("Salah satu Purchase Order tidak ditemukan");
+      if (new Set(orders.map(order => order.supplierId)).size !== 1) throw new Error("Penerimaan gabungan hanya dapat dibuat untuk supplier yang sama");
+      const created = [];
+      for (const entry of entries) {
+        created.push(await createGoodsReceipt(tx, { ...req.body, purchaseOrderId: entry.purchaseOrderId, items: entry.items, receipts: undefined }, req.user.id));
+      }
+      return created;
+    }, { timeout: 30000 });
+    res.json({ ok: true, receipts });
+  } catch (e) {
+    res.status(400).json({ error: e.message || "Gagal menerima beberapa Purchase Order" });
   }
 });
 router.post("/bills", async (req, res) => {
@@ -364,9 +473,11 @@ router.post("/bills", async (req, res) => {
           await tx.partRepair.update({ where: { id: line.item.purchaseOrderItem.partRepairId }, data: { cost: line.unitPrice } });
         }
         if (line.item.inventoryBatch) {
+          await backfillLegacyConsumptionAllocations(tx, line.item.inventoryBatch);
           await tx.inventoryBatch.update({ where: { id: line.item.inventoryBatch.id }, data: { unitPrice: line.unitPrice } });
           await tx.stockUnit.updateMany({ where: { inventoryBatchId: line.item.inventoryBatch.id }, data: { purchasePrice: line.unitPrice } });
           await tx.truckSparePartAssignment.updateMany({ where: { stockUnit: { inventoryBatchId: line.item.inventoryBatch.id } }, data: { installCost: line.unitPrice } });
+          await refreshAllocatedMovementCosts(tx, line.item.inventoryBatch.id);
         }
         await tx.stockMovement.updateMany({ where: { note: `Penerimaan ${line.receipt.number}`, itemId: line.item.purchaseOrderItem.itemId }, data: { unitPrice: line.unitPrice, totalCost: line.amount } });
       }

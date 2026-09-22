@@ -192,7 +192,7 @@ router.post("/:id/purchase-requests", authRequired, async (req, res) => {
         purpose: "MAINTENANCE_STOCK_REQUEST",
         truckId: maintenance.truckId,
         maintenanceId: maintenance.id,
-        directUse: false,
+        directUse: true,
         reason: String(req.body.reason || `Kebutuhan sparepart servis ${maintenance.title}`).trim(),
         notes: req.body.notes ? String(req.body.notes).trim() : null,
         damageProofUrl: req.body.damageProofUrl,
@@ -304,7 +304,7 @@ router.get("/:id", authRequired, async (req, res) => {
           orderBy: { createdAt: "desc" },
           include: { createdBy: { select: { id: true, name: true, email: true, role: true } } },
         },
-        purchaseRequests: { select: { id: true, number: true, status: true, urgency: true, createdAt: true, damageProofUrl: true, damageProofFileName: true, damageProofMimeType: true, items: { select: { id: true, originalQty: true, approvedQty: true, item: { select: { id: true, sku: true, name: true, unit: true } } } } }, orderBy: { createdAt: "desc" } },
+        purchaseRequests: { select: { id: true, number: true, status: true, urgency: true, purpose: true, directUse: true, createdAt: true, damageProofUrl: true, damageProofFileName: true, damageProofMimeType: true, purchaseOrders: { select: { id: true, number: true, status: true, items: { select: { qty: true, receivedQty: true } } }, orderBy: { createdAt: "desc" } }, items: { select: { id: true, originalQty: true, approvedQty: true, item: { select: { id: true, sku: true, name: true, unit: true } } } } }, orderBy: { createdAt: "desc" } },
         partRepairs: { include: { stockUnit: { include: { item: true } }, supplier: true }, orderBy: { createdAt: "desc" } },
       },
     });
@@ -524,7 +524,10 @@ router.post("/:id/return-stock", authRequired, async (req, res) => {
     const maintenanceId = req.params.id;
     const movementId = String(req.body.movementId || "");
     const requestedQty = num(req.body.qty, 0);
+    const reason = String(req.body.reason || "").trim();
     if (!movementId || requestedQty <= 0) return res.status(400).json({ error: "Movement dan jumlah pengembalian wajib diisi" });
+    if (!reason) return res.status(400).json({ error: "Alasan pengembalian wajib diisi" });
+    if (reason.length > 500) return res.status(400).json({ error: "Alasan pengembalian maksimal 500 karakter" });
 
     const returned = await prisma.$transaction(async (tx) => {
       const job = await tx.truckMaintenance.findUnique({ where: { id: maintenanceId }, select: { id: true, status: true, truckId: true, truck: { select: { plateNumber: true } } } });
@@ -543,7 +546,7 @@ router.post("/:id/return-stock", authRequired, async (req, res) => {
       await tx.truckPartStock.update({ where: { truckId_itemId: { truckId: job.truckId, itemId: movement.itemId } }, data: { qty: { decrement: requestedQty } } });
       await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: movement.itemId, locationId: movement.fromLocationId } }, create: { itemId: movement.itemId, locationId: movement.fromLocationId, qty: requestedQty }, update: { qty: { increment: requestedQty } } });
       await tx.inventoryBatch.create({ data: { itemId: movement.itemId, locationId: movement.fromLocationId, receivedQty: requestedQty, remainingQty: requestedQty, unitPrice: movement.unitPrice, receivedAt: new Date() } });
-      return tx.stockMovement.create({ data: { type: "IN", itemId: movement.itemId, qty: requestedQty, unitPrice: movement.unitPrice, totalCost: returnCost, note: `RETURN_OF:${movement.id} · Pemakaian dibatalkan dari ${job.truck.plateNumber}`, createdById: req.user.id, toLocationId: movement.fromLocationId, maintenanceId } });
+      return tx.stockMovement.create({ data: { type: "IN", itemId: movement.itemId, qty: requestedQty, unitPrice: movement.unitPrice, totalCost: returnCost, note: `RETURN_OF:${movement.id} · Pemakaian dibatalkan dari ${job.truck.plateNumber} · Alasan: ${reason}`, createdById: req.user.id, toLocationId: movement.fromLocationId, maintenanceId } });
     });
     res.json({ returned });
   } catch (e) {
@@ -1087,12 +1090,14 @@ router.post("/:id/use-stock", authRequired, async (req, res) => {
       let qtyToAllocate = q;
       let allocatedCost = 0;
       let fullyPriced = true;
+      const allocatedBatches = [];
       for (const batch of batches) {
         if (qtyToAllocate <= 0) break;
         const taken = Math.min(Number(batch.remainingQty || 0), qtyToAllocate);
         if (taken <= 0) continue;
         if (batch.unitPrice == null) fullyPriced = false;
         else allocatedCost += taken * Number(batch.unitPrice);
+        allocatedBatches.push({ batchId: batch.id, qty: taken });
         await tx.inventoryBatch.update({ where: { id: batch.id }, data: { remainingQty: { decrement: taken } } });
         qtyToAllocate -= taken;
       }
@@ -1127,7 +1132,7 @@ router.post("/:id/use-stock", authRequired, async (req, res) => {
         });
       }
 
-      return tx.stockMovement.create({
+      const movement = await tx.stockMovement.create({
         data: {
           type: "OUT",
           itemId: item.id,
@@ -1149,6 +1154,12 @@ router.post("/:id/use-stock", authRequired, async (req, res) => {
           stockUnit: true,
         },
       });
+      if (allocatedBatches.length) {
+        await tx.stockMovementBatchAllocation.createMany({
+          data: allocatedBatches.map(allocation => ({ ...allocation, movementId: movement.id })),
+        });
+      }
+      return movement;
     });
 
     res.json({ movement });

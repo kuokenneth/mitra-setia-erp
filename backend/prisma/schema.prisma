@@ -1374,6 +1374,7 @@ model InventoryBatch {
   goodsReceiptItem  GoodsReceiptItem?  @relation(fields: [goodsReceiptItemId], references: [id], onDelete: SetNull)
   purchaseOrderItem PurchaseOrderItem? @relation(fields: [purchaseOrderItemId], references: [id], onDelete: SetNull)
   stockUnits        StockUnit[]
+  consumptionAllocations StockMovementBatchAllocation[]
 
   @@index([itemId, locationId, remainingQty])
   @@index([goodsReceiptId])
@@ -1423,6 +1424,7 @@ model StockMovement {
   stockUnit   StockUnit? @relation(fields: [stockUnitId], references: [id])
 
   item Item @relation(fields: [itemId], references: [id])
+  batchAllocations StockMovementBatchAllocation[]
 
   @@index([stockUnitId])
   @@index([itemId])
@@ -1431,6 +1433,21 @@ model StockMovement {
   @@index([toLocationId])
   @@index([fromTruckId])
   @@index([toTruckId])
+}
+
+// Links non-serialized stock usage to the FIFO batches that supplied it.
+// This lets a supplier's final invoice price update the original fleet cost.
+model StockMovementBatchAllocation {
+  id         String @id @default(cuid())
+  movementId String
+  batchId    String
+  qty        Float
+
+  movement StockMovement  @relation(fields: [movementId], references: [id], onDelete: Cascade)
+  batch    InventoryBatch @relation(fields: [batchId], references: [id], onDelete: Restrict)
+
+  @@unique([movementId, batchId])
+  @@index([batchId])
 }
 
 model EmergencyPartDispatch {

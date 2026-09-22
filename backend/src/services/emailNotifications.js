@@ -1,5 +1,6 @@
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 const SEND_TIMEOUT_MS = 8000;
+const jwt = require("jsonwebtoken");
 const { prisma } = require("../prisma");
 const { getObject } = require("./r2Storage");
 
@@ -19,6 +20,12 @@ function escapeHtml(value) {
 function frontendLink(path) {
   const base = clean(process.env.FRONTEND_URL).replace(/\/$/, "");
   if (!base) return "";
+  const suffix = clean(path);
+  return `${base}${suffix.startsWith("/") ? "" : "/"}${suffix}`;
+}
+
+function backendLink(path) {
+  const base = clean(process.env.BACKEND_URL || "https://mitra-setia-erp.onrender.com").replace(/\/$/, "");
   const suffix = clean(path);
   return `${base}${suffix.startsWith("/") ? "" : "/"}${suffix}`;
 }
@@ -61,10 +68,13 @@ async function inlineProofAttachment(proof) {
   }
   if (!content?.length) return null;
   return {
-    filename: proof.fileName || file.fileName || "bukti-pembelian.jpg",
-    content: content.toString("base64"),
-    content_type: proof.mimeType || file.mimeType || "image/jpeg",
-    content_id: "purchase-proof",
+    fileId: file.id,
+    attachment: {
+      filename: proof.fileName || file.fileName || "bukti-pembelian.jpg",
+      content: content.toString("base64"),
+      content_type: proof.mimeType || file.mimeType || "image/jpeg",
+      content_id: "purchase-proof",
+    },
   };
 }
 
@@ -72,10 +82,14 @@ async function sendOwnerEmail({ event, title, details, path, actionLabel, proof 
   if (!emailOwnerConfigured()) return { sent: false, reason: "disabled" };
 
   const link = frontendLink(path);
-  const proofAttachment = await inlineProofAttachment(proof).catch(error => {
+  const proofData = await inlineProofAttachment(proof).catch(error => {
     console.error("Email inline proof failed:", error.message);
     return null;
   });
+  const proofAttachment = proofData?.attachment || null;
+  const proofImageUrl = proofData?.fileId
+    ? backendLink(`/api/uploads/email/${jwt.sign({ type: "email-proof", fileId: proofData.fileId }, process.env.JWT_SECRET, { expiresIn: "7d" })}`)
+    : "";
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SEND_TIMEOUT_MS);
   try {
@@ -100,7 +114,7 @@ async function sendOwnerEmail({ event, title, details, path, actionLabel, proof 
               <h2 style="margin:10px 0 6px">${escapeHtml(event || "Notifikasi baru")}</h2>
               <div style="font-size:16px;font-weight:700;margin-bottom:12px">${escapeHtml(title || "-")}</div>
               <p style="color:#59665e;line-height:1.6;margin:0;white-space:pre-line">${escapeHtml(details || "-")}</p>
-              ${proofAttachment ? `<div style="margin-top:18px"><div style="font-size:11px;font-weight:700;color:#647269;margin-bottom:7px">BUKTI FOTO</div><img src="cid:purchase-proof" alt="Bukti permintaan pembelian" style="display:block;max-width:100%;max-height:420px;border-radius:9px;border:1px solid #dce7df" /></div>` : ""}
+              ${proofAttachment ? `<div style="margin-top:18px"><div style="font-size:11px;font-weight:700;color:#647269;margin-bottom:7px">BUKTI FOTO</div><a href="${escapeHtml(proofImageUrl)}" style="text-decoration:none"><img src="${escapeHtml(proofImageUrl)}" alt="Bukti permintaan pembelian" style="display:block;max-width:100%;max-height:420px;border-radius:9px;border:1px solid #dce7df" /></a><div style="font-size:11px;color:#78857d;margin-top:6px">Jika gambar tidak tampil, tekan area foto untuk membukanya.</div></div>` : ""}
               ${link ? `<a href="${escapeHtml(link)}" style="display:inline-block;margin-top:22px;background:#0d7c3d;color:#fff;text-decoration:none;padding:11px 18px;border-radius:8px;font-weight:700">${escapeHtml(actionLabel || "Buka di ERP")}</a>` : ""}
             </div>
             <p style="font-size:11px;color:#849087;text-align:center">Email otomatis dari Mitra Setia ERP.</p>

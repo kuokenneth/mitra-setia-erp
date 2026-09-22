@@ -121,6 +121,29 @@ router.get("/", async (req, res) => {
           orderBy: [{ revenueDate: "asc" }, { createdAt: "asc" }],
         },
         sparePartAssignments: { where: { installedAt: dateRange }, include: { stockUnit: { select: { purchasePrice: true, item: { select: { name: true, sku: true } } } } } },
+        maintenances: {
+          where: {
+            movements: {
+              some: {
+                createdAt: dateRange,
+                stockUnitId: null,
+                OR: [{ type: "OUT" }, { type: "IN", note: { startsWith: "RETURN_OF:" } }],
+              },
+            },
+          },
+          select: {
+            title: true,
+            movements: {
+              where: {
+                createdAt: dateRange,
+                stockUnitId: null,
+                OR: [{ type: "OUT" }, { type: "IN", note: { startsWith: "RETURN_OF:" } }],
+              },
+              include: { item: { select: { name: true, sku: true, unit: true } } },
+              orderBy: { createdAt: "asc" },
+            },
+          },
+        },
         monthlyCosts: { where: { month: start } },
         expenses: {
           where: {
@@ -143,7 +166,15 @@ router.get("/", async (req, res) => {
       const cargoLoss = Math.round(operationalTrips.reduce((sum, item) => sum + cargoLossValue(item), 0));
       const tripExpenses = operationalTrips.reduce((sum, item) => sum + item.expenses.reduce((cost, expense) => cost + expense.amount, 0), 0);
       const vehicleExpenses = truck.expenses.reduce((sum, expense) => sum + expense.amount, 0);
-      const spareParts = truck.sparePartAssignments.reduce((sum, item) => sum + (item.installCost ?? item.stockUnit.purchasePrice ?? 0), 0);
+      const nonSerializedPartMovements = truck.maintenances.flatMap(maintenance =>
+        maintenance.movements.map(movement => ({ ...movement, maintenanceTitle: maintenance.title }))
+      );
+      const serializedSpareParts = truck.sparePartAssignments.reduce((sum, item) => sum + (item.installCost ?? item.stockUnit.purchasePrice ?? 0), 0);
+      const nonSerializedSpareParts = nonSerializedPartMovements.reduce((sum, movement) => {
+        const cost = Number(movement.totalCost || 0);
+        return movement.type === "IN" ? sum - cost : sum + cost;
+      }, 0);
+      const spareParts = serializedSpareParts + nonSerializedSpareParts;
       const fixedCosts = truck.monthlyCosts[0] || Object.fromEntries(COST_FIELDS.map(field => [field, 0]));
       const fixedTotal = COST_FIELDS.reduce((sum, field) => sum + (fixedCosts[field] || 0), 0);
       const totalCost = tripExpenses + vehicleExpenses + spareParts + fixedTotal;
@@ -213,6 +244,17 @@ router.get("/", async (req, res) => {
         installedAt: item.installedAt,
         cost: item.installCost ?? item.stockUnit.purchasePrice ?? 0,
       }));
+      sparePartDetails.push(...nonSerializedPartMovements.map(movement => ({
+        id: `movement:${movement.id}`,
+        name: movement.item?.name || "Sparepart",
+        sku: movement.item?.sku || null,
+        unit: movement.item?.unit || null,
+        quantity: movement.qty,
+        installedAt: movement.createdAt,
+        cost: movement.type === "IN" ? -Number(movement.totalCost || 0) : Number(movement.totalCost || 0),
+        maintenanceTitle: movement.maintenanceTitle,
+        isReturn: movement.type === "IN",
+      })));
       return {
         truck: { id: truck.id, plateNumber: truck.plateNumber, brand: truck.brand, model: truck.model, status: truck.status },
         trips: { total: operationalTrips.length, completed: completedTrips, cancelled: truck.trips.length - operationalTrips.length },

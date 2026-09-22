@@ -2,6 +2,7 @@
 const express = require("express");
 const multer = require("multer");
 const { randomUUID } = require("crypto");
+const jwt = require("jsonwebtoken");
 const { authRequired } = require("../middleware/authRequired");
 const { prisma } = require("../prisma");
 const { deleteObject, getObject, isR2Configured, putObject } = require("../services/r2Storage");
@@ -28,6 +29,31 @@ const upload = multer({
     const allowed = allowedTypes.has(String(file.mimetype || "").toLowerCase());
     cb(allowed ? null : new Error("Hanya PDF, JPG, PNG, dan WEBP yang diperbolehkan"), allowed);
   },
+});
+
+// Time-limited image endpoint used by email clients. The signed token keeps
+// private R2 objects inaccessible without a valid email URL.
+router.get("/email/:token", async (req, res) => {
+  try {
+    const payload = jwt.verify(req.params.token, process.env.JWT_SECRET);
+    if (payload?.type !== "email-proof" || !payload.fileId) return res.status(403).send("Tautan bukti tidak valid");
+    const file = await prisma.storedFile.findUnique({ where: { id: payload.fileId } });
+    if (!file || !String(file.mimeType || "").startsWith("image/")) return res.status(404).send("Bukti foto tidak ditemukan");
+    res.setHeader("Content-Type", file.mimeType);
+    res.setHeader("Content-Length", String(file.size));
+    res.setHeader("Content-Disposition", "inline");
+    res.setHeader("Cache-Control", "private, max-age=604800, immutable");
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    if (file.storageProvider === "R2" && file.storageKey) {
+      const object = await getObject(file.storageKey);
+      if (!object.Body) return res.status(404).send("Isi bukti tidak ditemukan");
+      return object.Body.pipe(res);
+    }
+    if (!file.data) return res.status(404).send("Isi bukti tidak ditemukan");
+    return res.send(Buffer.from(file.data));
+  } catch {
+    return res.status(403).send("Tautan bukti sudah kedaluwarsa atau tidak valid");
+  }
 });
 
 // Public read endpoint. IDs are unguessable CUIDs and the response is inline so

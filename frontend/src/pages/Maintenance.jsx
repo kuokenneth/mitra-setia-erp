@@ -5,6 +5,7 @@ import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { ProtectedImage } from "../components/ProtectedFile";
 import LoadingState from "../components/LoadingState";
+import ImageAnnotationEditor from "../components/ImageAnnotationEditor";
 import { FiActivity, FiCalendar, FiCamera, FiCheck, FiClock, FiPlus, FiRefreshCw, FiSearch, FiTool, FiTruck, FiX } from "react-icons/fi";
 import "./Maintenance.css";
 
@@ -77,6 +78,18 @@ function installedDays(installedAt) {
   const start = new Date(installedAt).getTime();
   if (!Number.isFinite(start)) return null;
   return Math.max(0, Math.floor((Date.now() - start) / 86400000));
+}
+
+function purchaseRequestProgress(request) {
+  if (request.status === "REJECTED") return { label: "Ditolak", className: "REJECTED" };
+  if (request.status === "CANCELLED") return { label: "Dibatalkan", className: "CANCELLED" };
+  if (request.status === "WAITING_APPROVAL") return { label: "Menunggu persetujuan", className: "WAITING_APPROVAL" };
+  const orders = (request.purchaseOrders || []).filter((order) => order.status !== "CANCELLED");
+  if (!orders.length) return { label: "Disetujui · menunggu PO", className: "APPROVED" };
+  if (orders.every((order) => order.status === "FULLY_RECEIVED")) return { label: request.directUse || request.purpose === "MAINTENANCE_STOCK_REQUEST" ? "Barang sudah tiba & dipakai" : "Barang sudah tiba", className: "FULLY_RECEIVED" };
+  if (orders.some((order) => ["PARTIALLY_RECEIVED", "FULLY_RECEIVED"].includes(order.status))) return { label: "Diterima sebagian", className: "PARTIALLY_RECEIVED" };
+  if (orders.some((order) => order.status === "SENT_TO_SUPPLIER")) return { label: "Dipesan · dalam pengiriman", className: "SENT_TO_SUPPLIER" };
+  return { label: "Pesanan sudah dibuat", className: "ORDERED" };
 }
 
 //////////////////////
@@ -453,7 +466,7 @@ function Modal({ open, title, onClose, children, width = 900, className = "" }) 
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div
-          className="maintenance-modal-body"
+          className="maintenance-modal-header"
           style={{
             padding: "16px 20px",
             borderBottom: `1px solid ${BRAND.border}`,
@@ -468,6 +481,7 @@ function Modal({ open, title, onClose, children, width = 900, className = "" }) 
           </Button>
         </div>
         <div
+          className="maintenance-modal-body"
           style={{
             padding: 20,
             maxHeight: "calc(100vh - 160px)",
@@ -553,6 +567,9 @@ export default function Maintenance() {
   const [useOilDate, setUseOilDate] = useState(localDateValue());
   const [useOilOdometer, setUseOilOdometer] = useState("");
   const [usingStock, setUsingStock] = useState(false);
+  const [returnStockTarget, setReturnStockTarget] = useState(null);
+  const [returnStockForm, setReturnStockForm] = useState({ qty: "", reason: "" });
+  const [returnStockError, setReturnStockError] = useState("");
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [photoError, setPhotoError] = useState("");
   const [tireAction, setTireAction] = useState(null);
@@ -566,6 +583,7 @@ export default function Maintenance() {
   const [savingProgressNote, setSavingProgressNote] = useState(false);
   const [purchaseRequestForm, setPurchaseRequestForm] = useState({ itemId: "", qty: 1, urgency: "URGENT", reason: "", notes: "", newItem: false, sku: "", name: "", unit: "PCS", isSerialized: false });
   const [purchaseDamagePhoto, setPurchaseDamagePhoto] = useState(null);
+  const [showPurchasePhotoEditor, setShowPurchasePhotoEditor] = useState(false);
   const [requestingPurchase, setRequestingPurchase] = useState(false);
   const [serializedHistory, setSerializedHistory] = useState(null);
   const [stockHistory, setStockHistory] = useState(null);
@@ -877,16 +895,39 @@ export default function Maintenance() {
     finally { setAssigning(false); }
   }
 
-  async function returnNonSerializedStock(movement) {
+  function openReturnStock(movement) {
     if (!activeJob?.id || !movement?.id) return;
     const alreadyReturned = (activeJob.movements || []).filter((row) => row.type === "IN" && String(row.note || "").startsWith(`RETURN_OF:${movement.id}`)).reduce((sum, row) => sum + Number(row.qty || 0), 0);
     const remaining = Math.max(0, Number(movement.qty || 0) - alreadyReturned);
-    if (!remaining || !window.confirm(`Kembalikan ${remaining} ${movement.item?.unit || "unit"} ${movement.item?.name || "barang"} ke ${movement.fromLocation?.name || "Inventory"}?`)) return;
-    setUsingStock(true); setErr("");
+    if (!remaining) return;
+    setErr("");
+    setReturnStockError("");
+    setReturnStockTarget({ movement, remaining });
+    setReturnStockForm({ qty: String(remaining), reason: "" });
+  }
+
+  async function returnNonSerializedStock(event) {
+    event.preventDefault();
+    if (!activeJob?.id || !returnStockTarget?.movement?.id) return;
+    const { movement, remaining } = returnStockTarget;
+    const unit = movement.item?.unit || "unit";
+    const requestedQty = Number(String(returnStockForm.qty).trim().replace(",", "."));
+    if (!Number.isFinite(requestedQty) || requestedQty <= 0 || requestedQty > remaining + 0.000001) {
+      setReturnStockError(`Jumlah pengembalian harus lebih dari 0 dan maksimal ${remaining} ${unit}.`);
+      return;
+    }
+    const reason = returnStockForm.reason.trim();
+    if (!reason) {
+      setReturnStockError("Alasan pengembalian wajib diisi.");
+      return;
+    }
+    setUsingStock(true); setErr(""); setReturnStockError("");
     try {
-      await api(`/maintenance/${activeJob.id}/return-stock`, { method: "POST", body: JSON.stringify({ movementId: movement.id, qty: remaining }) });
+      await api(`/maintenance/${activeJob.id}/return-stock`, { method: "POST", body: JSON.stringify({ movementId: movement.id, qty: requestedQty, reason }) });
+      setReturnStockTarget(null);
+      setReturnStockForm({ qty: "", reason: "" });
       await refreshDetail(); await load();
-    } catch (e) { setErr(e.message || "Gagal mengembalikan stok ke Inventory"); }
+    } catch (e) { setReturnStockError(e.message || "Gagal mengembalikan stok ke Inventory"); }
     finally { setUsingStock(false); }
   }
 
@@ -1606,13 +1647,13 @@ export default function Maintenance() {
                 </div>}
 
                 <form className={`maintenance-direct-request ${detailTab !== "PURCHASE" ? "maintenance-detail-section-hidden" : ""}`} onSubmit={createMaintenancePurchaseRequest}>
-                  <section className="maintenance-request-card maintenance-proof-card"><div className="maintenance-request-card-title"><span>03</span><div><strong>Bukti barang rusak</strong><small>Foto wajib disertakan agar pemilik dapat memeriksa pengajuan.</small></div></div><label className={`maintenance-damage-proof ${purchaseDamagePhoto ? "has-file" : ""}`}><input required type="file" accept="image/*" capture="environment" onChange={event => setPurchaseDamagePhoto(event.target.files?.[0] || null)} /><span className="maintenance-proof-icon"><FiCamera /></span><span className="maintenance-proof-copy"><strong>{purchaseDamagePhoto ? "Foto siap dikirim" : "Ketuk untuk tambah foto barang rusak"}</strong><small>{purchaseDamagePhoto ? `${purchaseDamagePhoto.name} · Ketuk kembali untuk mengganti` : "Gunakan kamera atau pilih foto dari galeri"}</small></span></label></section>
+                  <section className="maintenance-request-card maintenance-proof-card"><div className="maintenance-request-card-title"><span>03</span><div><strong>Bukti barang rusak</strong><small>Foto wajib disertakan agar pemilik dapat memeriksa pengajuan.</small></div></div><label className={`maintenance-damage-proof ${purchaseDamagePhoto ? "has-file" : ""}`}><input required type="file" accept="image/*" capture="environment" onChange={event => { const file = event.target.files?.[0] || null; setPurchaseDamagePhoto(file); setShowPurchasePhotoEditor(Boolean(file)); }} /><span className="maintenance-proof-icon"><FiCamera /></span><span className="maintenance-proof-copy"><strong>{purchaseDamagePhoto ? "Foto siap dikirim" : "Ketuk untuk tambah foto barang rusak"}</strong><small>{purchaseDamagePhoto ? `${purchaseDamagePhoto.name} · Ketuk kembali untuk mengganti` : "Gunakan kamera atau pilih foto dari galeri"}</small></span></label>{purchaseDamagePhoto && <button type="button" className="maintenance-proof-annotate" onClick={() => setShowPurchasePhotoEditor(true)}>Tandai bagian yang rusak</button>}<button className="maintenance-request-submit maintenance-proof-submit" disabled={requestingPurchase || activeJob.status !== "OPEN"}>{requestingPurchase ? "Mengirim..." : purchaseRequestForm.acknowledgeAvailableStock ? "Tetap Buat Permintaan" : "Buat Permintaan"}</button></section>
                   <div className="maintenance-request-head"><span><FiPlus /></span><div><strong>Pesan sparepart untuk servis ini</strong><small>Permintaan tetap terlacak di servis; barang masuk Inventory saat diterima.</small></div><em>UNTUK SERVIS</em></div>
                   <section className="maintenance-request-card"><div className="maintenance-request-card-title"><span>01</span><div><strong>Pilih barang</strong><small>Gunakan katalog atau daftarkan sparepart baru.</small></div></div><div className="maintenance-request-mode"><button type="button" className={!purchaseRequestForm.newItem ? "active" : ""} onClick={() => { setErr(""); setPurchaseRequestForm(form => ({ ...form, newItem: false, acknowledgeAvailableStock: false })); }}>Pilih katalog</button><button type="button" className={purchaseRequestForm.newItem ? "active" : ""} onClick={() => { setErr(""); setPurchaseRequestForm(form => ({ ...form, newItem: true, acknowledgeAvailableStock: false })); }}>Sparepart baru</button></div>
                     {!purchaseRequestForm.newItem ? <label>Sparepart<SearchableItemPicker items={items} value={purchaseRequestForm.itemId} onChange={itemId => { setErr(""); setPurchaseRequestForm(form => ({ ...form, itemId, acknowledgeAvailableStock: false })); }} disabled={requestingPurchase} placeholder="Cari SKU atau nama sparepart..." testId="maintenance-purchase-item-search" />{Number(items.find(item => item.id === purchaseRequestForm.itemId)?.qtyTotal || 0) > 0 && <span className="maintenance-stock-warning">⚠ Stok masih tersedia: <b>{Number(items.find(item => item.id === purchaseRequestForm.itemId)?.qtyTotal || 0).toLocaleString("id-ID")} {items.find(item => item.id === purchaseRequestForm.itemId)?.unit}</b>. Periksa Inventory sebelum membeli.</span>}</label> : <div className="maintenance-request-new-item"><label>SKU<input required value={purchaseRequestForm.sku} onChange={event => setPurchaseRequestForm(form => ({ ...form, sku: event.target.value }))} placeholder="Contoh: BRK-HINO-02" /></label><label>Nama sparepart<input required value={purchaseRequestForm.name} onChange={event => setPurchaseRequestForm(form => ({ ...form, name: event.target.value }))} placeholder="Contoh: Master rem Hino" /></label><label>Satuan<select value={purchaseRequestForm.unit} onChange={event => setPurchaseRequestForm(form => ({ ...form, unit: event.target.value }))}><option>PCS</option><option>SET</option><option>UNIT</option><option>LITER</option></select></label><label className="maintenance-request-check"><input type="checkbox" checked={purchaseRequestForm.isSerialized} onChange={event => setPurchaseRequestForm(form => ({ ...form, isSerialized: event.target.checked }))} /> Memiliki nomor serial</label></div>}
                   </section>
-                  <section className="maintenance-request-card"><div className="maintenance-request-card-title"><span>02</span><div><strong>Detail kebutuhan</strong><small>Tentukan jumlah, tingkat urgensi, dan alasan pemesanan.</small></div></div><div className="maintenance-request-fields"><label>Jumlah<input required type="number" min="0.01" step="0.01" value={purchaseRequestForm.qty} onChange={event => setPurchaseRequestForm(form => ({ ...form, qty: event.target.value }))} /></label><label>Urgensi<select value={purchaseRequestForm.urgency} onChange={event => setPurchaseRequestForm(form => ({ ...form, urgency: event.target.value }))}><option value="NORMAL">Normal</option><option value="URGENT">Mendesak</option><option value="CRITICAL">Kritis</option></select></label><label>Alasan kebutuhan<input required value={purchaseRequestForm.reason} onChange={event => setPurchaseRequestForm(form => ({ ...form, reason: event.target.value }))} placeholder="Contoh: komponen rusak dan tidak tersedia di gudang" /></label><button className="maintenance-request-submit" disabled={requestingPurchase || activeJob.status !== "OPEN"}>{requestingPurchase ? "Mengirim..." : purchaseRequestForm.acknowledgeAvailableStock ? "Tetap Buat Permintaan" : "Buat Permintaan"}</button></div></section>
-                  {(activeJob.purchaseRequests?.length || activeJob.partRepairs?.length) ? <section className="maintenance-request-log"><div className="maintenance-request-card-title"><span>RIWAYAT</span><div><strong>Permintaan dari servis ini</strong><small>Status pembelian dan perbaikan yang masih terlacak.</small></div></div>{!!activeJob.purchaseRequests?.length && <div className="maintenance-request-history">{activeJob.purchaseRequests.map(request => <span key={request.id}><b>{request.number}</b><small>{request.items?.map(row => `${row.item.name} · ${row.originalQty} ${row.item.unit}`).join(", ")}</small><em className={request.status}>{request.status.replaceAll("_", " ")}</em></span>)}</div>}{!!activeJob.partRepairs?.length && <div className="maintenance-request-history">{activeJob.partRepairs.map(repair => <span key={repair.id}><b>PERBAIKAN · {repair.stockUnit?.serialNumber || repair.stockUnit?.barcode || "Tanpa serial"}</b><small>{repair.stockUnit?.item?.name}{repair.supplier?.name ? ` · ${repair.supplier.name}` : " · Vendor belum dipilih"}</small><em className={repair.status}>{repair.status === "SENT" ? "DALAM PERBAIKAN" : repair.status}</em></span>)}</div>}</section> : <div className="maintenance-request-empty">Belum ada permintaan pembelian dari servis ini.</div>}
+                  <section className="maintenance-request-card"><div className="maintenance-request-card-title"><span>02</span><div><strong>Detail kebutuhan</strong><small>Tentukan jumlah, tingkat urgensi, dan alasan pemesanan.</small></div></div><div className="maintenance-request-fields"><label>Jumlah<input required type="number" min="0.01" step="0.01" value={purchaseRequestForm.qty} onChange={event => setPurchaseRequestForm(form => ({ ...form, qty: event.target.value }))} /></label><label>Urgensi<select value={purchaseRequestForm.urgency} onChange={event => setPurchaseRequestForm(form => ({ ...form, urgency: event.target.value }))}><option value="NORMAL">Normal</option><option value="URGENT">Mendesak</option><option value="CRITICAL">Kritis</option></select></label><label>Alasan kebutuhan<input required value={purchaseRequestForm.reason} onChange={event => setPurchaseRequestForm(form => ({ ...form, reason: event.target.value }))} placeholder="Contoh: komponen rusak dan tidak tersedia di gudang" /></label></div></section>
+                  {(activeJob.purchaseRequests?.length || activeJob.partRepairs?.length) ? <section className="maintenance-request-log"><div className="maintenance-request-card-title"><span>RIWAYAT</span><div><strong>Permintaan dari servis ini</strong><small>Status pembelian, pengiriman, dan penerimaan barang.</small></div></div>{!!activeJob.purchaseRequests?.length && <div className="maintenance-request-history">{activeJob.purchaseRequests.map(request => { const progress = purchaseRequestProgress(request); const orderNumbers = (request.purchaseOrders || []).filter(order => order.status !== "CANCELLED").map(order => order.number).join(", "); return <span key={request.id}><b>{request.number}</b><small>{request.items?.map(row => `${row.item.name} · ${row.originalQty} ${row.item.unit}`).join(", ")}{orderNumbers ? ` · ${orderNumbers}` : ""}</small><em className={progress.className}>{progress.label}</em></span>; })}</div>}{!!activeJob.partRepairs?.length && <div className="maintenance-request-history">{activeJob.partRepairs.map(repair => <span key={repair.id}><b>PERBAIKAN · {repair.stockUnit?.serialNumber || repair.stockUnit?.barcode || "Tanpa serial"}</b><small>{repair.stockUnit?.item?.name}{repair.supplier?.name ? ` · ${repair.supplier.name}` : " · Vendor belum dipilih"}</small><em className={repair.status}>{repair.status === "SENT" ? "DALAM PERBAIKAN" : repair.status}</em></span>)}</div>}</section> : <div className="maintenance-request-empty">Belum ada permintaan pembelian dari servis ini.</div>}
                 </form>
 
                 {/* A) Serialized assign */}
@@ -1899,7 +1940,7 @@ export default function Maintenance() {
                           <td style={{ padding: "12px 8px", fontWeight: 600, color: BRAND.primary }}>{m.totalCost == null ? "—" : fmtMoney(m.totalCost)}</td>
                           <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{m.fromTruck?.plateNumber ? `${m.fromTruck.plateNumber} → ${m.toTruck?.plateNumber || activeJob.truck?.plateNumber}` : m.fromLocation?.name || "—"}</td>
                           <td style={{ padding: "12px 8px", color: BRAND.textMuted }}>{m.note || "—"}</td>
-                          <td style={{ padding: "12px 8px" }}>{returnableQty>0&&activeJob.status==="OPEN"?<Button variant="secondary" onClick={()=>returnNonSerializedStock(m)} disabled={usingStock}>Kembalikan {returnableQty}</Button>:<span style={{color:BRAND.textMuted}}>{returnedQty>0?`Dikembalikan ${returnedQty}`:"—"}</span>}</td>
+                          <td style={{ padding: "12px 8px" }}>{returnableQty>0&&activeJob.status==="OPEN"?<Button variant="secondary" onClick={()=>openReturnStock(m)} disabled={usingStock}>Kembalikan</Button>:<span style={{color:BRAND.textMuted}}>{returnedQty>0?`Dikembalikan ${returnedQty}`:"—"}</span>}</td>
                         </tr>})}
                       {(activeJob.movements || []).filter((m) => !m.stockUnitId && (m.type === "OUT" || (m.type === "ADJUST" && m.fromTruckId))).length === 0 && (
                         <tr>
@@ -1915,6 +1956,57 @@ export default function Maintenance() {
             </Card>}
           </div>
         )}
+      </Modal>
+
+      <ImageAnnotationEditor file={purchaseDamagePhoto} open={showPurchasePhotoEditor} onClose={() => setShowPurchasePhotoEditor(false)} onSave={(file) => { setPurchaseDamagePhoto(file); setShowPurchasePhotoEditor(false); }} />
+
+      <Modal
+        open={Boolean(returnStockTarget)}
+        title="Kembalikan Sparepart"
+        onClose={() => !usingStock && setReturnStockTarget(null)}
+        width={560}
+        className="maintenance-return-modal"
+      >
+        {returnStockTarget && <form className="maintenance-return-form" onSubmit={returnNonSerializedStock}>
+          <div className="maintenance-return-summary">
+            <span>BARANG</span>
+            <strong>{returnStockTarget.movement.item?.name || "Sparepart"}</strong>
+            <small>{returnStockTarget.movement.item?.sku || "—"} · Dari {returnStockTarget.movement.fromLocation?.name || "Inventory"}</small>
+          </div>
+          <div className="maintenance-return-fields">
+            <label>
+              Jumlah dikembalikan
+              <Input
+                required
+                autoFocus
+                type="number"
+                min="0.01"
+                max={returnStockTarget.remaining}
+                step="0.01"
+                value={returnStockForm.qty}
+                onChange={(event) => setReturnStockForm((form) => ({ ...form, qty: event.target.value }))}
+              />
+              <small>Maksimal {returnStockTarget.remaining} {returnStockTarget.movement.item?.unit || "unit"}</small>
+            </label>
+            <label>
+              Alasan pengembalian
+              <textarea
+                required
+                maxLength={500}
+                rows={4}
+                value={returnStockForm.reason}
+                onChange={(event) => setReturnStockForm((form) => ({ ...form, reason: event.target.value }))}
+                placeholder="Contoh: sparepart tidak jadi digunakan karena komponen lama masih layak"
+              />
+              <small>Wajib diisi dan akan tercatat dalam riwayat stok.</small>
+            </label>
+          </div>
+          {returnStockError && <div className="maintenance-return-error">{returnStockError}</div>}
+          <div className="maintenance-return-actions">
+            <Button variant="secondary" type="button" disabled={usingStock} onClick={() => setReturnStockTarget(null)}>Batal</Button>
+            <Button variant="primary" disabled={usingStock}>{usingStock ? "Mengembalikan..." : "Konfirmasi Pengembalian"}</Button>
+          </div>
+        </form>}
       </Modal>
 
       <Modal open={Boolean(repairTarget)} title="Kirim Sparepart untuk Perbaikan" onClose={() => !repairSaving && setRepairTarget(null)} width={620}>
