@@ -637,7 +637,7 @@ router.post("/:id/actions", authRequired, async (req, res) => {
     const expenseCategory = str(req.body.expenseCategory) || "TRIP_ALLOWANCE";
     const amount = req.body.amount == null || req.body.amount === "" ? null : Math.round(Number(req.body.amount));
     const allowedActions = ["HANDLE", "SEND_FUNDS", "REPORT_ISSUE", "CONTACT_DRIVER", "RESOLVE"];
-    const allowedExpenseCategories = ["TRIP_ALLOWANCE", "REMAINING_TRIP_ALLOWANCE", "UNLOADING_FEE", "FUEL_LOAN", "DRIVER_SALARY", "FUEL", "TOLL_PARKING", "LOADING_UNLOADING", "REPAIR_MAINTENANCE", "SPAREPART", "OTHER"];
+    const allowedExpenseCategories = ["PANJAR", "TRIP_ALLOWANCE", "REMAINING_TRIP_ALLOWANCE", "UNLOADING_FEE", "FUEL_LOAN", "DRIVER_SALARY", "FUEL", "TOLL_PARKING", "LOADING_UNLOADING", "REPAIR_MAINTENANCE", "SPAREPART", "OTHER"];
     if (!allowedActions.includes(actionType)) return res.status(400).json({ error: "Tindakan tidak valid" });
     if (!note) return res.status(400).json({ error: "Catatan tindakan wajib diisi" });
     if (actionType === "SEND_FUNDS" && (!Number.isFinite(amount) || amount <= 0)) return res.status(400).json({ error: "Nominal dana wajib lebih besar dari 0" });

@@ -29,6 +29,7 @@ const BRAND = {
 };
 
 const EXPENSE_CATEGORIES = {
+  PANJAR: "Panjar",
   TRIP_ALLOWANCE: "Uang Jalan",
   REMAINING_TRIP_ALLOWANCE: "Sisa Uang Jalan",
   UNLOADING_FEE: "Uang Bongkar",

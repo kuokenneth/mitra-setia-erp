@@ -133,6 +133,7 @@ enum ExpenseStatus {
 }
 
 enum ExpenseCategory {
+  PANJAR
   TRIP_ALLOWANCE
   REMAINING_TRIP_ALLOWANCE
   UNLOADING_FEE
@@ -245,6 +246,7 @@ model User {
   maintenanceNotesCreated     MaintenanceNote[]          @relation("MaintenanceNoteCreatedBy")
   tripActionsCreated          TripOperationalAction[]    @relation("TripActionCreatedBy")
   tripActionsAssigned         TripOperationalAction[]    @relation("TripActionAssignedTo")
+  truckManualRevenuesCreated  TruckManualRevenue[]       @relation("TruckManualRevenueCreatedBy")
 }
 
 model AuditLog {
@@ -1045,6 +1047,7 @@ model Truck {
   expenses             Expense[]
   gpsEvents            GpsEvent[]
   manualInvoiceLines   ManualInvoiceLine[]
+  manualRevenues       TruckManualRevenue[]
 
   @@index([driverUserId])
   @@index([stnkExpiry])
@@ -1114,6 +1117,23 @@ model TruckMonthlyCost {
 
   @@unique([truckId, month])
   @@index([month])
+}
+
+model TruckManualRevenue {
+  id          String   @id @default(cuid())
+  truckId     String
+  truck       Truck    @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  revenueDate DateTime
+  amount      Int
+  description String
+  notes       String?
+  createdById String?
+  createdBy   User?    @relation("TruckManualRevenueCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([truckId, revenueDate])
+  @@index([createdById])
 }
 
 model TruckMaintenance {

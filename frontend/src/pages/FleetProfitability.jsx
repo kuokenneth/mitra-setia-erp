@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { FiActivity, FiAlertTriangle, FiCalendar, FiDollarSign, FiEdit2, FiFileText, FiTruck, FiTrendingDown, FiTrendingUp, FiX } from "react-icons/fi";
+import { FiActivity, FiAlertTriangle, FiCalendar, FiDollarSign, FiEdit2, FiFileText, FiPlus, FiTrash2, FiTruck, FiTrendingDown, FiTrendingUp, FiX } from "react-icons/fi";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
@@ -10,6 +10,7 @@ import "./FleetProfitabilityPro.css";
 const money = value => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value) || 0);
 const pct = value => `${Number(value || 0).toLocaleString("id-ID", { maximumFractionDigits: 1 })}%`;
 const currentMonth = () => new Date().toLocaleDateString("sv-SE", { year: "numeric", month: "2-digit" });
+const currentDate = () => new Date().toLocaleDateString("sv-SE");
 const labels = { depreciation: "Penyusutan", insurance: "Asuransi", taxPermit: "Pajak & izin", driverSalary: "Gaji pengemudi", lease: "Cicilan / sewa", overhead: "Overhead" };
 const date = value => value ? new Date(value).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
@@ -19,7 +20,7 @@ function Bar({ value, tone = "green" }) {
 
 export default function FleetProfitability() {
   const { user } = useAuth();
-  const canAccess = ["OWNER", "ADMIN"].includes(user?.role);
+  const canAccess = ["OWNER", "ADMIN", "STAFF"].includes(user?.role);
   const [month, setMonth] = useState(currentMonth());
   const [data, setData] = useState({ summary: {}, rows: [] });
   const [loading, setLoading] = useState(true);
@@ -29,6 +30,8 @@ export default function FleetProfitability() {
   const [sortBy, setSortBy] = useState("profit-desc");
   const [selected, setSelected] = useState(null);
   const canEdit = ["OWNER", "ADMIN"].includes(user?.role);
+  const [manualEntry, setManualEntry] = useState(null);
+  const [manualForm, setManualForm] = useState({ truckId: "", revenueDate: currentDate(), amount: "", description: "", notes: "" });
 
   async function load() {
     if (!canAccess) {
@@ -66,7 +69,29 @@ export default function FleetProfitability() {
     finally { setSaving(false); }
   }
 
-  if (!canAccess) return <main className="fp-page"><header className="fp-head"><div><span>AKSES DIBATASI</span><h1>Profit Armada</h1><p>Halaman ini hanya tersedia untuk Owner dan Admin.</p></div></header></main>;
+  function openManualRevenue(row) {
+    setManualForm({ truckId: row.truck.id, revenueDate: currentDate(), amount: "", description: "", notes: "" });
+    setManualEntry({ truckId: row.truck.id, plateNumber: row.truck.plateNumber });
+  }
+
+  async function saveManualRevenue(event) {
+    event.preventDefault(); setSaving(true); setError("");
+    try {
+      await api("/fleet-profitability/manual-revenues", { method: "POST", body: JSON.stringify(manualForm) });
+      setManualEntry(null); setSelected(null); await load();
+    } catch (err) { setError(err.message); }
+    finally { setSaving(false); }
+  }
+
+  async function removeManualRevenue(id) {
+    if (!window.confirm("Hapus pendapatan manual ini dari Profit Armada?")) return;
+    setSaving(true); setError("");
+    try { await api(`/fleet-profitability/manual-revenues/${id}`, { method: "DELETE" }); setSelected(null); await load(); }
+    catch (err) { setError(err.message); }
+    finally { setSaving(false); }
+  }
+
+  if (!canAccess) return <main className="fp-page"><header className="fp-head"><div><span>AKSES DIBATASI</span><h1>Profit Armada</h1><p>Halaman ini tersedia untuk Owner, Admin, dan Staff.</p></div></header></main>;
 
   return <main className="fp-page">
     <header className="fp-head"><div className="fp-head-copy"><span>KEUANGAN · ANALISIS ARMADA</span><h1>Profit Armada</h1><p>Pantau kontribusi pendapatan, struktur biaya, dan laba bersih setiap armada dalam satu laporan.</p></div><div className="fp-period-card"><FiCalendar/><label><small>PERIODE LAPORAN</small><input type="month" value={month} onChange={event => setMonth(event.target.value)} /></label></div></header>
@@ -90,7 +115,7 @@ export default function FleetProfitability() {
           <td className={row.profit < 0 ? "negative" : "positive"}><b>{money(row.profit)}</b><small>Biaya tetap {money(row.fixedTotal)}</small></td>
           <td><span className={`fp-badge ${row.health.toLowerCase()}`}>{pct(row.margin)}</span><Bar value={row.margin} tone={row.health === "LOSS" ? "red" : row.health === "WATCH" ? "yellow" : "green"}/></td>
           <td><b>{pct(row.utilizationRate)} utilisasi</b><Bar value={row.utilizationRate}/><small>{row.activeDays} hari aktif · BEP {row.breakEvenTrips ?? "—"} trip</small></td>
-          <td>{canEdit && <button className="fp-icon" onClick={event => { event.stopPropagation(); edit(row); }} title="Atur biaya tetap"><FiEdit2/></button>}</td>
+          <td>{canEdit && <div className="fp-row-actions"><button className="fp-icon revenue" onClick={event => { event.stopPropagation(); openManualRevenue(row); }} title="Tambah pendapatan manual"><FiPlus/></button><button className="fp-icon" onClick={event => { event.stopPropagation(); edit(row); }} title="Atur biaya tetap"><FiEdit2/></button></div>}</td>
         </tr>)}
       </tbody></table></div>}
     </section>
@@ -115,6 +140,7 @@ export default function FleetProfitability() {
         </div>
 
         <div className="fp-detail-columns">
+          <div className="fp-detail-section"><div className="fp-detail-title"><div><FiDollarSign/><h3>Pendapatan Manual</h3></div><strong>{money(selected.directManualRevenue)}</strong></div><div className="fp-cost-list">{(selected.manualRevenueDetails || []).map(item => <div key={item.id}><span><b>{item.description}</b><small>{date(item.revenueDate)}{item.notes ? ` · ${item.notes}` : ""}{item.createdBy?.name ? ` · oleh ${item.createdBy.name}` : ""}</small></span><span className="fp-manual-revenue-amount"><strong>{money(item.amount)}</strong>{canEdit && <button type="button" disabled={saving} onClick={() => removeManualRevenue(item.id)} title="Hapus pendapatan manual"><FiTrash2/></button>}</span></div>)}{!selected.manualRevenueDetails?.length && <p>Belum ada pendapatan manual bulan ini.</p>}</div></div>
           <div className="fp-detail-section"><div className="fp-detail-title"><div><FiActivity/><h3>Sparepart Terpasang</h3></div><strong>{money(selected.spareParts)}</strong></div><div className="fp-cost-list">{(selected.sparePartDetails || []).map(part => <div key={part.id}><span><b>{part.name}</b><small>{part.sku || "Tanpa SKU"} · {date(part.installedAt)}</small></span><strong>{money(part.cost)}</strong></div>)}{!selected.sparePartDetails?.length && <p>Belum ada biaya sparepart bulan ini.</p>}</div></div>
           <div className="fp-detail-section"><div className="fp-detail-title"><div><FiFileText/><h3>Pengeluaran Langsung Armada</h3></div><strong>{money(selected.vehicleExpenses)}</strong></div><div className="fp-cost-list">{(selected.vehicleExpenseDetails || []).map(item => <div key={item.id}><span><b>{item.reason}</b><small>{date(item.paidAt)} · {item.status}</small></span><strong>{money(item.amount)}</strong></div>)}{!selected.vehicleExpenseDetails?.length && <p>Belum ada pengeluaran langsung armada bulan ini.</p>}</div></div>
           <div className="fp-detail-section"><div className="fp-detail-title"><div><FiFileText/><h3>Biaya Tetap Bulanan</h3></div><strong>{money(selected.fixedTotal)}</strong></div><div className="fp-cost-list">{Object.entries(labels).map(([key, label]) => <div key={key}><span>{label}</span><strong>{money(selected.fixedCosts?.[key])}</strong></div>)}</div></div>
@@ -126,5 +152,11 @@ export default function FleetProfitability() {
       {Object.entries(labels).map(([key, label]) => <label key={key}>{label}<input type="number" min="0" step="1" value={editing[key]} onChange={event => setEditing({ ...editing, [key]: event.target.value })}/></label>)}
       <label className="wide">Catatan<textarea rows="3" value={editing.notes} onChange={event => setEditing({ ...editing, notes: event.target.value })} placeholder="Opsional" /></label>
     </div><footer><button type="button" className="secondary" onClick={() => setEditing(null)}>Batal</button><button disabled={saving}>{saving ? "Menyimpan…" : "Simpan Biaya"}</button></footer></form></div>}
+    {manualEntry && <div className="fp-overlay" onMouseDown={event => event.target === event.currentTarget && setManualEntry(null)}><form className="fp-modal" onSubmit={saveManualRevenue}><header><div><span>PENDAPATAN MANUAL</span><h2>{manualEntry.plateNumber}</h2><p>Catatan ini menambah pendapatan pada analisis Profit Armada.</p></div><button type="button" onClick={() => setManualEntry(null)}><FiX/></button></header><div className="fp-fields">
+      <label>Tanggal pendapatan<input required type="date" value={manualForm.revenueDate} onChange={event => setManualForm({ ...manualForm, revenueDate: event.target.value })}/></label>
+      <label>Nominal pendapatan<input required type="number" min="1" step="1" value={manualForm.amount} onChange={event => setManualForm({ ...manualForm, amount: event.target.value })} placeholder="0"/></label>
+      <label className="wide">Sumber / keterangan<input required value={manualForm.description} onChange={event => setManualForm({ ...manualForm, description: event.target.value })} placeholder="Contoh: Pendapatan angkutan lama belum memiliki invoice"/></label>
+      <label className="wide">Catatan<textarea rows="3" value={manualForm.notes} onChange={event => setManualForm({ ...manualForm, notes: event.target.value })} placeholder="Opsional"/></label>
+    </div><footer><button type="button" className="secondary" onClick={() => setManualEntry(null)}>Batal</button><button disabled={saving}>{saving ? "Menyimpan…" : "Simpan Pendapatan"}</button></footer></form></div>}
   </main>;
 }

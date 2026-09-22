@@ -146,7 +146,8 @@ const DELIVERY_PHASES = [
 const DELIVERY_PHASE_LABELS = Object.fromEntries(DELIVERY_PHASES.map((phase) => [phase.value, phase.label]));
 DELIVERY_PHASE_LABELS.SERVICE_AT_BASE = "Kembali ke base — perlu tindakan";
 const EXPENSE_CATEGORIES = [
-  ["TRIP_ALLOWANCE", "Panjar / uang jalan"],
+  ["PANJAR", "Panjar"],
+  ["TRIP_ALLOWANCE", "Uang jalan"],
   ["REMAINING_TRIP_ALLOWANCE", "Sisa uang jalan"],
   ["UNLOADING_FEE", "Uang bongkar"],
   ["FUEL_LOAN", "Pinjaman minyak"],

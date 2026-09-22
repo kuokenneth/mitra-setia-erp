@@ -4,7 +4,7 @@ const { authRequired } = require("../middleware/authRequired");
 const { requireRole } = require("../middleware/requireRole");
 
 const router = express.Router();
-router.use(authRequired, requireRole("OWNER", "ADMIN"));
+router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF"));
 
 const COST_FIELDS = ["depreciation", "insurance", "taxPermit", "driverSalary", "lease", "overhead"];
 const round = (value, digits = 1) => Number((Number(value) || 0).toFixed(digits));
@@ -115,6 +115,11 @@ router.get("/", async (req, res) => {
           include: { invoice: { select: { number: true, status: true, issuedAt: true, customerName: true, sourceType: true, manualData: true } } },
           orderBy: { createdAt: "asc" },
         },
+        manualRevenues: {
+          where: { revenueDate: dateRange },
+          include: { createdBy: { select: { id: true, name: true, email: true } } },
+          orderBy: [{ revenueDate: "asc" }, { createdAt: "asc" }],
+        },
         sparePartAssignments: { where: { installedAt: dateRange }, include: { stockUnit: { select: { purchasePrice: true, item: { select: { name: true, sku: true } } } } } },
         monthlyCosts: { where: { month: start } },
         expenses: {
@@ -131,7 +136,9 @@ router.get("/", async (req, res) => {
       const operationalTrips = truck.trips.filter(item => item.status !== "CANCELLED");
       const completedTrips = operationalTrips.filter(item => item.status === "COMPLETED").length;
       const tripRevenue = Math.round(operationalTrips.reduce((sum, item) => sum + allocatedRevenue(item), 0));
-      const manualRevenue = truck.manualInvoiceLines.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const manualInvoiceRevenue = truck.manualInvoiceLines.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const directManualRevenue = truck.manualRevenues.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const manualRevenue = manualInvoiceRevenue + directManualRevenue;
       const revenue = tripRevenue + manualRevenue;
       const cargoLoss = Math.round(operationalTrips.reduce((sum, item) => sum + cargoLossValue(item), 0));
       const tripExpenses = operationalTrips.reduce((sum, item) => sum + item.expenses.reduce((cost, expense) => cost + expense.amount, 0), 0);
@@ -209,9 +216,10 @@ router.get("/", async (req, res) => {
       return {
         truck: { id: truck.id, plateNumber: truck.plateNumber, brand: truck.brand, model: truck.model, status: truck.status },
         trips: { total: operationalTrips.length, completed: completedTrips, cancelled: truck.trips.length - operationalTrips.length },
-        revenue, tripRevenue, manualRevenue, cargoLoss, tripExpenses, vehicleExpenses, spareParts, fixedCosts: Object.fromEntries(COST_FIELDS.map(field => [field, fixedCosts[field] || 0])),
+        revenue, tripRevenue, manualRevenue, manualInvoiceRevenue, directManualRevenue, cargoLoss, tripExpenses, vehicleExpenses, spareParts, fixedCosts: Object.fromEntries(COST_FIELDS.map(field => [field, fixedCosts[field] || 0])),
         fixedTotal, totalCost, profit, margin,
         tripDetails, sparePartDetails,
+        manualRevenueDetails: truck.manualRevenues.map(item => ({ id: item.id, revenueDate: item.revenueDate, amount: item.amount, description: item.description, notes: item.notes, createdAt: item.createdAt, createdBy: item.createdBy })),
         vehicleExpenseDetails: truck.expenses.map(expense => ({ id: expense.id, reason: expense.reason, amount: expense.amount, status: expense.status, paidAt: expense.paidAt || expense.createdAt })),
         costRatio: revenue > 0 ? ratio(totalCost, revenue) : (totalCost > 0 ? 100 : 0),
         completionRate: ratio(completedTrips, operationalTrips.length),
@@ -229,6 +237,39 @@ router.get("/", async (req, res) => {
     res.json({ ok: true, month, summary, rows });
   } catch (error) {
     res.status(400).json({ error: error.message || "Gagal menghitung profit armada" });
+  }
+});
+
+router.post("/manual-revenues", requireRole("OWNER", "ADMIN"), async (req, res) => {
+  try {
+    const truckId = String(req.body.truckId || "").trim();
+    const description = String(req.body.description || "").trim();
+    const notes = String(req.body.notes || "").trim() || null;
+    const amount = Math.round(Number(req.body.amount));
+    const rawDate = String(req.body.revenueDate || "").trim();
+    if (!truckId) throw new Error("Mobil wajib dipilih");
+    if (!description) throw new Error("Sumber atau keterangan pendapatan wajib diisi");
+    if (!Number.isFinite(amount) || amount <= 0) throw new Error("Nominal pendapatan harus lebih besar dari 0");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) throw new Error("Tanggal pendapatan tidak valid");
+    const revenueDate = new Date(`${rawDate}T12:00:00.000Z`);
+    if (Number.isNaN(revenueDate.getTime())) throw new Error("Tanggal pendapatan tidak valid");
+    const truck = await prisma.truck.findUnique({ where: { id: truckId }, select: { id: true } });
+    if (!truck) throw new Error("Mobil tidak ditemukan");
+    const revenue = await prisma.truckManualRevenue.create({ data: { truckId, revenueDate, amount, description, notes, createdById: req.user.id } });
+    res.status(201).json({ ok: true, revenue });
+  } catch (error) {
+    res.status(400).json({ error: error.message || "Gagal menyimpan pendapatan manual" });
+  }
+});
+
+router.delete("/manual-revenues/:id", requireRole("OWNER", "ADMIN"), async (req, res) => {
+  try {
+    const existing = await prisma.truckManualRevenue.findUnique({ where: { id: req.params.id }, select: { id: true } });
+    if (!existing) return res.status(404).json({ error: "Pendapatan manual tidak ditemukan" });
+    await prisma.truckManualRevenue.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(400).json({ error: error.message || "Gagal menghapus pendapatan manual" });
   }
 });
 

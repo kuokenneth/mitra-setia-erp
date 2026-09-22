@@ -101,7 +101,7 @@ const ACTION_OPTIONS = [{
   icon: FiCheckCircle,
   note: "Tandai tindak lanjut telah selesai"
 }];
-const FUND_CATEGORIES = [["TRIP_ALLOWANCE", "Panjar / uang jalan"], ["REMAINING_TRIP_ALLOWANCE", "Sisa uang jalan"], ["UNLOADING_FEE", "Uang bongkar"], ["FUEL_LOAN", "Pinjaman minyak"], ["DRIVER_SALARY", "Gaji / borongan pengemudi"], ["FUEL", "BBM"], ["TOLL_PARKING", "Tol & parkir"], ["LOADING_UNLOADING", "Biaya muat / bongkar"], ["REPAIR_MAINTENANCE", "Perbaikan darurat"], ["SPAREPART", "Suku cadang"], ["OTHER", "Lainnya"]];
+const FUND_CATEGORIES = [["PANJAR", "Panjar"], ["TRIP_ALLOWANCE", "Uang jalan"], ["REMAINING_TRIP_ALLOWANCE", "Sisa uang jalan"], ["UNLOADING_FEE", "Uang bongkar"], ["FUEL_LOAN", "Pinjaman minyak"], ["DRIVER_SALARY", "Gaji / borongan pengemudi"], ["FUEL", "BBM"], ["TOLL_PARKING", "Tol & parkir"], ["LOADING_UNLOADING", "Biaya muat / bongkar"], ["REPAIR_MAINTENANCE", "Perbaikan darurat"], ["SPAREPART", "Suku cadang"], ["OTHER", "Lainnya"]];
 function minutesSince(value, now = Date.now()) {
   return value ? Math.max(0, Math.floor((now - new Date(value).getTime()) / 60000)) : 0;
 }
