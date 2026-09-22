@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { FiArrowLeft, FiArrowRight, FiCheck, FiLock, FiMail, FiShield, FiTruck } from "react-icons/fi";
 import { useAuth } from "../AuthContext";
 import "./Register.css";
@@ -7,6 +7,7 @@ import "./Register.css";
 export default function Login() {
   const { login, logoutReason } = useAuth();
   const nav = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
@@ -17,7 +18,7 @@ export default function Login() {
     event.preventDefault(); setErr(""); setBusy(true);
     try {
       const user = await login(email.trim(), password);
-      nav(user?.role === "SPAREPART_ADMIN" ? "/inventory" : "/dashboard");
+      nav(location.state?.from || (user?.role === "SPAREPART_ADMIN" ? "/inventory" : "/dashboard"), { replace: true });
     } catch (error) { setErr(error?.message || String(error)); }
     finally { setBusy(false); }
   }

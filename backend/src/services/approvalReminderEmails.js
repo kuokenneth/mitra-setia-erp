@@ -41,7 +41,9 @@ async function remindPurchaseRequest(request) {
         ? `${request.number} · ${request.maintenance.truck.plateNumber}`
         : request.number,
       details: `${items}\nAlasan: ${request.reason}\nDiajukan oleh: ${request.createdBy?.name || "Pengguna ERP"}`,
-      path: "/purchasing",
+      path: `/purchasing?approveRequest=${encodeURIComponent(request.id)}`,
+      actionLabel: "Setujui Permintaan",
+      proof: { url: request.damageProofUrl, fileName: request.damageProofFileName, mimeType: request.damageProofMimeType },
     });
     return true;
   } catch (error) {

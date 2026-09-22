@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { FiCheck, FiChevronLeft, FiChevronRight, FiFileText, FiPackage, FiPlus, FiPrinter, FiRefreshCw, FiSearch, FiShoppingCart, FiUploadCloud, FiXCircle } from "react-icons/fi";
 import { api, openPrintDocument, uploadFiles } from "../api";
 import { useAuth } from "../AuthContext";
@@ -15,6 +16,8 @@ const receiptValue = receipt => receipt.items.reduce((sum, row) => sum + Number(
 
 export default function Purchasing() {
   const { user } = useAuth(); const owner = ["OWNER", "ADMIN"].includes(user?.role);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const emailApprovalHandled = useRef(false);
   const [data, setData] = useState({ requests: [], orders: [], items: [], suppliers: [], locations: [], retreadingUnits: [], bills: [] });
   const [tab, setTab] = useState("requests"); const [modal, setModal] = useState(""); const [busy, setBusy] = useState(false);
   const [requestBusy, setRequestBusy] = useState(false);
@@ -55,6 +58,44 @@ export default function Purchasing() {
   }
   useEffect(() => { load(); }, []);
   useLiveRefresh(load);
+  useEffect(() => {
+    const requestId = searchParams.get("approveRequest");
+    if (!requestId || busy || emailApprovalHandled.current || !data.requests.length) return;
+    emailApprovalHandled.current = true;
+    const request = data.requests.find(row => row.id === requestId);
+    const clearAction = () => setSearchParams(current => {
+      const next = new URLSearchParams(current);
+      next.delete("approveRequest");
+      return next;
+    }, { replace: true });
+    if (!owner) {
+      window.alert("Hanya OWNER atau ADMIN yang dapat menyetujui permintaan pembelian.");
+      clearAction();
+      return;
+    }
+    if (!request || request.status !== "WAITING_APPROVAL") {
+      window.alert(request ? `Permintaan ${request.number} sudah diproses sebelumnya.` : "Permintaan pembelian tidak ditemukan.");
+      clearAction();
+      return;
+    }
+    setBusy(true);
+    api(`/purchasing/requests/${request.id}/approval`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        approved: true,
+        acknowledgeAvailableStock: true,
+        quantities: Object.fromEntries(request.items.map(item => [item.id, item.originalQty])),
+      }),
+    }).then(() => {
+      window.alert(`${request.number} berhasil disetujui.`);
+      return load();
+    }).catch(error => {
+      window.alert(error.message || "Permintaan gagal disetujui.");
+    }).finally(() => {
+      clearAction();
+      setBusy(false);
+    });
+  }, [busy, data.requests, owner, searchParams, setSearchParams]);
   async function loadInventoryItems() {
     setItemsLoading(true); setItemsError("");
     try {

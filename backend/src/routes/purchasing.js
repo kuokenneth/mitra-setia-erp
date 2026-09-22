@@ -125,7 +125,9 @@ router.post("/requests", async (req, res) => {
       event: "Permintaan pembelian baru",
       title: request.number,
       details: `${request.items.map(row => `${row.item.name} · ${row.originalQty} ${row.item.unit}`).join(", ")} · ${reason}`,
-      path: "/purchasing",
+      path: `/purchasing?approveRequest=${encodeURIComponent(request.id)}`,
+      actionLabel: "Setujui Permintaan",
+      proof: { url: request.damageProofUrl, fileName: request.damageProofFileName, mimeType: request.damageProofMimeType },
     });
   }
   res.json({ ok: true, request });
