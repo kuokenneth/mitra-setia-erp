@@ -12,29 +12,37 @@ export function apiAssetUrl(value) {
   return `${API_BASE}${url.startsWith("/") ? "" : "/"}${url}`;
 }
 
-export async function uploadFiles(fileList) {
+export async function uploadFiles(fileList, options = {}) {
   const files = Array.from(fileList || []);
   if (!files.length) return [];
 
   const fd = new FormData();
   files.forEach((file) => fd.append("files", file));
   const token = getAccessToken();
-  const res = await fetch(`${API_BASE}/api/uploads`, {
-    method: "POST",
-    body: fd,
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    credentials: "include",
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_BASE}/api/uploads`);
+    xhr.withCredentials = true;
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable || typeof options.onProgress !== "function") return;
+      options.onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)), event.loaded, event.total);
+    };
+    xhr.onerror = () => reject(new Error("Upload gagal karena koneksi terputus"));
+    xhr.onabort = () => reject(new Error("Upload dibatalkan"));
+    xhr.onload = () => {
+      let data = {};
+      try {
+        data = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+      } catch {
+        data = { raw: xhr.responseText };
+      }
+      if (xhr.status < 200 || xhr.status >= 300) return reject(new Error(data?.error || data?.message || `Upload gagal (${xhr.status})`));
+      if (typeof options.onProgress === "function") options.onProgress(100, files.reduce((sum, file) => sum + file.size, 0), files.reduce((sum, file) => sum + file.size, 0));
+      resolve(data?.items || []);
+    };
+    xhr.send(fd);
   });
-
-  const text = await res.text();
-  let data = {};
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    data = { raw: text };
-  }
-  if (!res.ok) throw new Error(data?.error || data?.message || `Upload gagal (${res.status})`);
-  return data?.items || [];
 }
 
 export async function api(path, options = {}) {

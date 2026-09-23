@@ -8,6 +8,7 @@ import "./Purchasing.css";
 import LoadingState from "../components/LoadingState";
 import { ProtectedFilePreview } from "../components/ProtectedFile";
 import ImageAnnotationEditor from "../components/ImageAnnotationEditor";
+import UploadProgress from "../components/UploadProgress";
 import "./PurchasingForm.css";
 
 const money = n => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
@@ -36,6 +37,7 @@ export default function Purchasing() {
   const [requestBusy, setRequestBusy] = useState(false);
   const [requestDamagePhoto, setRequestDamagePhoto] = useState(null);
   const [showRequestPhotoEditor, setShowRequestPhotoEditor] = useState(false);
+  const [requestUploadProgress, setRequestUploadProgress] = useState(null);
   const [stockAcknowledged, setStockAcknowledged] = useState(false);
   const [form, setForm] = useState({ urgency: "NORMAL", purpose: "STOCK", reason: "", itemId: "", retreadUnitId: "", qty: 1 });
   const [newItem, setNewItem] = useState(false);
@@ -52,6 +54,7 @@ export default function Purchasing() {
   const [receiptPoIds, setReceiptPoIds] = useState([]);
   const [receiptForm, setReceiptForm] = useState({ locationId: "", locationName: "Gudang Utama", quantities: {}, prices: {}, serials: {}, retreadUnitIds: {}, repairUnitIds: {}, deliveryNote: "", notes: "" });
   const [receiptProofFile, setReceiptProofFile] = useState(null);
+  const [receiptUploadProgress, setReceiptUploadProgress] = useState(null);
   const [paymentPo, setPaymentPo] = useState(null);
   const [paymentForm, setPaymentForm] = useState({ amount: "", method: "BANK_TRANSFER", reference: "" });
   const [paymentProofFile, setPaymentProofFile] = useState(null);
@@ -143,7 +146,8 @@ export default function Purchasing() {
     setRequestBusy(true); setFormError("");
     try {
       if (!requestDamagePhoto) throw new Error("Foto bukti barang rusak wajib dipilih");
-      const damageProof = (await uploadFiles([requestDamagePhoto]))[0];
+      setRequestUploadProgress(0);
+      const damageProof = (await uploadFiles([requestDamagePhoto], { onProgress: setRequestUploadProgress }))[0];
       let itemId = form.itemId;
       if (newItem) {
         const created = await api("/inventory/items", { method: "POST", body: JSON.stringify(itemForm) });
@@ -155,7 +159,7 @@ export default function Purchasing() {
     } catch (err) {
       if (String(err.message || "").startsWith("Stok masih tersedia:")) setStockAcknowledged(true);
       setFormError(err.message);
-    } finally { setRequestBusy(false); }
+    } finally { setRequestBusy(false); setRequestUploadProgress(null); }
   }
   async function approve(r, approved) {
     const available = approved
@@ -242,7 +246,8 @@ export default function Purchasing() {
       let locationId = receiptForm.locationId;
       if (!locationId) { const created = await api("/inventory/locations", { method: "POST", body: JSON.stringify({ name: receiptForm.locationName }) }); locationId = created.location.id; }
       if (!receiptProofFile) throw new Error("Foto bukti surat penerimaan wajib dipilih");
-      const proof = (await uploadFiles([receiptProofFile]))[0];
+      setReceiptUploadProgress(0);
+      const proof = (await uploadFiles([receiptProofFile], { onProgress: setReceiptUploadProgress }))[0];
       if (!selectedReceiptOrders.length) throw new Error("Pilih minimal satu PO yang diterima");
       const receiptItems = po => po.items.map(i => ({
           purchaseOrderItemId: i.id,
@@ -257,7 +262,7 @@ export default function Purchasing() {
         })).filter(i => i.qty > 0);
       await api("/purchasing/receipts/batch", { method: "POST", body: JSON.stringify({ locationId, deliveryNote: receiptForm.deliveryNote, deliveryNoteProofUrl: proof?.url, deliveryNoteFileName: proof?.fileName, deliveryNoteMimeType: proof?.mimeType, deliveryNoteSize: proof?.size, notes: receiptForm.notes, receipts: selectedReceiptOrders.map(po => ({ purchaseOrderId: po.id, items: receiptItems(po) })) }) });
       setModal(""); setReceiptPo(null); setReceiptPoIds([]); setTab("receipts"); await load();
-    } catch (err) { setFormError(err.message); } finally { setBusy(false); }
+    } catch (err) { setFormError(err.message); } finally { setBusy(false); setReceiptUploadProgress(null); }
   }
   function openBillForm() {
     const first = data.suppliers.find(supplier => data.orders.some(po => po.supplierId === supplier.id && po.receipts.some(receipt => receipt.items.some(item => !item.supplierBillItem))));
@@ -356,6 +361,7 @@ export default function Purchasing() {
         <section className="request-form-section"><div className="request-section-title"><b>02</b><span><strong>Detail kebutuhan</strong><small>Tentukan jumlah, tujuan, dan tingkat urgensinya.</small></span></div><div className="request-details"><div className="grid2"><label>Jumlah dibutuhkan<input required min="0.01" step="0.01" inputMode="decimal" type="number" disabled={retreadRequest} value={retreadRequest?1:form.qty} onChange={e=>setForm({...form,qty:e.target.value})}/></label><label>Urgensi<select value={form.urgency} onChange={e=>setForm({...form,urgency:e.target.value})}><option value="NORMAL">Normal</option><option value="URGENT">Mendesak</option><option value="CRITICAL">Kritis</option></select></label></div><label>Tujuan permintaan<select value={form.purpose} onChange={e=>setForm({...form,purpose:e.target.value})}><option value="STOCK">Persediaan umum</option><option value="TRUCK">Kebutuhan truk tertentu</option></select></label><label>Alasan permintaan<textarea required rows="3" placeholder={retreadRequest?"Contoh: penerimaan kembali ban selesai dimasak":"Jelaskan alasan dan kebutuhan barang ini..."} value={form.reason} onChange={e=>setForm({...form,reason:e.target.value})}/></label></div></section>
         <label className={`request-damage-proof ${requestDamagePhoto?"has-file":""}`}><input required type="file" accept="image/*" capture="environment" onChange={e=>{const file=e.target.files?.[0]||null;setRequestDamagePhoto(file);setShowRequestPhotoEditor(Boolean(file));}}/><span className="request-proof-icon"><FiUploadCloud/></span><span className="request-proof-copy"><strong>{requestDamagePhoto?"Foto siap dikirim":"Ketuk untuk tambah foto barang rusak"}</strong><small>{requestDamagePhoto?`${requestDamagePhoto.name} · Ketuk kembali untuk mengganti`:"Gunakan kamera atau pilih foto dari galeri"}</small></span></label>
         {requestDamagePhoto&&<button type="button" className="request-proof-annotate" onClick={()=>setShowRequestPhotoEditor(true)}>Tandai bagian yang rusak</button>}
+        <UploadProgress progress={requestUploadProgress} label="Mengunggah bukti barang rusak" />
         {formError&&<div className="form-error">{formError}</div>}
       </div><div className="modal-actions"><span className="request-footer-note">Permintaan akan masuk ke daftar persetujuan.</span><button className="secondary-btn" type="button" disabled={requestBusy} onClick={()=>setModal("")}>Batal</button><button className="primary" disabled={requestBusy||itemsLoading}><FiCheck/>{requestBusy?"Mengirim...":stockAcknowledged?"Tetap Kirim Permintaan":"Kirim Permintaan"}</button></div></form></div>}
     {modal==="po"&&poRequest&&<div className="overlay" onMouseDown={()=>setModal("")}><form className="modal purchase-request-modal po-modal" onSubmit={createPurchaseOrder} onMouseDown={e=>e.stopPropagation()}><div className="modal-heading"><span className="eyebrow">PESANAN PEMBELIAN</span><h2>Buat PO dari {poRequest.number}</h2><p>Pilih supplier dan pastikan barang serta jumlah yang dipesan.</p></div><div className="po-form-body">
@@ -378,7 +384,7 @@ export default function Purchasing() {
             {i.tireRetread?<div className="retread-purchase-picker"><strong>Ban selesai retreading</strong><div className="retread-unit-option selected"><span><b>{i.tireRetread.stockUnit?.serialNumber||i.tireRetread.stockUnit?.barcode||i.tireRetread.stockUnitId}</b><small>{i.tireRetread.fromItem?.name} → {i.tireRetread.toItem?.name}</small></span></div><small>Serial sudah ditentukan dari Permintaan Pembelian dan akan masuk stok setelah penerimaan disetujui.</small></div>:i.partRepair?<div className="retread-purchase-picker"><strong>Sparepart selesai diperbaiki</strong><div className="retread-unit-option selected"><span><b>{i.partRepair.stockUnit?.serialNumber||i.partRepair.stockUnit?.barcode||i.partRepair.stockUnitId}</b><small>Unit yang sama akan kembali ke Inventory berstatus tersedia.</small></span></div><small>Tidak membuat unit baru; riwayat perbaikan tetap terhubung ke servis asal.</small></div>:<label>Serial baru — satu per baris<textarea required={requiredSerials} rows="3" value={receiptForm.serials[i.id]||""} onChange={e=>setReceiptForm({...receiptForm,serials:{...receiptForm.serials,[i.id]:e.target.value}})} placeholder={`Masukkan ${receiptForm.quantities[i.id]||0} serial number\nContoh: ${i.item.sku}-0001`}/><small>Serial baru: {typedSerialCount} · Harus sama dengan qty diterima.</small></label>}
           </div>}
         </div>}))}<div className="receipt-table-note"><span>i</span><p><strong>Harga ini masih sementara.</strong> Nilainya dipakai untuk biaya armada sampai invoice supplier dicocokkan.</p></div></div>
-      <div className="grid2"><label>Nomor surat jalan<input value={receiptForm.deliveryNote} onChange={e=>setReceiptForm({...receiptForm,deliveryNote:e.target.value})} placeholder="SJ-..."/></label><label>Catatan<input value={receiptForm.notes} onChange={e=>setReceiptForm({...receiptForm,notes:e.target.value})} placeholder="Kondisi barang baik"/></label></div><label className="receipt-upload required-proof"><input required type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e=>setReceiptProofFile(e.target.files?.[0]||null)}/><span className="receipt-upload-icon"><FiUploadCloud/></span><span><strong>{receiptProofFile?receiptProofFile.name:"Foto surat penerimaan / surat jalan"}</strong><small>{receiptProofFile?"Foto siap disimpan · klik untuk mengganti":"Wajib · ambil foto atau pilih JPG, PNG, WEBP"}</small></span></label>{formError&&<div className="form-error">{formError}</div>}
+      <div className="grid2"><label>Nomor surat jalan<input value={receiptForm.deliveryNote} onChange={e=>setReceiptForm({...receiptForm,deliveryNote:e.target.value})} placeholder="SJ-..."/></label><label>Catatan<input value={receiptForm.notes} onChange={e=>setReceiptForm({...receiptForm,notes:e.target.value})} placeholder="Kondisi barang baik"/></label></div><label className="receipt-upload required-proof"><input required type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e=>setReceiptProofFile(e.target.files?.[0]||null)}/><span className="receipt-upload-icon"><FiUploadCloud/></span><span><strong>{receiptProofFile?receiptProofFile.name:"Foto surat penerimaan / surat jalan"}</strong><small>{receiptProofFile?"Foto siap disimpan · klik untuk mengganti":"Wajib · ambil foto atau pilih JPG, PNG, WEBP"}</small></span></label><UploadProgress progress={receiptUploadProgress} label="Mengunggah bukti penerimaan barang" />{formError&&<div className="form-error">{formError}</div>}
       </div><div className="modal-actions"><button className="secondary-btn" type="button" onClick={()=>setModal("")}>Batal</button><button className="primary" disabled={busy||!selectedReceiptOrders.length}><FiPackage/> {busy?"Menyimpan...":selectedReceiptOrders.some(po=>(po.request.directUse||po.request.purpose==="MAINTENANCE_STOCK_REQUEST")&&po.request.maintenance)?`Terima ${selectedReceiptOrders.length} PO & langsung pakai`:`Terima ${selectedReceiptOrders.length} PO & tambah stok`}</button></div></form></div>}
     <ImageAnnotationEditor file={requestDamagePhoto} open={showRequestPhotoEditor} onClose={()=>setShowRequestPhotoEditor(false)} onSave={file=>{setRequestDamagePhoto(file);setShowRequestPhotoEditor(false);}}/>
     {modal==="bill"&&<div className="overlay" onMouseDown={()=>setModal("")}><form className="modal purchase-request-modal transaction-modal supplier-bill-modal" onSubmit={createBill} onMouseDown={e=>e.stopPropagation()}>

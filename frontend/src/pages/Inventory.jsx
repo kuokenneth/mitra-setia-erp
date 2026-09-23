@@ -627,13 +627,13 @@ export default function Inventory() {
     setUnitPagination(data.pagination || { page, limit: 20, total: (data.units || []).length, totalPages: 1 });
   }
 
-  async function loadMovements(page = movementPage) {
+  async function loadMovements(page = movementPage, filters = { from: mvFrom, to: mvTo }) {
     const qs = buildQuery({
       page,
       limit: 20,
       itemId: unitItemId || undefined,
-      from: mvFrom || undefined,
-      to: mvTo || undefined,
+      from: filters.from || undefined,
+      to: filters.to || undefined,
       q: q || undefined,
     });
     const data = await api(`/inventory/movements${qs}`);
@@ -773,6 +773,20 @@ export default function Inventory() {
     setMovementPage(page);
     setLoading(true);
     try { await loadMovements(page); } catch (e) { setErr(String(e?.message || e)); } finally { setLoading(false); }
+  }
+  async function applyMovementFilters() {
+    setMovementPage(1);
+    setLoading(true);
+    setErr("");
+    try { await loadMovements(1); } catch (e) { setErr(String(e?.message || e)); } finally { setLoading(false); }
+  }
+  async function resetMovementFilters() {
+    setMvFrom("");
+    setMvTo("");
+    setMovementPage(1);
+    setLoading(true);
+    setErr("");
+    try { await loadMovements(1, { from: "", to: "" }); } catch (e) { setErr(String(e?.message || e)); } finally { setLoading(false); }
   }
   useLiveRefresh(refresh);
 
@@ -1277,7 +1291,7 @@ export default function Inventory() {
               </>
             ) : null}
 
-            {tab === "MOVEMENTS" ? <><MovementsTable movements={movements} loading={loading} from={mvFrom} to={mvTo} onFromChange={(value)=>{setMvFrom(value);setMovementPage(1)}} onToChange={(value)=>{setMvTo(value);setMovementPage(1)}} onApply={()=>{setMovementPage(1);loadMovements(1)}}/><Pagination pagination={movementPagination} onChange={changeMovementPage}/></> : null}
+            {tab === "MOVEMENTS" ? <><MovementsTable movements={movements} loading={loading} from={mvFrom} to={mvTo} onFromChange={(value)=>{setMvFrom(value);setMovementPage(1)}} onToChange={(value)=>{setMvTo(value);setMovementPage(1)}} onApply={applyMovementFilters} onReset={resetMovementFilters}/>{!loading && <Pagination pagination={movementPagination} onChange={changeMovementPage}/>}</> : null}
             {tab === "BATCHES" ? <BatchesTable batches={batches} loading={loading} /> : null}
             {tab === "EMERGENCY" ? <div className="inventory-emergency"><div className="inventory-emergency-head"><div><h2>Pengiriman Sparepart Darurat</h2><p>Stok keluar saat dikirim dan pemasangan dikonfirmasi saat barang diterima.</p></div><button type="button" onClick={openEmergencyForm}><FiPlus/> Buat Pengiriman</button></div><div className="inventory-emergency-list">{emergencyDispatches.map((dispatch) => <article key={dispatch.id}><span className={dispatch.status.toLowerCase()}>{dispatch.status === "IN_TRANSIT" ? "DALAM PERJALANAN" : "TERPASANG"}</span><h3>{dispatch.item?.name || "Sparepart"} · {dispatch.qty} {dispatch.item?.unit || ""}</h3><p>{dispatch.fromLocation?.name || "Gudang"} → <b>{dispatch.targetTruck?.plateNumber}</b></p><small>Dibawa {dispatch.carrierTruck?.plateNumber || "—"}{dispatch.stockUnit ? ` · Serial ${dispatch.stockUnit.serialNumber || dispatch.stockUnit.barcode}` : ""}</small>{dispatch.status === "IN_TRANSIT" && <button type="button" onClick={() => openInstallDispatch(dispatch)}>Konfirmasi diterima & pasang</button>}</article>)}{!emergencyDispatches.length && <div className="inventory-emergency-empty">Belum ada pengiriman sparepart darurat.</div>}</div></div> : null}
           </div>
@@ -2115,7 +2129,7 @@ function UnitsTable({
   );
 }
 
-function MovementsTable({ movements, loading, from, to, onFromChange, onToChange, onApply }) {
+function MovementsTable({ movements, loading, from, to, onFromChange, onToChange, onApply, onReset }) {
   const filters = (
     <div className="inventory-movement-filters" style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16, alignItems: "end" }}>
       <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
@@ -2126,13 +2140,13 @@ function MovementsTable({ movements, loading, from, to, onFromChange, onToChange
         Sampai tanggal
         <span className={`date-placeholder-wrap ${to ? "has-value" : ""}`} data-placeholder="Pilih tanggal akhir"><input className="tablet-date-input" aria-label="Tanggal akhir pergerakan" type="date" value={to} onChange={(e) => onToChange(e.target.value)} style={{ ...inputPill, minWidth: 180 }} /></span>
       </label>
-      <Btn style={btn} onClick={onApply}>Terapkan</Btn>
-      {(from || to) && <Btn style={btn} onClick={() => { onFromChange(""); onToChange(""); setTimeout(onApply, 0); }}>Reset</Btn>}
+      <Btn style={btn} onClick={onApply} disabled={loading}>{loading ? "Memuat..." : "Terapkan"}</Btn>
+      {(from || to) && <Btn style={btn} onClick={onReset} disabled={loading}>Reset</Btn>}
     </div>
   );
 
   if (loading) {
-    return <>{filters}<LoadingState compact label="Memuat mutasi stok" note="Menelusuri penerimaan dan penggunaan barang…" rows={5} /></>;
+    return <>{filters}<LoadingState compact label="Memuat pergerakan stok" note="Menelusuri penerimaan dan penggunaan barang…" rows={5} /></>;
   }
 
   if (movements.length === 0) {
