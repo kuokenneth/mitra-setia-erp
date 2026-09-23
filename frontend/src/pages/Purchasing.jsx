@@ -28,6 +28,42 @@ const requestProgress = (request, orders) => {
   return { text: "PO dibuat · belum dikirim", className: "APPROVED", orderNumber: activeOrders.map(order => order.number).join(", ") };
 };
 
+function CatalogItemSearch({ items, value, onChange, disabled, loading }) {
+  const selected = items.find(item => item.id === value);
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const normalized = query.trim().toLocaleLowerCase("id-ID");
+  const results = useMemo(() => items.filter(item => !normalized || `${item.sku || ""} ${item.name || ""} ${item.unit || ""}`.toLocaleLowerCase("id-ID").includes(normalized)).slice(0, 80), [items, normalized]);
+
+  function choose(item) {
+    onChange(item.id);
+    setQuery("");
+    setOpen(false);
+  }
+
+  return <div className="catalog-item-search">
+    <div className={`catalog-item-search-input ${open ? "focused" : ""}`}>
+      <FiSearch />
+      <input
+        disabled={disabled}
+        value={query}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onChange={event => { setQuery(event.target.value); setOpen(true); if (value) onChange(""); }}
+        placeholder={loading ? "Memuat katalog barang..." : selected ? `${selected.sku} — ${selected.name}` : "Cari nama sparepart atau SKU..."}
+        aria-label="Cari barang dari katalog inventory"
+        autoComplete="off"
+      />
+      {selected && !query && <button type="button" aria-label="Hapus pilihan barang" onClick={() => { onChange(""); setOpen(true); }}>×</button>}
+    </div>
+    {selected && !query && <div className="catalog-item-selected"><span><strong>{selected.name}</strong><small>{selected.sku} · {selected.unit || "PCS"}</small></span><b>{Number(selected.qtyTotal || 0).toLocaleString("id-ID")} tersedia</b></div>}
+    {open && !disabled && <div className="catalog-item-results">
+      {results.map(item => <button type="button" key={item.id} className={item.id === value ? "selected" : ""} onMouseDown={event => event.preventDefault()} onClick={() => choose(item)}><span><strong>{item.name}</strong><small>{item.sku} · {item.unit || "PCS"}</small></span><b>{Number(item.qtyTotal || 0).toLocaleString("id-ID")}</b></button>)}
+      {!results.length && <div>Tidak ada sparepart yang cocok.</div>}
+    </div>}
+  </div>;
+}
+
 export default function Purchasing() {
   const { user } = useAuth(); const owner = ["OWNER", "ADMIN"].includes(user?.role);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -145,6 +181,7 @@ export default function Purchasing() {
     }
     setRequestBusy(true); setFormError("");
     try {
+      if (!newItem && !retreadRequest && !form.itemId) throw new Error("Pilih barang dari katalog inventory");
       if (!requestDamagePhoto) throw new Error("Foto bukti barang rusak wajib dipilih");
       setRequestUploadProgress(0);
       const damageProof = (await uploadFiles([requestDamagePhoto], { onProgress: setRequestUploadProgress }))[0];
@@ -356,7 +393,7 @@ export default function Purchasing() {
       <div className="modal-heading request-modal-heading"><div className="request-heading-icon"><FiShoppingCart/></div><div><span className="eyebrow">PERMINTAAN PEMBELIAN</span><h2>Buat permintaan barang</h2><p>Pilih barang yang dibutuhkan, lalu kirim untuk persetujuan.</p></div><button type="button" className="request-close" onClick={()=>setModal("")}>×</button></div>
       <div className="request-modal-body">
         <section className="request-form-section"><div className="request-section-title"><b>01</b><span><strong>Sumber barang</strong><small>Pilih dari katalog, ban masak, atau daftarkan barang baru.</small></span></div><div className="item-mode request-item-mode"><button type="button" className={!newItem&&!retreadRequest?"selected":""} onClick={()=>{setNewItem(false);setRetreadRequest(false);setStockAcknowledged(false);setFormError("");}}><FiPackage/> Katalog inventory</button><button type="button" className={retreadRequest?"selected":""} onClick={()=>{setNewItem(false);setRetreadRequest(true);setStockAcknowledged(false);setFormError("");}}><FiRefreshCw/> Ban masak</button><button type="button" className={newItem?"selected":""} onClick={()=>{setNewItem(true);setRetreadRequest(false);setStockAcknowledged(false);setFormError("");}}><FiPlus/> Barang baru</button></div>
-          <div className="request-item-fields">{retreadRequest ? <label>Ban berstatus retreading<select required value={form.retreadUnitId} onChange={e=>{setStockAcknowledged(false);setForm({...form,retreadUnitId:e.target.value,qty:1});}}><option value="">Pilih nomor seri ban</option>{(data.retreadingUnits||[]).map(unit=>{const active=unit.tireRetreads?.[0];return <option key={unit.id} value={unit.id}>{unit.serialNumber||unit.barcode||unit.id} — {unit.item?.name} → {active?.toItem?.name}</option>})}</select>{data.retreadingUnits?.length?<small className="items-loaded">Item tujuan mengikuti pilihan saat Lepas & Masak.</small>:<small className="field-help">Belum ada ban berstatus retreading.</small>}</label> : !newItem ? <label>Pilih barang<select required disabled={itemsLoading} value={form.itemId} onChange={e=>{setStockAcknowledged(false);setFormError("");setForm({...form,itemId:e.target.value});}}><option value="">{itemsLoading ? "Memuat barang..." : data.items.length ? "Cari dan pilih barang" : "Barang tidak berhasil dimuat"}</option>{data.items.map(i=><option key={i.id} value={i.id}>{i.sku} — {i.name}</option>)}</select>{itemsError&&<span className="items-error">{itemsError}<button type="button" onClick={loadInventoryItems}>Muat ulang</button></span>}{!itemsLoading&&!itemsError&&data.items.length>0&&<small className="items-loaded">{data.items.length} barang tersedia termasuk stok kosong.</small>}{selectedRequestStock > 0 && <span className="stock-available-warning">⚠ Stok masih tersedia: <b>{selectedRequestStock.toLocaleString("id-ID")} {selectedRequestItem.unit}</b>. Periksa Inventory sebelum membeli.</span>}</label> : <div className="new-item-box"><div className="grid2"><label>Kode / SKU<input required placeholder="Contoh: BRK-HINO-01" value={itemForm.sku} onChange={e=>setItemForm({...itemForm,sku:e.target.value})}/></label><label>Satuan<select value={itemForm.unit} onChange={e=>setItemForm({...itemForm,unit:e.target.value})}><option>PCS</option><option>SET</option><option>UNIT</option><option>LITER</option></select></label></div><label>Nama barang<input required placeholder="Contoh: Kampas rem Hino" value={itemForm.name} onChange={e=>setItemForm({...itemForm,name:e.target.value})}/></label><label className="check-label"><input type="checkbox" checked={itemForm.isSerialized} onChange={e=>setItemForm({...itemForm,isSerialized:e.target.checked})}/> Barang memiliki nomor serial</label></div>}</div>
+          <div className="request-item-fields">{retreadRequest ? <label>Ban berstatus retreading<select required value={form.retreadUnitId} onChange={e=>{setStockAcknowledged(false);setForm({...form,retreadUnitId:e.target.value,qty:1});}}><option value="">Pilih nomor seri ban</option>{(data.retreadingUnits||[]).map(unit=>{const active=unit.tireRetreads?.[0];return <option key={unit.id} value={unit.id}>{unit.serialNumber||unit.barcode||unit.id} — {unit.item?.name} → {active?.toItem?.name}</option>})}</select>{data.retreadingUnits?.length?<small className="items-loaded">Item tujuan mengikuti pilihan saat Lepas & Masak.</small>:<small className="field-help">Belum ada ban berstatus retreading.</small>}</label> : !newItem ? <label>Pilih barang<CatalogItemSearch items={data.items} value={form.itemId} disabled={itemsLoading} loading={itemsLoading} onChange={itemId=>{setStockAcknowledged(false);setFormError("");setForm(current=>({...current,itemId}));}}/>{itemsError&&<span className="items-error">{itemsError}<button type="button" onClick={loadInventoryItems}>Muat ulang</button></span>}{!itemsLoading&&!itemsError&&data.items.length>0&&<small className="items-loaded">{data.items.length} barang tersedia termasuk stok kosong.</small>}{selectedRequestStock > 0 && <span className="stock-available-warning">⚠ Stok masih tersedia: <b>{selectedRequestStock.toLocaleString("id-ID")} {selectedRequestItem.unit}</b>. Periksa Inventory sebelum membeli.</span>}</label> : <div className="new-item-box"><div className="grid2"><label>Kode / SKU<input required placeholder="Contoh: BRK-HINO-01" value={itemForm.sku} onChange={e=>setItemForm({...itemForm,sku:e.target.value})}/></label><label>Satuan<select value={itemForm.unit} onChange={e=>setItemForm({...itemForm,unit:e.target.value})}><option>PCS</option><option>SET</option><option>UNIT</option><option>LITER</option></select></label></div><label>Nama barang<input required placeholder="Contoh: Kampas rem Hino" value={itemForm.name} onChange={e=>setItemForm({...itemForm,name:e.target.value})}/></label><label className="check-label"><input type="checkbox" checked={itemForm.isSerialized} onChange={e=>setItemForm({...itemForm,isSerialized:e.target.checked})}/> Barang memiliki nomor serial</label></div>}</div>
         </section>
         <section className="request-form-section"><div className="request-section-title"><b>02</b><span><strong>Detail kebutuhan</strong><small>Tentukan jumlah, tujuan, dan tingkat urgensinya.</small></span></div><div className="request-details"><div className="grid2"><label>Jumlah dibutuhkan<input required min="0.01" step="0.01" inputMode="decimal" type="number" disabled={retreadRequest} value={retreadRequest?1:form.qty} onChange={e=>setForm({...form,qty:e.target.value})}/></label><label>Urgensi<select value={form.urgency} onChange={e=>setForm({...form,urgency:e.target.value})}><option value="NORMAL">Normal</option><option value="URGENT">Mendesak</option><option value="CRITICAL">Kritis</option></select></label></div><label>Tujuan permintaan<select value={form.purpose} onChange={e=>setForm({...form,purpose:e.target.value})}><option value="STOCK">Persediaan umum</option><option value="TRUCK">Kebutuhan truk tertentu</option></select></label><label>Alasan permintaan<textarea required rows="3" placeholder={retreadRequest?"Contoh: penerimaan kembali ban selesai dimasak":"Jelaskan alasan dan kebutuhan barang ini..."} value={form.reason} onChange={e=>setForm({...form,reason:e.target.value})}/></label></div></section>
         <label className={`request-damage-proof ${requestDamagePhoto?"has-file":""}`}><input required type="file" accept="image/*" capture="environment" onChange={e=>{const file=e.target.files?.[0]||null;setRequestDamagePhoto(file);setShowRequestPhotoEditor(Boolean(file));}}/><span className="request-proof-icon"><FiUploadCloud/></span><span className="request-proof-copy"><strong>{requestDamagePhoto?"Foto siap dikirim":"Ketuk untuk tambah foto barang rusak"}</strong><small>{requestDamagePhoto?`${requestDamagePhoto.name} · Ketuk kembali untuk mengganti`:"Gunakan kamera atau pilih foto dari galeri"}</small></span></label>

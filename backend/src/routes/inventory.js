@@ -243,7 +243,7 @@ router.get(
       prisma.item.count({ where }),
       prisma.item.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ name: "asc" }, { sku: "asc" }, { id: "asc" }],
         ...(limit ? { skip: (page - 1) * limit, take: limit } : {}),
         include: {
           stocks: { include: { location: true } },

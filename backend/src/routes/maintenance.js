@@ -208,7 +208,9 @@ router.post("/:id/purchase-requests", authRequired, async (req, res) => {
       event: "Permintaan sparepart servis",
       title: `${request.number} · ${maintenance.truck?.plateNumber || "Armada"}`,
       details: `${item.name} · ${qty.toLocaleString("id-ID")} ${item.unit} · ${request.reason}`,
-      path: "/purchasing",
+      path: `/purchasing?approveRequest=${encodeURIComponent(request.id)}`,
+      actionLabel: "Setujui Permintaan",
+      proof: { url: request.damageProofUrl, fileName: request.damageProofFileName, mimeType: request.damageProofMimeType },
     });
     res.status(201).json({ ok: true, request });
   } catch (e) {

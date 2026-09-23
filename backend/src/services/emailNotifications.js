@@ -31,10 +31,10 @@ function backendLink(path) {
 }
 
 function recipients() {
-  return clean(process.env.OWNER_NOTIFICATION_EMAIL)
-    .split(",")
-    .map(value => value.trim())
-    .filter(Boolean);
+  return [...new Set(clean(process.env.OWNER_NOTIFICATION_EMAIL)
+    .split(/[,;\n]/)
+    .map(value => value.trim().replace("\\@", "@").toLowerCase())
+    .filter(Boolean))];
 }
 
 function emailOwnerConfigured() {
@@ -93,16 +93,8 @@ async function sendOwnerEmail({ event, title, details, path, actionLabel, proof 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SEND_TIMEOUT_MS);
   try {
-    const response = await fetch(RESEND_ENDPOINT, {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${clean(process.env.RESEND_API_KEY)}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    const emailPayload = {
         from: clean(process.env.EMAIL_FROM),
-        to: recipients(),
         ...(clean(process.env.EMAIL_REPLY_TO) ? { reply_to: clean(process.env.EMAIL_REPLY_TO) } : {}),
         subject: `[Mitra Setia ERP] ${clean(event) || "Notifikasi baru"}`,
         text: [event, title, details, link && `Buka ERP: ${link}`].filter(Boolean).join("\n\n"),
@@ -119,14 +111,24 @@ async function sendOwnerEmail({ event, title, details, path, actionLabel, proof 
             </div>
             <p style="font-size:11px;color:#849087;text-align:center">Email otomatis dari Mitra Setia ERP.</p>
           </div>`,
-      }),
-    });
-
-    if (!response.ok) {
+      };
+    const deliveries = await Promise.all(recipients().map(async recipient => {
+      const response = await fetch(RESEND_ENDPOINT, {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${clean(process.env.RESEND_API_KEY)}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ...emailPayload, to: [recipient] }),
+      });
       const body = await response.text();
-      throw new Error(`Resend API ${response.status}: ${body.slice(0, 300)}`);
-    }
-    return { sent: true };
+      if (!response.ok) throw new Error(`Resend API ${response.status} untuk ${recipient}: ${body.slice(0, 300)}`);
+      let result = {};
+      try { result = body ? JSON.parse(body) : {}; } catch { result = {}; }
+      return { recipient, id: result.id || null };
+    }));
+    return { sent: true, deliveries };
   } finally {
     clearTimeout(timeout);
   }
@@ -137,9 +139,11 @@ async function sendOwnerEmail({ event, title, details, path, actionLabel, proof 
 async function notifyOwnerSafely(payload) {
   if (!emailOwnerConfigured()) return { sent: false, reason: "disabled" };
   setImmediate(() => {
-    sendOwnerEmail(payload).catch(error => {
-      console.error("Owner email notification failed:", error.message);
-    });
+    sendOwnerEmail(payload)
+      .then(result => console.log("Owner email notification sent:", result.deliveries || []))
+      .catch(error => {
+        console.error("Owner email notification failed:", error.message);
+      });
   });
   return { sent: false, queued: true };
 }
