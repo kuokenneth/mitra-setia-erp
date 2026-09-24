@@ -108,7 +108,7 @@ export default function Purchasing() {
         api("/purchasing/overview"),
         api("/inventory/items"),
       ]);
-      setData({ ...overview, items: inventory.items || overview.items || [] });
+      setData(current => ({ ...current, ...overview, items: inventory.items || overview.items || [], trucks: overview.trucks || [] }));
     } finally { setBusy(false); }
   }
   useEffect(() => { load(); }, []);

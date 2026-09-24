@@ -613,6 +613,7 @@ export default function Maintenance() {
 
   const truckSearchTimer = useRef(null);
   const purchaseDamageInputRef = useRef(null);
+  const purchasePhotoEditorTimer = useRef(null);
 
   async function load(targetPage = page) {
     setLoading(true);
@@ -768,6 +769,10 @@ export default function Maintenance() {
   useEffect(() => {
     const t = setInterval(() => setTick((x) => x + 1), 1000);
     return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => () => {
+    if (purchasePhotoEditorTimer.current) window.clearTimeout(purchasePhotoEditorTimer.current);
   }, []);
 
   useEffect(() => {
@@ -1474,7 +1479,7 @@ export default function Maintenance() {
       </Modal>
 
       {/* DETAIL MODAL */}
-      <Modal open={showDetail} title="Detail Servis" onClose={() => setShowDetail(false)} width={1320} className="maintenance-detail-modal">
+      <Modal open={showDetail && !showPurchasePhotoEditor} title="Detail Servis" onClose={() => setShowDetail(false)} width={1320} className="maintenance-detail-modal">
         {detailLoading || !activeJob ? (
           <LoadingState compact label="Memuat detail servis" note="Menyiapkan pekerjaan dan penggunaan sparepart…" rows={4} />
         ) : (
@@ -2029,6 +2034,11 @@ export default function Maintenance() {
             setPurchaseDamagePhoto(file);
             setPurchasePhotoError("");
             setShowPurchasePhotoEditor(false);
+            if (purchasePhotoEditorTimer.current) window.clearTimeout(purchasePhotoEditorTimer.current);
+            purchasePhotoEditorTimer.current = window.setTimeout(() => {
+              setShowPurchasePhotoEditor(true);
+              purchasePhotoEditorTimer.current = null;
+            }, 300);
           }
           event.target.value = "";
         }}
