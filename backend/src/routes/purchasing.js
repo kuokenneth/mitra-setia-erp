@@ -123,6 +123,26 @@ router.get("/orders/:id/print", async (req, res) => {
     body: `<div class="summary"><div class="box">Supplier<b>${esc(po.supplier.name)}</b><span>${esc(po.supplier.address || "-")}</span></div><div class="box">Pengiriman<b>${esc(po.deliveryAddress || "-")}</b><span>Estimasi: ${fmtDate(po.estimatedArrival)}</span></div><div class="box">Termin<b>${esc(po.paymentTerms || "-")}</b><span>PR: ${esc(po.request?.number || "-")}</span></div></div><table><thead><tr><th>No</th><th>SKU</th><th>Barang</th><th class="right">Qty</th><th>Satuan</th><th class="right">Harga</th><th class="right">Jumlah</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="6" class="right">Subtotal</td><td class="right">${money(subtotal)}</td></tr><tr><td colspan="6" class="right">Ongkir + Pajak - Diskon</td><td class="right">${money(Number(po.shippingCost) + Number(po.tax) - Number(po.discount))}</td></tr><tr><td colspan="6" class="right"><b>TOTAL</b></td><td class="right"><b>${money(total)}</b></td></tr></tfoot></table><div class="signatures"><div>Dibuat oleh</div><div>Supplier</div><div>Disetujui oleh</div></div>`,
   }));
 });
+router.get("/receipts/group/print", async (req, res) => {
+  const ids = [...new Set(String(req.query.ids || "").split(",").map(id => id.trim()).filter(Boolean))];
+  if (!ids.length) return res.status(400).json({ error: "Penerimaan barang wajib dipilih" });
+  const receipts = await prisma.goodsReceipt.findMany({
+    where: { id: { in: ids } },
+    include: { purchaseOrder: { include: { supplier: true } }, location: true, createdBy: { select: { name: true } }, items: { include: { purchaseOrderItem: { include: { item: true } } } } },
+    orderBy: [{ receivedAt: "asc" }, { createdAt: "asc" }],
+  });
+  if (receipts.length !== ids.length) return res.status(404).json({ error: "Sebagian penerimaan barang tidak ditemukan" });
+  if (new Set(receipts.map(receipt => receipt.purchaseOrder.supplierId)).size !== 1) return res.status(400).json({ error: "Penerimaan gabungan harus berasal dari supplier yang sama" });
+  const first = receipts[0];
+  const rows = receipts.flatMap(receipt => receipt.items.map(item => ({ receipt, item }))).map((row, index) => `<tr><td class="center">${index + 1}</td><td>${esc(row.receipt.number)}<br><span class="muted">${esc(row.receipt.purchaseOrder.number)}</span></td><td>${esc(row.item.purchaseOrderItem.item.sku)}</td><td>${esc(row.item.purchaseOrderItem.item.name)}</td><td class="right">${fmtNum(row.item.qty)}</td><td>${esc(row.item.purchaseOrderItem.item.unit)}</td><td>${esc(row.item.condition)}</td></tr>`).join("");
+  const receiptDetails = receipts.map(receipt => `<tr><td>${esc(receipt.number)}</td><td>${fmtDate(receipt.receivedAt, true)}</td><td>${esc(receipt.purchaseOrder.number)}</td><td>${esc(receipt.location.name)}</td><td>${esc(receipt.createdBy?.name || "-")}</td></tr>`).join("");
+  res.type("html").send(documentHtml({
+    title: "BUKTI PENERIMAAN BARANG",
+    subtitle: `Surat jalan ${esc(first.deliveryNote || "-")}`,
+    meta: `Tanggal terima: ${fmtDate(first.receivedAt, true)}<br>${receipts.length} penerimaan · ${new Set(receipts.map(receipt => receipt.purchaseOrderId)).size} PO`,
+    body: `<div class="summary"><div class="box">Supplier<b>${esc(first.purchaseOrder.supplier.name)}</b></div><div class="box">Surat jalan<b>${esc(first.deliveryNote || "-")}</b></div><div class="box">Bukti penerimaan<b>${esc(first.deliveryNoteFileName || "Foto tersimpan")}</b></div></div><table><thead><tr><th>No</th><th>GR / PO</th><th>SKU</th><th>Barang</th><th class="right">Diterima</th><th>Satuan</th><th>Kondisi</th></tr></thead><tbody>${rows}</tbody></table><h3>Rincian penerimaan</h3><table><thead><tr><th>Nomor GR</th><th>Tanggal</th><th>PO</th><th>Lokasi</th><th>Penerima</th></tr></thead><tbody>${receiptDetails}</tbody></table><table><tbody><tr><th style="width:28%">Catatan</th><td>${esc(receipts.map(receipt => receipt.notes).filter(Boolean).join(" · ") || "-")}</td></tr></tbody></table><div class="signatures"><div>Pengirim / Supplier</div><div>Penerima</div><div>Diperiksa oleh</div></div>`,
+  }));
+});
 router.get("/receipts/:id/print", async (req, res) => {
   const receipt = await prisma.goodsReceipt.findUnique({
     where: { id: req.params.id },
@@ -135,6 +155,39 @@ router.get("/receipts/:id/print", async (req, res) => {
     subtitle: receipt.number,
     meta: `Tanggal terima: ${fmtDate(receipt.receivedAt, true)}<br>PO: ${esc(receipt.purchaseOrder.number)}`,
     body: `<div class="summary"><div class="box">Supplier<b>${esc(receipt.purchaseOrder.supplier.name)}</b></div><div class="box">Lokasi penerimaan<b>${esc(receipt.location.name)}</b></div><div class="box">Penerima<b>${esc(receipt.createdBy?.name || "-")}</b></div></div><table><thead><tr><th>No</th><th>SKU</th><th>Barang</th><th class="right">Diterima</th><th>Satuan</th><th>Kondisi</th></tr></thead><tbody>${rows}</tbody></table><table><tbody><tr><th style="width:28%">Surat jalan supplier</th><td>${esc(receipt.deliveryNote || "-")}</td></tr><tr><th>Bukti surat penerimaan</th><td>${receipt.deliveryNoteProofUrl ? esc(receipt.deliveryNoteFileName || "Foto bukti tersimpan") : "-"}</td></tr><tr><th>Catatan</th><td>${esc(receipt.notes || "-")}</td></tr></tbody></table><div class="signatures"><div>Pengirim / Supplier</div><div>Penerima</div><div>Diperiksa oleh</div></div>`,
+  }));
+});
+router.get("/bills/:id/receipt-print", async (req, res) => {
+  const bill = await prisma.supplierBill.findUnique({
+    where: { id: req.params.id },
+    include: {
+      supplier: true,
+      createdBy: { select: { name: true } },
+      items: {
+        include: {
+          receiptItem: {
+            include: {
+              purchaseOrderItem: { include: { item: true, purchaseOrder: true } },
+              receipt: { include: { location: true, createdBy: { select: { name: true } }, purchaseOrder: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!bill) return res.status(404).json({ error: "Tagihan supplier tidak ditemukan" });
+  const selectedRows = bill.items.map(line => ({ line, receiptItem: line.receiptItem, receipt: line.receiptItem.receipt, poItem: line.receiptItem.purchaseOrderItem }));
+  const receipts = [...new Map(selectedRows.map(row => [row.receipt.id, row.receipt])).values()];
+  const poNumbers = [...new Set(selectedRows.map(row => row.poItem.purchaseOrder.number))];
+  const locations = [...new Set(receipts.map(receipt => receipt.location?.name).filter(Boolean))];
+  const receivers = [...new Set(receipts.map(receipt => receipt.createdBy?.name).filter(Boolean))];
+  const rows = selectedRows.map((row, index) => `<tr><td class="center">${index + 1}</td><td>${esc(row.receipt.number)}<br><span class="muted">${esc(row.poItem.purchaseOrder.number)}</span></td><td>${esc(row.poItem.item.sku)}</td><td>${esc(row.poItem.item.name)}</td><td class="right">${fmtNum(row.line.qty)}</td><td>${esc(row.poItem.item.unit)}</td><td>${esc(row.receiptItem.condition)}</td></tr>`).join("");
+  const receiptDetails = receipts.map(receipt => `<tr><td>${esc(receipt.number)}</td><td>${fmtDate(receipt.receivedAt, true)}</td><td>${esc(receipt.purchaseOrder.number)}</td><td>${esc(receipt.deliveryNote || "-")}</td><td>${esc(receipt.location?.name || "-")}</td><td>${esc(receipt.notes || "-")}</td></tr>`).join("");
+  res.type("html").send(documentHtml({
+    title: "BUKTI PENERIMAAN BARANG",
+    subtitle: `${bill.number} · Invoice ${bill.invoiceNumber}`,
+    meta: `Tanggal invoice: ${fmtDate(bill.invoiceDate)}<br>PO: ${esc(poNumbers.join(", ") || "-")}<br>${selectedRows.length} barang dari ${receipts.length} penerimaan`,
+    body: `<div class="summary"><div class="box">Supplier<b>${esc(bill.supplier.name)}</b></div><div class="box">Lokasi penerimaan<b>${esc(locations.join(", ") || "-")}</b></div><div class="box">Penerima<b>${esc(receivers.join(", ") || bill.createdBy?.name || "-")}</b></div></div><table><thead><tr><th>No</th><th>GR / PO</th><th>SKU</th><th>Barang</th><th class="right">Diterima</th><th>Satuan</th><th>Kondisi</th></tr></thead><tbody>${rows}</tbody></table><h3>Rincian penerimaan</h3><table><thead><tr><th>Nomor GR</th><th>Tanggal terima</th><th>PO</th><th>Surat jalan</th><th>Lokasi</th><th>Catatan</th></tr></thead><tbody>${receiptDetails}</tbody></table><div class="signatures"><div>Pengirim / Supplier</div><div>Penerima</div><div>Diperiksa oleh</div></div>`,
   }));
 });
 router.post("/suppliers", async (req, res) => res.json({ ok: true, supplier: await prisma.supplier.create({ data: req.body }) }));

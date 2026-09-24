@@ -432,6 +432,10 @@ export default function Inventory() {
   const [units, setUnits] = useState([]);
   const [movements, setMovements] = useState([]);
   const [batches, setBatches] = useState([]);
+  const [itemFlowTarget, setItemFlowTarget] = useState(null);
+  const [itemFlowMovements, setItemFlowMovements] = useState([]);
+  const [itemFlowLoading, setItemFlowLoading] = useState(false);
+  const [itemFlowPagination, setItemFlowPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
   const [emergencyDispatches, setEmergencyDispatches] = useState([]);
   const [openEmergency, setOpenEmergency] = useState(false);
   const [installDispatch, setInstallDispatch] = useState(null);
@@ -446,9 +450,11 @@ export default function Inventory() {
   const [itemPage, setItemPage] = useState(1);
   const [unitPage, setUnitPage] = useState(1);
   const [movementPage, setMovementPage] = useState(1);
+  const [batchPage, setBatchPage] = useState(1);
   const [itemPagination, setItemPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
   const [unitPagination, setUnitPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
   const [movementPagination, setMovementPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
+  const [batchPagination, setBatchPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
   const [stockReportDate, setStockReportDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [printMenuOpen, setPrintMenuOpen] = useState(false);
 
@@ -641,10 +647,32 @@ export default function Inventory() {
     setMovementPagination(data.pagination || { page, limit:20, total:(data.movements || []).length, totalPages:1 });
   }
 
-  async function loadBatches() {
-    const qs = buildQuery({ itemId: unitItemId || undefined, locationId: unitLocationId || undefined, q: q || undefined });
+  async function loadBatches(page = batchPage) {
+    const qs = buildQuery({ itemId: unitItemId || undefined, locationId: unitLocationId || undefined, q: q || undefined, page, limit: 20 });
     const data = await api(`/inventory/batches${qs}`);
     setBatches(data.batches || []);
+    setBatchPagination(data.pagination || { page, limit: 20, total: (data.batches || []).length, totalPages: 1 });
+  }
+
+  async function loadItemFlow(item, page = 1) {
+    setItemFlowLoading(true);
+    setErr("");
+    try {
+      const data = await api(`/inventory/movements${buildQuery({ itemId: item.id, page, limit: 20 })}`);
+      setItemFlowMovements(data.movements || []);
+      setItemFlowPagination(data.pagination || { page, limit: 20, total: (data.movements || []).length, totalPages: 1 });
+    } catch (error) {
+      setErr(error.message || "Gagal memuat riwayat barang");
+    } finally {
+      setItemFlowLoading(false);
+    }
+  }
+
+  function openItemFlow(item) {
+    setItemFlowTarget(item);
+    setItemFlowMovements([]);
+    setItemFlowPagination({ page: 1, limit: 20, total: 0, totalPages: 1 });
+    loadItemFlow(item, 1);
   }
 
   async function scrapUnit() {
@@ -773,6 +801,11 @@ export default function Inventory() {
     setMovementPage(page);
     setLoading(true);
     try { await loadMovements(page); } catch (e) { setErr(String(e?.message || e)); } finally { setLoading(false); }
+  }
+  async function changeBatchPage(page) {
+    setBatchPage(page);
+    setLoading(true);
+    try { await loadBatches(page); } catch (e) { setErr(String(e?.message || e)); } finally { setLoading(false); }
   }
   async function applyMovementFilters() {
     setMovementPage(1);
@@ -1213,7 +1246,7 @@ export default function Inventory() {
             <div className="inventory-search"><FiSearch />
               <input
                 value={q}
-                onChange={(e) => { setQ(e.target.value); setItemPage(1); setUnitPage(1); setMovementPage(1); }}
+                onChange={(e) => { setQ(e.target.value); setItemPage(1); setUnitPage(1); setMovementPage(1); setBatchPage(1); }}
                 placeholder="Cari berdasarkan nama / SKU / barcode..."
                 onKeyDown={(e) => {
                   if (e.key === "Enter") refresh();
@@ -1236,6 +1269,7 @@ export default function Inventory() {
                 items={filteredItems}
                 loading={loading}
                 onEdit={openEditItem}
+                onInspect={openItemFlow}
                 onUse={(itemId) => {
                   const item = items.find((x) => x.id === itemId);
                   if (!item) return;
@@ -1292,12 +1326,22 @@ export default function Inventory() {
             ) : null}
 
             {tab === "MOVEMENTS" ? <><MovementsTable movements={movements} loading={loading} from={mvFrom} to={mvTo} onFromChange={(value)=>{setMvFrom(value);setMovementPage(1)}} onToChange={(value)=>{setMvTo(value);setMovementPage(1)}} onApply={applyMovementFilters} onReset={resetMovementFilters}/>{!loading && <Pagination pagination={movementPagination} onChange={changeMovementPage}/>}</> : null}
-            {tab === "BATCHES" ? <BatchesTable batches={batches} loading={loading} /> : null}
+            {tab === "BATCHES" ? <><BatchesTable batches={batches} loading={loading} />{!loading && <Pagination pagination={batchPagination} onChange={changeBatchPage} />}</> : null}
             {tab === "EMERGENCY" ? <div className="inventory-emergency"><div className="inventory-emergency-head"><div><h2>Pengiriman Sparepart Darurat</h2><p>Stok keluar saat dikirim dan pemasangan dikonfirmasi saat barang diterima.</p></div><button type="button" onClick={openEmergencyForm}><FiPlus/> Buat Pengiriman</button></div><div className="inventory-emergency-list">{emergencyDispatches.map((dispatch) => <article key={dispatch.id}><span className={dispatch.status.toLowerCase()}>{dispatch.status === "IN_TRANSIT" ? "DALAM PERJALANAN" : "TERPASANG"}</span><h3>{dispatch.item?.name || "Sparepart"} · {dispatch.qty} {dispatch.item?.unit || ""}</h3><p>{dispatch.fromLocation?.name || "Gudang"} → <b>{dispatch.targetTruck?.plateNumber}</b></p><small>Dibawa {dispatch.carrierTruck?.plateNumber || "—"}{dispatch.stockUnit ? ` · Serial ${dispatch.stockUnit.serialNumber || dispatch.stockUnit.barcode}` : ""}</small>{dispatch.status === "IN_TRANSIT" && <button type="button" onClick={() => openInstallDispatch(dispatch)}>Konfirmasi diterima & pasang</button>}</article>)}{!emergencyDispatches.length && <div className="inventory-emergency-empty">Belum ada pengiriman sparepart darurat.</div>}</div></div> : null}
           </div>
         </div>
 
         {/* MODALS */}
+        <Modal
+          open={Boolean(itemFlowTarget)}
+          eyebrow="RIWAYAT ALIRAN BARANG"
+          title={itemFlowTarget?.name || "Detail Barang"}
+          description={itemFlowTarget ? `${itemFlowTarget.sku} · seluruh pergerakan masuk, keluar, dan pemindahan barang` : ""}
+          onClose={() => setItemFlowTarget(null)}
+        >
+          {itemFlowLoading ? <LoadingState compact label="Memuat riwayat barang" note="Menelusuri tujuan pemakaian dan perpindahan stok…" rows={5} /> : itemFlowMovements.length ? <div className="inventory-item-flow"><div className="inventory-item-flow-summary"><span><small>TOTAL RIWAYAT</small><strong>{itemFlowPagination.total}</strong></span><span><small>STOK SAAT INI</small><strong>{sumStocks(itemFlowTarget?.stocks)} {itemFlowTarget?.unit || ""}</strong></span></div><div style={tableWrap}><table style={{ ...table, minWidth: 920 }}><thead><tr><th style={th}>Jenis</th><th style={th}>Jumlah</th><th style={th}>Dari</th><th style={th}>Ke / Tujuan</th><th style={th}>Servis / Unit</th><th style={th}>Petugas</th><th style={th}>Tanggal</th></tr></thead><tbody>{itemFlowMovements.map((movement) => { const assignmentTruck = movement.stockUnit?.assignments?.[0]?.truck; const destination = movement.toLocation?.name || movement.toTruck?.plateNumber || movement.maintenance?.truck?.plateNumber || assignmentTruck?.plateNumber || (movement.type === "OUT" ? "Pemakaian stok" : "—"); return <tr key={movement.id}><td style={td}><Pill variant={movement.type === "IN" ? "green" : movement.type === "OUT" ? "red" : "grey"}>{movement.type}</Pill></td><td style={td}>{movement.qty} {itemFlowTarget?.unit || ""}</td><td style={tdSoft}>{movement.fromLocation?.name || movement.fromTruck?.plateNumber || "—"}</td><td style={td}><strong>{destination}</strong>{movement.note && <small className="inventory-item-flow-note">{movement.note}</small>}</td><td style={tdSoft}>{movement.stockUnit?.serialNumber || movement.stockUnit?.barcode || movement.maintenance?.title || "—"}</td><td style={tdSoft}>{movement.createdBy?.name || movement.createdBy?.email || "—"}</td><td style={tdSoft}>{fmtDate(movement.createdAt)}</td></tr>; })}</tbody></table></div><Pagination pagination={itemFlowPagination} onChange={(page) => itemFlowTarget && loadItemFlow(itemFlowTarget, page)} /></div> : <div className="inventory-item-flow-empty">Belum ada riwayat pergerakan untuk barang ini.</div>}
+        </Modal>
+
         <Modal open={openLegacyTire} eyebrow="MIGRASI DATA LAMA" title="Alokasikan ban langsung ke mobil" description="Catat ban yang sudah terpasang sebelum sistem digunakan. Harga dan stok gudang tidak terpengaruh." onClose={() => !legacyTireBusy && setOpenLegacyTire(false)}>
           <form className="legacy-tire-form" onSubmit={saveLegacyTires}>
             <section><header><b>01</b><span><strong>Mobil dan tanggal default</strong><small>Tanggal setiap ban tetap dapat diubah pada tabel.</small></span></header><div className="legacy-tire-grid"><label>Mobil<TruckSearchSelect trucks={trucks} value={legacyTireForm.truckId} onChange={(truckId) => setLegacyTireForm((form) => ({ ...form, truckId }))} placeholder="Cari nomor polisi..."/></label><label>Tanggal default baris baru<input required type="datetime-local" max={localDateTimeValue()} value={legacyTireForm.installedAt} onChange={(event) => setLegacyTireForm((form) => ({ ...form, installedAt:event.target.value }))}/></label></div></section>
@@ -1935,7 +1979,7 @@ function Pagination({ pagination, onChange }) {
   </div>;
 }
 
-function ItemsTable({ items, loading, onUse, onEdit }) {
+function ItemsTable({ items, loading, onUse, onEdit, onInspect }) {
   if (loading) {
     return <LoadingState compact label="Memuat detail barang" note="Mengambil stok, unit, dan riwayat pergerakan…" rows={5} />;
   }
@@ -1960,14 +2004,14 @@ function ItemsTable({ items, loading, onUse, onEdit }) {
         </thead>
         <tbody>
           {items.map((it) => (
-            <tr key={it.id}>
+            <tr className="inventory-item-row" key={it.id} role="button" tabIndex={0} onClick={() => onInspect(it)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onInspect(it); } }}>
               <td style={td}>{it.sku || "-"}</td>
               <td style={td}>{it.name || "-"}</td>
               <td style={tdSoft}>{it.unit || "-"}</td>
               <td style={tdSoft}>{({ GENERAL_SPAREPART: "Sparepart Umum", TIRE: "Ban", BATTERY: "Aki/Baterai", OIL: "Oli", OTHER: "Lainnya" })[it.category] || "Sparepart Umum"}</td>
               <td style={tdSoft}>{it.isSerialized ? "Yes" : "No"}</td>
               <td style={td}>{sumStocks(it.stocks)}</td>
-              <td style={td}>
+              <td style={td} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
                 <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
                   <Btn style={{ ...btn, height: 32, padding: "0 12px", fontSize: 12 }} onClick={() => onEdit(it)}>
                     Edit

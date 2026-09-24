@@ -574,12 +574,15 @@ router.get(
           createdBy: true,
           fromLocation: true,
           toLocation: true,
+          fromTruck: true,
+          toTruck: true,
           maintenance: { include: { truck: true } },
           stockUnit: {
             include: {
               assignments: {
                 orderBy: { installedAt: "desc" },
                 take: 1, // ✅ latest assignment = usage start
+                include: { truck: true },
               },
             },
           },
@@ -601,17 +604,22 @@ router.get(
     const itemId = req.query.itemId ? String(req.query.itemId) : undefined;
     const locationId = req.query.locationId ? String(req.query.locationId) : undefined;
     const q = String(req.query.q || "").trim();
-    const batches = await prisma.inventoryBatch.findMany({
-      where: {
-        ...(itemId ? { itemId } : {}),
-        ...(locationId ? { locationId } : {}),
-        ...(q ? { OR: [
-          { item: { sku: { contains: q, mode: "insensitive" } } },
-          { item: { name: { contains: q, mode: "insensitive" } } },
-          { purchaseOrderItem: { purchaseOrder: { number: { contains: q, mode: "insensitive" } } } },
-          { purchaseOrderItem: { purchaseOrder: { supplier: { name: { contains: q, mode: "insensitive" } } } } },
-        ] } : {}),
-      },
+    const page = Math.max(1, parseInt(req.query.page || "1", 10) || 1);
+    const limit = Math.min(20, Math.max(1, parseInt(req.query.limit || "20", 10) || 20));
+    const where = {
+      ...(itemId ? { itemId } : {}),
+      ...(locationId ? { locationId } : {}),
+      ...(q ? { OR: [
+        { item: { sku: { contains: q, mode: "insensitive" } } },
+        { item: { name: { contains: q, mode: "insensitive" } } },
+        { purchaseOrderItem: { purchaseOrder: { number: { contains: q, mode: "insensitive" } } } },
+        { purchaseOrderItem: { purchaseOrder: { supplier: { name: { contains: q, mode: "insensitive" } } } } },
+      ] } : {}),
+    };
+    const [total, batches] = await Promise.all([
+      prisma.inventoryBatch.count({ where }),
+      prisma.inventoryBatch.findMany({
+      where,
       include: {
         item: true,
         location: true,
@@ -619,9 +627,11 @@ router.get(
         purchaseOrderItem: { include: { purchaseOrder: { include: { supplier: true } } } },
       },
       orderBy: [{ receivedAt: "desc" }, { createdAt: "desc" }],
-      take: 300,
-    });
-    res.json({ ok: true, batches });
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    ]);
+    res.json({ ok: true, batches, pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) } });
   }
 );
 

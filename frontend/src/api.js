@@ -72,8 +72,8 @@ export async function api(path, options = {}) {
   return data;
 }
 
-export async function openPrintDocument(path) {
-  const popup = window.open("", "_blank");
+export async function openPrintDocument(path, existingPopup = null) {
+  const popup = existingPopup || window.open("", "_blank");
   try {
     if (!popup) throw new Error("Popup diblokir browser");
     popup.document.open();
