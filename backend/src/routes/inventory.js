@@ -1181,6 +1181,85 @@ router.post(
   }
 );
 
+/** Remove an installed tire and reclassify the same serialized unit as its SECOND item. */
+router.post(
+  "/units/:unitId/second",
+  authRequired,
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
+  async (req, res) => {
+    const createdById = req.user?.id || null;
+    const { unitId } = req.params;
+    const { locationId, maintenanceId, notes } = req.body || {};
+    if (!locationId) return res.status(400).json({ ok: false, error: "Lokasi stok Ban Second wajib dipilih" });
+    if (!maintenanceId) return res.status(400).json({ ok: false, error: "Servis aktif wajib dipilih" });
+
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const unit = await tx.stockUnit.findUnique({
+          where: { id: unitId },
+          include: {
+            item: true,
+            assignments: { where: { removedAt: null }, take: 1, include: { truck: true } },
+          },
+        });
+        if (!unit) throw new Error("Unit tidak ditemukan");
+        if (unit.status !== "ASSIGNED") throw new Error("Ban tidak sedang terpasang pada truk");
+        if (!unit.item.isSerialized || unit.item.category !== "TIRE") throw new Error("Hanya Ban berserial yang dapat dijadikan Ban Second");
+        if (unit.item.sku.endsWith("_SECOND")) throw new Error("Unit ini sudah merupakan Ban Second");
+
+        const assignment = unit.assignments[0];
+        if (!assignment) throw new Error("Data pemasangan aktif tidak ditemukan");
+        const maintenance = await tx.truckMaintenance.findUnique({ where: { id: maintenanceId } });
+        if (!maintenance || maintenance.status !== "OPEN") throw new Error("Pekerjaan servis aktif tidak ditemukan");
+        if (maintenance.truckId !== assignment.truckId) throw new Error("Ban tidak terpasang pada truk servis ini");
+
+        const secondSku = `${unit.item.sku}_SECOND`;
+        const secondItem = await tx.item.findUnique({ where: { sku: secondSku } });
+        if (!secondItem) throw new Error(`Item tujuan ${secondSku} belum tersedia. Buat item tersebut terlebih dahulu.`);
+        if (!secondItem.isSerialized || secondItem.category !== "TIRE") throw new Error(`Item ${secondSku} harus berupa Ban berserial`);
+        const location = await tx.inventoryLocation.findUnique({ where: { id: locationId } });
+        if (!location) throw new Error("Lokasi stok tidak ditemukan");
+
+        const removedAt = new Date();
+        await tx.truckSparePartAssignment.update({
+          where: { id: assignment.id },
+          data: {
+            removedAt,
+            maintenanceId,
+            note: [assignment.note, `Dilepas dan dipindahkan ke ${secondSku}`, notes ? String(notes).trim() : null].filter(Boolean).join(" · "),
+          },
+        });
+        await ensureStockRow(tx, secondItem.id, locationId);
+        await tx.inventoryStock.update({
+          where: { itemId_locationId: { itemId: secondItem.id, locationId } },
+          data: { qty: { increment: 1 } },
+        });
+        const updatedUnit = await tx.stockUnit.update({
+          where: { id: unitId },
+          data: { itemId: secondItem.id, locationId, inventoryBatchId: null, status: "IN_STOCK", scrappedAt: null },
+          include: { item: true, location: true },
+        });
+        await tx.stockMovement.create({
+          data: {
+            type: "IN",
+            itemId: secondItem.id,
+            qty: 1,
+            note: `Ban dilepas dari ${assignment.truck.plateNumber} dan dijadikan ${secondSku}${notes ? ` · ${String(notes).trim()}` : ""}`,
+            createdById,
+            toLocationId: locationId,
+            maintenanceId,
+            stockUnitId: unitId,
+          },
+        });
+        return updatedUnit;
+      });
+      res.json({ ok: true, unit: result });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: String(e.message || e) });
+    }
+  }
+);
+
 /**
  * POST /inventory/units/:unitId/transfer
  * body: { toLocationId, note }

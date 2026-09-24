@@ -68,11 +68,13 @@ router.get("/trucks", authRequired, async (req, res) => {
 
 ////////////////////////////////////////////////////
 // LIST
-// GET /maintenance?status=OPEN&truckId=...&q=...&from=...&to=...
+// GET /maintenance?status=OPEN&truckId=...&q=...&from=...&to=...&page=1
 ////////////////////////////////////////////////////
 router.get("/", authRequired, async (req, res) => {
   try {
     const { status, truckId, q, from, to } = req.query;
+    const requestedPage = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = 10;
 
     const where = {};
     if (status) where.status = status;
@@ -89,13 +91,23 @@ router.get("/", authRequired, async (req, res) => {
       where.OR = [{ number: { contains: qq } }, { title: { contains: qq } }, { truck: { plateNumber: { contains: qq } } }];
     }
 
+    const [total, statusCounts] = await prisma.$transaction([
+      prisma.truckMaintenance.count({ where }),
+      prisma.truckMaintenance.groupBy({ by: ["status"], where, _count: { _all: true } }),
+    ]);
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const page = Math.min(requestedPage, totalPages);
     const jobs = await prisma.truckMaintenance.findMany({
       where,
       orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
       select: { id: true, number: true, title: true, status: true, createdAt: true, doneAt: true, truck: { select: { id: true, plateNumber: true, brand: true, model: true } } },
     });
 
-    res.json({ jobs });
+    const summary = { total, open: 0, done: 0, cancelled: 0 };
+    for (const row of statusCounts) summary[String(row.status).toLowerCase()] = row._count._all;
+    res.json({ jobs, pagination: { page, limit, total, totalPages }, summary });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Failed to load maintenance list" });
