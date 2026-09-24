@@ -33,7 +33,7 @@
 .inventory-hero-meta svg { color: #0d7c3d; }
 
 .inventory-hero-actions { position: relative; z-index: 2; display: grid; grid-template-columns: repeat(2, minmax(145px, 1fr)); gap: 10px; min-width: 340px; }
-.inventory-action { min-height: 46px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border: 1px solid transparent; border-radius: 13px; font: inherit; font-size: 13px; font-weight: 750; cursor: pointer; transition: transform .18s ease, box-shadow .18s ease, background .18s ease; }
+.inventory-action { width: 100%; min-height: 46px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border: 1px solid transparent; border-radius: 13px; font: inherit; font-size: 13px; font-weight: 750; cursor: pointer; transition: transform .18s ease, box-shadow .18s ease, background .18s ease; }
 .inventory-action:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(29, 63, 43, .12); }
 .inventory-action svg { width: 17px; height: 17px; }
 .inventory-action--soft { color: #33483c; border-color: #dce7e0; background: rgba(255,255,255,.9); }

@@ -14,6 +14,7 @@ import "./PurchasingForm.css";
 const money = n => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
 const label = s => ({ OPEN: "Belum dibayar", WAITING_APPROVAL: "Menunggu approval", WAITING_PAYMENT_APPROVAL: "Menunggu approval pembayaran", PAID: "Dibayar", PARTIALLY_PAID: "Dibayar sebagian", APPROVED: "Disetujui", REJECTED: "Ditolak", DRAFT: "Draft", PARTIALLY_RECEIVED: "Diterima sebagian", FULLY_RECEIVED: "Diterima penuh", SENT_TO_SUPPLIER: "Dikirim ke supplier", CANCELLED: "Dibatalkan" }[s] || s);
 const poTotal = po => po.items.reduce((sum, i) => sum + i.qty * i.unitPrice, 0) + po.tax + po.shippingCost - po.discount;
+const isCountedPurchaseOrder = po => !["REJECTED", "CANCELLED"].includes(po.status) && !["REJECTED", "CANCELLED"].includes(po.request?.status);
 const receiptValue = receipt => receipt.items.reduce((sum, row) => sum + Number(row.qty) * Number(row.purchaseOrderItem?.unitPrice || 0), 0);
 const requestProgress = (request, orders) => {
   if (request.status === "CANCELLED") return { text: "Dibatalkan", className: "CANCELLED" };
@@ -171,7 +172,14 @@ export default function Purchasing() {
   const selectedRequestStock = Number(selectedRequestItem?.qtyTotal || 0);
   const receiptOrderOptions = useMemo(() => receiptPo ? data.orders.filter(po => po.supplierId === receiptPo.supplierId && ["SENT_TO_SUPPLIER", "PARTIALLY_RECEIVED"].includes(po.status)) : [], [data.orders, receiptPo]);
   const selectedReceiptOrders = useMemo(() => receiptOrderOptions.filter(po => receiptPoIds.includes(po.id)), [receiptOrderOptions, receiptPoIds]);
-  const stats = useMemo(() => ({ waiting: data.requests.filter(x => x.status === "WAITING_APPROVAL").length, open: data.orders.filter(x => !["FULLY_RECEIVED", "CANCELLED"].includes(x.status)).length, spend: data.orders.filter(x => x.status !== "CANCELLED").reduce((a, x) => a + x.items.reduce((s, i) => s + i.qty * i.unitPrice, 0) + x.tax + x.shippingCost - x.discount, 0) }), [data]);
+  const stats = useMemo(() => {
+    const countedOrders = data.orders.filter(isCountedPurchaseOrder);
+    return {
+      waiting: data.requests.filter(x => x.status === "WAITING_APPROVAL").length,
+      open: countedOrders.filter(x => x.status !== "FULLY_RECEIVED").length,
+      spend: countedOrders.reduce((total, order) => total + poTotal(order), 0),
+    };
+  }, [data]);
   async function createRequest(e) {
     e.preventDefault();
     if (!newItem && !retreadRequest && selectedRequestStock > 0 && !stockAcknowledged) {
@@ -372,7 +380,7 @@ export default function Purchasing() {
   const searchPlaceholder = ({requests:"Cari nomor permintaan, barang, alasan, atau kendaraan…",orders:"Cari nomor PO, supplier, permintaan, atau barang…",receipts:"Cari nomor penerimaan, PO, supplier, surat jalan, atau barang…",payments:"Cari nomor invoice, supplier, penerimaan, atau barang…"})[tab];
   return <div className="purchasing">
     <header className="p-head"><div><div className="eyebrow">BENGKEL & PEMBELIAN</div><h1>Pembelian</h1><p>Kelola permintaan, pemesanan, penerimaan, hingga tagihan supplier.</p></div><button className="primary p-new-request" onClick={openRequestForm}><FiPlus/> Buat Permintaan</button></header>
-    <section className="p-stats"><article><div className="p-stat-icon"><FiFileText/></div><div><span>Perlu persetujuan</span><strong>{stats.waiting}</strong><small>Permintaan menunggu tindakan</small></div></article><article><div className="p-stat-icon"><FiShoppingCart/></div><div><span>PO berjalan</span><strong>{stats.open}</strong><small>Belum diterima penuh</small></div></article><article><div className="p-stat-icon"><FiPackage/></div><div><span>Nilai pembelian</span><strong>{money(stats.spend)}</strong><small>Akumulasi seluruh PO</small></div></article></section>
+    <section className="p-stats"><article><div className="p-stat-icon"><FiFileText/></div><div><span>Perlu persetujuan</span><strong>{stats.waiting}</strong><small>Permintaan menunggu tindakan</small></div></article><article><div className="p-stat-icon"><FiShoppingCart/></div><div><span>PO berjalan</span><strong>{stats.open}</strong><small>Belum diterima penuh</small></div></article><article><div className="p-stat-icon"><FiPackage/></div><div><span>Nilai pembelian</span><strong>{money(stats.spend)}</strong><small>PO valid, tidak termasuk ditolak/dibatalkan</small></div></article></section>
     <nav className="p-tabs"><button className={tab==="requests"?"active":""} onClick={()=>setTab("requests")}>Permintaan Pembelian <i>{data.requests.length}</i></button><button className={tab==="orders"?"active":""} onClick={()=>setTab("orders")}>Pesanan Pembelian <i>{data.orders.length}</i></button><button onClick={()=>setTab("receipts")} className={tab==="receipts"?"active":""}>Penerimaan Barang</button><button onClick={()=>setTab("payments")} className={tab==="payments"?"active":""}>Tagihan & Pembayaran <i>{data.bills.length}</i></button><button className="refresh" onClick={load}><FiRefreshCw className={busy?"spin":""}/></button></nav>
     <section className={`p-panel ${busy && !data.requests.length && !data.orders.length ? "initial-loading" : ""}`}>
       {busy && !data.requests.length && !data.orders.length && <LoadingState label="Memuat pembelian" note="Menyiapkan permintaan, PO, penerimaan, dan pembayaran…" rows={5} />}
