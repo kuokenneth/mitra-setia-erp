@@ -613,7 +613,6 @@ export default function Maintenance() {
 
   const truckSearchTimer = useRef(null);
   const purchaseDamageInputRef = useRef(null);
-  const purchasePhotoEditorTimer = useRef(null);
 
   async function load(targetPage = page) {
     setLoading(true);
@@ -769,10 +768,6 @@ export default function Maintenance() {
   useEffect(() => {
     const t = setInterval(() => setTick((x) => x + 1), 1000);
     return () => clearInterval(t);
-  }, []);
-
-  useEffect(() => () => {
-    if (purchasePhotoEditorTimer.current) window.clearTimeout(purchasePhotoEditorTimer.current);
   }, []);
 
   useEffect(() => {
@@ -2033,12 +2028,12 @@ export default function Maintenance() {
           if (file) {
             setPurchaseDamagePhoto(file);
             setPurchasePhotoError("");
-            setShowPurchasePhotoEditor(false);
-            if (purchasePhotoEditorTimer.current) window.clearTimeout(purchasePhotoEditorTimer.current);
-            purchasePhotoEditorTimer.current = window.setTimeout(() => {
-              setShowPurchasePhotoEditor(true);
-              purchasePhotoEditorTimer.current = null;
-            }, 300);
+            // Open in the same React update as the selected file. Timers started
+            // immediately after returning from the native camera can be suspended
+            // by Android WebView/Chrome, leaving the editor closed indefinitely.
+            // The detail modal is conditionally unmounted while this is true, so
+            // only one fixed overlay is ever composited at a time.
+            setShowPurchasePhotoEditor(true);
           }
           event.target.value = "";
         }}
