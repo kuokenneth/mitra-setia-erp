@@ -93,6 +93,20 @@ function purchaseRequestProgress(request) {
   return { label: "Pesanan sudah dibuat", className: "ORDERED" };
 }
 
+function pendingServicePurchaseRequests(job) {
+  return (job?.purchaseRequests || []).filter((request) => {
+    if (["REJECTED", "CANCELLED"].includes(request.status)) return false;
+    if (!(request.directUse || request.purpose === "MAINTENANCE_STOCK_REQUEST")) return false;
+    const activeOrders = (request.purchaseOrders || []).filter((order) => order.status !== "CANCELLED");
+    if (request.status !== "APPROVED" || !activeOrders.length) return true;
+    return (request.items || []).some((item) => {
+      const requiredQty = Number(item.approvedQty ?? item.originalQty ?? 0);
+      const receivedQty = activeOrders.reduce((sum, order) => sum + (order.items || []).filter((row) => row.itemId === item.itemId).reduce((itemSum, row) => itemSum + Number(row.receivedQty || 0), 0), 0);
+      return receivedQty + 0.000001 < requiredQty;
+    });
+  });
+}
+
 //////////////////////
 // UI COMPONENTS
 //////////////////////
@@ -1138,6 +1152,8 @@ export default function Maintenance() {
   // live tick usage
   const _ = tick;
   const maintenanceSummary = listSummary;
+  const pendingPartsRequests = pendingServicePurchaseRequests(activeJob);
+  const hasPendingParts = pendingPartsRequests.length > 0;
 
   return (
     <div className="maintenance-page" data-testid="maintenance-page">
@@ -1373,14 +1389,16 @@ export default function Maintenance() {
 
                 {(filteredTrucks || []).map((t) => {
                   const selected = createForm.truckId === t.id;
+                  const unavailable = Boolean(t.activeService);
                   return (
                     <button type="button"
                       key={t.id}
-                      onClick={() => setCreateForm((f) => ({ ...f, truckId: t.id }))}
-                      className={`maintenance-truck-option ${selected ? "selected" : ""}`}
+                      disabled={unavailable}
+                      onClick={() => !unavailable && setCreateForm((f) => ({ ...f, truckId: t.id }))}
+                      className={`maintenance-truck-option ${selected ? "selected" : ""} ${unavailable ? "unavailable" : ""}`}
                       data-testid={`truck-option-${t.id}`}
                     >
-                      <i><FiTruck /></i><span><b>{t.plateNumber}</b><small>{t.brand || "—"} {t.model || ""}</small></span><em>{selected ? "DIPILIH" : t.status}</em>
+                      <i><FiTruck /></i><span><b>{t.plateNumber}</b><small>{unavailable ? `${t.activeService.number} · ${t.activeService.title}` : `${t.brand || "—"} ${t.model || ""}`}</small></span><em>{unavailable ? "SEDANG SERVIS" : selected ? "DIPILIH" : t.status}</em>
                     </button>
                   );
                 })}
@@ -1464,8 +1482,9 @@ export default function Maintenance() {
             <section className="maintenance-detail-hero">
               <div className="maintenance-detail-hero-main">
                 <div><small>DETAIL PEKERJAAN SERVIS · {activeJob.number}</small><h2>{activeJob.title}</h2><p><b>{activeJob.truck?.plateNumber || "—"}</b><span>•</span><FiCalendar /> Masuk {fmtDateTime(activeJob.createdAt)}</p></div>
-                <div className="maintenance-hero-side"><StatusBadge status={activeJob.status} />{allowed && <div className="maintenance-hero-actions"><Button variant="primary" icon={FiCheck} onClick={() => setJobStatus("DONE")} disabled={activeJob.status !== "OPEN"} data-testid="mark-done-hero-btn">Selesaikan</Button><Button variant="secondary" icon={FiRefreshCw} onClick={refreshDetail}>Muat Ulang</Button><Button variant="danger" icon={FiX} onClick={() => setJobStatus("CANCELLED")} disabled={activeJob.status !== "OPEN"} data-testid="cancel-job-hero-btn">Batalkan</Button></div>}</div>
+                <div className="maintenance-hero-side"><StatusBadge status={activeJob.status} />{allowed && <div className="maintenance-hero-actions"><Button variant="primary" icon={FiCheck} onClick={() => setJobStatus("DONE")} disabled={activeJob.status !== "OPEN" || hasPendingParts} title={hasPendingParts ? "Sparepart pesanan belum diterima dan dipasang seluruhnya" : undefined} data-testid="mark-done-hero-btn">Selesaikan</Button><Button variant="secondary" icon={FiRefreshCw} onClick={refreshDetail}>Muat Ulang</Button><Button variant="danger" icon={FiX} onClick={() => setJobStatus("CANCELLED")} disabled={activeJob.status !== "OPEN"} data-testid="cancel-job-hero-btn">Batalkan</Button></div>}</div>
               </div>
+              {hasPendingParts && <div className="maintenance-pending-parts-warning"><FiClock /><span><strong>Servis belum dapat diselesaikan</strong><small>Sparepart dari {pendingPartsRequests.map(request => request.number).join(", ")} belum diterima dan dipasang seluruhnya.</small></span></div>}
               <div className="maintenance-detail-metrics">
                 <article><small>DURASI {activeJob.status === "OPEN" ? "BERJALAN" : "TOTAL"}</small><strong>{fmtDuration((activeJob.status === "OPEN" ? Date.now() : activeJob.doneAt ? new Date(activeJob.doneAt).getTime() : Date.now()) - new Date(activeJob.createdAt).getTime())}</strong><span><FiClock /> Waktu pengerjaan bengkel</span></article>
                 <article><small>BIAYA SPAREPART</small><strong>{fmtMoney(activeJob.totalCost || 0, activeJob.currency || "IDR")}</strong><span><FiTool /> Akumulasi pemakaian stok</span></article>
@@ -1541,7 +1560,8 @@ export default function Maintenance() {
                       variant="primary"
                       icon={FiCheck}
                       onClick={() => setJobStatus("DONE")}
-                      disabled={activeJob.status !== "OPEN"}
+                      disabled={activeJob.status !== "OPEN" || hasPendingParts}
+                      title={hasPendingParts ? "Sparepart pesanan belum diterima dan dipasang seluruhnya" : undefined}
                       data-testid="mark-done-btn"
                     >
                       Selesaikan Servis

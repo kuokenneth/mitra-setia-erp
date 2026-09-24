@@ -38,7 +38,7 @@ router.get("/trucks", authRequired, async (req, res) => {
     });
 
     const truckIds = trucks.map((truck) => truck.id);
-    const [previousOilChanges, previousServices] = await Promise.all([
+    const [previousOilChanges, previousServices, activeServices] = await Promise.all([
       prisma.truckMaintenance.findMany({
         where: { truckId: { in: truckIds }, isOilChange: true, status: "DONE" },
         orderBy: [{ oilChangedAt: "desc" }, { createdAt: "desc" }],
@@ -49,6 +49,11 @@ router.get("/trucks", authRequired, async (req, res) => {
         orderBy: [{ doneAt: "desc" }, { createdAt: "desc" }],
         select: { id: true, truckId: true, title: true, status: true, createdAt: true, doneAt: true, odometerKm: true },
       }),
+      prisma.truckMaintenance.findMany({
+        where: { truckId: { in: truckIds }, status: "OPEN" },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, truckId: true, number: true, title: true, createdAt: true },
+      }),
     ]);
     const previousByTruck = new Map();
     for (const change of previousOilChanges) {
@@ -58,8 +63,12 @@ router.get("/trucks", authRequired, async (req, res) => {
     for (const service of previousServices) {
       if (!previousServiceByTruck.has(service.truckId)) previousServiceByTruck.set(service.truckId, service);
     }
+    const activeServiceByTruck = new Map();
+    for (const service of activeServices) {
+      if (!activeServiceByTruck.has(service.truckId)) activeServiceByTruck.set(service.truckId, service);
+    }
 
-    res.json({ trucks: trucks.map((truck) => ({ ...truck, lastOilChange: previousByTruck.get(truck.id) || null, lastService: previousServiceByTruck.get(truck.id) || null })) });
+    res.json({ trucks: trucks.map((truck) => ({ ...truck, lastOilChange: previousByTruck.get(truck.id) || null, lastService: previousServiceByTruck.get(truck.id) || null, activeService: activeServiceByTruck.get(truck.id) || null })) });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Failed to load trucks" });
@@ -132,11 +141,20 @@ router.post("/", authRequired, async (req, res) => {
     const truck = await prisma.truck.findUnique({ where: { id: truckId } });
     if (!truck) return res.status(404).json({ error: "Truck not found" });
 
+    const activeService = await prisma.truckMaintenance.findFirst({ where: { truckId, status: "OPEN" }, select: { number: true, title: true } });
+    if (activeService) return res.status(409).json({ error: `Mobil sedang menjalani servis ${activeService.number} · ${activeService.title}. Selesaikan atau batalkan servis tersebut terlebih dahulu.`, code: "TRUCK_ALREADY_IN_MAINTENANCE" });
+
     if (truck.status === "DISPATCH") {
       return res.status(400).json({ error: "Truck is DISPATCH (on trip). Cannot create maintenance." });
     }
 
     const job = await prisma.$transaction(async (tx) => {
+      const duplicate = await tx.truckMaintenance.findFirst({ where: { truckId, status: "OPEN" }, select: { number: true, title: true } });
+      if (duplicate) {
+        const error = new Error(`Mobil sedang menjalani servis ${duplicate.number} · ${duplicate.title}. Selesaikan atau batalkan servis tersebut terlebih dahulu.`);
+        error.statusCode = 409;
+        throw error;
+      }
       const created = await tx.truckMaintenance.create({
         data: {
           number: await nextDailyNumber(tx, "truckMaintenance", "SRV"),
@@ -160,7 +178,7 @@ router.post("/", authRequired, async (req, res) => {
     res.json({ job });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: "Failed to create maintenance job" });
+    res.status(e.statusCode || 500).json({ error: e.statusCode ? e.message : "Failed to create maintenance job" });
   }
 });
 
@@ -318,7 +336,7 @@ router.get("/:id", authRequired, async (req, res) => {
           orderBy: { createdAt: "desc" },
           include: { createdBy: { select: { id: true, name: true, email: true, role: true } } },
         },
-        purchaseRequests: { select: { id: true, number: true, status: true, urgency: true, purpose: true, directUse: true, createdAt: true, damageProofUrl: true, damageProofFileName: true, damageProofMimeType: true, purchaseOrders: { select: { id: true, number: true, status: true, items: { select: { qty: true, receivedQty: true } } }, orderBy: { createdAt: "desc" } }, items: { select: { id: true, originalQty: true, approvedQty: true, item: { select: { id: true, sku: true, name: true, unit: true } } } } }, orderBy: { createdAt: "desc" } },
+        purchaseRequests: { select: { id: true, number: true, status: true, urgency: true, purpose: true, directUse: true, createdAt: true, damageProofUrl: true, damageProofFileName: true, damageProofMimeType: true, purchaseOrders: { select: { id: true, number: true, status: true, items: { select: { itemId: true, qty: true, receivedQty: true } } }, orderBy: { createdAt: "desc" } }, items: { select: { id: true, itemId: true, originalQty: true, approvedQty: true, item: { select: { id: true, sku: true, name: true, unit: true } } } } }, orderBy: { createdAt: "desc" } },
         partRepairs: { include: { stockUnit: { include: { item: true } }, supplier: true }, orderBy: { createdAt: "desc" } },
       },
     });
@@ -427,6 +445,24 @@ router.patch("/:id/status", authRequired, async (req, res) => {
 
     const existing = await prisma.truckMaintenance.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: "Job not found" });
+    if (status === "DONE") {
+      const serviceRequests = await prisma.purchaseRequest.findMany({
+        where: { maintenanceId: id, OR: [{ directUse: true }, { purpose: "MAINTENANCE_STOCK_REQUEST" }], status: { notIn: ["REJECTED", "CANCELLED"] } },
+        include: {
+          items: { select: { itemId: true, originalQty: true, approvedQty: true } },
+          purchaseOrders: { where: { status: { not: "CANCELLED" } }, select: { items: { select: { itemId: true, receivedQty: true } } } },
+        },
+      });
+      const unfinished = serviceRequests.filter(request => {
+        if (request.status !== "APPROVED" || !request.purchaseOrders.length) return true;
+        return request.items.some(item => {
+          const requiredQty = Number(item.approvedQty ?? item.originalQty ?? 0);
+          const receivedQty = request.purchaseOrders.reduce((sum, order) => sum + order.items.filter(row => row.itemId === item.itemId).reduce((itemSum, row) => itemSum + Number(row.receivedQty || 0), 0), 0);
+          return receivedQty + 0.000001 < requiredQty;
+        });
+      });
+      if (unfinished.length) return res.status(400).json({ error: `Servis belum dapat diselesaikan. Sparepart dari ${unfinished.map(request => request.number).join(", ")} belum diterima dan dipasang seluruhnya.`, code: "MAINTENANCE_PARTS_PENDING" });
+    }
     if (status === "DONE" && existing.isOilChange) {
       const oilUsage = await prisma.stockMovement.count({
         where: { maintenanceId: id, type: "OUT", item: { category: "OIL" } },

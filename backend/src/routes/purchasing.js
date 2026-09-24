@@ -80,7 +80,7 @@ const includePO = { supplier: true, request: { include: { maintenance: { include
 
 router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"));
 router.get("/overview", async (_req, res) => {
-  const [requests, orders, suppliers, locations, items, retreadingUnits, bills] = await Promise.all([
+  const [requests, orders, suppliers, locations, items, retreadingUnits, bills, trucks] = await Promise.all([
     prisma.purchaseRequest.findMany({ include: { maintenance: { include: { truck: true } }, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } }, partRepair: { include: { stockUnit: true } } } }, createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } }, orderBy: { createdAt: "desc" } }),
     prisma.purchaseOrder.findMany({ include: includePO, orderBy: { createdAt: "desc" } }),
     prisma.supplier.findMany({ orderBy: { name: "asc" } }), prisma.inventoryLocation.findMany({ orderBy: { name: "asc" } }), prisma.item.findMany({ orderBy: { name: "asc" } }),
@@ -107,8 +107,9 @@ router.get("/overview", async (_req, res) => {
       },
       orderBy: { invoiceDate: "desc" },
     }),
+    prisma.truck.findMany({ orderBy: { plateNumber: "asc" }, select: { id: true, plateNumber: true, brand: true, model: true } }),
   ]);
-  res.json({ ok: true, requests, orders, suppliers, locations, items, retreadingUnits, bills });
+  res.json({ ok: true, requests, orders, suppliers, locations, items, retreadingUnits, bills, trucks });
 });
 router.get("/orders/:id/print", async (req, res) => {
   const po = await prisma.purchaseOrder.findUnique({ where: { id: req.params.id }, include: includePO });
@@ -194,6 +195,11 @@ router.post("/suppliers", async (req, res) => res.json({ ok: true, supplier: awa
 router.post("/requests", async (req, res) => {
   const { urgency, purpose, truckId, reason, notes, items = [], submit = true, acknowledgeAvailableStock = false, damageProofUrl, damageProofFileName, damageProofMimeType, damageProofSize } = req.body;
   if (!reason || !items.length) return res.status(400).json({ error: "Alasan dan minimal satu item wajib diisi" });
+  if (!['STOCK', 'TRUCK'].includes(purpose)) return res.status(400).json({ error: "Tujuan permintaan tidak valid" });
+  if (purpose === "TRUCK" && !truckId) return res.status(400).json({ error: "Pilih truk tujuan permintaan" });
+  if (purpose === "TRUCK" && !(await prisma.truck.findUnique({ where: { id: String(truckId) }, select: { id: true } }))) {
+    return res.status(400).json({ error: "Truk tujuan tidak ditemukan" });
+  }
   if (!damageProofUrl || !String(damageProofMimeType || "").startsWith("image/")) return res.status(400).json({ error: "Foto bukti barang rusak wajib dilampirkan" });
   const regularItemIds = items.filter(row => row.itemId && !row.retreadUnitId).map(row => String(row.itemId));
   if (regularItemIds.length && !acknowledgeAvailableStock) {
@@ -237,7 +243,11 @@ router.post("/requests", async (req, res) => {
       if (existingRequest) throw new Error(`${unit.serialNumber || unit.id} sudah memiliki Permintaan Pembelian retreading`);
       preparedItems.push({ itemId: retread.toItemId, originalQty: 1, notes: row.notes, tireRetreadId: retread.id });
     } else {
-      preparedItems.push({ itemId: row.itemId, originalQty: Number(row.qty), notes: row.notes });
+      const requestedQty = purpose === "STOCK" ? 0 : Number(row.qty);
+      if (purpose !== "STOCK" && (!Number.isFinite(requestedQty) || requestedQty <= 0)) {
+        return res.status(400).json({ error: "Jumlah kebutuhan untuk truk wajib lebih dari 0" });
+      }
+      preparedItems.push({ itemId: row.itemId, originalQty: requestedQty, notes: row.notes });
     }
   }
   const request = await prisma.$transaction(async tx => tx.purchaseRequest.create({ data: { number: await nextDailyNumber(tx, "purchaseRequest", "PR"), urgency, purpose, truckId, reason, notes, damageProofUrl, damageProofFileName: damageProofFileName || null, damageProofMimeType, damageProofSize: damageProofSize == null ? null : Number(damageProofSize), status: submit ? "WAITING_APPROVAL" : "DRAFT", createdById: req.user.id, items: { create: preparedItems } }, include: { items: { include: { item: true } } } }));
@@ -245,7 +255,7 @@ router.post("/requests", async (req, res) => {
     await notifyOwnerSafely({
       event: "Permintaan pembelian baru",
       title: request.number,
-      details: `${request.items.map(row => `${row.item.name} · ${row.originalQty} ${row.item.unit}`).join(", ")} · ${reason}`,
+      details: `${request.items.map(row => `${row.item.name} · ${purpose === "STOCK" && !row.tireRetreadId ? "jumlah ditentukan saat PO" : `${row.originalQty} ${row.item.unit}`}`).join(", ")} · ${reason}`,
       path: `/purchasing?approveRequest=${encodeURIComponent(request.id)}`,
       actionLabel: "Setujui Permintaan",
       proof: { url: request.damageProofUrl, fileName: request.damageProofFileName, mimeType: request.damageProofMimeType },
@@ -298,13 +308,18 @@ router.post("/orders", async (req, res) => {
   try {
     const { requestId, supplierId, tax = 0, shippingCost = 0, discount = 0, paymentTerms, deliveryAddress, estimatedArrival, items = [] } = req.body;
     if (!requestId || !supplierId || !items.length) return res.status(400).json({ error: "Request, supplier, dan item wajib diisi" });
-    if (items.some(i => Number(i.qty) <= 0)) return res.status(400).json({ error: "Jumlah item tidak valid" });
     const request = await prisma.purchaseRequest.findUnique({ where: { id: requestId }, include: { items: { include: { tireRetread: true, partRepair: true } } } });
     if (!request || request.status !== "APPROVED") return res.status(400).json({ error: "Purchase Request belum disetujui" });
     const poItems = items.map(i => {
       const requestItem = request.items.find(row => row.id === i.purchaseRequestItemId) || request.items.find(row => row.itemId === i.itemId);
       if (!requestItem) throw new Error("Item PO tidak sesuai dengan Purchase Request");
-      return { itemId: requestItem.itemId, qty: Number(i.qty), unitPrice: 0, tireRetreadId: requestItem.tireRetreadId, partRepairId: requestItem.partRepairId };
+      const qty = requestItem.tireRetreadId || requestItem.partRepairId
+        ? 1
+        : request.purpose === "STOCK"
+          ? Number(i.qty)
+          : Number(requestItem.approvedQty ?? requestItem.originalQty);
+      if (!Number.isFinite(qty) || qty <= 0) throw new Error(request.purpose === "STOCK" ? "Jumlah PO persediaan umum wajib lebih dari 0" : "Jumlah item tidak valid");
+      return { itemId: requestItem.itemId, qty, unitPrice: 0, tireRetreadId: requestItem.tireRetreadId, partRepairId: requestItem.partRepairId };
     });
     const wrongSupplier = request.items.find(row => row.tireRetread?.supplierId && row.tireRetread.supplierId !== supplierId);
     if (wrongSupplier) throw new Error("Supplier PO harus sama dengan vendor yang dipilih saat Lepas & Masak");
