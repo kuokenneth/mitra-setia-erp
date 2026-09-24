@@ -438,6 +438,17 @@ function ServicePhoto({ photo, alt }) {
   return <img src={displaySrc} alt={alt} style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }} />;
 }
 
+function LocalPhotoPreview({ file }) {
+  const src = useMemo(() => file ? URL.createObjectURL(file) : "", [file]);
+
+  useEffect(() => {
+    return () => { if (src) URL.revokeObjectURL(src); };
+  }, [src]);
+
+  if (!src) return null;
+  return <div className="maintenance-proof-preview"><img src={src} alt="Preview bukti barang rusak" /><span>Preview foto bukti</span></div>;
+}
+
 function Modal({ open, title, onClose, children, width = 900, className = "" }) {
   if (!open) return null;
   return (
@@ -538,7 +549,6 @@ export default function Maintenance() {
 
   // detail modal
   const [showDetail, setShowDetail] = useState(false);
-  const [detailModalKey, setDetailModalKey] = useState(0);
   const [activeId, setActiveId] = useState(null);
   const [activeJob, setActiveJob] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -690,6 +700,16 @@ export default function Maintenance() {
     } catch {
       // Background refresh failures are surfaced by the next foreground load.
     }
+  }
+
+  function repaintDetailModal() {
+    window.requestAnimationFrame(() => {
+      const modal = document.querySelector(".maintenance-detail-modal");
+      if (!modal) return;
+      modal.style.setProperty("display", "none", "important");
+      void modal.offsetHeight;
+      modal.style.removeProperty("display");
+    });
   }
 
   async function loadPartHistory(itemId, kind) {
@@ -1456,7 +1476,7 @@ export default function Maintenance() {
       </Modal>
 
       {/* DETAIL MODAL */}
-      <Modal key={detailModalKey} open={showDetail} title="Detail Servis" onClose={() => setShowDetail(false)} width={1320} className="maintenance-detail-modal">
+      <Modal open={showDetail} title="Detail Servis" onClose={() => setShowDetail(false)} width={1320} className="maintenance-detail-modal">
         {detailLoading || !activeJob ? (
           <LoadingState compact label="Memuat detail servis" note="Menyiapkan pekerjaan dan penggunaan sparepart…" rows={4} />
         ) : (
@@ -1683,7 +1703,19 @@ export default function Maintenance() {
                 </div>}
 
                 <form className={`maintenance-direct-request ${detailTab !== "PURCHASE" ? "maintenance-detail-section-hidden" : ""}`} onSubmit={createMaintenancePurchaseRequest}>
-                  <section className={`maintenance-request-card maintenance-proof-card ${purchasePhotoError ? "has-error" : ""}`}><div className="maintenance-request-card-title"><span>03</span><div><strong>Bukti barang rusak</strong><small>Foto wajib disertakan agar pemilik dapat memeriksa pengajuan.</small></div></div><label className={`maintenance-damage-proof ${purchaseDamagePhoto ? "has-file" : ""}`} onMouseDown={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}><input type="file" accept="image/*" capture="environment" onClick={event => event.stopPropagation()} onChange={event => { const file = event.target.files?.[0] || null; setPurchaseDamagePhoto(file); setPurchasePhotoError(""); setShowPurchasePhotoEditor(false); if (file) setDetailModalKey(current => current + 1); }} /><span className="maintenance-proof-icon"><FiCamera /></span><span className="maintenance-proof-copy"><strong>{purchaseDamagePhoto ? "Foto siap dikirim" : "Ketuk untuk tambah foto barang rusak"}</strong><small>{purchaseDamagePhoto ? `${purchaseDamagePhoto.name} · Ketuk kembali untuk mengganti` : "Ambil foto menggunakan kamera belakang"}</small></span></label>{purchasePhotoError && <div className="maintenance-proof-error">{purchasePhotoError}</div>}{purchaseDamagePhoto && <button type="button" className="maintenance-proof-annotate" onClick={() => setShowPurchasePhotoEditor(true)}>Tandai bagian yang rusak (opsional)</button>}<UploadProgress progress={purchaseUploadProgress} label="Mengunggah bukti barang rusak" /><button className="maintenance-request-submit maintenance-proof-submit" disabled={requestingPurchase || activeJob.status !== "OPEN"}>{requestingPurchase ? "Mengirim..." : purchaseRequestForm.acknowledgeAvailableStock ? "Tetap Buat Permintaan" : "Buat Permintaan"}</button></section>
+                  <section className={`maintenance-request-card maintenance-proof-card ${purchasePhotoError ? "has-error" : ""}`}>
+                    <div className="maintenance-request-card-title"><span>03</span><div><strong>Bukti barang rusak</strong><small>Foto wajib disertakan agar pemilik dapat memeriksa pengajuan.</small></div></div>
+                    <label className={`maintenance-damage-proof ${purchaseDamagePhoto ? "has-file" : ""}`} onMouseDown={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
+                      <input type="file" accept="image/*" capture="environment" onClick={event => event.stopPropagation()} onChange={event => { const file = event.target.files?.[0] || null; setPurchaseDamagePhoto(file); setPurchasePhotoError(""); setShowPurchasePhotoEditor(false); if (file) repaintDetailModal(); }} />
+                      <span className="maintenance-proof-icon"><FiCamera /></span>
+                      <span className="maintenance-proof-copy"><strong>{purchaseDamagePhoto ? "Foto siap dikirim" : "Ketuk untuk tambah foto barang rusak"}</strong><small>{purchaseDamagePhoto ? `${purchaseDamagePhoto.name} · Ketuk kembali untuk mengganti` : "Ambil foto menggunakan kamera belakang"}</small></span>
+                    </label>
+                    <LocalPhotoPreview file={purchaseDamagePhoto} />
+                    {purchasePhotoError && <div className="maintenance-proof-error">{purchasePhotoError}</div>}
+                    {purchaseDamagePhoto && <button type="button" className="maintenance-proof-annotate" onClick={() => setShowPurchasePhotoEditor(true)}>Tandai bagian yang rusak (opsional)</button>}
+                    <UploadProgress progress={purchaseUploadProgress} label="Mengunggah bukti barang rusak" />
+                    <button className="maintenance-request-submit maintenance-proof-submit" disabled={requestingPurchase || activeJob.status !== "OPEN"}>{requestingPurchase ? "Mengirim..." : purchaseRequestForm.acknowledgeAvailableStock ? "Tetap Buat Permintaan" : "Buat Permintaan"}</button>
+                  </section>
                   <div className="maintenance-request-head"><span><FiPlus /></span><div><strong>Pesan sparepart untuk servis ini</strong><small>Permintaan tetap terlacak di servis; barang masuk Inventory saat diterima.</small></div><em>UNTUK SERVIS</em></div>
                   <section className="maintenance-request-card"><div className="maintenance-request-card-title"><span>01</span><div><strong>Pilih barang</strong><small>Gunakan katalog atau daftarkan sparepart baru.</small></div></div><div className="maintenance-request-mode"><button type="button" className={!purchaseRequestForm.newItem ? "active" : ""} onClick={() => { setErr(""); setPurchaseRequestForm(form => ({ ...form, newItem: false, acknowledgeAvailableStock: false })); }}>Pilih katalog</button><button type="button" className={purchaseRequestForm.newItem ? "active" : ""} onClick={() => { setErr(""); setPurchaseRequestForm(form => ({ ...form, newItem: true, acknowledgeAvailableStock: false })); }}>Sparepart baru</button></div>
                     {!purchaseRequestForm.newItem ? <label>Sparepart<SearchableItemPicker items={items} value={purchaseRequestForm.itemId} onChange={itemId => { setErr(""); setPurchaseRequestForm(form => ({ ...form, itemId, acknowledgeAvailableStock: false })); }} disabled={requestingPurchase} placeholder="Cari SKU atau nama sparepart..." testId="maintenance-purchase-item-search" />{Number(items.find(item => item.id === purchaseRequestForm.itemId)?.qtyTotal || 0) > 0 && <span className="maintenance-stock-warning">⚠ Stok masih tersedia: <b>{Number(items.find(item => item.id === purchaseRequestForm.itemId)?.qtyTotal || 0).toLocaleString("id-ID")} {items.find(item => item.id === purchaseRequestForm.itemId)?.unit}</b>. Periksa Inventory sebelum membeli.</span>}</label> : <div className="maintenance-request-new-item"><label>SKU<input required value={purchaseRequestForm.sku} onChange={event => setPurchaseRequestForm(form => ({ ...form, sku: event.target.value }))} placeholder="Contoh: BRK-HINO-02" /></label><label>Nama sparepart<input required value={purchaseRequestForm.name} onChange={event => setPurchaseRequestForm(form => ({ ...form, name: event.target.value }))} placeholder="Contoh: Master rem Hino" /></label><label>Satuan<select value={purchaseRequestForm.unit} onChange={event => setPurchaseRequestForm(form => ({ ...form, unit: event.target.value }))}><option>PCS</option><option>SET</option><option>UNIT</option><option>LITER</option></select></label><label className="maintenance-request-check"><input type="checkbox" checked={purchaseRequestForm.isSerialized} onChange={event => setPurchaseRequestForm(form => ({ ...form, isSerialized: event.target.checked }))} /> Memiliki nomor serial</label></div>}
