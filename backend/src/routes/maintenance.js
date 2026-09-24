@@ -3,6 +3,7 @@ const express = require("express");
 const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { nextDailyNumber } = require("../utils/documentNumber");
+const { SYSTEM_ACCOUNTS, postJournal } = require("../services/accounting");
 
 const router = express.Router();
 const OIL_CHANGE_INTERVAL_KM = 8500;
@@ -555,7 +556,8 @@ router.post("/:id/return-unit", authRequired, async (req, res) => {
       await tx.stockUnit.update({ where: { id: assignment.stockUnitId }, data: { status: "IN_STOCK", locationId, scrappedAt: null } });
       await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: assignment.stockUnit.itemId, locationId } }, create: { itemId: assignment.stockUnit.itemId, locationId, qty: 1 }, update: { qty: { increment: 1 } } });
       if (assignment.stockUnit.inventoryBatchId) await tx.inventoryBatch.update({ where: { id: assignment.stockUnit.inventoryBatchId }, data: { remainingQty: { increment: 1 } } });
-      await tx.stockMovement.create({ data: { type: "IN", itemId: assignment.stockUnit.itemId, qty: 1, unitPrice: assignment.installCost, totalCost: assignment.installCost, note: `RETURN_ASSIGNMENT:${assignment.id} · Pemasangan dibatalkan dari ${job.truck.plateNumber}`, createdById: req.user.id, toLocationId: locationId, maintenanceId, stockUnitId: assignment.stockUnitId } });
+      const returnMovement = await tx.stockMovement.create({ data: { type: "IN", itemId: assignment.stockUnit.itemId, qty: 1, unitPrice: assignment.installCost, totalCost: assignment.installCost, note: `RETURN_ASSIGNMENT:${assignment.id} · Pemasangan dibatalkan dari ${job.truck.plateNumber}`, createdById: req.user.id, toLocationId: locationId, maintenanceId, stockUnitId: assignment.stockUnitId } });
+      if (Number(assignment.installCost || 0) > 0) await postJournal(tx, { date: returnMovement.createdAt, description: `Pengembalian ${assignment.stockUnit.item.name} dari ${job.truck.plateNumber}`, sourceType: "INVENTORY_RETURN", sourceId: returnMovement.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.INVENTORY, debit: Number(assignment.installCost) }, { code: SYSTEM_ACCOUNTS.EXPENSE, credit: Number(assignment.installCost) }] });
       return assignment;
     });
     res.json({ returned });
@@ -596,7 +598,9 @@ router.post("/:id/return-stock", authRequired, async (req, res) => {
       await tx.truckPartStock.update({ where: { truckId_itemId: { truckId: job.truckId, itemId: movement.itemId } }, data: { qty: { decrement: requestedQty } } });
       await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: movement.itemId, locationId: movement.fromLocationId } }, create: { itemId: movement.itemId, locationId: movement.fromLocationId, qty: requestedQty }, update: { qty: { increment: requestedQty } } });
       await tx.inventoryBatch.create({ data: { itemId: movement.itemId, locationId: movement.fromLocationId, receivedQty: requestedQty, remainingQty: requestedQty, unitPrice: movement.unitPrice, receivedAt: new Date() } });
-      return tx.stockMovement.create({ data: { type: "IN", itemId: movement.itemId, qty: requestedQty, unitPrice: movement.unitPrice, totalCost: returnCost, note: `RETURN_OF:${movement.id} · Pemakaian dibatalkan dari ${job.truck.plateNumber} · Alasan: ${reason}`, createdById: req.user.id, toLocationId: movement.fromLocationId, maintenanceId } });
+      const returnMovement = await tx.stockMovement.create({ data: { type: "IN", itemId: movement.itemId, qty: requestedQty, unitPrice: movement.unitPrice, totalCost: returnCost, note: `RETURN_OF:${movement.id} · Pemakaian dibatalkan dari ${job.truck.plateNumber} · Alasan: ${reason}`, createdById: req.user.id, toLocationId: movement.fromLocationId, maintenanceId } });
+      if (Number(returnCost || 0) > 0) await postJournal(tx, { date: returnMovement.createdAt, description: `Pengembalian ${movement.item.name} dari ${job.truck.plateNumber}`, sourceType: "INVENTORY_RETURN", sourceId: returnMovement.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.INVENTORY, debit: returnCost }, { code: SYSTEM_ACCOUNTS.EXPENSE, credit: returnCost }] });
+      return returnMovement;
     });
     res.json({ returned });
   } catch (e) {
@@ -935,11 +939,13 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
         // ----------------------------
         // (4) create OUT movement
         // ----------------------------
-        await tx.stockMovement.create({
+        const outMovement = await tx.stockMovement.create({
           data: {
             type: "OUT",
             itemId: unit.itemId,
             qty: 1,
+            unitPrice: unit.purchasePrice,
+            totalCost: unit.purchasePrice,
             note: `Assigned to maintenance: ${job.title}`,
             createdById: req.user?.id || null,
             fromLocationId,
@@ -948,6 +954,7 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
             stockUnitId: unit.id,
           },
         });
+        await postJournal(tx, { date: outMovement.createdAt, description: `Pemakaian ${unit.item.name} untuk ${job.title}`, sourceType: "INVENTORY_USAGE", sourceId: outMovement.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.EXPENSE, debit: Number(unit.purchasePrice) }, { code: SYSTEM_ACCOUNTS.INVENTORY, credit: Number(unit.purchasePrice) }] });
 
         return assignment;
       },
@@ -1209,6 +1216,7 @@ router.post("/:id/use-stock", authRequired, async (req, res) => {
           data: allocatedBatches.map(allocation => ({ ...allocation, movementId: movement.id })),
         });
       }
+      if (Number(movementTotalCost || 0) > 0) await postJournal(tx, { date: movement.createdAt, description: `Pemakaian ${item.name} untuk ${job.title}`, sourceType: "INVENTORY_USAGE", sourceId: movement.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.EXPENSE, debit: movementTotalCost }, { code: SYSTEM_ACCOUNTS.INVENTORY, credit: movementTotalCost }] });
       return movement;
     });
 

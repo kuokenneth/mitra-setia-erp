@@ -32,18 +32,22 @@ router.post("/sync", async (req, res) => {
   try {
     let posted = 0;
     const creator = req.user.id;
-    const [invoices, customerPayments, receipts, supplierPayments, expenses] = await Promise.all([
+    const [invoices, customerPayments, receipts, supplierPayments, expenses, inventoryUsages, inventoryReturns] = await Promise.all([
       prisma.invoice.findMany({ where: { status: { in: ["SENT","PARTIALLY_PAID","PAID"] } } }),
       prisma.receivablePayment.findMany({ include: { invoice: true } }),
       prisma.goodsReceipt.findMany({ include: { items: { include: { purchaseOrderItem: true } }, purchaseOrder: true } }),
       prisma.purchasePayment.findMany({ where: { status: "PAID" }, include: { purchaseOrder: true } }),
       prisma.expense.findMany({ where: { status: { in: ["PAID","APPROVED"] } } }),
+      prisma.stockMovement.findMany({ where: { type: "OUT", fromLocationId: { not: null }, totalCost: { gt: 0 }, NOT: [{ note: { startsWith: "Pembelian langsung" } }, { note: { startsWith: "Langsung dipasang" } }] }, include: { item: true, maintenance: true } }),
+      prisma.stockMovement.findMany({ where: { type: "IN", totalCost: { gt: 0 }, OR: [{ note: { startsWith: "RETURN_OF:" } }, { note: { startsWith: "RETURN_ASSIGNMENT:" } }] }, include: { item: true, maintenance: true } }),
     ]);
     for (const invoice of invoices) { await prisma.$transaction(tx=>postJournal(tx,{date:invoice.sentAt||invoice.issuedAt,description:`Invoice ${invoice.number}`,sourceType:"CUSTOMER_INVOICE",sourceId:invoice.id,createdById:creator,lines:[{code:SYSTEM_ACCOUNTS.AR,debit:invoice.total},{code:SYSTEM_ACCOUNTS.REVENUE,credit:invoice.total}]})); posted++; }
     for (const p of customerPayments) { await prisma.$transaction(tx=>postJournal(tx,{date:p.receivedAt,description:`Penerimaan ${p.number}`,sourceType:"CUSTOMER_PAYMENT",sourceId:p.id,createdById:creator,lines:[{code:cashCode(p.method),debit:p.amount},{code:SYSTEM_ACCOUNTS.AR,credit:p.amount}]})); posted++; }
     for (const r of receipts) { const value=r.items.reduce((s,i)=>s+i.qty*i.purchaseOrderItem.unitPrice,0); if(value>0){await prisma.$transaction(tx=>postJournal(tx,{date:r.receivedAt,description:`Penerimaan barang ${r.number}`,sourceType:"GOODS_RECEIPT",sourceId:r.id,createdById:creator,lines:[{code:SYSTEM_ACCOUNTS.INVENTORY,debit:value},{code:SYSTEM_ACCOUNTS.AP,credit:value}]}));posted++;} }
     for (const p of supplierPayments) { await prisma.$transaction(tx=>postJournal(tx,{date:p.paidAt||p.createdAt,description:`Pembayaran supplier ${p.number}`,sourceType:"SUPPLIER_PAYMENT",sourceId:p.id,createdById:creator,lines:[{code:SYSTEM_ACCOUNTS.AP,debit:p.amount},{code:cashCode(p.method),credit:p.amount}]})); posted++; }
     for (const e of expenses) { await prisma.$transaction(tx=>postJournal(tx,{date:e.paidAt||e.createdAt,description:e.reason,sourceType:"EXPENSE_PAYMENT",sourceId:e.id,createdById:creator,lines:[{code:SYSTEM_ACCOUNTS.EXPENSE,debit:e.amount},{code:cashCode(e.paymentMethod),credit:e.amount}]})); posted++; }
+    for (const m of inventoryUsages) { await prisma.$transaction(tx=>postJournal(tx,{date:m.createdAt,description:`Pemakaian ${m.item.name}${m.maintenance?.title?` untuk ${m.maintenance.title}`:" dari Inventory"}`,sourceType:"INVENTORY_USAGE",sourceId:m.id,createdById:m.createdById||creator,lines:[{code:SYSTEM_ACCOUNTS.EXPENSE,debit:m.totalCost},{code:SYSTEM_ACCOUNTS.INVENTORY,credit:m.totalCost}]})); posted++; }
+    for (const m of inventoryReturns) { await prisma.$transaction(tx=>postJournal(tx,{date:m.createdAt,description:`Pengembalian ${m.item.name}${m.maintenance?.title?` dari ${m.maintenance.title}`:" ke Inventory"}`,sourceType:"INVENTORY_RETURN",sourceId:m.id,createdById:m.createdById||creator,lines:[{code:SYSTEM_ACCOUNTS.INVENTORY,debit:m.totalCost},{code:SYSTEM_ACCOUNTS.EXPENSE,credit:m.totalCost}]})); posted++; }
     res.json({ok:true, processed:posted});
   } catch(error){res.status(400).json({error:error.message||"Gagal sinkronisasi accounting"});}
 });
