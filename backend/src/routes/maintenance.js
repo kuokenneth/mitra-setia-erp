@@ -816,7 +816,7 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
 
     const maintenanceId = req.params.id;
-    const { stockUnitId, note, replaceStockUnitId, replaceDisposition = "IN_STOCK" } = req.body || {};
+    const { stockUnitId, note, replaceStockUnitId, replaceDisposition = "IN_STOCK", retread } = req.body || {};
     if (!stockUnitId) return res.status(400).json({ error: "stockUnitId is required" });
 
     // ✅ Read-only fetches OUTSIDE transaction (faster + safer)
@@ -854,7 +854,7 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
           // use select (lighter than include)
           const oldUnit = await tx.stockUnit.findUnique({
             where: { id: oldUnitId },
-            select: { id: true, itemId: true, serialNumber: true, barcode: true, inventoryBatchId: true },
+            select: { id: true, itemId: true, serialNumber: true, barcode: true, inventoryBatchId: true, item: { select: { category: true, isSerialized: true } } },
           });
           if (!oldUnit) throw new Error("Replace unit not found");
 
@@ -870,7 +870,25 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
             data: { removedAt: now },
           });
 
-          if (replaceDisposition === "REPAIRING") {
+          if (replaceDisposition === "RETREADING") {
+            if (oldUnit.item.category !== "TIRE" || !oldUnit.item.isSerialized) throw new Error("Hanya ban berserial yang dapat dikirim untuk masak");
+            const toItemId = String(retread?.toItemId || "");
+            const supplierId = retread?.supplierId ? String(retread.supplierId) : null;
+            const retreadCost = Number(retread?.cost);
+            const sentAt = retread?.sentAt ? new Date(retread.sentAt) : now;
+            if (!toItemId) throw new Error("Pilih item tujuan Ban Masak");
+            if (toItemId === oldUnit.itemId) throw new Error("Item Ban Masak harus berbeda dari item ban asal");
+            if (!Number.isInteger(retreadCost) || retreadCost < 0) throw new Error("Biaya masak harus berupa angka bulat dan tidak boleh negatif");
+            if (Number.isNaN(sentAt.getTime())) throw new Error("Tanggal kirim masak tidak valid");
+            const targetItem = await tx.item.findUnique({ where: { id: toItemId }, select: { category: true, isSerialized: true } });
+            if (!targetItem?.isSerialized || targetItem.category !== "TIRE") throw new Error("Item tujuan harus merupakan Ban berserial");
+            if (supplierId && !(await tx.supplier.findUnique({ where: { id: supplierId }, select: { id: true } }))) throw new Error("Vendor masak ban tidak ditemukan");
+            const openRetread = await tx.tireRetread.findFirst({ where: { stockUnitId: oldUnitId, status: "SENT" }, select: { id: true } });
+            if (openRetread) throw new Error("Ban ini masih dalam proses masak");
+            const retreadRecord = await tx.tireRetread.create({ data: { stockUnitId: oldUnitId, fromItemId: oldUnit.itemId, toItemId, supplierId, cost: retreadCost, sentAt, notes: retread?.notes ? String(retread.notes) : note ? String(note) : null, createdById: req.user.id }, include: { supplier: true } });
+            await tx.stockUnit.update({ where: { id: oldUnitId }, data: { status: "RETREADING", locationId: null } });
+            await tx.stockMovement.create({ data: { type: "OUT", itemId: oldUnit.itemId, qty: 1, note: `Dilepas dari ${job.truck.plateNumber} dan dikirim untuk masak ban${retreadRecord.supplier?.name ? ` ke ${retreadRecord.supplier.name}` : ""}`, createdById: req.user.id, maintenanceId, stockUnitId: oldUnitId } });
+          } else if (replaceDisposition === "REPAIRING") {
             await tx.stockUnit.update({ where: { id: oldUnitId }, data: { status: "REPAIRING", locationId: null } });
             const repair = await tx.partRepair.create({ data: { stockUnitId: oldUnitId, maintenanceId, sentAt: now, notes: note ? String(note) : null, createdById: req.user.id } });
             const request = await tx.purchaseRequest.create({ data: { number: await nextDailyNumber(tx, "purchaseRequest", "PR"), status: "WAITING_APPROVAL", urgency: "URGENT", purpose: "REPAIR", truckId: job.truckId, maintenanceId, reason: `Perbaikan unit lama ${oldUnit.serialNumber || oldUnit.barcode || oldUnit.id.slice(0, 8)} dari ${job.truck.plateNumber}`, createdById: req.user.id, items: { create: { itemId: oldUnit.itemId, originalQty: 1, partRepairId: repair.id } } } });
