@@ -82,7 +82,15 @@ router.get("/", authRequired, async (req, res) => {
       skip,
       take,
       include: {
-        truck: { select: { id: true, plateNumber: true, brand: true, model: true } },
+        truck: {
+          select: {
+            id: true,
+            plateNumber: true,
+            brand: true,
+            model: true,
+            driverUser: { select: { id: true, name: true } },
+          },
+        },
         trip: {
           include: {
             truck: true,

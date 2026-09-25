@@ -17,14 +17,17 @@ function period(value) {
   const year = Number(match[1]);
   const monthIndex = Number(match[2]) - 1;
   if (monthIndex < 0 || monthIndex > 11) throw new Error("Bulan tidak valid");
-  const start = new Date(Date.UTC(year, monthIndex, 1));
-  const end = new Date(Date.UTC(year, monthIndex + 1, 1));
+  const month = monthIndex + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const start = new Date(`${year}-${String(month).padStart(2, "0")}-01T00:00:00+07:00`);
+  const end = new Date(`${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00+07:00`);
   const days = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
   return { start, end, days };
 }
 
 function tripDate(trip) {
-  return trip.plannedDepartAt || trip.dispatchedAt || trip.completedAt || trip.createdAt;
+  return trip.completedAt;
 }
 
 function allocatedRevenue(trip) {
@@ -95,16 +98,12 @@ router.get("/", async (req, res) => {
       orderBy: { plateNumber: "asc" },
       include: {
         trips: {
-          where: {
-            OR: [
-              { plannedDepartAt: dateRange },
-              { plannedDepartAt: null, dispatchedAt: dateRange },
-              { plannedDepartAt: null, dispatchedAt: null, completedAt: dateRange },
-              { plannedDepartAt: null, dispatchedAt: null, completedAt: null, createdAt: dateRange },
-            ],
-          },
+          where: { status: "COMPLETED", completedAt: dateRange },
           include: {
-            expenses: { where: { status: { in: ["PAID", "APPROVED"] } }, orderBy: { createdAt: "asc" } },
+            expenses: {
+              where: { status: { in: ["PAID", "APPROVED"] }, expenseDate: dateRange },
+              orderBy: { expenseDate: "asc" },
+            },
             order: { include: { invoices: true, trips: { select: { id: true, status: true, qtyActual: true, qtyPlanned: true } } } },
             invoiceLines: { include: { invoice: true } },
             materialInvoices: { include: { billedInvoice: true, lines: true } },
@@ -148,9 +147,9 @@ router.get("/", async (req, res) => {
         expenses: {
           where: {
             status: { in: ["PAID", "APPROVED"] },
-            OR: [{ paidAt: dateRange }, { paidAt: null, createdAt: dateRange }],
+            expenseDate: dateRange,
           },
-          orderBy: { createdAt: "asc" },
+          orderBy: { expenseDate: "asc" },
         },
       },
     });
@@ -208,7 +207,7 @@ router.get("/", async (req, res) => {
           unit: item.unitSnap || item.order?.unit || null,
           expenseTotal,
           netContribution: tripRevenue - expenseTotal,
-          expenses: item.expenses.map(expense => ({ id: expense.id, reason: expense.reason, amount: expense.amount, status: expense.status, paidAt: expense.paidAt || expense.createdAt })),
+          expenses: item.expenses.map(expense => ({ id: expense.id, reason: expense.reason, amount: expense.amount, status: expense.status, expenseDate: expense.expenseDate })),
         };
       });
       for (const line of truck.manualInvoiceLines) {
@@ -262,7 +261,7 @@ router.get("/", async (req, res) => {
         fixedTotal, totalCost, profit, margin,
         tripDetails, sparePartDetails,
         manualRevenueDetails: truck.manualRevenues.map(item => ({ id: item.id, revenueDate: item.revenueDate, amount: item.amount, description: item.description, notes: item.notes, createdAt: item.createdAt, createdBy: item.createdBy })),
-        vehicleExpenseDetails: truck.expenses.map(expense => ({ id: expense.id, reason: expense.reason, amount: expense.amount, status: expense.status, paidAt: expense.paidAt || expense.createdAt })),
+        vehicleExpenseDetails: truck.expenses.map(expense => ({ id: expense.id, reason: expense.reason, amount: expense.amount, status: expense.status, expenseDate: expense.expenseDate })),
         costRatio: revenue > 0 ? ratio(totalCost, revenue) : (totalCost > 0 ? 100 : 0),
         completionRate: ratio(completedTrips, operationalTrips.length),
         utilizationRate: round(Math.min(100, (activeDays / days) * 100)), activeDays,

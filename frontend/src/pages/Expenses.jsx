@@ -624,8 +624,8 @@ export default function Expenses() {
                 <tr key={x.id} style={s.rowClickable} onClick={() => openDetail(x)}>
                   <td style={s.td}><div className="expense-date"><FiCalendar />{(x.expenseDate || x.createdAt) ? new Date(x.expenseDate || x.createdAt).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short", year: "numeric" }) : "-"}</div></td>
                   <td style={s.td}><div className="expense-row-title">{x.reason || "Tanpa keterangan"}</div><div className="expense-row-meta">{EXPENSE_CATEGORIES[x.category] || "Lainnya"}{x.clientName ? ` · ${x.clientName}` : ""}</div></td>
-                  <td style={s.td}><div className="expense-allocation"><span><FiTruck /></span><div><strong>{x.trip?.truck?.plateNumber || x.truck?.plateNumber || "Umum"}</strong><small>{x.trip ? (x.trip.order?.orderNo || "Perjalanan") : x.truck ? "Biaya armada" : "Operasional umum"}</small></div></div></td>
-                  <td style={s.td}><div className="expense-row-title">{x.paymentMethod === "BANK_TRANSFER" ? "Transfer bank" : x.paymentMethod === "CASH" ? "Tunai" : "Lainnya"}</div><div className="expense-row-meta">{x.bankName || x.accountName || "—"}</div></td>
+                  <td style={s.td}><div className="expense-allocation"><span><FiTruck /></span><div><strong>{x.trip?.truck?.plateNumber || x.truck?.plateNumber || "Umum"}</strong><small>{x.trip?.driverUser?.name || x.trip?.driverNameSnap || x.truck?.driverUser?.name || (x.trip ? "Tanpa nama pengemudi" : x.truck ? "Tanpa nama pengemudi" : "Operasional umum")}</small>{x.trip ? <small>{x.trip.order?.orderNo || "Perjalanan"}</small> : x.truck ? <small>Biaya armada</small> : null}</div></div></td>
+                  <td style={s.td}><div className="expense-row-title">{x.paymentMethod === "BANK_TRANSFER" ? "Transfer bank" : x.paymentMethod === "CASH" ? "Tunai" : "Lainnya"}</div><div className="expense-row-meta">{x.bankName || "—"}</div>{x.paymentMethod === "BANK_TRANSFER" ? <div className="expense-row-meta">a.n. {x.accountName || "Nama rekening belum diisi"}</div> : null}</td>
                   <td style={s.tdStrong}>{new Intl.NumberFormat("id-ID", { style: "currency", currency: x.currency || "IDR", maximumFractionDigits: 0 }).format(x.amount || 0)}</td>
                   <td style={s.td}>
                     <div style={s.statusStack}>
@@ -1086,10 +1086,12 @@ export default function Expenses() {
                 <div style={s.detailValue}>{detailItem.bankName || "-"}</div>
               </div>
               <div>
-                <div style={s.detailLabel}>Rekening</div>
-                <div style={s.detailValue}>
-                  {detailItem.accountName || detailItem.accountNumber || "-"}
-                </div>
+                <div style={s.detailLabel}>Nama Rekening</div>
+                <div style={s.detailValue}>{detailItem.accountName || "-"}</div>
+              </div>
+              <div>
+                <div style={s.detailLabel}>Nomor Rekening</div>
+                <div style={s.detailValue}>{detailItem.accountNumber || "-"}</div>
               </div>
               <div>
                 <div style={s.detailLabel}>Klien</div>
