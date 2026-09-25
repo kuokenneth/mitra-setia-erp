@@ -5,7 +5,7 @@ import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { ProtectedFilePreview } from "../components/ProtectedFile";
 import LoadingState from "../components/LoadingState";
-import { FiArrowLeft, FiArrowRight, FiCalendar, FiCheckCircle, FiClock, FiCreditCard, FiFileText, FiPlus, FiSearch, FiTruck, FiX } from "react-icons/fi";
+import { FiArrowLeft, FiArrowRight, FiCalendar, FiCheckCircle, FiClock, FiCreditCard, FiDownload, FiFileText, FiPlus, FiSearch, FiTruck, FiX } from "react-icons/fi";
 import "./Expenses.css";
 
 // Corporate Green Color Palette (matching Landing/Dashboard)
@@ -43,6 +43,15 @@ const EXPENSE_CATEGORIES = {
   OFFICE_OPERATIONAL: "Operasional Kantor",
   OTHER: "Lainnya",
 };
+
+function todayInJakarta() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
 
 export default function Expenses() {
   const { user } = useAuth();
@@ -91,6 +100,7 @@ export default function Expenses() {
   }, []);
 
   const [form, setForm] = useState({
+    expenseDate: todayInJakarta(),
     tripId: "",
     truckId: "",
     category: "TRIP_ALLOWANCE",
@@ -106,6 +116,9 @@ export default function Expenses() {
   });
 
   const [submitting, setSubmitting] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [reportFeedback, setReportFeedback] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailItem, setDetailItem] = useState(null);
@@ -154,6 +167,7 @@ export default function Expenses() {
     setTripSearch("");
     setTruckSearch("");
     setForm({
+      expenseDate: todayInJakarta(),
       tripId: "",
       truckId: "",
       category: "TRIP_ALLOWANCE",
@@ -262,6 +276,7 @@ export default function Expenses() {
       const trip = await api("/trips/empty-return", {
         method: "POST",
         body: JSON.stringify({
+          expenseDate: form.expenseDate,
           truckId: emptyReturnForm.truckId,
           plannedDepartAt: emptyReturnForm.plannedDepartAt || null,
           reason: emptyReturnForm.reason,
@@ -403,6 +418,17 @@ export default function Expenses() {
       setErr("Select a month first");
       return;
     }
+    const reportWindow = openInSameTab ? null : window.open("", "_blank");
+    if (!openInSameTab && !reportWindow) {
+      setErr("Popup diblokir browser. Izinkan popup untuk mencetak laporan.");
+      return;
+    }
+    setReportBusy(true);
+    setReportFeedback("");
+    setErr("");
+    if (reportWindow) {
+      reportWindow.document.write("<p style='font-family:sans-serif;padding:24px'>Menyiapkan laporan…</p>");
+    }
     try {
       const token = getAccessToken();
       const res = await fetch(`${API_BASE}/expenses/report?month=${reportMonth}`, {
@@ -417,14 +443,46 @@ export default function Expenses() {
         document.close();
         return;
       }
-      const w = window.open("", "_blank");
-      if (!w) throw new Error("Popup blocked");
-      w.document.open();
-      w.document.write(html);
-      w.document.close();
-      w.focus();
+      reportWindow.document.open();
+      reportWindow.document.write(html);
+      reportWindow.document.close();
+      reportWindow.focus();
+      setReportFeedback("Laporan berhasil dibuka");
     } catch (e) {
+      reportWindow?.close();
       setErr(e.message || "Failed to open report");
+    } finally {
+      setReportBusy(false);
+    }
+  }
+
+  async function exportAllExpenses() {
+    setErr("");
+    setReportFeedback("");
+    setExportBusy(true);
+    try {
+      const token = getAccessToken();
+      const res = await fetch(`${API_BASE}/expenses/export`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text() || "Gagal mengekspor pengeluaran");
+      const blob = await res.blob();
+      const disposition = res.headers.get("content-disposition") || "";
+      const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || "semua-pengeluaran.xls";
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setReportFeedback("File Excel berhasil diunduh");
+    } catch (e) {
+      setErr(e.message || "Gagal mengekspor pengeluaran");
+    } finally {
+      setExportBusy(false);
     }
   }
 
@@ -480,9 +538,13 @@ export default function Expenses() {
               onChange={(e) => setReportMonth(e.target.value)}
               style={s.monthInput}
             />
-            <button style={s.secondaryBtn} onClick={() => openMonthlyReport(false)}>
-              <FiFileText /> Cetak laporan
+            <button type="button" className={`expense-report-button ${reportBusy ? "is-busy" : ""}`} style={s.secondaryBtn} disabled={reportBusy || exportBusy} onClick={() => openMonthlyReport(false)} title="Buka laporan bulanan untuk dicetak">
+              <FiFileText /> {reportBusy ? "Menyiapkan…" : "Cetak laporan"}
             </button>
+            <button type="button" className={`expense-report-button ${exportBusy ? "is-busy" : ""}`} style={s.secondaryBtn} disabled={reportBusy || exportBusy} onClick={exportAllExpenses} title="Unduh seluruh pengeluaran dalam Excel">
+              <FiDownload /> {exportBusy ? "Mengunduh…" : "Export Excel"}
+            </button>
+            <span className={`expense-report-feedback ${reportFeedback ? "visible" : ""}`} role="status" aria-live="polite">{reportFeedback}</span>
           </div>
           <button className="expense-new-button" style={s.primaryBtn} onClick={() => setShowModal(true)}>
             <FiPlus /> Pengeluaran baru
@@ -559,7 +621,7 @@ export default function Expenses() {
               {loading && items.length === 0 && <tr><td colSpan={7} style={{ padding: 14 }}><LoadingState compact label="Memuat pengeluaran" note="Mengambil transaksi dan status pembayaran…" rows={5} /></td></tr>}
               {items.map((x) => (
                 <tr key={x.id} style={s.rowClickable} onClick={() => openDetail(x)}>
-                  <td style={s.td}><div className="expense-date"><FiCalendar />{x.createdAt ? new Date(x.createdAt).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "-"}</div></td>
+                  <td style={s.td}><div className="expense-date"><FiCalendar />{(x.expenseDate || x.createdAt) ? new Date(x.expenseDate || x.createdAt).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short", year: "numeric" }) : "-"}</div></td>
                   <td style={s.td}><div className="expense-row-title">{x.reason || "Tanpa keterangan"}</div><div className="expense-row-meta">{EXPENSE_CATEGORIES[x.category] || "Lainnya"}{x.clientName ? ` · ${x.clientName}` : ""}</div></td>
                   <td style={s.td}><div className="expense-allocation"><span><FiTruck /></span><div><strong>{x.trip?.truck?.plateNumber || x.truck?.plateNumber || "Umum"}</strong><small>{x.trip ? (x.trip.order?.orderNo || "Perjalanan") : x.truck ? "Biaya armada" : "Operasional umum"}</small></div></div></td>
                   <td style={s.td}><div className="expense-row-title">{x.paymentMethod === "BANK_TRANSFER" ? "Transfer bank" : x.paymentMethod === "CASH" ? "Tunai" : "Lainnya"}</div><div className="expense-row-meta">{x.bankName || x.accountName || "—"}</div></td>
@@ -820,6 +882,17 @@ export default function Expenses() {
                 <div className="expense-form-section-title"><span>02</span><div><strong>Pembayaran</strong><small>Catat tujuan pembayaran dan nilai transaksi.</small></div></div>
 
                 <div>
+                  <label style={s.label}>Tanggal Pengeluaran</label>
+                  <input
+                    required
+                    type="date"
+                    style={s.input}
+                    value={form.expenseDate}
+                    onChange={(e) => onChangeForm("expenseDate", e.target.value)}
+                  />
+                </div>
+
+                <div>
                   <label style={s.label}>Metode Pembayaran</label>
                   <select
                     value={form.paymentMethod}
@@ -944,6 +1017,10 @@ export default function Expenses() {
             </div>
             <div style={s.detailGrid}>
               <div>
+                <div style={s.detailLabel}>Tanggal Pengeluaran</div>
+                <div style={s.detailValue}>{new Date(detailItem.expenseDate || detailItem.createdAt).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" })}</div>
+              </div>
+              <div>
                 <div style={s.detailLabel}>Perjalanan</div>
                 <div style={s.detailValue}>{detailItem.trip?.id || "-"}</div>
               </div>
@@ -1038,7 +1115,7 @@ export default function Expenses() {
                           </span>
                         </div>
                         <div style={s.dupMeta}>
-                          {d.createdAt ? new Date(d.createdAt).toLocaleDateString() : "-"} •{" "}
+                          {(d.expenseDate || d.createdAt) ? new Date(d.expenseDate || d.createdAt).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" }) : "-"} •{" "}
                           {d.reason || "-"} • {d.status || "SUBMITTED"}
                         </div>
                         <div style={s.dupMeta}>

@@ -95,3 +95,15 @@
   .ar-page .ar-invoice-table .ar-invoice-cell,.ar-page .ar-invoice-table .ar-customer-cell,.ar-page .ar-invoice-table .ar-action-cell{grid-column:1/-1}.ar-page .ar-invoice-table .ar-customer-cell{background:#f8fbf9}.ar-page .ar-invoice-table .ar-action-cell{border-bottom:0;padding:10px}
   .ar-invoice-table .ar-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.ar-invoice-table .ar-actions button{min-height:42px;font-size:10px}
 }
+
+/* Consistent invoice creation actions and monthly report controls. */
+.ar-head-side .ar-manual-button{min-height:46px;padding:0 19px;border:1px solid #a9cdb7;border-radius:12px;background:#fff;color:#176f43;font-size:14px;font-weight:700;box-shadow:0 7px 16px rgba(31,85,49,.07)}
+.ar-head-side .ar-manual-button:hover:not(:disabled){border-color:#6bab82;background:#f5fbf7;color:#126439;box-shadow:0 8px 18px rgba(31,85,49,.12)}
+.ar-panel-head-actions{display:flex;align-items:center;gap:18px}
+.ar-report-controls{display:flex;align-items:center;gap:8px}
+.ar-report-controls input{box-sizing:border-box;height:39px;padding:0 10px;border:1px solid #d7e2da;border-radius:9px;background:#fff;color:#33483b;font:inherit;font-size:11px}
+.ar-report-controls button{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:39px;padding:0 13px;border:1px solid #b8d3c2;border-radius:9px;background:#fff;color:#176f43;font-size:10px;font-weight:800;white-space:nowrap;cursor:pointer;transition:transform .15s ease,background .15s ease,box-shadow .15s ease}
+.ar-report-controls button:hover:not(:disabled){transform:translateY(-1px);background:#edf8f1;box-shadow:0 5px 12px rgba(20,102,58,.09)}
+.ar-report-controls button:disabled{cursor:wait;opacity:.6}
+@media(max-width:900px){.ar-panel-heading{align-items:flex-start;flex-direction:column}.ar-panel-head-actions{width:100%;justify-content:space-between}.ar-report-controls{margin-left:auto}}
+@media(max-width:600px){.ar-panel-head-actions{align-items:stretch;flex-direction:column;gap:10px}.ar-report-controls{width:100%;margin-left:0}.ar-report-controls input,.ar-report-controls button{flex:1;min-width:0}}

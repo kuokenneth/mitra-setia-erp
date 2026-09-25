@@ -20,7 +20,7 @@ function Bar({ value, tone = "green" }) {
 
 export default function FleetProfitability() {
   const { user } = useAuth();
-  const canAccess = ["OWNER", "ADMIN", "STAFF"].includes(user?.role);
+  const canAccess = ["OWNER", "ADMIN"].includes(user?.role);
   const [month, setMonth] = useState(currentMonth());
   const [data, setData] = useState({ summary: {}, rows: [] });
   const [loading, setLoading] = useState(true);
@@ -91,7 +91,7 @@ export default function FleetProfitability() {
     finally { setSaving(false); }
   }
 
-  if (!canAccess) return <main className="fp-page"><header className="fp-head"><div><span>AKSES DIBATASI</span><h1>Profit Armada</h1><p>Halaman ini tersedia untuk Owner, Admin, dan Staff.</p></div></header></main>;
+  if (!canAccess) return <main className="fp-page"><header className="fp-head"><div><span>AKSES DIBATASI</span><h1>Profit Armada</h1><p>Halaman ini hanya tersedia untuk Owner dan Admin.</p></div></header></main>;
 
   return <main className="fp-page">
     <header className="fp-head"><div className="fp-head-copy"><span>KEUANGAN · ANALISIS ARMADA</span><h1>Profit Armada</h1><p>Pantau kontribusi pendapatan, struktur biaya, dan laba bersih setiap armada dalam satu laporan.</p></div><div className="fp-period-card"><FiCalendar/><label><small>PERIODE LAPORAN</small><input type="month" value={month} onChange={event => setMonth(event.target.value)} /></label></div></header>

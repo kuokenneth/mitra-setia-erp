@@ -1523,7 +1523,8 @@ model Expense {
   approvedAt             DateTime?
   approvalReminderSentAt DateTime?
 
-  createdAt DateTime @default(now())
+  expenseDate DateTime @default(now())
+  createdAt   DateTime @default(now())
 
   @@index([status])
   @@index([paymentMethod])
@@ -1536,6 +1537,7 @@ model Expense {
   @@index([proofUploadedById])
   @@index([createdById])
   @@index([approvedById])
+  @@index([expenseDate])
   @@index([createdAt])
 }
 

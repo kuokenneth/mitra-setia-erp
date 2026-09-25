@@ -188,6 +188,36 @@ router.get("/overview", async (_req, res) => {
   }
 });
 
+router.get("/report", async (req, res) => {
+  try {
+    const month = String(req.query.month || "").trim();
+    const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month);
+    if (!match) return res.status(400).send("Periode harus dalam format YYYY-MM");
+    const year = Number(match[1]);
+    const monthNumber = Number(match[2]);
+    const nextYear = monthNumber === 12 ? year + 1 : year;
+    const nextMonth = monthNumber === 12 ? 1 : monthNumber + 1;
+    const start = new Date(`${month}-01T00:00:00+07:00`);
+    const end = new Date(`${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00+07:00`);
+    const invoices = await prisma.invoice.findMany({ where: { issuedAt: { gte: start, lt: end } }, include: invoiceInclude, orderBy: [{ issuedAt: "asc" }, { number: "asc" }] });
+    const items = invoices.map(summarize);
+    const active = items.filter(item => item.status !== "VOID");
+    const invoiced = active.reduce((sum, item) => sum + Number(item.total || 0), 0);
+    const received = active.reduce((sum, item) => sum + Number(item.paid || 0), 0);
+    const outstanding = active.reduce((sum, item) => sum + Number(item.balance || 0), 0);
+    const overdue = active.filter(item => item.displayStatus === "OVERDUE").reduce((sum, item) => sum + Number(item.balance || 0), 0);
+    const labels = { DRAFT: "Draft", SENT: "Terkirim", PARTIALLY_PAID: "Dibayar sebagian", PAID: "Lunas", OVERDUE: "Jatuh tempo", VOID: "Dibatalkan" };
+    const sourceText = item => item.order?.orderNo || (item.singleTripLines?.length ? `${item.singleTripLines.length} trip tunggal` : "") || item.singleTrip?.tripNo || (item.materialInvoices?.length ? `${item.materialInvoices.length} faktur muatan` : "") || (item.sourceType?.startsWith("MANUAL_") ? "Tagihan tunggal" : "-");
+    const rows = items.map((item, index) => `<tr><td class="center">${index + 1}</td><td>${esc(date(item.issuedAt))}</td><td><b>${esc(item.number)}</b></td><td>${esc(item.customerName)}</td><td>${esc(sourceText(item))}</td><td>${esc(date(item.dueAt))}</td><td>${esc(labels[item.displayStatus] || item.displayStatus)}</td><td class="right">${money(item.total)}</td><td class="right">${money(item.paid)}</td><td class="right"><b>${money(item.balance)}</b></td></tr>`).join("");
+    const periodLabel = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(start);
+    res.type("html").send(documentHtml({
+      title: "LAPORAN PIUTANG PELANGGAN", subtitle: periodLabel, landscape: true,
+      meta: `Periode invoice: ${esc(periodLabel)}<br>Jumlah tagihan: ${items.length}`,
+      body: `<div class="summary"><div class="box">Total ditagih<b>${money(invoiced)}</b><span>${active.length} invoice aktif</span></div><div class="box">Sudah diterima<b>${money(received)}</b><span>Pembayaran tercatat</span></div><div class="box">Sisa piutang<b>${money(outstanding)}</b><span>Jatuh tempo: ${money(overdue)}</span></div></div><table><thead><tr><th class="center">No</th><th>Tanggal</th><th>Invoice</th><th>Pelanggan</th><th>Pesanan / Sumber</th><th>Jatuh Tempo</th><th>Status</th><th class="right">Total</th><th class="right">Dibayar</th><th class="right">Sisa</th></tr></thead><tbody>${rows || `<tr><td colspan="10" class="center">Belum ada tagihan pada periode ini.</td></tr>`}</tbody><tfoot><tr><td colspan="7" class="right"><b>TOTAL</b></td><td class="right"><b>${money(invoiced)}</b></td><td class="right"><b>${money(received)}</b></td><td class="right"><b>${money(outstanding)}</b></td></tr></tfoot></table><div class="signatures"><div>Dibuat oleh</div><div>Diperiksa oleh</div><div>Disetujui oleh</div></div>`,
+    }));
+  } catch (error) { res.status(400).send(error.message || "Gagal membuat laporan piutang"); }
+});
+
 router.post("/invoices", async (req, res) => {
   try {
     const { orderId, customerId, customerName, customerPhone, billingAddress, dueAt, notes, sourceType = "ORDER", materialInvoiceIds = [], materialLineAmounts = {}, singleTripId, singleTripIds = [] } = req.body;

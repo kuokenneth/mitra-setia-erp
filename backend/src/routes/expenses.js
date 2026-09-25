@@ -27,6 +27,26 @@ function cleanStr(v) {
   return s.length ? s : undefined;
 }
 
+function parseExpenseDate(value) {
+  const text = cleanStr(value);
+  if (!text || !/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
+  const date = new Date(`${text}T00:00:00+07:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  const [year, month, day] = text.split("-").map(Number);
+  const formatter = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" });
+  const parts = Object.fromEntries(formatter.formatToParts(date).map(part => [part.type, part.value]));
+  return Number(parts.year) === year && Number(parts.month) === month && Number(parts.day) === day ? date : null;
+}
+
+function xmlCell(value, type = "String") {
+  const escaped = String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  return `<Cell><Data ss:Type="${type}">${escaped}</Data></Cell>`;
+}
+
+const categoryLabels = { PANJAR: "Panjar", TRIP_ALLOWANCE: "Uang jalan", REMAINING_TRIP_ALLOWANCE: "Sisa uang jalan", UNLOADING_FEE: "Uang bongkar", FUEL_LOAN: "Pinjaman minyak", DRIVER_SALARY: "Gaji pengemudi", FUEL: "Bahan bakar", TOLL_PARKING: "Tol & parkir", LOADING_UNLOADING: "Bongkar muat", REPAIR_MAINTENANCE: "Perbaikan & servis", SPAREPART: "Sparepart", OFFICE_OPERATIONAL: "Operasional kantor", OTHER: "Lainnya" };
+const methodLabels = { BANK_TRANSFER: "Transfer bank", CASH: "Tunai", OTHER: "Lainnya" };
+const statusLabels = { SUBMITTED: "Diajukan", APPROVED: "Disetujui", PAID: "Dibayar", REJECTED: "Ditolak" };
+
 // List expenses
 router.get("/", authRequired, async (req, res) => {
   if (!ensureRole(req, res)) return;
@@ -58,7 +78,7 @@ router.get("/", authRequired, async (req, res) => {
   const [items, total] = await Promise.all([
     prisma.expense.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ expenseDate: "desc" }, { createdAt: "desc" }],
       skip,
       take,
       include: {
@@ -94,7 +114,7 @@ router.get("/", authRequired, async (req, res) => {
     where: { tripId: { in: tripIds } },
     orderBy: { createdAt: "desc" },
     select: {
-      id: true, tripId: true, createdAt: true, amount: true, currency: true,
+      id: true, tripId: true, expenseDate: true, createdAt: true, amount: true, currency: true,
       reason: true, status: true, accountName: true, accountNumber: true, bankName: true,
     },
   }) : [];
@@ -109,6 +129,33 @@ router.get("/", authRequired, async (req, res) => {
   });
 
   res.json({ items: withDup, total, skip, take });
+});
+
+// Export every expense as an Excel-compatible XML workbook.
+router.get("/export", authRequired, async (req, res) => {
+  if (!ensureRole(req, res)) return;
+
+  const items = await prisma.expense.findMany({
+    orderBy: [{ expenseDate: "asc" }, { createdAt: "asc" }],
+    include: {
+      truck: { select: { plateNumber: true } },
+      trip: { include: { truck: { select: { plateNumber: true } }, driverUser: { select: { name: true } }, order: { select: { orderNo: true, fromText: true, toText: true } } } },
+      createdBy: { select: { name: true, email: true } },
+      approvedBy: { select: { name: true, email: true } },
+    },
+  });
+  const dateText = value => new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "2-digit", year: "numeric" }).format(value);
+  const headers = ["No", "Tanggal", "Kategori", "Keperluan", "Klien / Referensi", "Trip", "Rute", "Armada", "Pengemudi", "Metode", "Bank", "Nama Rekening", "Nomor Rekening", "Mata Uang", "Nominal", "Status", "Catatan", "Dibuat Oleh", "Disetujui Oleh"];
+  const rows = items.map((item, index) => {
+    const trip = item.trip;
+    const values = [index + 1, dateText(item.expenseDate), categoryLabels[item.category] || item.category, item.reason, item.clientName || "", trip?.order?.orderNo || "", trip?.order ? `${trip.order.fromText || "-"} → ${trip.order.toText || "-"}` : "", trip?.truck?.plateNumber || item.truck?.plateNumber || "", trip?.driverUser?.name || "", methodLabels[item.paymentMethod] || item.paymentMethod, item.bankName || "", item.accountName || "", item.accountNumber || "", item.currency, item.amount, statusLabels[item.status] || item.status, item.notes || "", item.createdBy?.name || item.createdBy?.email || "", item.approvedBy?.name || item.approvedBy?.email || ""];
+    return `<Row>${values.map((value, column) => xmlCell(value, column === 0 || column === 14 ? "Number" : "String")).join("")}</Row>`;
+  }).join("");
+  const workbook = `<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="Semua Pengeluaran"><Table><Row>${headers.map(header => xmlCell(header)).join("")}</Row>${rows}</Table></Worksheet></Workbook>`;
+  const filename = `semua-pengeluaran-${new Date().toISOString().slice(0, 10)}.xls`;
+  res.setHeader("Content-Type", "application/vnd.ms-excel; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.send(workbook);
 });
 
 // Monthly report (HTML)
@@ -128,12 +175,14 @@ router.get("/report", authRequired, async (req, res) => {
     return res.status(400).send("Invalid month value.");
   }
 
-  const start = new Date(year, mon - 1, 1, 0, 0, 0, 0);
-  const end = new Date(year, mon, 1, 0, 0, 0, 0);
+  const start = new Date(`${month}-01T00:00:00+07:00`);
+  const nextYear = mon === 12 ? year + 1 : year;
+  const nextMonth = mon === 12 ? 1 : mon + 1;
+  const end = new Date(`${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00+07:00`);
 
   const items = await prisma.expense.findMany({
-    where: { createdAt: { gte: start, lt: end } },
-    orderBy: { createdAt: "asc" },
+    where: { expenseDate: { gte: start, lt: end } },
+    orderBy: { expenseDate: "asc" },
     include: {
       trip: {
         include: {
@@ -160,9 +209,6 @@ router.get("/report", authRequired, async (req, res) => {
 
   const total = items.reduce((sum, x) => sum + Number(x.amount || 0), 0);
   const approved = items.filter(x => ["APPROVED", "PAID"].includes(x.status)).length;
-  const categories = { PANJAR: "Panjar", TRIP_ALLOWANCE: "Uang jalan", REMAINING_TRIP_ALLOWANCE: "Sisa uang jalan", UNLOADING_FEE: "Uang bongkar", FUEL_LOAN: "Pinjaman minyak", DRIVER_SALARY: "Gaji pengemudi", FUEL: "Bahan bakar", TOLL_PARKING: "Tol & parkir", LOADING_UNLOADING: "Bongkar muat", REPAIR_MAINTENANCE: "Perbaikan & servis", SPAREPART: "Sparepart", OFFICE_OPERATIONAL: "Operasional kantor", OTHER: "Lainnya" };
-  const methods = { BANK_TRANSFER: "Transfer bank", CASH: "Tunai", OTHER: "Lainnya" };
-  const statuses = { SUBMITTED: "Diajukan", APPROVED: "Disetujui", PAID: "Dibayar", REJECTED: "Ditolak" };
   const monthLabel = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(start);
   const rows = items.map((x, index) => {
     const trip = x.trip || {};
@@ -170,7 +216,7 @@ router.get("/report", authRequired, async (req, res) => {
     const tripNumber = trip.order?.orderNo || trip.tripNo || trip.id || "-";
     const route = trip.order ? `${trip.order.fromText || "-"} → ${trip.order.toText || "-"}` : "Tidak terkait trip";
     const assignment = truck?.plateNumber ? `${truck.plateNumber}${trip.driverUser?.name ? ` · ${trip.driverUser.name}` : ""}` : "-";
-    return `<tr><td class="center">${index + 1}</td><td>${fmtDate(x.createdAt)}</td><td>${esc(categories[x.category] || "Lainnya")}</td><td><b>${esc(x.reason || "-")}</b><br><span class="muted">${esc(tripNumber)} · ${esc(route)}</span></td><td>${esc(assignment)}</td><td>${esc(methods[x.paymentMethod] || x.paymentMethod || "-")}</td><td>${esc(x.createdBy?.name || "-")}</td><td>${esc(statuses[x.status] || x.status || "Diajukan")}</td><td class="right">${money(x.amount)}</td></tr>`;
+    return `<tr><td class="center">${index + 1}</td><td>${fmtDate(x.expenseDate)}</td><td>${esc(categoryLabels[x.category] || "Lainnya")}</td><td><b>${esc(x.reason || "-")}</b><br><span class="muted">${esc(tripNumber)} · ${esc(route)}</span></td><td>${esc(assignment)}</td><td>${esc(methodLabels[x.paymentMethod] || x.paymentMethod || "-")}</td><td>${esc(x.createdBy?.name || "-")}</td><td>${esc(statusLabels[x.status] || x.status || "Diajukan")}</td><td class="right">${money(x.amount)}</td></tr>`;
   }).join("");
 
   res.type("html").send(documentHtml({
@@ -198,6 +244,12 @@ router.post("/", authRequired, async (req, res) => {
   const notes = cleanStr(req.body.notes);
   const tripId = cleanStr(req.body.tripId);
   const truckId = cleanStr(req.body.truckId);
+  const expenseDateInput = cleanStr(req.body.expenseDate);
+  const expenseDate = expenseDateInput ? parseExpenseDate(expenseDateInput) : new Date();
+
+  if (expenseDateInput && !expenseDate) {
+    return res.status(400).json({ error: "Tanggal pengeluaran tidak valid" });
+  }
 
   if (tripId && truckId) {
     return res.status(400).json({ error: "Pilih perjalanan atau armada langsung, bukan keduanya" });
@@ -249,6 +301,7 @@ router.post("/", authRequired, async (req, res) => {
       reason,
       clientName,
       notes,
+      expenseDate,
       tripId: tripId || null,
       truckId: truckId || null,
       createdById: req.user?.id,

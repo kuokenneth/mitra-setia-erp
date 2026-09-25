@@ -56,7 +56,7 @@ function Metric({ label, value, note, tone }) {
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const canViewFinance = ["OWNER", "ADMIN", "STAFF"].includes(user?.role);
+  const canViewFinance = ["OWNER", "ADMIN"].includes(user?.role);
   const [revision, setRevision] = useState(0);
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(true);

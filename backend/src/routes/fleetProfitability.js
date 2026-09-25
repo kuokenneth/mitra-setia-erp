@@ -4,7 +4,7 @@ const { authRequired } = require("../middleware/authRequired");
 const { requireRole } = require("../middleware/requireRole");
 
 const router = express.Router();
-router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF"));
+router.use(authRequired, requireRole("OWNER", "ADMIN"));
 
 const COST_FIELDS = ["depreciation", "insurance", "taxPermit", "driverSalary", "lease", "overhead"];
 const round = (value, digits = 1) => Number((Number(value) || 0).toFixed(digits));

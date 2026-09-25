@@ -12,6 +12,7 @@ const tanggal = value => value ? new Date(value).toLocaleDateString("id-ID", { d
 const statusLabel = { DRAFT: "Draft", SENT: "Terkirim", PARTIALLY_PAID: "Dibayar Sebagian", PAID: "Lunas", OVERDUE: "Jatuh Tempo", VOID: "Dibatalkan" };
 const initialData = { customers: [], trucks: [], invoices: [], eligibleOrders: [], eligibleSources: [], stats: { invoiced: 0, received: 0, outstanding: 0, overdue: 0 } };
 const afterDays = days => { const d = new Date(); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10); };
+const currentMonth = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit" }).format(new Date());
 const customerKey = source => source?.customerId ? `id:${source.customerId}` : `name:${String(source?.customerName || "").trim().toLocaleLowerCase("id-ID")}`;
 const sourcePlateNumbers = source => {
   const plates = source?.type === "ORDER"
@@ -61,6 +62,8 @@ export default function Receivables() {
   const [modal, setModal] = useState("");
   const [selected, setSelected] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [reportMonth, setReportMonth] = useState(currentMonth);
+  const [reportBusy, setReportBusy] = useState(false);
   const [invoiceForm, setInvoiceForm] = useState({ billingCustomerKey: "", sourceKey: "", sourceType: "ORDER", orderId: "", customerId: "", materialInvoiceIds: [], materialLineAmounts: {}, singleTripId: "", singleTripIds: [], ratePerKg: "", tolerancePercent: "0", customerName: "", customerPhone: "", billingAddress: "", dueAt: afterDays(30), contractSubtotal: "", tax: 0, discount: 0, notes: "" });
   const [paymentForm, setPaymentForm] = useState({ amount: "", method: "BANK_TRANSFER", reference: "", receivedAt: new Date().toISOString().slice(0, 10), notes: "" });
   const [pricingForm, setPricingForm] = useState({ contractSubtotal: "", ratePerKg: "", tolerancePercent: "0", materialLineRates: {}, tax: 0, discount: 0, dueAt: afterDays(30), notes: "" });
@@ -150,6 +153,14 @@ export default function Receivables() {
     catch (err) { setError(err.message || "Gagal membuka invoice"); }
   }
 
+  async function printReport() {
+    if (!reportMonth) return setError("Pilih periode laporan terlebih dahulu");
+    setReportBusy(true); setError("");
+    try { await openPrintDocument(`/receivables/report?month=${encodeURIComponent(reportMonth)}`); }
+    catch (err) { setError(err.message || "Gagal membuka laporan piutang"); }
+    finally { setReportBusy(false); }
+  }
+
   function toggleMaterialInvoice(id) {
     setInvoiceForm(form => ({ ...form, materialInvoiceIds: form.materialInvoiceIds.includes(id) ? form.materialInvoiceIds.filter(item => item !== id) : [...form.materialInvoiceIds, id] }));
   }
@@ -183,7 +194,7 @@ export default function Receivables() {
   const invoiceBlockReason = !invoiceForm.billingCustomerKey ? "Pilih customer tagihan terlebih dahulu" : !selectedSource ? "Pilih sumber tagihan customer ini" : selectedSource.type === "MATERIAL" && !invoiceForm.materialInvoiceIds.length ? "Pilih minimal satu Faktur Muatan" : selectedSource.type === "SINGLE_TRIP_GROUP" && !invoiceForm.singleTripIds.length ? "Pilih minimal satu Trip Tunggal" : "";
   const canSaveInvoice = !busy && !invoiceBlockReason;
   return <div className="ar-page">
-    <header className="ar-head"><div className="ar-head-copy"><span className="ar-eyebrow">KEUANGAN · PIUTANG</span><h1>Piutang Pelanggan</h1><p>Susun Draft, lengkapi harga, kirim invoice, dan pantau pembayaran dalam satu tempat.</p></div><div className="ar-head-side"><span><small>Sumber siap ditagih</small><strong>{data.eligibleSources?.length || 0}</strong></span><button className="ar-manual-button" onClick={openManualInvoice}><FiPlus/> Tagihan Tunggal</button><button className="ar-primary ar-create-invoice" onClick={openInvoice}><FiPlus/> Buat Draft Invoice</button></div></header>
+    <header className="ar-head"><div className="ar-head-copy"><span className="ar-eyebrow">KEUANGAN · PIUTANG</span><h1>Piutang Pelanggan</h1><p>Susun Draft, lengkapi harga, kirim invoice, dan pantau pembayaran dalam satu tempat.</p></div><div className="ar-head-side"><span><small>Sumber siap ditagih</small><strong>{data.eligibleSources?.length || 0}</strong></span><button className="ar-primary ar-create-invoice ar-manual-button" onClick={openManualInvoice}><FiPlus/> Tagihan Tunggal</button><button className="ar-primary ar-create-invoice" onClick={openInvoice}><FiPlus/> Buat Draft Invoice</button></div></header>
     <section className="ar-stats">
       <article className="billed"><i>01</i><div><span>Total Ditagih</span><strong>{rupiah(data.stats.invoiced)}</strong><small>Seluruh invoice aktif</small></div></article>
       <article className="received"><i>02</i><div><span>Sudah Diterima</span><strong>{rupiah(data.stats.received)}</strong><small>Pembayaran pelanggan</small></div></article>
@@ -192,7 +203,7 @@ export default function Receivables() {
     </section>
     {error && <div className="ar-alert"><FiAlertCircle/><span>{error}</span><button onClick={() => setError("")}><FiX/></button></div>}
     <section className="ar-panel">
-      <div className="ar-panel-heading"><div><span>DAFTAR INVOICE</span><h2>Tagihan & pembayaran</h2><p>{rows.length} invoice ditampilkan</p></div><div className="ar-status-legend"><span><i className="draft"/>Draft</span><span><i className="sent"/>Terkirim</span><span><i className="paid"/>Lunas</span></div></div>
+      <div className="ar-panel-heading"><div><span>DAFTAR INVOICE</span><h2>Tagihan & pembayaran</h2><p>{rows.length} invoice ditampilkan</p></div><div className="ar-panel-head-actions"><div className="ar-status-legend"><span><i className="draft"/>Draft</span><span><i className="sent"/>Terkirim</span><span><i className="paid"/>Lunas</span></div><div className="ar-report-controls"><input aria-label="Periode laporan piutang" type="month" value={reportMonth} onChange={event => setReportMonth(event.target.value)}/><button type="button" disabled={reportBusy} onClick={printReport}><FiPrinter/> {reportBusy ? "Menyiapkan…" : "Cetak Laporan"}</button></div></div></div>
       <div className="ar-tools"><input className="ar-search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Cari nomor invoice, pesanan, atau pelanggan..."/><select className="ar-filter" value={filter} onChange={e => setFilter(e.target.value)}><option value="ALL">Semua Status</option><option value="DRAFT">Draft</option><option value="SENT">Terkirim</option><option value="PARTIALLY_PAID">Dibayar Sebagian</option><option value="PAID">Lunas</option><option value="OVERDUE">Jatuh Tempo</option><option value="VOID">Dibatalkan</option></select><button className="ar-refresh" onClick={load} aria-label="Muat ulang"><FiRefreshCw className={loading ? "ar-spin" : ""}/></button></div>
       <div className={`ar-table-wrap ${loading && !rows.length ? "initial-loading" : ""}`}>{loading && !rows.length && <LoadingState label="Memuat piutang" note="Menghitung invoice, pembayaran, dan sisa tagihan…" rows={5} />}<table className="ar-invoice-table"><colgroup><col className="invoice"/><col className="customer"/><col className="due"/><col className="money"/><col className="money"/><col className="money"/><col className="status"/><col className="actions"/></colgroup><thead><tr><th>Invoice</th><th>Pelanggan</th><th>Jatuh Tempo</th><th>Total</th><th>Dibayar</th><th>Sisa</th><th>Status</th><th>Tindakan</th></tr></thead><tbody>
         {rows.map(invoice => <tr key={invoice.id}>
