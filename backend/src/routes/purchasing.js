@@ -263,6 +263,66 @@ router.post("/requests", async (req, res) => {
   }
   res.json({ ok: true, request });
 });
+router.post("/orders/direct", requireRole("OWNER"), async (req, res) => {
+  try {
+    const {
+      itemId,
+      supplierId,
+      qty,
+      reason,
+      notes,
+      paymentTerms = "Ditagihkan kemudian",
+      deliveryAddress,
+      estimatedArrival,
+    } = req.body || {};
+    const quantity = Number(qty);
+    if (!itemId || !supplierId) return res.status(400).json({ error: "Barang dan supplier wajib dipilih" });
+    if (!Number.isFinite(quantity) || quantity <= 0) return res.status(400).json({ error: "Jumlah pesanan wajib lebih dari 0" });
+
+    const [item, supplier] = await Promise.all([
+      prisma.item.findUnique({ where: { id: String(itemId) } }),
+      prisma.supplier.findUnique({ where: { id: String(supplierId) } }),
+    ]);
+    if (!item) return res.status(404).json({ error: "Barang tidak ditemukan" });
+    if (!supplier) return res.status(404).json({ error: "Supplier tidak ditemukan" });
+
+    const result = await prisma.$transaction(async tx => {
+      const request = await tx.purchaseRequest.create({
+        data: {
+          number: await nextDailyNumber(tx, "purchaseRequest", "PR"),
+          status: "APPROVED",
+          urgency: "NORMAL",
+          purpose: "STOCK",
+          reason: String(reason || `Pembelian langsung ${item.name}`).trim(),
+          notes: notes ? String(notes).trim() : null,
+          createdById: req.user.id,
+          approvedById: req.user.id,
+          approvedAt: new Date(),
+          approvalNotes: "Pembelian langsung oleh owner; persetujuan dilewati.",
+          items: { create: [{ itemId: item.id, originalQty: quantity, approvedQty: quantity }] },
+        },
+      });
+      const order = await tx.purchaseOrder.create({
+        data: {
+          number: await nextDailyNumber(tx, "purchaseOrder", "PO"),
+          requestId: request.id,
+          supplierId: supplier.id,
+          status: "SENT_TO_SUPPLIER",
+          paymentTerms: String(paymentTerms || "Ditagihkan kemudian").trim(),
+          deliveryAddress: deliveryAddress ? String(deliveryAddress).trim() : null,
+          estimatedArrival: estimatedArrival ? new Date(estimatedArrival) : null,
+          createdById: req.user.id,
+          items: { create: [{ itemId: item.id, qty: quantity, unitPrice: 0 }] },
+        },
+        include: includePO,
+      });
+      return { request, order };
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(500).json({ error: error.message || "Gagal membuat PO langsung" });
+  }
+});
 router.patch("/requests/:id/approval", requireRole("OWNER", "ADMIN"), async (req, res) => {
   const { approved, notes, quantities = {}, acknowledgeAvailableStock = false } = req.body;
   if (approved && !acknowledgeAvailableStock) {

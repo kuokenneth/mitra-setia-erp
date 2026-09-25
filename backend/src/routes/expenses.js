@@ -9,7 +9,6 @@ const router = express.Router();
 const allowedRoles = ["OWNER", "ADMIN", "STAFF"];
 const proofRoles = ["OWNER", "ADMIN", "STAFF"];
 const TRIP_EXPENSE_LIMIT = Number(process.env.TRIP_EXPENSE_LIMIT || 0);
-const { notifyOwnerSafely } = require("../services/emailNotifications");
 const EXPENSE_CATEGORIES = ["PANJAR", "TRIP_ALLOWANCE", "REMAINING_TRIP_ALLOWANCE", "UNLOADING_FEE", "FUEL_LOAN", "DRIVER_SALARY", "FUEL", "TOLL_PARKING", "LOADING_UNLOADING", "REPAIR_MAINTENANCE", "SPAREPART", "OFFICE_OPERATIONAL", "OTHER"];
 
 function ensureRole(req, res) {
@@ -457,13 +456,6 @@ router.post("/:id/proof", authRequired, async (req, res) => {
     });
     await postJournal(tx, { date: paid.paidAt, description: paid.reason, sourceType: "EXPENSE_PAYMENT", sourceId: paid.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.EXPENSE, debit: paid.amount }, { code: cashCode(paid.paymentMethod), credit: paid.amount }] });
     return paid;
-  });
-
-  await notifyOwnerSafely({
-    event: "Pengeluaran menunggu persetujuan",
-    title: updated.reason || "Pengeluaran operasional",
-    details: `${new Intl.NumberFormat("id-ID", { style: "currency", currency: updated.currency || "IDR", maximumFractionDigits: 0 }).format(updated.amount)} · bukti transfer diunggah oleh ${updated.proofUploadedBy?.name || updated.proofUploadedBy?.email || "Admin"}`,
-    path: "/expenses",
   });
 
   res.json(updated);
