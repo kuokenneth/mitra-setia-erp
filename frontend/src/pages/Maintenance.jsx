@@ -901,6 +901,28 @@ export default function Maintenance() {
     setReturnStockUnitId("");
   }
 
+  async function changeReplaceDisposition(value) {
+    setReplaceDisposition(value);
+    if (value !== "RETREADING") return;
+    try {
+      const data = await api("/inventory/retread-options");
+      const options = { items: data.items || [], suppliers: data.suppliers || [], locations: data.locations || [] };
+      setRetreadOptions(options);
+      const oldItemId = selectedReturnAssignment?.stockUnit?.itemId;
+      setRetreadForm({
+        toItemId: options.items.find((item) => item.id !== oldItemId && /masak|retread/i.test(`${item.sku || ""} ${item.name || ""}`))?.id || "",
+        locationId: "",
+        supplierId: "",
+        cost: "",
+        sentAt: "",
+        notes: "",
+      });
+    } catch (error) {
+      setReplaceDisposition("IN_STOCK");
+      setErr(error.message || "Gagal memuat pilihan masak ban");
+    }
+  }
+
   async function assignUnit() {
     if (!activeJob?.id) return;
     if (!unitPick) return setErr("Pick a stock unit first");
@@ -908,6 +930,10 @@ export default function Maintenance() {
     setAssigning(true);
     setErr("");
     try {
+      if (replaceDisposition === "RETREADING") {
+        if (!retreadForm.toItemId) throw new Error("Pilih item tujuan Ban Masak");
+        if (retreadForm.cost === "") throw new Error("Masukkan biaya masak ban");
+      }
       await api(`/maintenance/${activeJob.id}/assign-unit`, {
         method: "POST",
         body: JSON.stringify({
@@ -915,12 +941,21 @@ export default function Maintenance() {
           note: assignNote || undefined,
           replaceStockUnitId: returnStockUnitId || undefined,
           replaceDisposition,
+          retread: replaceDisposition === "RETREADING" ? {
+            toItemId: retreadForm.toItemId,
+            supplierId: retreadForm.supplierId || undefined,
+            cost: Number(retreadForm.cost),
+            sentAt: retreadForm.sentAt || undefined,
+            notes: retreadForm.notes || undefined,
+          } : undefined,
         }),
       });
 
       setAssignNote("");
       setUnitPick("");
       setReturnStockUnitId("");
+      setReplaceDisposition("IN_STOCK");
+      setRetreadForm({ toItemId: "", locationId: "", supplierId: "", cost: "", sentAt: "", notes: "" });
       await refreshDetail();
       await load();
 
@@ -1782,15 +1817,23 @@ export default function Maintenance() {
                       </Select></div>
                       {donorMode === "SWAP" && <div className="maintenance-part-field"><label>Unit dari mobil servis untuk ditukar</label><SearchableSwapUnitPicker assignments={returnAssignments.filter((a) => a.stockUnit?.itemId === assignItemId)} value={returnStockUnitId} onChange={setReturnStockUnitId} plateNumber={activeJob?.truck?.plateNumber} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId} testId="swap-unit-search" /></div>}
                     </div>}
-                    {serializedSource === "INVENTORY" && <div className="maintenance-part-field"><label>Unit lama yang dilepas <em>Opsional</em></label><Select value={returnStockUnitId} onChange={(e) => setReturnStockUnitId(e.target.value)} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId}>
+                    {serializedSource === "INVENTORY" && <div className="maintenance-part-field"><label>Unit lama yang dilepas <em>Opsional</em></label><Select value={returnStockUnitId} onChange={(e) => { setReturnStockUnitId(e.target.value); setReplaceDisposition("IN_STOCK"); }} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId}>
                       <option value="">Tidak mengganti unit lama</option>
                       {returnAssignments.map((a) => <option key={a.assignmentId} value={a.stockUnitId}>Ganti {a.stockUnit?.item?.name} · {a.stockUnit?.serialNumber || a.stockUnit?.barcode || a.stockUnitId} · {installedDays(a.installedAt)} hari</option>)}
                     </Select></div>}
-                    {serializedSource === "INVENTORY" && returnStockUnitId && <div className="maintenance-part-field"><label>Setelah dilepas</label><Select value={replaceDisposition} onChange={(e) => setReplaceDisposition(e.target.value)} disabled={!allowed || activeJob.status !== "OPEN"}>
+                    {serializedSource === "INVENTORY" && returnStockUnitId && <div className="maintenance-part-field"><label>Setelah dilepas</label><Select value={replaceDisposition} onChange={(e) => changeReplaceDisposition(e.target.value)} disabled={!allowed || activeJob.status !== "OPEN"}>
                       <option value="IN_STOCK">Unit lama kembali ke Inventory</option>
-                      <option value="REPAIRING">Unit lama dikirim untuk perbaikan</option>
+                      {selectedReturnAssignment?.stockUnit?.item?.category === "TIRE" ? <option value="RETREADING">Kirim untuk masak ban</option> : <option value="REPAIRING">Unit lama dikirim untuk perbaikan</option>}
                       <option value="SCRAPPED">Unit lama di-scrap</option>
                     </Select></div>}
+                    {serializedSource === "INVENTORY" && returnStockUnitId && replaceDisposition === "RETREADING" && <div className="maintenance-retread-inline">
+                      <div className="maintenance-retread-notice"><strong>Ban lama akan dikirim untuk masak</strong><small>Nomor seri tetap sama dan status unit berubah menjadi RETREADING.</small></div>
+                      <label>Item tujuan setelah dimasak<Select value={retreadForm.toItemId} onChange={(e)=>setRetreadForm((form)=>({...form,toItemId:e.target.value}))}><option value="">Pilih item Ban Masak</option>{retreadOptions.items.filter((item)=>item.id!==selectedReturnAssignment?.stockUnit?.itemId).map((item)=><option key={item.id} value={item.id}>{item.sku} — {item.name}</option>)}</Select></label>
+                      <label>Vendor masak ban<Select value={retreadForm.supplierId} onChange={(e)=>setRetreadForm((form)=>({...form,supplierId:e.target.value}))}><option value="">Tanpa vendor</option>{retreadOptions.suppliers.map((supplier)=><option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</Select></label>
+                      <label>Biaya masak (Rp)<Input type="number" min="0" step="1" value={retreadForm.cost} onChange={(e)=>setRetreadForm((form)=>({...form,cost:e.target.value}))} placeholder="0"/></label>
+                      <label>Tanggal dilepas / dikirim<Input type="datetime-local" value={retreadForm.sentAt} onChange={(e)=>setRetreadForm((form)=>({...form,sentAt:e.target.value}))}/></label>
+                      <label className="wide">Catatan masak<Input value={retreadForm.notes} onChange={(e)=>setRetreadForm((form)=>({...form,notes:e.target.value}))} placeholder="Contoh: casing masih layak"/></label>
+                    </div>}
                   </div>
 
                   <SelectedSerialAge item={selectedSerializedItem} assignment={selectedReturnAssignment} />
