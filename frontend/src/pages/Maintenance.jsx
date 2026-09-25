@@ -894,7 +894,9 @@ export default function Maintenance() {
       setReturnStockUnitId("");
       return;
     }
-    const res = await api(`/maintenance/${activeJob.id}/assigned-units?itemId=${encodeURIComponent(itemId)}`);
+    const selectedItem = (items || []).find((item) => item.id === itemId);
+    const filter = selectedItem?.category === "TIRE" ? "category=TIRE" : `itemId=${encodeURIComponent(itemId)}`;
+    const res = await api(`/maintenance/${activeJob.id}/assigned-units?${filter}`);
     setReturnAssignments(res.units || []);
     setReturnStockUnitId("");
   }

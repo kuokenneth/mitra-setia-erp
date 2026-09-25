@@ -622,7 +622,8 @@ router.get("/:id/assigned-units", authRequired, async (req, res) => {
   try {
     const maintenanceId = req.params.id;
     const itemId = String(req.query.itemId || "");
-    if (!itemId) return res.status(400).json({ error: "itemId is required" });
+    const category = String(req.query.category || "").toUpperCase();
+    if (!itemId && !category) return res.status(400).json({ error: "itemId or category is required" });
 
     const job = await prisma.truckMaintenance.findUnique({
       where: { id: maintenanceId },
@@ -636,9 +637,9 @@ router.get("/:id/assigned-units", authRequired, async (req, res) => {
         truckId: job.truckId,
         removedAt: null,
         stockUnit: {
-          ...(itemId ? { itemId } : {}),
+          ...(category ? {} : { itemId }),
           status: "ASSIGNED",
-          item: { isSerialized: true },
+          item: { isSerialized: true, ...(category ? { category } : {}) },
         },
       },
       orderBy: { installedAt: "desc" },
