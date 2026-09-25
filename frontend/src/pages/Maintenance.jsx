@@ -415,6 +415,14 @@ function LastPartChange({ item, history, loading }) {
   return <div className="maintenance-last-change"><FiClock /><span><strong>Terakhir diganti {daysAgo === 0 ? "hari ini" : `${daysAgo} hari lalu`}</strong><small>{fmtDateTime(history.usedAt)} · {history.qty} {item.unit || "unit"}{history.serialNumber ? ` · ${history.serialNumber}` : ""}{history.maintenance?.title ? ` · ${history.maintenance.title}` : ""}</small></span></div>;
 }
 
+function SelectedSerialAge({ item, assignment }) {
+  if (!item) return null;
+  if (!assignment) return <div className="maintenance-last-change empty"><FiClock /><span><strong>Pilih nomor seri unit lama</strong><small>Usia pemakaian akan mengikuti unit yang dipilih untuk dilepas.</small></span></div>;
+  const days = installedDays(assignment.installedAt);
+  const serial = assignment.stockUnit?.serialNumber || assignment.stockUnit?.barcode || assignment.stockUnitId;
+  return <div className="maintenance-last-change"><FiClock /><span><strong>{days === 0 ? "Dipasang hari ini" : `Dipasang ${days} hari lalu`}</strong><small>{serial} · {fmtDateTime(assignment.installedAt)} · {item.name}</small></span></div>;
+}
+
 function ServicePhoto({ photo, alt }) {
   const directUrl = apiAssetUrl(photo);
   const isDirect = /^https?:\/\//i.test(directUrl) && !directUrl.includes("/api/uploads/");
@@ -607,7 +615,7 @@ export default function Maintenance() {
   const [purchaseUploadProgress, setPurchaseUploadProgress] = useState(null);
   const [purchasePhotoError, setPurchasePhotoError] = useState("");
   const [requestingPurchase, setRequestingPurchase] = useState(false);
-  const [serializedHistory, setSerializedHistory] = useState(null);
+  const [, setSerializedHistory] = useState(null);
   const [stockHistory, setStockHistory] = useState(null);
   const [historyLoading, setHistoryLoading] = useState({ serialized: false, stock: false });
 
@@ -808,6 +816,8 @@ export default function Maintenance() {
   const serializedItems = useMemo(() => (items || []).filter((i) => i.isSerialized), [items]);
   const nonSerializedItems = useMemo(() => (items || []).filter((i) => !i.isSerialized), [items]);
   const selectedUseItem = useMemo(() => nonSerializedItems.find((item) => item.id === useItemId) || null, [nonSerializedItems, useItemId]);
+  const selectedSerializedItem = useMemo(() => serializedItems.find((item) => item.id === assignItemId) || null, [serializedItems, assignItemId]);
+  const selectedReturnAssignment = useMemo(() => returnAssignments.find((assignment) => assignment.stockUnitId === returnStockUnitId) || null, [returnAssignments, returnStockUnitId]);
   const hasPreviousOilOdometer = activeJob?.previousOilChange?.odometerKm != null;
   const previousOilOdometer = Number(activeJob?.previousOilChange?.odometerKm || 0);
   const minimumOilOdometer = hasPreviousOilOdometer ? previousOilOdometer + OIL_CHANGE_INTERVAL_KM : 0;
@@ -878,9 +888,13 @@ export default function Maintenance() {
     setDonorTruckId("");
   }
 
-  async function loadReturnAssignments() {
-    if (!activeJob?.id) return;
-    const res = await api(`/maintenance/${activeJob.id}/assigned-units`);
+  async function loadReturnAssignments(itemId = assignItemId) {
+    if (!activeJob?.id || !itemId) {
+      setReturnAssignments([]);
+      setReturnStockUnitId("");
+      return;
+    }
+    const res = await api(`/maintenance/${activeJob.id}/assigned-units?itemId=${encodeURIComponent(itemId)}`);
     setReturnAssignments(res.units || []);
     setReturnStockUnitId("");
   }
@@ -909,7 +923,7 @@ export default function Maintenance() {
       await load();
 
       if (assignItemId) {
-        await Promise.all([loadAvailableUnits(assignItemId), loadReturnAssignments()]);
+        await Promise.all([loadAvailableUnits(assignItemId), loadReturnAssignments(assignItemId)]);
       }
     } catch (e) {
       setErr(e.message || "Failed to assign unit");
@@ -972,7 +986,7 @@ export default function Maintenance() {
       await api(`/maintenance/${activeJob.id}/transfer-donor-unit`, { method: "POST", body: JSON.stringify({ assignmentId: donorAssignmentId, returnStockUnitId, note: assignNote || undefined }) });
       setDonorAssignmentId(""); setReturnStockUnitId(""); setAssignNote("");
       await refreshDetail(); await load();
-      if (assignItemId) await Promise.all([loadDonorUnits(assignItemId), loadReturnAssignments()]);
+      if (assignItemId) await Promise.all([loadDonorUnits(assignItemId), loadReturnAssignments(assignItemId)]);
     } catch (e) { setErr(e.message || "Gagal memindahkan sparepart donor"); }
     finally { setAssigning(false); }
   }
@@ -1744,7 +1758,7 @@ export default function Maintenance() {
                         setReturnStockUnitId("");
                         setReplaceDisposition("IN_STOCK");
                         if (!v) return;
-                        await Promise.all([loadAvailableUnits(v), loadDonorUnits(v), loadReturnAssignments(), loadPartHistory(v, "serialized")]);
+                        await Promise.all([loadAvailableUnits(v), loadDonorUnits(v), loadReturnAssignments(v), loadPartHistory(v, "serialized")]);
                       }}
                       disabled={!allowed || activeJob.status !== "OPEN"}
                       placeholder="Cari SKU / nama item serialized..."
@@ -1768,7 +1782,7 @@ export default function Maintenance() {
                     </div>}
                     {serializedSource === "INVENTORY" && <div className="maintenance-part-field"><label>Unit lama yang dilepas <em>Opsional</em></label><Select value={returnStockUnitId} onChange={(e) => setReturnStockUnitId(e.target.value)} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId}>
                       <option value="">Tidak mengganti unit lama</option>
-                      {returnAssignments.map((a) => <option key={a.assignmentId} value={a.stockUnitId}>Ganti {a.stockUnit?.item?.name} · {a.stockUnit?.serialNumber || a.stockUnit?.barcode || a.stockUnitId}</option>)}
+                      {returnAssignments.map((a) => <option key={a.assignmentId} value={a.stockUnitId}>Ganti {a.stockUnit?.item?.name} · {a.stockUnit?.serialNumber || a.stockUnit?.barcode || a.stockUnitId} · {installedDays(a.installedAt)} hari</option>)}
                     </Select></div>}
                     {serializedSource === "INVENTORY" && returnStockUnitId && <div className="maintenance-part-field"><label>Setelah dilepas</label><Select value={replaceDisposition} onChange={(e) => setReplaceDisposition(e.target.value)} disabled={!allowed || activeJob.status !== "OPEN"}>
                       <option value="IN_STOCK">Unit lama kembali ke Inventory</option>
@@ -1777,7 +1791,7 @@ export default function Maintenance() {
                     </Select></div>}
                   </div>
 
-                  <LastPartChange item={serializedItems.find((item) => item.id === assignItemId)} history={serializedHistory} loading={historyLoading.serialized} />
+                  <SelectedSerialAge item={selectedSerializedItem} assignment={selectedReturnAssignment} />
 
                   <div className="maintenance-install-footer">
                     <Input
