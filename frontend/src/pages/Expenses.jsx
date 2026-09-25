@@ -332,6 +332,7 @@ export default function Expenses() {
       await api("/expenses", {
         method: "POST",
         body: JSON.stringify({
+          expenseDate: form.expenseDate,
           tripId: form.tripId || undefined,
           truckId: form.truckId || undefined,
           category: form.category,
