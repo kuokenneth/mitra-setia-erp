@@ -284,7 +284,7 @@ export default function TripDetail() {
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [expenseBusy, setExpenseBusy] = useState(false);
   const [expenseErr, setExpenseErr] = useState("");
-  const [expenseForm, setExpenseForm] = useState({ category: "TRIP_ALLOWANCE", reason: "", amount: "", paymentMethod: "BANK_TRANSFER", notes: "" });
+  const [expenseForm, setExpenseForm] = useState({ expenseDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()), category: "TRIP_ALLOWANCE", reason: "", amount: "", paymentMethod: "BANK_TRANSFER", notes: "" });
 
   async function load() {
     try {
@@ -432,7 +432,7 @@ export default function TripDetail() {
         method: "POST",
         body: JSON.stringify({ ...expenseForm, tripId: id, amount: Number(expenseForm.amount), currency: "IDR" }),
       });
-      setExpenseForm({ category: "TRIP_ALLOWANCE", reason: "", amount: "", paymentMethod: "BANK_TRANSFER", notes: "" });
+      setExpenseForm({ expenseDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()), category: "TRIP_ALLOWANCE", reason: "", amount: "", paymentMethod: "BANK_TRANSFER", notes: "" });
       setExpenseOpen(false);
       await load();
     } catch (e) {
@@ -896,6 +896,7 @@ export default function TripDetail() {
               <form className="trip-expense-modal" onSubmit={saveExpense}>
                 <header><div><span>PENGELUARAN TRIP</span><h2>Tambah biaya perjalanan</h2><p>{truck?.plateNumber || trip.plateNumberSnap} · {order?.orderNo || "Trip operasional"}</p></div><button type="button" disabled={expenseBusy} onClick={() => setExpenseOpen(false)}><FiX/></button></header>
                 <div className="trip-expense-form">
+                  <label><span>Tanggal pengeluaran</span><input required type="date" value={expenseForm.expenseDate} onChange={(event) => setExpenseForm((form) => ({ ...form, expenseDate: event.target.value }))}/></label>
                   <label><span>Jenis pengeluaran</span><select value={expenseForm.category} onChange={(event) => setExpenseForm((form) => ({ ...form, category: event.target.value }))}>{EXPENSE_CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
                   <label><span>Metode pembayaran</span><select value={expenseForm.paymentMethod} onChange={(event) => setExpenseForm((form) => ({ ...form, paymentMethod: event.target.value }))}><option value="BANK_TRANSFER">Transfer bank</option><option value="CASH">Tunai</option><option value="OTHER">Lainnya</option></select></label>
                   <label className="wide"><span>Pengeluaran untuk apa</span><input required value={expenseForm.reason} onChange={(event) => setExpenseForm((form) => ({ ...form, reason: event.target.value }))} placeholder="Contoh: Panjar borongan pengiriman ke Palmaris"/></label>

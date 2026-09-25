@@ -245,9 +245,12 @@ router.post("/", authRequired, async (req, res) => {
   const tripId = cleanStr(req.body.tripId);
   const truckId = cleanStr(req.body.truckId);
   const expenseDateInput = cleanStr(req.body.expenseDate);
-  const expenseDate = expenseDateInput ? parseExpenseDate(expenseDateInput) : new Date();
+  const expenseDate = parseExpenseDate(expenseDateInput);
 
-  if (expenseDateInput && !expenseDate) {
+  if (!expenseDateInput) {
+    return res.status(400).json({ error: "Tanggal pengeluaran wajib diisi" });
+  }
+  if (!expenseDate) {
     return res.status(400).json({ error: "Tanggal pengeluaran tidak valid" });
   }
 
