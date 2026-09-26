@@ -41,8 +41,25 @@ const EXPENSE_CATEGORIES = {
   REPAIR_MAINTENANCE: "Perbaikan & Perawatan",
   SPAREPART: "Sparepart",
   OFFICE_OPERATIONAL: "Operasional Kantor",
+  EMPLOYEE_SALARY: "Gaji Karyawan",
+  OPERATIONAL_COST: "Biaya Operasional",
+  ELECTRICITY: "Listrik",
+  WATER: "Air",
+  TELECOMMUNICATION: "Telkom / Komunikasi",
+  OFFICE_EQUIPMENT: "Peralatan Kantor",
+  COMMISSION_FEE: "Komisi / Fee",
+  DOCUMENT_ADMINISTRATION: "Pengurusan Surat",
+  BPJS: "BPJS",
+  TAX: "Pajak",
   OTHER: "Lainnya",
 };
+
+const EXPENSE_CATEGORY_GROUPS = [
+  { label: "Perjalanan & Armada", values: ["PANJAR", "TRIP_ALLOWANCE", "REMAINING_TRIP_ALLOWANCE", "UNLOADING_FEE", "FUEL_LOAN", "DRIVER_SALARY", "FUEL", "TOLL_PARKING", "LOADING_UNLOADING", "REPAIR_MAINTENANCE", "SPAREPART"] },
+  { label: "Kantor & Utilitas", values: ["OFFICE_OPERATIONAL", "OPERATIONAL_COST", "ELECTRICITY", "WATER", "TELECOMMUNICATION", "OFFICE_EQUIPMENT"] },
+  { label: "Karyawan & Kewajiban", values: ["EMPLOYEE_SALARY", "COMMISSION_FEE", "BPJS", "TAX", "DOCUMENT_ADMINISTRATION"] },
+  { label: "Lainnya", values: ["OTHER"] },
+];
 
 function todayInJakarta() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -954,7 +971,7 @@ export default function Expenses() {
                 <div>
                   <label style={s.label}>Kategori Pengeluaran</label>
                   <select style={s.select} value={form.category} onChange={(e) => onChangeForm("category", e.target.value)}>
-                    {Object.entries(EXPENSE_CATEGORIES).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
+                    {EXPENSE_CATEGORY_GROUPS.map((group) => <optgroup key={group.label} label={group.label}>{group.values.map((value) => <option key={value} value={value}>{EXPENSE_CATEGORIES[value]}</option>)}</optgroup>)}
                   </select>
                 </div>
                 <div>

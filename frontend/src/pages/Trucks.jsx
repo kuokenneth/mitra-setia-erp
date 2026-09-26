@@ -61,6 +61,7 @@ export default function Trucks() {
   const [movQ, setMovQ] = useState("");
   const [movFrom, setMovFrom] = useState("");
   const [movTo, setMovTo] = useState("");
+  const [movType, setMovType] = useState("ALL");
   const [movPage, setMovPage] = useState(1);
   const [monthTotal, setMonthTotal] = useState(0);
   const [monthCurrency, setMonthCurrency] = useState("IDR");
@@ -349,16 +350,20 @@ export default function Trucks() {
     setSelectedTruck(truck);
     setAssignments([]);
     setMovErr("");
+    setMovType("ALL");
     setMovPage(1);
   }
 
   const movementPageSize = 10;
-  const movementTotalPages = Math.max(1, Math.ceil(assignments.length / movementPageSize));
+  const filteredAssignments = useMemo(() => movType === "ALL" ? assignments : assignments.filter((row) => row.recordType === movType), [assignments, movType]);
+  const serialMovementCount = useMemo(() => assignments.filter((row) => row.recordType === "SERIALIZED").length, [assignments]);
+  const nonSerialMovementCount = assignments.length - serialMovementCount;
+  const movementTotalPages = Math.max(1, Math.ceil(filteredAssignments.length / movementPageSize));
   const pagedAssignments = useMemo(() => {
     const safePage = Math.min(movPage, movementTotalPages);
     const start = (safePage - 1) * movementPageSize;
-    return assignments.slice(start, start + movementPageSize);
-  }, [assignments, movPage, movementTotalPages]);
+    return filteredAssignments.slice(start, start + movementPageSize);
+  }, [filteredAssignments, movPage, movementTotalPages]);
 
   useEffect(() => {
     if (movPage > movementTotalPages) setMovPage(movementTotalPages);
@@ -674,11 +679,19 @@ export default function Trucks() {
               <input type="date" style={s.dateInput} value={movTo} onChange={(e) => { setMovTo(e.target.value); setMovPage(1); }} />
             </div>
 
-            <button style={s.ghostBtn} disabled={asgLoading} onClick={() => { setMovQ(""); setMovFrom(""); setMovTo(""); setMovPage(1); loadAssignments(selectedTruck.id); }}>Atur Ulang</button>
+            <button style={s.ghostBtn} disabled={asgLoading} onClick={() => { setMovQ(""); setMovFrom(""); setMovTo(""); setMovType("ALL"); setMovPage(1); loadAssignments(selectedTruck.id); }}>Atur Ulang</button>
 
             <span style={s.monthBadge}>
               Bulan ini: {fmtMoney(monthTotal, monthCurrency)}
             </span>
+          </div>
+
+          <div className="fleet-movement-type-tabs" role="tablist" aria-label="Jenis suku cadang">
+            {[
+              ["ALL", "Semua", assignments.length],
+              ["SERIALIZED", "Serial", serialMovementCount],
+              ["NON_SERIALIZED", "Non-serial", nonSerialMovementCount],
+            ].map(([value, label, count]) => <button type="button" role="tab" aria-selected={movType === value} className={movType === value ? "active" : ""} key={value} onClick={() => { setMovType(value); setMovPage(1); }}>{label}<b>{count}</b></button>)}
           </div>
 
           {movErr && <div style={s.alertErr}>{movErr}</div>}
@@ -700,8 +713,8 @@ export default function Trucks() {
               <tbody>
                 {asgLoading ? (
                   <tr><td style={s.empty} colSpan={8}>Memuat suku cadang…</td></tr>
-                ) : assignments.length === 0 ? (
-                  <tr><td style={s.empty} colSpan={8}>Belum ada riwayat suku cadang kendaraan ini.</td></tr>
+                ) : filteredAssignments.length === 0 ? (
+                  <tr><td style={s.empty} colSpan={8}>{assignments.length ? `Belum ada riwayat suku cadang ${movType === "SERIALIZED" ? "serial" : "non-serial"}.` : "Belum ada riwayat suku cadang kendaraan ini."}</td></tr>
                 ) : (
                   pagedAssignments.map((a) => (
                     <tr key={a.id} style={s.tr}>
@@ -731,7 +744,7 @@ export default function Trucks() {
                 )}
               </tbody>
             </table>
-            {!asgLoading && assignments.length > 0 && <div className="fleet-movement-pagination"><span>Menampilkan {(movPage-1)*movementPageSize+1}–{Math.min(movPage*movementPageSize,assignments.length)} dari {assignments.length} data</span><div><button type="button" disabled={movPage<=1} onClick={()=>setMovPage((page)=>Math.max(1,page-1))}>← Sebelumnya</button><b>Halaman {movPage} / {movementTotalPages}</b><button type="button" disabled={movPage>=movementTotalPages} onClick={()=>setMovPage((page)=>Math.min(movementTotalPages,page+1))}>Berikutnya →</button></div></div>}
+            {!asgLoading && filteredAssignments.length > 0 && <div className="fleet-movement-pagination"><span>Menampilkan {(movPage-1)*movementPageSize+1}–{Math.min(movPage*movementPageSize,filteredAssignments.length)} dari {filteredAssignments.length} data</span><div><button type="button" disabled={movPage<=1} onClick={()=>setMovPage((page)=>Math.max(1,page-1))}>← Sebelumnya</button><b>Halaman {movPage} / {movementTotalPages}</b><button type="button" disabled={movPage>=movementTotalPages} onClick={()=>setMovPage((page)=>Math.min(movementTotalPages,page+1))}>Berikutnya →</button></div></div>}
           </div>
           </div>
         </div>

@@ -9,7 +9,7 @@ const router = express.Router();
 const allowedRoles = ["OWNER", "ADMIN", "STAFF"];
 const proofRoles = ["OWNER", "ADMIN", "STAFF"];
 const TRIP_EXPENSE_LIMIT = Number(process.env.TRIP_EXPENSE_LIMIT || 0);
-const EXPENSE_CATEGORIES = ["PANJAR", "TRIP_ALLOWANCE", "REMAINING_TRIP_ALLOWANCE", "UNLOADING_FEE", "FUEL_LOAN", "DRIVER_SALARY", "FUEL", "TOLL_PARKING", "LOADING_UNLOADING", "REPAIR_MAINTENANCE", "SPAREPART", "OFFICE_OPERATIONAL", "OTHER"];
+const EXPENSE_CATEGORIES = ["PANJAR", "TRIP_ALLOWANCE", "REMAINING_TRIP_ALLOWANCE", "UNLOADING_FEE", "FUEL_LOAN", "DRIVER_SALARY", "FUEL", "TOLL_PARKING", "LOADING_UNLOADING", "REPAIR_MAINTENANCE", "SPAREPART", "OFFICE_OPERATIONAL", "EMPLOYEE_SALARY", "OPERATIONAL_COST", "ELECTRICITY", "WATER", "TELECOMMUNICATION", "OFFICE_EQUIPMENT", "COMMISSION_FEE", "DOCUMENT_ADMINISTRATION", "BPJS", "TAX", "OTHER"];
 
 function ensureRole(req, res) {
   const role = req.user?.role;
@@ -42,7 +42,7 @@ function xmlCell(value, type = "String") {
   return `<Cell><Data ss:Type="${type}">${escaped}</Data></Cell>`;
 }
 
-const categoryLabels = { PANJAR: "Panjar", TRIP_ALLOWANCE: "Uang jalan", REMAINING_TRIP_ALLOWANCE: "Sisa uang jalan", UNLOADING_FEE: "Uang bongkar", FUEL_LOAN: "Pinjaman minyak", DRIVER_SALARY: "Gaji pengemudi", FUEL: "Bahan bakar", TOLL_PARKING: "Tol & parkir", LOADING_UNLOADING: "Bongkar muat", REPAIR_MAINTENANCE: "Perbaikan & servis", SPAREPART: "Sparepart", OFFICE_OPERATIONAL: "Operasional kantor", OTHER: "Lainnya" };
+const categoryLabels = { PANJAR: "Panjar", TRIP_ALLOWANCE: "Uang jalan", REMAINING_TRIP_ALLOWANCE: "Sisa uang jalan", UNLOADING_FEE: "Uang bongkar", FUEL_LOAN: "Pinjaman minyak", DRIVER_SALARY: "Gaji pengemudi", FUEL: "Bahan bakar", TOLL_PARKING: "Tol & parkir", LOADING_UNLOADING: "Bongkar muat", REPAIR_MAINTENANCE: "Perbaikan & servis", SPAREPART: "Sparepart", OFFICE_OPERATIONAL: "Operasional kantor", EMPLOYEE_SALARY: "Gaji karyawan", OPERATIONAL_COST: "Biaya operasional", ELECTRICITY: "Listrik", WATER: "Air", TELECOMMUNICATION: "Telkom / komunikasi", OFFICE_EQUIPMENT: "Peralatan kantor", COMMISSION_FEE: "Komisi / fee", DOCUMENT_ADMINISTRATION: "Pengurusan surat", BPJS: "BPJS", TAX: "Pajak", OTHER: "Lainnya" };
 const methodLabels = { BANK_TRANSFER: "Transfer bank", CASH: "Tunai", OTHER: "Lainnya" };
 const statusLabels = { SUBMITTED: "Diajukan", APPROVED: "Disetujui", PAID: "Dibayar", REJECTED: "Ditolak" };
 

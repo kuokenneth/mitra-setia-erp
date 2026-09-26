@@ -932,7 +932,6 @@ export default function Maintenance() {
     try {
       if (replaceDisposition === "RETREADING") {
         if (!retreadForm.toItemId) throw new Error("Pilih item tujuan Ban Masak");
-        if (retreadForm.cost === "") throw new Error("Masukkan biaya masak ban");
       }
       if (replaceDisposition === "SECOND" && !retreadForm.locationId) throw new Error("Pilih lokasi stok Ban Second");
       await api(`/maintenance/${activeJob.id}/assign-unit`, {
@@ -945,7 +944,6 @@ export default function Maintenance() {
           retread: replaceDisposition === "RETREADING" ? {
             toItemId: retreadForm.toItemId,
             supplierId: retreadForm.supplierId || undefined,
-            cost: Number(retreadForm.cost),
             sentAt: retreadForm.sentAt || undefined,
             notes: retreadForm.notes || undefined,
           } : undefined,
@@ -1824,10 +1822,9 @@ export default function Maintenance() {
                       <label className="wide">Catatan<Input value={retreadForm.notes} onChange={(e)=>setRetreadForm((form)=>({...form,notes:e.target.value}))} placeholder="Contoh: tapak masih layak sebagai ban second"/></label>
                     </div>}
                     {serializedSource === "INVENTORY" && returnStockUnitId && replaceDisposition === "RETREADING" && <div className="maintenance-retread-inline">
-                      <div className="maintenance-retread-notice"><strong>Ban lama akan dikirim untuk masak</strong><small>Nomor seri tetap sama dan status unit berubah menjadi RETREADING.</small></div>
+                      <div className="maintenance-retread-notice"><strong>Ban lama akan dikirim untuk masak</strong><small>Nomor seri tetap sama dan status unit berubah menjadi RETREADING. Harga final diisi saat penerimaan Ban Masak.</small></div>
                       <label>Item tujuan setelah dimasak<Select value={retreadForm.toItemId} onChange={(e)=>setRetreadForm((form)=>({...form,toItemId:e.target.value}))}><option value="">Pilih item Ban Masak</option>{retreadOptions.items.filter((item)=>item.id!==selectedReturnAssignment?.stockUnit?.itemId).map((item)=><option key={item.id} value={item.id}>{item.sku} — {item.name}</option>)}</Select></label>
                       <label>Vendor masak ban<Select value={retreadForm.supplierId} onChange={(e)=>setRetreadForm((form)=>({...form,supplierId:e.target.value}))}><option value="">Tanpa vendor</option>{retreadOptions.suppliers.map((supplier)=><option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</Select></label>
-                      <label>Biaya masak (Rp)<Input type="number" min="0" step="1" value={retreadForm.cost} onChange={(e)=>setRetreadForm((form)=>({...form,cost:e.target.value}))} placeholder="0"/></label>
                       <label>Tanggal dilepas / dikirim<Input type="datetime-local" value={retreadForm.sentAt} onChange={(e)=>setRetreadForm((form)=>({...form,sentAt:e.target.value}))}/></label>
                       <label className="wide">Catatan masak<Input value={retreadForm.notes} onChange={(e)=>setRetreadForm((form)=>({...form,notes:e.target.value}))} placeholder="Contoh: casing masih layak"/></label>
                     </div>}
