@@ -331,7 +331,7 @@ router.get("/:id", authRequired, async (req, res) => {
         },
         movements: {
           orderBy: { createdAt: "desc" },
-          include: { item: true, fromLocation: true, toLocation: true, fromTruck: true, toTruck: true, createdBy: true, stockUnit: true },
+          include: { item: true, fromLocation: true, toLocation: true, fromTruck: true, toTruck: true, createdBy: true, stockUnit: { include: { assignments: { orderBy: { installedAt: "desc" }, take: 1, select: { installCost: true, currency: true } } } } },
         },
         notes: {
           orderBy: { createdAt: "desc" },

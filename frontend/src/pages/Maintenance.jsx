@@ -600,13 +600,8 @@ export default function Maintenance() {
   const [returnStockError, setReturnStockError] = useState("");
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [photoError, setPhotoError] = useState("");
-  const [tireAction, setTireAction] = useState(null);
   const [retreadOptions, setRetreadOptions] = useState({ items: [], suppliers: [], locations: [] });
   const [retreadForm, setRetreadForm] = useState({ toItemId: "", locationId: "", supplierId: "", cost: "", sentAt: "", notes: "" });
-  const [tireActionSaving, setTireActionSaving] = useState(false);
-  const [repairTarget, setRepairTarget] = useState(null);
-  const [repairForm, setRepairForm] = useState({ urgency: "URGENT", reason: "", notes: "" });
-  const [repairSaving, setRepairSaving] = useState(false);
   const [progressNote, setProgressNote] = useState("");
   const [savingProgressNote, setSavingProgressNote] = useState(false);
   const [purchaseRequestForm, setPurchaseRequestForm] = useState({ itemId: "", qty: 1, urgency: "URGENT", reason: "", notes: "", newItem: false, sku: "", name: "", unit: "PCS", isSerialized: false });
@@ -969,17 +964,6 @@ export default function Maintenance() {
     }
   }
 
-  async function returnSerializedUnit(assignment) {
-    if (!activeJob?.id || !assignment?.id) return;
-    if (!window.confirm(`Kembalikan ${assignment.stockUnit?.serialNumber || assignment.stockUnit?.barcode || "unit ini"} ke Inventory?`)) return;
-    setAssigning(true); setErr("");
-    try {
-      await api(`/maintenance/${activeJob.id}/return-unit`, { method: "POST", body: JSON.stringify({ assignmentId: assignment.id }) });
-      await refreshDetail(); await load();
-    } catch (e) { setErr(e.message || "Gagal mengembalikan unit ke Inventory"); }
-    finally { setAssigning(false); }
-  }
-
   function openReturnStock(movement) {
     if (!activeJob?.id || !movement?.id) return;
     const alreadyReturned = (activeJob.movements || []).filter((row) => row.type === "IN" && String(row.note || "").startsWith(`RETURN_OF:${movement.id}`)).reduce((sum, row) => sum + Number(row.qty || 0), 0);
@@ -1028,22 +1012,6 @@ export default function Maintenance() {
     finally { setAssigning(false); }
   }
 
-  function startRepair(a) {
-    setRepairTarget(a);
-    setRepairForm({ urgency: "URGENT", reason: `Perbaikan ${a.stockUnit?.item?.name || "sparepart"} dari ${activeJob?.truck?.plateNumber || "kendaraan"}`, notes: "" });
-  }
-
-  async function submitRepair(event) {
-    event.preventDefault();
-    if (!activeJob?.id || !repairTarget?.stockUnitId) return;
-    setRepairSaving(true); setErr("");
-    try {
-      await api(`/maintenance/${activeJob.id}/repair-unit`, { method: "POST", body: JSON.stringify({ stockUnitId: repairTarget.stockUnitId, ...repairForm }) });
-      setRepairTarget(null); await refreshDetail(); await load();
-    } catch (e) { setErr(e.message || "Gagal membuat permintaan perbaikan"); }
-    finally { setRepairSaving(false); }
-  }
-
   async function useStock() {
     if (!activeJob?.id) return;
     const qty = Number(useQty);
@@ -1083,74 +1051,6 @@ export default function Maintenance() {
       setErr(e.message || "Failed to use stock");
     } finally {
       setUsingStock(false);
-    }
-  }
-
-  async function startTireAction(assignment, type) {
-    setErr("");
-    setTireAction({ type, assignment });
-    setRetreadForm({ toItemId: "", locationId: "", supplierId: "", cost: "", sentAt: "", notes: "" });
-    if (["RETREAD", "SECOND"].includes(type)) {
-      try {
-        const data = await api("/inventory/retread-options");
-        const options = { items: data.items || [], suppliers: data.suppliers || [], locations: data.locations || [] };
-        setRetreadOptions(options);
-        const currentItemId = assignment.stockUnit?.itemId;
-        const currentSku = assignment.stockUnit?.item?.sku || "";
-        setRetreadForm((form) => ({
-          ...form,
-          toItemId: type === "SECOND"
-            ? options.items.find((item) => item.sku === `${currentSku}_SECOND`)?.id || ""
-            : options.items.find((item) => item.id !== currentItemId && /masak|retread/i.test(item.name || ""))?.id || "",
-          locationId: type === "SECOND" ? options.locations[0]?.id || "" : "",
-        }));
-      } catch (e) {
-        setTireAction(null);
-        setErr(e.message || "Gagal memuat pilihan tindakan ban");
-      }
-    }
-  }
-
-  async function submitTireAction() {
-    const unit = tireAction?.assignment?.stockUnit;
-    if (!unit?.id || !activeJob?.id) return;
-    setTireActionSaving(true);
-    setErr("");
-    try {
-      if (tireAction.type === "RETREAD") {
-        if (!retreadForm.toItemId) throw new Error("Pilih item tujuan Ban Masak");
-        if (retreadForm.cost === "") throw new Error("Masukkan biaya masak ban");
-        await api(`/inventory/units/${unit.id}/retread`, {
-          method: "POST",
-          body: JSON.stringify({
-            ...retreadForm,
-            cost: Number(retreadForm.cost),
-            supplierId: retreadForm.supplierId || undefined,
-            sentAt: retreadForm.sentAt || undefined,
-            notes: retreadForm.notes || undefined,
-            maintenanceId: activeJob.id,
-          }),
-        });
-      } else if (tireAction.type === "SECOND") {
-        if (!retreadForm.toItemId) throw new Error(`Item ${(unit.item?.sku || "BAN")}_SECOND belum tersedia. Buat item tersebut terlebih dahulu.`);
-        if (!retreadForm.locationId) throw new Error("Pilih lokasi stok Ban Second");
-        await api(`/inventory/units/${unit.id}/second`, {
-          method: "POST",
-          body: JSON.stringify({ locationId: retreadForm.locationId, maintenanceId: activeJob.id, notes: retreadForm.notes || undefined }),
-        });
-      } else {
-        await api(`/inventory/units/${unit.id}/scrap`, {
-          method: "POST",
-          body: JSON.stringify({ note: retreadForm.notes || `Dilepas dan scrap saat servis ${activeJob.title}` }),
-        });
-      }
-      setTireAction(null);
-      await refreshDetail();
-      await load();
-    } catch (e) {
-      setErr(e.message || "Gagal memproses ban");
-    } finally {
-      setTireActionSaving(false);
     }
   }
 
@@ -1205,6 +1105,32 @@ export default function Maintenance() {
   const maintenanceSummary = listSummary;
   const pendingPartsRequests = pendingServicePurchaseRequests(activeJob);
   const hasPendingParts = pendingPartsRequests.length > 0;
+  const serializedHistoryRows = useMemo(() => {
+    const installed = (activeJob?.sparePartAssignments || []).map((assignment) => ({
+      ...assignment,
+      historyType: "INSTALLED",
+      eventAt: assignment.installedAt,
+      item: assignment.stockUnit?.item,
+      serial: assignment.stockUnit?.serialNumber || assignment.stockUnit?.barcode || assignment.stockUnitId?.slice(0, 8),
+      source: assignment.stockUnit?.location?.name || "Inventory",
+      historyUnitPrice: assignment.installCost,
+      historyTotalCost: assignment.installCost,
+    }));
+    const removed = (activeJob?.movements || [])
+      .filter((movement) => movement.stockUnitId
+        && !String(movement.note || "").startsWith("Assigned to maintenance:")
+        && !String(movement.note || "").startsWith("RETURN_ASSIGNMENT:"))
+      .map((movement) => ({
+        ...movement,
+        historyType: "REMOVED",
+        eventAt: movement.createdAt,
+        serial: movement.stockUnit?.serialNumber || movement.stockUnit?.barcode || movement.stockUnitId?.slice(0, 8),
+        source: movement.toLocation?.name || movement.toTruck?.plateNumber || "Keluar dari armada",
+        historyUnitPrice: movement.unitPrice ?? movement.stockUnit?.assignments?.[0]?.installCost,
+        historyTotalCost: movement.totalCost ?? movement.stockUnit?.assignments?.[0]?.installCost,
+      }));
+    return [...installed, ...removed].sort((a, b) => new Date(b.eventAt) - new Date(a.eventAt));
+  }, [activeJob]);
 
   return (
     <div className="maintenance-page" data-testid="maintenance-page">
@@ -1964,51 +1890,41 @@ export default function Maintenance() {
 
                 {/* Serialized Table */}
                 <div style={{ fontSize: 13, fontWeight: 600, color: BRAND.textMuted, marginBottom: 8 }}>
-                  Unit berserial yang dipasang
+                  Riwayat unit berserial
                 </div>
                 <div style={{ overflow: "auto", marginBottom: 20 }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                     <thead>
                       <tr style={{ textAlign: "left", fontSize: 12, color: BRAND.textMuted, borderBottom: `1px solid ${BRAND.border}` }}>
-                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Tanggal Pemasangan</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Waktu</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Barang</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Unit</th>
-                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Dari</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Pergerakan</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Dari / Tujuan</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Harga/Unit</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Total Biaya</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Catatan</th>
-                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Tindakan Unit</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(activeJob.sparePartAssignments || []).map((a) => (
+                      {serializedHistoryRows.map((a) => (
                         <tr key={a.id} style={{ borderBottom: `1px solid ${BRAND.border}` }}>
-                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{fmtDateTime(a.installedAt)}</td>
+                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{fmtDateTime(a.eventAt)}</td>
                           <td style={{ padding: "12px 8px", fontWeight: 500, color: BRAND.text }}>
-                            {a.stockUnit?.item?.sku} — {a.stockUnit?.item?.name}
+                            {a.item?.sku} — {a.item?.name}
                           </td>
-                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}>
-                            {a.stockUnit?.serialNumber || a.stockUnit?.barcode || a.stockUnitId.slice(0, 8)}
-                          </td>
-                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{a.stockUnit?.location?.name || "—"}</td>
+                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{a.serial || "—"}</td>
+                          <td style={{ padding: "12px 8px" }}><span style={{ display: "inline-flex", padding: "4px 8px", borderRadius: 999, background: a.historyType === "REMOVED" || a.removedAt ? BRAND.dangerBg : BRAND.successBg, color: a.historyType === "REMOVED" || a.removedAt ? BRAND.danger : BRAND.primary, fontSize: 11, fontWeight: 700 }}>{a.historyType === "REMOVED" ? "KELUAR / DILEPAS" : a.removedAt ? "DIPASANG, LALU DILEPAS" : "DIPASANG"}</span></td>
+                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{a.source || "—"}</td>
+                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{a.historyUnitPrice == null ? "—" : fmtMoney(a.historyUnitPrice)}</td>
+                          <td style={{ padding: "12px 8px", fontWeight: 600, color: BRAND.primary }}>{a.historyTotalCost == null ? "—" : fmtMoney(a.historyTotalCost)}</td>
                           <td style={{ padding: "12px 8px", color: BRAND.textMuted }}>{a.note || "—"}</td>
-                          <td style={{ padding: "12px 8px" }}>
-                            {!a.removedAt && a.stockUnit?.status === "ASSIGNED" && activeJob.status === "OPEN" ? (
-                              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                                {a.stockUnit?.item?.category === "TIRE" && <Button variant="secondary" onClick={() => startTireAction(a, "RETREAD")}>Lepas & Masak</Button>}
-                                {a.stockUnit?.item?.category === "TIRE" && !a.stockUnit?.item?.sku?.endsWith("_SECOND") && <Button variant="secondary" onClick={() => startTireAction(a, "SECOND")}>Jadikan Second</Button>}
-                                <Button variant="secondary" onClick={() => returnSerializedUnit(a)} disabled={assigning}>Kembali ke Inventory</Button>
-                                <Button variant="secondary" onClick={() => startRepair(a)}>Kirim Perbaikan</Button>
-                                <Button variant="danger" onClick={() => startTireAction(a, "SCRAP")}>Lepas & Scrap</Button>
-                              </div>
-                            ) : (
-                              <span style={{ color: BRAND.textMuted }}>{a.removedAt ? "Sudah dilepas" : "—"}</span>
-                            )}
-                          </td>
                         </tr>
                       ))}
-                      {(activeJob.sparePartAssignments || []).length === 0 && (
+                      {serializedHistoryRows.length === 0 && (
                         <tr>
-                          <td colSpan={6} style={{ padding: 16, color: BRAND.textMuted, textAlign: "center" }}>
-                            Belum ada sparepart berserial yang dipasang.
+                          <td colSpan={8} style={{ padding: 16, color: BRAND.textMuted, textAlign: "center" }}>
+                            Belum ada riwayat sparepart berserial.
                           </td>
                         </tr>
                       )}
@@ -2143,97 +2059,6 @@ export default function Maintenance() {
         </form>}
       </Modal>
 
-      <Modal open={Boolean(repairTarget)} title="Kirim Sparepart untuk Perbaikan" onClose={() => !repairSaving && setRepairTarget(null)} width={620}>
-        {repairTarget && <form onSubmit={submitRepair} style={{ display: "grid", gap: 14 }}>
-          <div style={{ padding: 14, borderRadius: 8, background: BRAND.secondary, border: `1px solid ${BRAND.border}` }}>
-            <strong>{repairTarget.stockUnit?.item?.name}</strong>
-            <div style={{ color: BRAND.textMuted, marginTop: 4 }}>Serial {repairTarget.stockUnit?.serialNumber || repairTarget.stockUnit?.barcode || "—"} · {activeJob?.truck?.plateNumber}</div>
-          </div>
-          <div className="grid2">
-            <label>Urgensi<Select value={repairForm.urgency} onChange={(e) => setRepairForm((form) => ({ ...form, urgency: e.target.value }))}><option value="NORMAL">Normal</option><option value="URGENT">Mendesak</option><option value="CRITICAL">Kritis</option></Select></label>
-            <label>Alasan<Input required value={repairForm.reason} onChange={(e) => setRepairForm((form) => ({ ...form, reason: e.target.value }))} /></label>
-          </div>
-          <label>Catatan<Input value={repairForm.notes} onChange={(e) => setRepairForm((form) => ({ ...form, notes: e.target.value }))} placeholder="Kerusakan atau instruksi untuk vendor" /></label>
-          <div style={{ padding: 12, borderRadius: 8, background: BRAND.warningBg, color: BRAND.textLight, fontSize: 13 }}>Unit akan dilepas, berstatus <b>Dalam Perbaikan</b>, dan Permintaan Pembelian otomatis dibuat. Setelah diterima dari vendor, unit yang sama kembali ke Inventory.</div>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}><Button variant="secondary" type="button" onClick={() => setRepairTarget(null)}>Batal</Button><Button variant="primary" disabled={repairSaving}>{repairSaving ? "Mengirim..." : "Buat Permintaan Perbaikan"}</Button></div>
-        </form>}
-      </Modal>
-
-      <Modal
-        open={Boolean(tireAction)}
-        title={tireAction?.type === "RETREAD" ? "Lepas & Kirim Masak Ban" : tireAction?.type === "SECOND" ? "Lepas & Jadikan Ban Second" : "Lepas & Scrap Ban"}
-        onClose={() => !tireActionSaving && setTireAction(null)}
-        width={620}
-      >
-        {tireAction ? (
-          <div style={{ display: "grid", gap: 14 }}>
-            <div style={{ padding: 14, borderRadius: 6, background: BRAND.secondary, border: `1px solid ${BRAND.border}` }}>
-              <div style={{ fontSize: 12, color: BRAND.textMuted }}>Ban pada {activeJob?.truck?.plateNumber || "truk"}</div>
-              <div style={{ marginTop: 4, fontWeight: 700, color: BRAND.text }}>
-                {tireAction.assignment.stockUnit?.item?.name} · Serial {tireAction.assignment.stockUnit?.serialNumber || tireAction.assignment.stockUnitId}
-              </div>
-            </div>
-
-            {tireAction.type === "RETREAD" ? (
-              <>
-                <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
-                  Item tujuan setelah selesai dimasak
-                  <Select value={retreadForm.toItemId} onChange={(e) => setRetreadForm((form) => ({ ...form, toItemId: e.target.value }))}>
-                    <option value="">Pilih item Ban Masak</option>
-                    {retreadOptions.items.map((item) => <option key={item.id} value={item.id}>{item.sku} — {item.name}</option>)}
-                  </Select>
-                </label>
-                <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
-                  Vendor masak ban
-                  <Select value={retreadForm.supplierId} onChange={(e) => setRetreadForm((form) => ({ ...form, supplierId: e.target.value }))}>
-                    <option value="">Tanpa vendor</option>
-                    {retreadOptions.suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
-                  </Select>
-                </label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>Biaya masak (Rp)<Input type="number" min="0" value={retreadForm.cost} onChange={(e) => setRetreadForm((form) => ({ ...form, cost: e.target.value }))} /></label>
-                  <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>Tanggal dilepas/dikirim<Input type="datetime-local" value={retreadForm.sentAt} onChange={(e) => setRetreadForm((form) => ({ ...form, sentAt: e.target.value }))} /></label>
-                </div>
-              </>
-            ) : tireAction.type === "SECOND" ? (
-              <>
-                <div style={{ padding: 14, borderRadius: 6, background: BRAND.successBg, color: BRAND.primary, fontSize: 13 }}>
-                  Nomor seri tetap sama. Item tujuan ditentukan otomatis berdasarkan SKU ban asal.
-                </div>
-                <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
-                  Item Ban Second
-                  <Select value={retreadForm.toItemId} disabled>
-                    <option value="">{`${tireAction.assignment.stockUnit?.item?.sku || "BAN"}_SECOND belum tersedia`}</option>
-                    {retreadOptions.items.filter((item) => item.id === retreadForm.toItemId).map((item) => <option key={item.id} value={item.id}>{item.sku} — {item.name}</option>)}
-                  </Select>
-                </label>
-                <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
-                  Lokasi stok
-                  <Select value={retreadForm.locationId} onChange={(e) => setRetreadForm((form) => ({ ...form, locationId: e.target.value }))}>
-                    <option value="">Pilih lokasi stok</option>
-                    {retreadOptions.locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
-                  </Select>
-                </label>
-              </>
-            ) : (
-              <div style={{ padding: 14, borderRadius: 6, background: BRAND.dangerBg, color: BRAND.danger, fontSize: 13 }}>
-                Ban akan dilepas dari truk dan dikeluarkan permanen dari stok. Tindakan ini digunakan untuk ban rusak berat yang tidak layak dimasak.
-              </div>
-            )}
-
-            <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
-              Catatan kondisi ban
-              <Input value={retreadForm.notes} onChange={(e) => setRetreadForm((form) => ({ ...form, notes: e.target.value }))} placeholder="Contoh: tapak tipis tetapi casing masih layak" />
-            </label>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-              <Button variant="secondary" disabled={tireActionSaving} onClick={() => setTireAction(null)}>Batal</Button>
-              <Button variant={tireAction.type === "SCRAP" ? "danger" : "primary"} disabled={tireActionSaving} onClick={submitTireAction}>
-                {tireActionSaving ? "Memproses..." : tireAction.type === "RETREAD" ? "Lepas & Kirim" : tireAction.type === "SECOND" ? "Lepas & Jadikan Second" : "Lepas & Scrap"}
-              </Button>
-            </div>
-          </div>
-        ) : null}
-      </Modal>
     </div>
   );
 }
