@@ -9,7 +9,7 @@ const router = express.Router();
 const allowedRoles = ["OWNER", "ADMIN", "STAFF"];
 const proofRoles = ["OWNER", "ADMIN", "STAFF"];
 const TRIP_EXPENSE_LIMIT = Number(process.env.TRIP_EXPENSE_LIMIT || 0);
-const EXPENSE_CATEGORIES = ["PANJAR", "TRIP_ALLOWANCE", "REMAINING_TRIP_ALLOWANCE", "UNLOADING_FEE", "FUEL_LOAN", "DRIVER_SALARY", "FUEL", "TOLL_PARKING", "LOADING_UNLOADING", "REPAIR_MAINTENANCE", "SPAREPART", "OFFICE_OPERATIONAL", "EMPLOYEE_SALARY", "OPERATIONAL_COST", "ELECTRICITY", "WATER", "TELECOMMUNICATION", "OFFICE_EQUIPMENT", "COMMISSION_FEE", "DOCUMENT_ADMINISTRATION", "BPJS", "TAX", "OTHER"];
+const EXPENSE_CATEGORIES = ["PANJAR", "TRIP_ALLOWANCE", "REMAINING_TRIP_ALLOWANCE", "UNLOADING_FEE", "FUEL_LOAN", "DRIVER_SALARY", "FUEL", "TOLL_PARKING", "LOADING_UNLOADING", "REPAIR_MAINTENANCE", "SPAREPART", "OFFICE_OPERATIONAL", "EMPLOYEE_SALARY", "OPERATIONAL_COST", "ELECTRICITY", "WATER", "TELECOMMUNICATION", "OFFICE_EQUIPMENT", "COMMISSION_FEE", "DOCUMENT_ADMINISTRATION", "BPJS", "TAX", "EMPLOYEE_RECEIVABLE", "OTHER"];
 
 function ensureRole(req, res) {
   const role = req.user?.role;
@@ -42,7 +42,7 @@ function xmlCell(value, type = "String") {
   return `<Cell><Data ss:Type="${type}">${escaped}</Data></Cell>`;
 }
 
-const categoryLabels = { PANJAR: "Panjar", TRIP_ALLOWANCE: "Uang jalan", REMAINING_TRIP_ALLOWANCE: "Sisa uang jalan", UNLOADING_FEE: "Uang bongkar", FUEL_LOAN: "Pinjaman minyak", DRIVER_SALARY: "Gaji pengemudi", FUEL: "Bahan bakar", TOLL_PARKING: "Tol & parkir", LOADING_UNLOADING: "Bongkar muat", REPAIR_MAINTENANCE: "Perbaikan & servis", SPAREPART: "Sparepart", OFFICE_OPERATIONAL: "Operasional kantor", EMPLOYEE_SALARY: "Gaji karyawan", OPERATIONAL_COST: "Biaya operasional", ELECTRICITY: "Listrik", WATER: "Air", TELECOMMUNICATION: "Telkom / komunikasi", OFFICE_EQUIPMENT: "Peralatan kantor", COMMISSION_FEE: "Komisi / fee", DOCUMENT_ADMINISTRATION: "Pengurusan surat", BPJS: "BPJS", TAX: "Pajak", OTHER: "Lainnya" };
+const categoryLabels = { PANJAR: "Panjar", TRIP_ALLOWANCE: "Uang jalan", REMAINING_TRIP_ALLOWANCE: "Sisa uang jalan", UNLOADING_FEE: "Uang bongkar", FUEL_LOAN: "Pinjaman minyak", DRIVER_SALARY: "Gaji pengemudi", FUEL: "Bahan bakar", TOLL_PARKING: "Tol & parkir", LOADING_UNLOADING: "Bongkar muat", REPAIR_MAINTENANCE: "Perbaikan & servis", SPAREPART: "Sparepart", OFFICE_OPERATIONAL: "Operasional kantor", EMPLOYEE_SALARY: "Gaji karyawan", OPERATIONAL_COST: "Biaya operasional", ELECTRICITY: "Listrik", WATER: "Air", TELECOMMUNICATION: "Telkom / komunikasi", OFFICE_EQUIPMENT: "Peralatan kantor", COMMISSION_FEE: "Komisi / fee", DOCUMENT_ADMINISTRATION: "Pengurusan surat", BPJS: "BPJS", TAX: "Pajak", EMPLOYEE_RECEIVABLE: "Piutang karyawan", OTHER: "Lainnya" };
 const methodLabels = { BANK_TRANSFER: "Transfer bank", CASH: "Tunai", OTHER: "Lainnya" };
 const statusLabels = { SUBMITTED: "Diajukan", APPROVED: "Disetujui", PAID: "Dibayar", REJECTED: "Ditolak" };
 
@@ -67,6 +67,7 @@ router.get("/", authRequired, async (req, res) => {
                 { bankName: { contains: q, mode: "insensitive" } },
                 { accountName: { contains: q, mode: "insensitive" } },
                 { accountNumber: { contains: q, mode: "insensitive" } },
+                { employee: { name: { contains: q, mode: "insensitive" } } },
               ],
             },
           ]
@@ -90,6 +91,7 @@ router.get("/", authRequired, async (req, res) => {
             driverUser: { select: { id: true, name: true } },
           },
         },
+        employee: { select: { id: true, name: true, email: true } },
         trip: {
           include: {
             truck: true,
@@ -235,6 +237,12 @@ router.get("/report", authRequired, async (req, res) => {
   }));
 });
 
+router.get("/employees", authRequired, async (req, res) => {
+  if (!ensureRole(req, res)) return;
+  const employees = await prisma.user.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, email: true, role: true } });
+  res.json({ employees });
+});
+
 // Create expense
 router.post("/", authRequired, async (req, res) => {
   if (!ensureRole(req, res)) return;
@@ -251,6 +259,7 @@ router.post("/", authRequired, async (req, res) => {
   const notes = cleanStr(req.body.notes);
   const tripId = cleanStr(req.body.tripId);
   const truckId = cleanStr(req.body.truckId);
+  const employeeId = cleanStr(req.body.employeeId);
   const expenseDateInput = cleanStr(req.body.expenseDate);
   const expenseDate = parseExpenseDate(expenseDateInput);
 
@@ -278,6 +287,12 @@ router.post("/", authRequired, async (req, res) => {
   if (!reason) {
     return res.status(400).json({ error: "Reason is required" });
   }
+  let employee = null;
+  if (category === "EMPLOYEE_RECEIVABLE") {
+    if (!employeeId) return res.status(400).json({ error: "Pilih nama karyawan yang akan ditagih" });
+    employee = await prisma.user.findFirst({ where: { id: employeeId, isActive: true }, select: { id: true, name: true, email: true } });
+    if (!employee) return res.status(400).json({ error: "Karyawan tidak ditemukan atau sudah tidak aktif" });
+  }
   let trip = null;
   if (tripId) {
     trip = await prisma.trip.findUnique({
@@ -298,8 +313,8 @@ router.post("/", authRequired, async (req, res) => {
     if (!truck) return res.status(404).json({ error: "Armada tidak ditemukan" });
   }
 
-  const created = await prisma.expense.create({
-    data: {
+  const created = await prisma.$transaction(async tx => {
+    const expense = await tx.expense.create({ data: {
       status: "SUBMITTED",
       paymentMethod,
       bankName,
@@ -314,10 +329,11 @@ router.post("/", authRequired, async (req, res) => {
       expenseDate,
       tripId: tripId || null,
       truckId: truckId || null,
+      employeeId: category === "EMPLOYEE_RECEIVABLE" ? employee.id : null,
       createdById: req.user?.id,
-    },
-    include: {
+    }, include: {
       truck: { select: { id: true, plateNumber: true, brand: true, model: true } },
+      employee: { select: { id: true, name: true, email: true } },
       trip: {
         include: {
           truck: true,
@@ -328,7 +344,8 @@ router.post("/", authRequired, async (req, res) => {
       createdBy: { select: { id: true, name: true, email: true } },
       proofUploadedBy: { select: { id: true, name: true, email: true } },
       approvedBy: { select: { id: true, name: true, email: true } },
-    },
+    } });
+    return expense;
   });
 
   let duplicateFlag = false;
@@ -423,7 +440,7 @@ router.post("/:id/proof", authRequired, async (req, res) => {
 
   const existing = await prisma.expense.findUnique({
     where: { id },
-    select: { id: true, status: true },
+    select: { id: true, status: true, category: true },
   });
   if (!existing) return res.status(404).json({ error: "Not found" });
   if (existing.status !== "SUBMITTED") {
@@ -454,7 +471,7 @@ router.post("/:id/proof", authRequired, async (req, res) => {
         approvedBy: { select: { id: true, name: true, email: true } },
       },
     });
-    await postJournal(tx, { date: paid.paidAt, description: paid.reason, sourceType: "EXPENSE_PAYMENT", sourceId: paid.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.EXPENSE, debit: paid.amount }, { code: cashCode(paid.paymentMethod), credit: paid.amount }] });
+    await postJournal(tx, { date: paid.paidAt, description: paid.reason, sourceType: "EXPENSE_PAYMENT", sourceId: paid.id, createdById: req.user.id, lines: [{ code: existing.category === "EMPLOYEE_RECEIVABLE" ? SYSTEM_ACCOUNTS.AR : SYSTEM_ACCOUNTS.EXPENSE, debit: paid.amount }, { code: cashCode(paid.paymentMethod), credit: paid.amount }] });
     return paid;
   });
 

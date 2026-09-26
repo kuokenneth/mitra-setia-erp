@@ -580,9 +580,11 @@ router.post("/:id/return-stock", authRequired, async (req, res) => {
     const movementId = String(req.body.movementId || "");
     const requestedQty = num(req.body.qty, 0);
     const reason = String(req.body.reason || "").trim();
+    const disposition = String(req.body.disposition || "RETURN").toUpperCase();
     if (!movementId || requestedQty <= 0) return res.status(400).json({ error: "Movement dan jumlah pengembalian wajib diisi" });
-    if (!reason) return res.status(400).json({ error: "Alasan pengembalian wajib diisi" });
-    if (reason.length > 500) return res.status(400).json({ error: "Alasan pengembalian maksimal 500 karakter" });
+    if (!["RETURN", "REPAIR_SECOND"].includes(disposition)) return res.status(400).json({ error: "Tindakan pengembalian tidak valid" });
+    if (!reason) return res.status(400).json({ error: disposition === "REPAIR_SECOND" ? "Catatan perbaikan wajib diisi" : "Alasan pengembalian wajib diisi" });
+    if (reason.length > 500) return res.status(400).json({ error: "Catatan maksimal 500 karakter" });
 
     const returned = await prisma.$transaction(async (tx) => {
       const job = await tx.truckMaintenance.findUnique({ where: { id: maintenanceId }, select: { id: true, status: true, truckId: true, truck: { select: { plateNumber: true } } } });
@@ -590,19 +592,22 @@ router.post("/:id/return-stock", authRequired, async (req, res) => {
       const movement = await tx.stockMovement.findFirst({ where: { id: movementId, maintenanceId, type: "OUT", stockUnitId: null }, include: { item: true } });
       if (!movement || !movement.fromLocationId) throw new Error("Pemakaian stok dari Inventory tidak ditemukan");
       if (movement.item.category === "OIL") throw new Error("Oli yang sudah digunakan tidak dapat dikembalikan ke Inventory");
-      const priorReturns = await tx.stockMovement.findMany({ where: { maintenanceId, type: "IN", note: { startsWith: `RETURN_OF:${movement.id}` } }, select: { qty: true } });
+      const priorReturns = await tx.stockMovement.findMany({ where: { maintenanceId, OR: [{ type: "IN", note: { startsWith: `RETURN_OF:${movement.id}` } }, { type: "ADJUST", note: { startsWith: `NON_SERIAL_REPAIR_OF:${movement.id}` } }] }, select: { qty: true } });
       const alreadyReturned = priorReturns.reduce((sum, row) => sum + Number(row.qty || 0), 0);
       const availableToReturn = Number(movement.qty) - alreadyReturned;
       if (requestedQty > availableToReturn + 0.000001) throw new Error(`Maksimal yang dapat dikembalikan ${availableToReturn} ${movement.item.unit}`);
       const truckStock = await tx.truckPartStock.findUnique({ where: { truckId_itemId: { truckId: job.truckId, itemId: movement.itemId } } });
       if (Number(truckStock?.qty || 0) < requestedQty) throw new Error("Jumlah stok yang tercatat di mobil tidak mencukupi");
       const returnCost = movement.unitPrice == null ? null : Math.round(Number(movement.unitPrice) * requestedQty);
-
       await tx.truckPartStock.update({ where: { truckId_itemId: { truckId: job.truckId, itemId: movement.itemId } }, data: { qty: { decrement: requestedQty } } });
-      await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: movement.itemId, locationId: movement.fromLocationId } }, create: { itemId: movement.itemId, locationId: movement.fromLocationId, qty: requestedQty }, update: { qty: { increment: requestedQty } } });
-      await tx.inventoryBatch.create({ data: { itemId: movement.itemId, locationId: movement.fromLocationId, receivedQty: requestedQty, remainingQty: requestedQty, unitPrice: movement.unitPrice, receivedAt: new Date() } });
-      const returnMovement = await tx.stockMovement.create({ data: { type: "IN", itemId: movement.itemId, qty: requestedQty, unitPrice: movement.unitPrice, totalCost: returnCost, note: `RETURN_OF:${movement.id} · Pemakaian dibatalkan dari ${job.truck.plateNumber} · Alasan: ${reason}`, createdById: req.user.id, toLocationId: movement.fromLocationId, maintenanceId } });
-      if (Number(returnCost || 0) > 0) await postJournal(tx, { date: returnMovement.createdAt, description: `Pengembalian ${movement.item.name} dari ${job.truck.plateNumber}`, sourceType: "INVENTORY_RETURN", sourceId: returnMovement.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.INVENTORY, debit: returnCost }, { code: SYSTEM_ACCOUNTS.EXPENSE, credit: returnCost }] });
+      if (disposition === "REPAIR_SECOND") {
+        return tx.stockMovement.create({ data: { type: "ADJUST", itemId: movement.itemId, qty: requestedQty, unitPrice: null, totalCost: null, note: `NON_SERIAL_REPAIR_OF:${movement.id} · Dikirim untuk perbaikan dari ${job.truck.plateNumber} · Catatan: ${reason}`, createdById: req.user.id, fromTruckId: job.truckId, toLocationId: movement.fromLocationId, maintenanceId } });
+      }
+      const returnedItem = movement.item;
+      await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: returnedItem.id, locationId: movement.fromLocationId } }, create: { itemId: returnedItem.id, locationId: movement.fromLocationId, qty: requestedQty }, update: { qty: { increment: requestedQty } } });
+      await tx.inventoryBatch.create({ data: { itemId: returnedItem.id, locationId: movement.fromLocationId, receivedQty: requestedQty, remainingQty: requestedQty, unitPrice: movement.unitPrice, receivedAt: new Date() } });
+      const returnMovement = await tx.stockMovement.create({ data: { type: "IN", itemId: returnedItem.id, qty: requestedQty, unitPrice: movement.unitPrice, totalCost: returnCost, note: `RETURN_OF:${movement.id} · Pemakaian dibatalkan dari ${job.truck.plateNumber} · Alasan: ${reason}`, createdById: req.user.id, toLocationId: movement.fromLocationId, maintenanceId } });
+      if (Number(returnCost || 0) > 0) await postJournal(tx, { date: returnMovement.createdAt, description: `Pengembalian ${returnedItem.name} dari ${job.truck.plateNumber}`, sourceType: "INVENTORY_RETURN", sourceId: returnMovement.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.INVENTORY, debit: returnCost }, { code: SYSTEM_ACCOUNTS.EXPENSE, credit: returnCost }] });
       return returnMovement;
     });
     res.json({ returned });

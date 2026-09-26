@@ -141,7 +141,7 @@ function billingWeight(plannedKg, actualKg, tolerancePercent) {
 
 router.get("/overview", async (_req, res) => {
   try {
-    const [customers, trucks, invoices, eligibleOrders, materialRows, singleTrips] = await Promise.all([
+    const [customers, trucks, invoices, eligibleOrders, materialRows, singleTrips, employeeExpenses, employeePayments] = await Promise.all([
       prisma.customer.findMany({ orderBy: { name: "asc" } }),
       prisma.truck.findMany({ select: { id: true, plateNumber: true, brand: true, model: true }, orderBy: { plateNumber: "asc" } }),
       prisma.invoice.findMany({ include: invoiceInclude, orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }] }),
@@ -152,6 +152,8 @@ router.get("/overview", async (_req, res) => {
       }),
       prisma.materialInvoice.findMany({ where: { billedInvoiceId: null, destinationCompletedAt: { not: null } }, include: { lines: { include: { stockAllocations: { include: { receipt: { include: { customer: true, location: true } } } } } }, trip: { include: { truck: true } }, destinationLocation: true }, orderBy: { issuedAt: "asc" } }),
       prisma.trip.findMany({ where: { purpose: "SINGLE_TRIP", status: "COMPLETED", cargoCategorySnap: { in: ["FERTILIZER", "CANGKANG"] }, billingCustomerName: { not: null }, invoiceLines: { none: {} }, singleInvoice: null }, include: { truck: true, billingCustomer: true }, orderBy: { completedAt: "asc" } }),
+      prisma.expense.findMany({ where: { category: "EMPLOYEE_RECEIVABLE", employeeId: { not: null }, status: { not: "REJECTED" } }, include: { employee: { select: { id: true, name: true, email: true } } }, orderBy: { expenseDate: "desc" } }),
+      prisma.employeeReceivablePayment.findMany({ include: { employee: { select: { id: true, name: true, email: true } }, createdBy: { select: { name: true } } }, orderBy: { receivedAt: "desc" } }),
     ]);
     const rows = invoices.map(summarize);
     const stats = rows.reduce((acc, invoice) => {
@@ -182,10 +184,48 @@ router.get("/overview", async (_req, res) => {
     }
     const cargoLabel = value => value === "FERTILIZER" ? "Pupuk" : value === "CANGKANG" ? "Cangkang" : value;
     const singleSources = [...singleGroups.values()].map(group => ({ type: "SINGLE_TRIP_GROUP", id: group.key, customerId: group.customerId, label: `Trip Tunggal — ${group.customerName} · ${cargoLabel(group.cargoCategory)} (${group.trips.length} trip)`, customerName: group.customerName, customerPhone: group.customerPhone, billingAddress: group.billingAddress, cargoCategory: group.cargoCategory, singleTripIds: group.trips.map(trip => trip.id), totalWeightKg: group.totalWeightKg, trips: group.trips }));
-    res.json({ ok: true, customers, trucks, invoices: rows, eligibleOrders: orderSources.map(source => source.order), eligibleMaterialGroups: [...groups.values()], eligibleSingleTrips: singleTrips, eligibleSources: [...orderSources, ...materialSources, ...singleSources], stats });
+    const employeeGroups = new Map();
+    for (const expense of employeeExpenses) {
+      const group = employeeGroups.get(expense.employeeId) || { employee: expense.employee, total: 0, paid: 0, balance: 0, expenses: [], payments: [] };
+      group.total += Number(expense.amount || 0); group.expenses.push(expense); employeeGroups.set(expense.employeeId, group);
+    }
+    for (const payment of employeePayments) {
+      const group = employeeGroups.get(payment.employeeId);
+      if (!group) continue;
+      group.paid += Number(payment.amount || 0); group.payments.push(payment);
+    }
+    const employeeReceivables = [...employeeGroups.values()].map(group => ({ ...group, balance: Math.max(0, group.total - group.paid) })).filter(group => group.balance > 0).sort((a, b) => (a.employee?.name || a.employee?.email || "").localeCompare(b.employee?.name || b.employee?.email || "", "id"));
+    res.json({ ok: true, customers, trucks, invoices: rows, employeeReceivables, eligibleOrders: orderSources.map(source => source.order), eligibleMaterialGroups: [...groups.values()], eligibleSingleTrips: singleTrips, eligibleSources: [...orderSources, ...materialSources, ...singleSources], stats });
   } catch (error) {
     res.status(400).json({ error: error.message || "Gagal memuat piutang" });
   }
+});
+
+router.post("/employees/:employeeId/payments", async (req, res) => {
+  try {
+    const paymentAmount = amount(req.body.amount, "Pembayaran");
+    if (paymentAmount <= 0) throw new Error("Pembayaran harus lebih dari nol");
+    const method = req.body.method || "BANK_TRANSFER";
+    if (!["BANK_TRANSFER", "CASH", "OTHER"].includes(method)) throw new Error("Metode pembayaran tidak valid");
+    const receivedAt = req.body.receivedAt ? new Date(req.body.receivedAt) : new Date();
+    if (Number.isNaN(receivedAt.getTime())) throw new Error("Tanggal pembayaran tidak valid");
+    const result = await prisma.$transaction(async tx => {
+      const employee = await tx.user.findUnique({ where: { id: req.params.employeeId }, select: { id: true, name: true, email: true } });
+      if (!employee) throw new Error("Karyawan tidak ditemukan");
+      const [debt, paid] = await Promise.all([
+        tx.expense.aggregate({ where: { employeeId: employee.id, category: "EMPLOYEE_RECEIVABLE", status: { not: "REJECTED" } }, _sum: { amount: true } }),
+        tx.employeeReceivablePayment.aggregate({ where: { employeeId: employee.id }, _sum: { amount: true } }),
+      ]);
+      const balance = Number(debt._sum.amount || 0) - Number(paid._sum.amount || 0);
+      if (balance <= 0) throw new Error("Karyawan ini tidak memiliki sisa piutang");
+      if (paymentAmount > balance) throw new Error("Pembayaran melebihi sisa piutang karyawan");
+      const number = await nextNumber(tx, "employeeReceivablePayment", "RCV-KRY");
+      const payment = await tx.employeeReceivablePayment.create({ data: { number, employeeId: employee.id, amount: paymentAmount, method, reference: req.body.reference?.trim() || null, notes: req.body.notes?.trim() || null, receivedAt, createdById: req.user.id } });
+      await postJournal(tx, { date: payment.receivedAt, description: `Pembayaran piutang karyawan ${employee.name || employee.email}`, sourceType: "EMPLOYEE_RECEIVABLE_PAYMENT", sourceId: payment.id, createdById: req.user.id, lines: [{ code: cashCode(payment.method), debit: payment.amount }, { code: SYSTEM_ACCOUNTS.AR, credit: payment.amount }] });
+      return payment;
+    });
+    res.status(201).json({ ok: true, payment: result });
+  } catch (error) { res.status(400).json({ error: error.message || "Gagal mencatat pembayaran piutang karyawan" }); }
 });
 
 router.get("/report", async (req, res) => {

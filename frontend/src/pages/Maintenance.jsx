@@ -964,14 +964,14 @@ export default function Maintenance() {
     }
   }
 
-  function openReturnStock(movement) {
+  function openReturnStock(movement, disposition = "RETURN") {
     if (!activeJob?.id || !movement?.id) return;
-    const alreadyReturned = (activeJob.movements || []).filter((row) => row.type === "IN" && String(row.note || "").startsWith(`RETURN_OF:${movement.id}`)).reduce((sum, row) => sum + Number(row.qty || 0), 0);
+    const alreadyReturned = (activeJob.movements || []).filter((row) => (row.type === "IN" && String(row.note || "").startsWith(`RETURN_OF:${movement.id}`)) || (row.type === "ADJUST" && String(row.note || "").startsWith(`NON_SERIAL_REPAIR_OF:${movement.id}`))).reduce((sum, row) => sum + Number(row.qty || 0), 0);
     const remaining = Math.max(0, Number(movement.qty || 0) - alreadyReturned);
     if (!remaining) return;
     setErr("");
     setReturnStockError("");
-    setReturnStockTarget({ movement, remaining });
+    setReturnStockTarget({ movement, remaining, disposition });
     setReturnStockForm({ qty: String(remaining), reason: "" });
   }
 
@@ -987,12 +987,12 @@ export default function Maintenance() {
     }
     const reason = returnStockForm.reason.trim();
     if (!reason) {
-      setReturnStockError("Alasan pengembalian wajib diisi.");
+      setReturnStockError(returnStockTarget.disposition === "REPAIR_SECOND" ? "Catatan perbaikan wajib diisi." : "Alasan pengembalian wajib diisi.");
       return;
     }
     setUsingStock(true); setErr(""); setReturnStockError("");
     try {
-      await api(`/maintenance/${activeJob.id}/return-stock`, { method: "POST", body: JSON.stringify({ movementId: movement.id, qty: requestedQty, reason }) });
+      await api(`/maintenance/${activeJob.id}/return-stock`, { method: "POST", body: JSON.stringify({ movementId: movement.id, qty: requestedQty, reason, disposition: returnStockTarget.disposition }) });
       setReturnStockTarget(null);
       setReturnStockForm({ qty: "", reason: "" });
       await refreshDetail(); await load();
@@ -1953,7 +1953,7 @@ export default function Maintenance() {
                     </thead>
                     <tbody>
                       {(activeJob.movements || []).filter((m) => !m.stockUnitId && (m.type === "OUT" || (m.type === "ADJUST" && m.fromTruckId))).map((m) => {
-                        const returnedQty=(activeJob.movements||[]).filter(row=>row.type==="IN"&&String(row.note||"").startsWith(`RETURN_OF:${m.id}`)).reduce((sum,row)=>sum+Number(row.qty||0),0);
+                        const returnedQty=(activeJob.movements||[]).filter(row=>(row.type==="IN"&&String(row.note||"").startsWith(`RETURN_OF:${m.id}`))||(row.type==="ADJUST"&&String(row.note||"").startsWith(`NON_SERIAL_REPAIR_OF:${m.id}`))).reduce((sum,row)=>sum+Number(row.qty||0),0);
                         const returnableQty=m.type==="OUT"&&m.fromLocationId&&m.item?.category!=="OIL"?Math.max(0,Number(m.qty||0)-returnedQty):0;
                         return <tr key={m.id} style={{ borderBottom: `1px solid ${BRAND.border}` }}>
                           <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{fmtDateTime(m.createdAt)}</td>
@@ -1966,7 +1966,7 @@ export default function Maintenance() {
                           <td style={{ padding: "12px 8px", fontWeight: 600, color: BRAND.primary }}>{m.totalCost == null ? "—" : fmtMoney(m.totalCost)}</td>
                           <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{m.fromTruck?.plateNumber ? `${m.fromTruck.plateNumber} → ${m.toTruck?.plateNumber || activeJob.truck?.plateNumber}` : m.fromLocation?.name || "—"}</td>
                           <td style={{ padding: "12px 8px", color: BRAND.textMuted }}>{m.note || "—"}</td>
-                          <td style={{ padding: "12px 8px" }}>{returnableQty>0&&activeJob.status==="OPEN"?<Button variant="secondary" onClick={()=>openReturnStock(m)} disabled={usingStock}>Kembalikan</Button>:<span style={{color:BRAND.textMuted}}>{returnedQty>0?`Dikembalikan ${returnedQty}`:"—"}</span>}</td>
+                          <td style={{ padding: "12px 8px" }}>{returnableQty>0&&activeJob.status==="OPEN"?<div style={{display:"flex",gap:8,flexWrap:"wrap"}}><Button variant="secondary" onClick={()=>openReturnStock(m,"REPAIR_SECOND")} disabled={usingStock}>Perbaiki</Button><Button variant="secondary" onClick={()=>openReturnStock(m,"RETURN")} disabled={usingStock}>Kembalikan</Button></div>:<span style={{color:BRAND.textMuted}}>{returnedQty>0?`Sudah diproses ${returnedQty}`:"—"}</span>}</td>
                         </tr>})}
                       {(activeJob.movements || []).filter((m) => !m.stockUnitId && (m.type === "OUT" || (m.type === "ADJUST" && m.fromTruckId))).length === 0 && (
                         <tr>
@@ -2012,20 +2012,20 @@ export default function Maintenance() {
 
       <Modal
         open={Boolean(returnStockTarget)}
-        title="Kembalikan Sparepart"
+        title={returnStockTarget?.disposition === "REPAIR_SECOND" ? "Kirim Sparepart untuk Perbaikan" : "Kembalikan Sparepart"}
         onClose={() => !usingStock && setReturnStockTarget(null)}
         width={560}
         className="maintenance-return-modal"
       >
         {returnStockTarget && <form className="maintenance-return-form" onSubmit={returnNonSerializedStock}>
           <div className="maintenance-return-summary">
-            <span>BARANG</span>
+            <span>{returnStockTarget.disposition === "REPAIR_SECOND" ? "BARANG YANG DIPERBAIKI" : "BARANG"}</span>
             <strong>{returnStockTarget.movement.item?.name || "Sparepart"}</strong>
-            <small>{returnStockTarget.movement.item?.sku || "—"} · Dari {returnStockTarget.movement.fromLocation?.name || "Inventory"}</small>
+            <small>{returnStockTarget.movement.item?.sku || "—"} · {returnStockTarget.disposition === "REPAIR_SECOND" ? "Akan masuk antrean Penerimaan Hasil Perbaikan" : `Dari ${returnStockTarget.movement.fromLocation?.name || "Inventory"}`}</small>
           </div>
           <div className="maintenance-return-fields">
             <label>
-              Jumlah dikembalikan
+              {returnStockTarget.disposition === "REPAIR_SECOND" ? "Jumlah diperbaiki" : "Jumlah dikembalikan"}
               <Input
                 required
                 autoFocus
@@ -2039,14 +2039,14 @@ export default function Maintenance() {
               <small>Maksimal {returnStockTarget.remaining} {returnStockTarget.movement.item?.unit || "unit"}</small>
             </label>
             <label>
-              Alasan pengembalian
+              {returnStockTarget.disposition === "REPAIR_SECOND" ? "Catatan perbaikan" : "Alasan pengembalian"}
               <textarea
                 required
                 maxLength={500}
                 rows={4}
                 value={returnStockForm.reason}
                 onChange={(event) => setReturnStockForm((form) => ({ ...form, reason: event.target.value }))}
-                placeholder="Contoh: sparepart tidak jadi digunakan karena komponen lama masih layak"
+                placeholder={returnStockTarget.disposition === "REPAIR_SECOND" ? "Contoh: diperbaiki dan masih layak digunakan sebagai barang second" : "Contoh: sparepart tidak jadi digunakan karena komponen lama masih layak"}
               />
               <small>Wajib diisi dan akan tercatat dalam riwayat stok.</small>
             </label>
@@ -2054,7 +2054,7 @@ export default function Maintenance() {
           {returnStockError && <div className="maintenance-return-error">{returnStockError}</div>}
           <div className="maintenance-return-actions">
             <Button variant="secondary" type="button" disabled={usingStock} onClick={() => setReturnStockTarget(null)}>Batal</Button>
-            <Button variant="primary" disabled={usingStock}>{usingStock ? "Mengembalikan..." : "Konfirmasi Pengembalian"}</Button>
+            <Button variant="primary" disabled={usingStock}>{usingStock ? "Memproses..." : returnStockTarget.disposition === "REPAIR_SECOND" ? "Kirim untuk Perbaikan" : "Konfirmasi Pengembalian"}</Button>
           </div>
         </form>}
       </Modal>

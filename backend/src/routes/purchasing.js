@@ -80,7 +80,7 @@ const includePO = { supplier: true, request: { include: { maintenance: { include
 
 router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"));
 router.get("/overview", async (_req, res) => {
-  const [requests, orders, suppliers, locations, items, retreadingUnits, bills, trucks] = await Promise.all([
+  const [requests, orders, suppliers, locations, items, retreadingUnits, bills, trucks, nonSerializedRepairs, nonSerializedRepairReceipts] = await Promise.all([
     prisma.purchaseRequest.findMany({ include: { maintenance: { include: { truck: true } }, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } }, partRepair: { include: { stockUnit: true } } } }, createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } }, orderBy: { createdAt: "desc" } }),
     prisma.purchaseOrder.findMany({ include: includePO, orderBy: { createdAt: "desc" } }),
     prisma.supplier.findMany({ orderBy: { name: "asc" } }), prisma.inventoryLocation.findMany({ orderBy: { name: "asc" } }), prisma.item.findMany({ orderBy: { name: "asc" } }),
@@ -108,8 +108,67 @@ router.get("/overview", async (_req, res) => {
       orderBy: { invoiceDate: "desc" },
     }),
     prisma.truck.findMany({ orderBy: { plateNumber: "asc" }, select: { id: true, plateNumber: true, brand: true, model: true } }),
+    prisma.stockMovement.findMany({
+      where: { type: "ADJUST", stockUnitId: null, note: { startsWith: "NON_SERIAL_REPAIR_OF:" } },
+      include: { item: true, maintenance: { include: { truck: true } }, fromTruck: true, toLocation: true, createdBy: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.stockMovement.findMany({
+      where: { type: "IN", stockUnitId: null, note: { startsWith: "REPAIR_SECOND_OF:" } },
+      select: { id: true, qty: true, unitPrice: true, totalCost: true, note: true, createdAt: true, item: true, toLocation: true, createdBy: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
-  res.json({ ok: true, requests, orders, suppliers, locations, items, retreadingUnits, bills, trucks });
+  const repairReceiptsByMovement = nonSerializedRepairReceipts.reduce((map, receipt) => {
+    const movementId = String(receipt.note || "").match(/^REPAIR_SECOND_OF:([^ ·]+)/)?.[1];
+    if (!movementId) return map;
+    const rows = map.get(movementId) || [];
+    rows.push(receipt);
+    map.set(movementId, rows);
+    return map;
+  }, new Map());
+  const nonSerializedRepairQueue = nonSerializedRepairs.map((repair) => {
+    const receipts = repairReceiptsByMovement.get(repair.id) || [];
+    const receivedQty = receipts.reduce((sum, receipt) => sum + Number(receipt.qty || 0), 0);
+    return { ...repair, receipts, receivedQty, remainingQty: Math.max(0, Number(repair.qty) - receivedQty), status: receivedQty >= Number(repair.qty) ? "COMPLETED" : receivedQty > 0 ? "PARTIALLY_RECEIVED" : "SENT" };
+  });
+  res.json({ ok: true, requests, orders, suppliers, locations, items, retreadingUnits, bills, trucks, nonSerializedRepairQueue });
+});
+
+router.post("/repairs/non-serialized/:movementId/receive", async (req, res) => {
+  try {
+    const movementId = String(req.params.movementId || "");
+    const qty = Number(req.body?.qty);
+    const unitPrice = Math.round(Number(req.body?.unitPrice));
+    const locationId = String(req.body?.locationId || "");
+    const notes = String(req.body?.notes || "").trim();
+    if (!movementId || !Number.isFinite(qty) || qty <= 0) return res.status(400).json({ error: "Jumlah penerimaan wajib lebih dari 0" });
+    if (!Number.isFinite(unitPrice) || unitPrice <= 0) return res.status(400).json({ error: "Harga perbaikan per unit wajib lebih dari Rp0" });
+    if (!locationId) return res.status(400).json({ error: "Lokasi penerimaan wajib dipilih" });
+
+    const receipt = await prisma.$transaction(async (tx) => {
+      const repair = await tx.stockMovement.findFirst({ where: { id: movementId, type: "ADJUST", stockUnitId: null, note: { startsWith: "NON_SERIAL_REPAIR_OF:" } }, include: { item: true, maintenance: true } });
+      if (!repair) throw new Error("Data perbaikan non-serial tidak ditemukan");
+      const location = await tx.inventoryLocation.findUnique({ where: { id: locationId }, select: { id: true } });
+      if (!location) throw new Error("Lokasi Inventory tidak ditemukan");
+      const priorReceipts = await tx.stockMovement.aggregate({ where: { type: "IN", stockUnitId: null, note: { startsWith: `REPAIR_SECOND_OF:${repair.id}` } }, _sum: { qty: true } });
+      const remainingQty = Number(repair.qty) - Number(priorReceipts._sum.qty || 0);
+      if (qty > remainingQty + 0.000001) throw new Error(`Maksimal penerimaan ${remainingQty} ${repair.item.unit}`);
+
+      const secondSku = repair.item.sku.endsWith("_SECOND") ? repair.item.sku : `${repair.item.sku}_SECOND`;
+      let secondItem = await tx.item.findUnique({ where: { sku: secondSku } });
+      if (!secondItem) secondItem = await tx.item.create({ data: { sku: secondSku, name: `${repair.item.name} (SECOND)`, unit: repair.item.unit, isSerialized: false, category: repair.item.category } });
+      if (secondItem.isSerialized) throw new Error(`Item ${secondSku} harus berupa barang non-serial`);
+
+      const totalCost = Math.round(qty * unitPrice);
+      await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: secondItem.id, locationId } }, create: { itemId: secondItem.id, locationId, qty }, update: { qty: { increment: qty } } });
+      await tx.inventoryBatch.create({ data: { itemId: secondItem.id, locationId, receivedQty: qty, remainingQty: qty, unitPrice, receivedAt: new Date() } });
+      return tx.stockMovement.create({ data: { type: "IN", itemId: secondItem.id, qty, unitPrice, totalCost, note: `REPAIR_SECOND_OF:${repair.id} · Hasil perbaikan ${repair.item.sku} menjadi ${secondSku}${notes ? ` · ${notes}` : ""}`, createdById: req.user.id, toLocationId: locationId, maintenanceId: repair.maintenanceId } });
+    });
+    res.status(201).json({ ok: true, receipt });
+  } catch (error) {
+    res.status(400).json({ error: error.message || "Gagal menerima hasil perbaikan" });
+  }
 });
 router.get("/orders/:id/print", async (req, res) => {
   const po = await prisma.purchaseOrder.findUnique({ where: { id: req.params.id }, include: includePO });

@@ -51,13 +51,14 @@ const EXPENSE_CATEGORIES = {
   DOCUMENT_ADMINISTRATION: "Pengurusan Surat",
   BPJS: "BPJS",
   TAX: "Pajak",
+  EMPLOYEE_RECEIVABLE: "Piutang Karyawan",
   OTHER: "Lainnya",
 };
 
 const EXPENSE_CATEGORY_GROUPS = [
   { label: "Perjalanan & Armada", values: ["PANJAR", "TRIP_ALLOWANCE", "REMAINING_TRIP_ALLOWANCE", "UNLOADING_FEE", "FUEL_LOAN", "DRIVER_SALARY", "FUEL", "TOLL_PARKING", "LOADING_UNLOADING", "REPAIR_MAINTENANCE", "SPAREPART"] },
   { label: "Kantor & Utilitas", values: ["OFFICE_OPERATIONAL", "OPERATIONAL_COST", "ELECTRICITY", "WATER", "TELECOMMUNICATION", "OFFICE_EQUIPMENT"] },
-  { label: "Karyawan & Kewajiban", values: ["EMPLOYEE_SALARY", "COMMISSION_FEE", "BPJS", "TAX", "DOCUMENT_ADMINISTRATION"] },
+  { label: "Karyawan & Kewajiban", values: ["EMPLOYEE_SALARY", "EMPLOYEE_RECEIVABLE", "COMMISSION_FEE", "BPJS", "TAX", "DOCUMENT_ADMINISTRATION"] },
   { label: "Lainnya", values: ["OTHER"] },
 ];
 
@@ -84,6 +85,7 @@ export default function Expenses() {
   const [err, setErr] = useState("");
   const [trips, setTrips] = useState([]);
   const [expenseTrucks, setExpenseTrucks] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [allocationMode, setAllocationMode] = useState("GENERAL");
   const [tripSearch, setTripSearch] = useState("");
   const [truckSearch, setTruckSearch] = useState("");
@@ -130,6 +132,7 @@ export default function Expenses() {
     reason: "",
     clientName: "",
     notes: "",
+    employeeId: "",
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -197,6 +200,7 @@ export default function Expenses() {
       reason: "",
       clientName: "",
       notes: "",
+      employeeId: "",
     });
   }
 
@@ -266,6 +270,15 @@ export default function Expenses() {
     }
   }
 
+  async function loadEmployees() {
+    try {
+      const data = await api("/expenses/employees");
+      setEmployees(data.employees || []);
+    } catch (e) {
+      setErr(e.message || "Gagal memuat daftar karyawan");
+    }
+  }
+
   async function openEmptyReturn() {
     setEmptyReturnOpen(true);
     setEmptyReturnLoading(true);
@@ -321,6 +334,7 @@ export default function Expenses() {
   useEffect(() => {
     if (!allowed) return;
     loadExpenseTrucks();
+    loadEmployees();
   }, [allowed]);
 
   useEffect(() => {
@@ -362,6 +376,7 @@ export default function Expenses() {
           reason: form.reason,
           clientName: form.clientName,
           notes: form.notes,
+          employeeId: form.category === "EMPLOYEE_RECEIVABLE" ? form.employeeId : undefined,
         }),
       });
       resetForm();
@@ -640,7 +655,7 @@ export default function Expenses() {
               {items.map((x) => (
                 <tr key={x.id} style={s.rowClickable} onClick={() => openDetail(x)}>
                   <td style={s.td}><div className="expense-date"><FiCalendar />{(x.expenseDate || x.createdAt) ? new Date(x.expenseDate || x.createdAt).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short", year: "numeric" }) : "-"}</div></td>
-                  <td style={s.td}><div className="expense-row-title">{x.reason || "Tanpa keterangan"}</div><div className="expense-row-meta">{EXPENSE_CATEGORIES[x.category] || "Lainnya"}{x.clientName ? ` · ${x.clientName}` : ""}</div></td>
+                  <td style={s.td}><div className="expense-row-title">{x.reason || "Tanpa keterangan"}</div><div className="expense-row-meta">{EXPENSE_CATEGORIES[x.category] || "Lainnya"}{x.employee?.name ? ` · ${x.employee.name}` : x.clientName ? ` · ${x.clientName}` : ""}</div></td>
                   <td style={s.td}><div className="expense-allocation"><span><FiTruck /></span><div><strong>{x.trip?.truck?.plateNumber || x.truck?.plateNumber || "Umum"}</strong><small>{x.trip?.driverUser?.name || x.trip?.driverNameSnap || x.truck?.driverUser?.name || (x.trip ? "Tanpa nama pengemudi" : x.truck ? "Tanpa nama pengemudi" : "Operasional umum")}</small>{x.trip ? <small>{x.trip.order?.orderNo || "Perjalanan"}</small> : x.truck ? <small>Biaya armada</small> : null}</div></div></td>
                   <td style={s.td}><div className="expense-row-title">{x.paymentMethod === "BANK_TRANSFER" ? "Transfer bank" : x.paymentMethod === "CASH" ? "Tunai" : "Lainnya"}</div><div className="expense-row-meta">{x.bankName || "—"}</div>{x.paymentMethod === "BANK_TRANSFER" ? <div className="expense-row-meta">a.n. {x.accountName || "Nama rekening belum diisi"}</div> : null}</td>
                   <td style={s.tdStrong}>{new Intl.NumberFormat("id-ID", { style: "currency", currency: x.currency || "IDR", maximumFractionDigits: 0 }).format(x.amount || 0)}</td>
@@ -974,6 +989,14 @@ export default function Expenses() {
                     {EXPENSE_CATEGORY_GROUPS.map((group) => <optgroup key={group.label} label={group.label}>{group.values.map((value) => <option key={value} value={value}>{EXPENSE_CATEGORIES[value]}</option>)}</optgroup>)}
                   </select>
                 </div>
+                {form.category === "EMPLOYEE_RECEIVABLE" && <div>
+                  <label style={s.label}>Nama Karyawan</label>
+                  <select required style={s.select} value={form.employeeId} onChange={(e) => onChangeForm("employeeId", e.target.value)}>
+                    <option value="">Pilih karyawan yang akan ditagih</option>
+                    {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name || employee.email} · {employee.role}</option>)}
+                  </select>
+                  <small style={{ color: BRAND.textMuted }}>Tagihan otomatis muncul di Piutang dan dapat dibayar sekaligus atau dicicil.</small>
+                </div>}
                 <div>
                   <label style={s.label}>Mata Uang</label>
                   <input

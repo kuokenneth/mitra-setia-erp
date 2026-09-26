@@ -155,6 +155,7 @@ enum ExpenseCategory {
   DOCUMENT_ADMINISTRATION
   BPJS
   TAX
+  EMPLOYEE_RECEIVABLE
   OTHER
 }
 
@@ -240,6 +241,9 @@ model User {
   expensesCreated             Expense[]                  @relation("ExpenseCreatedBy")
   expensesApproved            Expense[]                  @relation("ExpenseApprovedBy")
   expensesProofed             Expense[]                  @relation("ExpenseProofBy")
+  employeeReceivables         Expense[]                  @relation("ExpenseEmployee")
+  employeeReceivablePayments  EmployeeReceivablePayment[] @relation("EmployeeReceivableEmployee")
+  employeePaymentsCreated     EmployeeReceivablePayment[] @relation("EmployeeReceivableCreatedBy")
   purchaseRequests            PurchaseRequest[]          @relation("PurchaseRequestCreatedBy")
   purchaseRequestsApproved    PurchaseRequest[]          @relation("PurchaseRequestApprovedBy")
   purchaseOrdersCreated       PurchaseOrder[]            @relation("PurchaseOrderCreatedBy")
@@ -707,6 +711,24 @@ model ReceivablePayment {
   createdAt   DateTime                @default(now())
 
   @@index([invoiceId])
+  @@index([receivedAt])
+}
+
+model EmployeeReceivablePayment {
+  id          String                  @id @default(cuid())
+  number      String                  @unique
+  employeeId  String
+  employee    User                    @relation("EmployeeReceivableEmployee", fields: [employeeId], references: [id], onDelete: Restrict)
+  amount      Int
+  method      ReceivablePaymentMethod @default(BANK_TRANSFER)
+  reference   String?
+  notes       String?
+  receivedAt  DateTime                @default(now())
+  createdById String
+  createdBy   User                    @relation("EmployeeReceivableCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime                @default(now())
+
+  @@index([employeeId])
   @@index([receivedAt])
 }
 
@@ -1516,6 +1538,9 @@ model Expense {
   truckId String?
   truck   Truck?  @relation(fields: [truckId], references: [id])
 
+  employeeId String?
+  employee   User? @relation("ExpenseEmployee", fields: [employeeId], references: [id], onDelete: SetNull)
+
   proofUrl      String?
   proofFileName String?
   proofMimeType String?
@@ -1544,6 +1569,7 @@ model Expense {
   @@index([clientName])
   @@index([tripId])
   @@index([truckId])
+  @@index([employeeId])
   @@index([proofUploadedById])
   @@index([createdById])
   @@index([approvedById])
