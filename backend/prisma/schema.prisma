@@ -156,6 +156,7 @@ enum ExpenseCategory {
   BPJS
   TAX
   EMPLOYEE_RECEIVABLE
+  FINANCE_DEBT_PAYMENT
   OTHER
 }
 
@@ -244,6 +245,7 @@ model User {
   employeeReceivables         Expense[]                  @relation("ExpenseEmployee")
   employeeReceivablePayments  EmployeeReceivablePayment[] @relation("EmployeeReceivableEmployee")
   employeePaymentsCreated     EmployeeReceivablePayment[] @relation("EmployeeReceivableCreatedBy")
+  financeDebtsCreated         FinanceDebt[]                @relation("FinanceDebtCreatedBy")
   purchaseRequests            PurchaseRequest[]          @relation("PurchaseRequestCreatedBy")
   purchaseRequestsApproved    PurchaseRequest[]          @relation("PurchaseRequestApprovedBy")
   purchaseOrdersCreated       PurchaseOrder[]            @relation("PurchaseOrderCreatedBy")
@@ -732,6 +734,26 @@ model EmployeeReceivablePayment {
   @@index([receivedAt])
 }
 
+model FinanceDebt {
+  id             String    @id @default(cuid())
+  leasingName    String
+  contractNumber String?
+  truckId        String?
+  truck          Truck?    @relation(fields: [truckId], references: [id], onDelete: SetNull)
+  originalAmount Int
+  notes          String?
+  isActive       Boolean   @default(true)
+  createdById    String
+  createdBy      User      @relation("FinanceDebtCreatedBy", fields: [createdById], references: [id])
+  expenses       Expense[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([truckId])
+  @@index([leasingName])
+  @@index([isActive])
+}
+
 model Trip {
   id     String  @id @default(cuid())
   tripNo String? @unique
@@ -1088,6 +1110,7 @@ model Truck {
   gpsEvents            GpsEvent[]
   manualInvoiceLines   ManualInvoiceLine[]
   manualRevenues       TruckManualRevenue[]
+  financeDebts         FinanceDebt[]
 
   @@index([driverUserId])
   @@index([stnkExpiry])
@@ -1541,6 +1564,9 @@ model Expense {
   employeeId String?
   employee   User? @relation("ExpenseEmployee", fields: [employeeId], references: [id], onDelete: SetNull)
 
+  financeDebtId String?
+  financeDebt   FinanceDebt? @relation(fields: [financeDebtId], references: [id], onDelete: Restrict)
+
   proofUrl      String?
   proofFileName String?
   proofMimeType String?
@@ -1570,6 +1596,7 @@ model Expense {
   @@index([tripId])
   @@index([truckId])
   @@index([employeeId])
+  @@index([financeDebtId])
   @@index([proofUploadedById])
   @@index([createdById])
   @@index([approvedById])

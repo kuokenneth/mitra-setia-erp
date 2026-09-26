@@ -52,13 +52,14 @@ const EXPENSE_CATEGORIES = {
   BPJS: "BPJS",
   TAX: "Pajak",
   EMPLOYEE_RECEIVABLE: "Piutang Karyawan",
+  FINANCE_DEBT_PAYMENT: "Pembayaran Utang Finance",
   OTHER: "Lainnya",
 };
 
 const EXPENSE_CATEGORY_GROUPS = [
   { label: "Perjalanan & Armada", values: ["PANJAR", "TRIP_ALLOWANCE", "REMAINING_TRIP_ALLOWANCE", "UNLOADING_FEE", "FUEL_LOAN", "DRIVER_SALARY", "FUEL", "TOLL_PARKING", "LOADING_UNLOADING", "REPAIR_MAINTENANCE", "SPAREPART"] },
   { label: "Kantor & Utilitas", values: ["OFFICE_OPERATIONAL", "OPERATIONAL_COST", "ELECTRICITY", "WATER", "TELECOMMUNICATION", "OFFICE_EQUIPMENT"] },
-  { label: "Karyawan & Kewajiban", values: ["EMPLOYEE_SALARY", "EMPLOYEE_RECEIVABLE", "COMMISSION_FEE", "BPJS", "TAX", "DOCUMENT_ADMINISTRATION"] },
+  { label: "Karyawan & Kewajiban", values: ["EMPLOYEE_SALARY", "EMPLOYEE_RECEIVABLE", "FINANCE_DEBT_PAYMENT", "COMMISSION_FEE", "BPJS", "TAX", "DOCUMENT_ADMINISTRATION"] },
   { label: "Lainnya", values: ["OTHER"] },
 ];
 
@@ -86,6 +87,10 @@ export default function Expenses() {
   const [trips, setTrips] = useState([]);
   const [expenseTrucks, setExpenseTrucks] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [financeDebts, setFinanceDebts] = useState([]);
+  const [financeDebtOpen, setFinanceDebtOpen] = useState(false);
+  const [financeDebtSaving, setFinanceDebtSaving] = useState(false);
+  const [financeDebtForm, setFinanceDebtForm] = useState({ leasingName: "", contractNumber: "", originalAmount: "", notes: "" });
   const [allocationMode, setAllocationMode] = useState("GENERAL");
   const [tripSearch, setTripSearch] = useState("");
   const [truckSearch, setTruckSearch] = useState("");
@@ -133,6 +138,7 @@ export default function Expenses() {
     clientName: "",
     notes: "",
     employeeId: "",
+    financeDebtId: "",
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -201,6 +207,7 @@ export default function Expenses() {
       clientName: "",
       notes: "",
       employeeId: "",
+      financeDebtId: "",
     });
   }
 
@@ -279,6 +286,26 @@ export default function Expenses() {
     }
   }
 
+  async function loadFinanceDebts() {
+    try { const data = await api("/expenses/finance-debts"); setFinanceDebts(data.debts || []); }
+    catch (e) { setErr(e.message || "Gagal memuat utang finance"); }
+  }
+
+  function openFinanceDebts() {
+    setFinanceDebtOpen(true);
+    loadFinanceDebts();
+  }
+
+  async function createFinanceDebt(e) {
+    e.preventDefault(); setFinanceDebtSaving(true); setErr("");
+    try {
+      await api("/expenses/finance-debts", { method: "POST", body: JSON.stringify({ ...financeDebtForm, originalAmount: Number(financeDebtForm.originalAmount || 0) }) });
+      setFinanceDebtForm({ leasingName: "", contractNumber: "", originalAmount: "", notes: "" });
+      await loadFinanceDebts();
+    } catch (error) { setErr(error.message || "Gagal menambah utang finance"); }
+    finally { setFinanceDebtSaving(false); }
+  }
+
   async function openEmptyReturn() {
     setEmptyReturnOpen(true);
     setEmptyReturnLoading(true);
@@ -335,6 +362,7 @@ export default function Expenses() {
     if (!allowed) return;
     loadExpenseTrucks();
     loadEmployees();
+    loadFinanceDebts();
   }, [allowed]);
 
   useEffect(() => {
@@ -377,11 +405,13 @@ export default function Expenses() {
           clientName: form.clientName,
           notes: form.notes,
           employeeId: form.category === "EMPLOYEE_RECEIVABLE" ? form.employeeId : undefined,
+          financeDebtId: form.category === "FINANCE_DEBT_PAYMENT" ? form.financeDebtId : undefined,
         }),
       });
       resetForm();
       setPage(0);
       load();
+      loadFinanceDebts();
       setShowModal(false);
     } catch (e) {
       setErr(e.message || "Gagal membuat expense");
@@ -579,6 +609,7 @@ export default function Expenses() {
             </button>
             <span className={`expense-report-feedback ${reportFeedback ? "visible" : ""}`} role="status" aria-live="polite">{reportFeedback}</span>
           </div>
+          <button type="button" className="expense-finance-button" style={s.secondaryBtn} onClick={openFinanceDebts} aria-expanded={financeDebtOpen}><FiTruck /> Utang Finance</button>
           <button className="expense-new-button" style={s.primaryBtn} onClick={() => setShowModal(true)}>
             <FiPlus /> Pengeluaran baru
           </button>
@@ -655,7 +686,7 @@ export default function Expenses() {
               {items.map((x) => (
                 <tr key={x.id} style={s.rowClickable} onClick={() => openDetail(x)}>
                   <td style={s.td}><div className="expense-date"><FiCalendar />{(x.expenseDate || x.createdAt) ? new Date(x.expenseDate || x.createdAt).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short", year: "numeric" }) : "-"}</div></td>
-                  <td style={s.td}><div className="expense-row-title">{x.reason || "Tanpa keterangan"}</div><div className="expense-row-meta">{EXPENSE_CATEGORIES[x.category] || "Lainnya"}{x.employee?.name ? ` · ${x.employee.name}` : x.clientName ? ` · ${x.clientName}` : ""}</div></td>
+                  <td style={s.td}><div className="expense-row-title">{x.reason || "Tanpa keterangan"}</div><div className="expense-row-meta">{EXPENSE_CATEGORIES[x.category] || "Lainnya"}{x.employee?.name ? ` · ${x.employee.name}` : x.financeDebt ? ` · ${x.financeDebt.leasingName}` : x.clientName ? ` · ${x.clientName}` : ""}</div></td>
                   <td style={s.td}><div className="expense-allocation"><span><FiTruck /></span><div><strong>{x.trip?.truck?.plateNumber || x.truck?.plateNumber || "Umum"}</strong><small>{x.trip?.driverUser?.name || x.trip?.driverNameSnap || x.truck?.driverUser?.name || (x.trip ? "Tanpa nama pengemudi" : x.truck ? "Tanpa nama pengemudi" : "Operasional umum")}</small>{x.trip ? <small>{x.trip.order?.orderNo || "Perjalanan"}</small> : x.truck ? <small>Biaya armada</small> : null}</div></div></td>
                   <td style={s.td}><div className="expense-row-title">{x.paymentMethod === "BANK_TRANSFER" ? "Transfer bank" : x.paymentMethod === "CASH" ? "Tunai" : "Lainnya"}</div><div className="expense-row-meta">{x.bankName || "—"}</div>{x.paymentMethod === "BANK_TRANSFER" ? <div className="expense-row-meta">a.n. {x.accountName || "Nama rekening belum diisi"}</div> : null}</td>
                   <td style={s.tdStrong}>{new Intl.NumberFormat("id-ID", { style: "currency", currency: x.currency || "IDR", maximumFractionDigits: 0 }).format(x.amount || 0)}</td>
@@ -796,6 +827,24 @@ export default function Expenses() {
       </div>
 
       {/* Create Modal */}
+      {financeDebtOpen && (
+        <div style={s.modalOverlay} onClick={() => setFinanceDebtOpen(false)}>
+          <div style={{ ...s.modalCard, width: "min(920px, calc(100vw - 28px))" }} onClick={(e) => e.stopPropagation()}>
+            <div style={s.modalHeader}><div><div className="expense-eyebrow">KEWAJIBAN LEASING</div><div style={s.modalTitle}>Utang Usaha Finance</div><p>Catat pokok utang awal per leasing. Pembayaran dibuat melalui Pengeluaran.</p></div><button style={s.closeBtn} onClick={() => setFinanceDebtOpen(false)}><FiX /></button></div>
+            <div style={{ padding: 22, display: "grid", gap: 18 }}>
+              <form onSubmit={createFinanceDebt} style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, padding: 16, background: BRAND.secondary, borderRadius: 12 }}>
+                <label style={s.label}>Nama Leasing<input required style={{ ...s.input, marginTop: 6 }} value={financeDebtForm.leasingName} onChange={(e) => setFinanceDebtForm((form) => ({ ...form, leasingName: e.target.value }))} placeholder="Contoh: BCA Finance" /></label>
+                <label style={s.label}>Nomor Kontrak<input style={{ ...s.input, marginTop: 6 }} value={financeDebtForm.contractNumber} onChange={(e) => setFinanceDebtForm((form) => ({ ...form, contractNumber: e.target.value }))} placeholder="Opsional" /></label>
+                <label style={s.label}>Utang Awal<input required min="1" type="number" style={{ ...s.input, marginTop: 6 }} value={financeDebtForm.originalAmount} onChange={(e) => setFinanceDebtForm((form) => ({ ...form, originalAmount: e.target.value }))} placeholder="300000000" /></label>
+                <label style={{ ...s.label, gridColumn: "1 / -1" }}>Catatan<textarea style={{ ...s.textarea, marginTop: 6 }} rows={2} value={financeDebtForm.notes} onChange={(e) => setFinanceDebtForm((form) => ({ ...form, notes: e.target.value }))} /></label>
+                <button style={{ ...s.primaryBtn, width: "max-content" }} disabled={financeDebtSaving}><FiPlus /> {financeDebtSaving ? "Menyimpan…" : "Tambah Utang Finance"}</button>
+              </form>
+              <div style={{ overflowX: "auto" }}><table style={s.table}><thead><tr><th style={s.th}>Leasing</th><th style={s.th}>Utang Awal</th><th style={s.th}>Sudah Dibayar</th><th style={s.th}>Sisa Utang</th></tr></thead><tbody>{financeDebts.map((debt) => <tr key={debt.id}><td style={s.td}><strong>{debt.leasingName}</strong><div className="expense-row-meta">{debt.contractNumber || "Tanpa nomor kontrak"}</div></td><td style={s.tdStrong}>{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(debt.originalAmount)}</td><td style={s.td}>{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(debt.paid)}</td><td style={s.tdStrong}>{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(debt.balance)}</td></tr>)}</tbody></table>{!financeDebts.length && <div style={{ padding: 22, textAlign: "center", color: BRAND.textMuted }}>Belum ada utang finance.</div>}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showModal && (
         <div style={s.modalOverlay} onClick={() => setShowModal(false)}>
           <div style={s.modalCard} className="expense-create-modal" onClick={(e) => e.stopPropagation()}>
@@ -995,7 +1044,14 @@ export default function Expenses() {
                     <option value="">Pilih karyawan yang akan ditagih</option>
                     {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name || employee.email} · {employee.role}</option>)}
                   </select>
-                  <small style={{ color: BRAND.textMuted }}>Tagihan otomatis muncul di Piutang dan dapat dibayar sekaligus atau dicicil.</small>
+                  <small style={{ color: BRAND.textMuted }}>Saldo akan muncul di menu Piutang Karyawan dan dapat dibayar sekaligus atau dicicil.</small>
+                </div>}
+                {form.category === "FINANCE_DEBT_PAYMENT" && <div>
+                  <label style={s.label}>Kontrak Leasing</label>
+                  <select required style={s.select} value={form.financeDebtId} onChange={(e) => onChangeForm("financeDebtId", e.target.value)}>
+                    <option value="">Pilih leasing dan mobil</option>
+                    {financeDebts.filter(debt => debt.balance > 0).map((debt) => <option key={debt.id} value={debt.id}>{debt.leasingName}{debt.contractNumber ? ` · ${debt.contractNumber}` : ""} · Sisa {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(debt.balance)}</option>)}
+                  </select>
                 </div>}
                 <div>
                   <label style={s.label}>Mata Uang</label>
@@ -1203,6 +1259,9 @@ function makeStyles(isMobile) {
       display: "flex",
       gap: 10,
       alignItems: "center",
+      justifyContent: "flex-end",
+      width: "100%",
+      marginLeft: "auto",
       flexWrap: "wrap",
     },
     reportActions: {

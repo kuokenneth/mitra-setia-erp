@@ -9,7 +9,7 @@ const router = express.Router();
 const allowedRoles = ["OWNER", "ADMIN", "STAFF"];
 const proofRoles = ["OWNER", "ADMIN", "STAFF"];
 const TRIP_EXPENSE_LIMIT = Number(process.env.TRIP_EXPENSE_LIMIT || 0);
-const EXPENSE_CATEGORIES = ["PANJAR", "TRIP_ALLOWANCE", "REMAINING_TRIP_ALLOWANCE", "UNLOADING_FEE", "FUEL_LOAN", "DRIVER_SALARY", "FUEL", "TOLL_PARKING", "LOADING_UNLOADING", "REPAIR_MAINTENANCE", "SPAREPART", "OFFICE_OPERATIONAL", "EMPLOYEE_SALARY", "OPERATIONAL_COST", "ELECTRICITY", "WATER", "TELECOMMUNICATION", "OFFICE_EQUIPMENT", "COMMISSION_FEE", "DOCUMENT_ADMINISTRATION", "BPJS", "TAX", "EMPLOYEE_RECEIVABLE", "OTHER"];
+const EXPENSE_CATEGORIES = ["PANJAR", "TRIP_ALLOWANCE", "REMAINING_TRIP_ALLOWANCE", "UNLOADING_FEE", "FUEL_LOAN", "DRIVER_SALARY", "FUEL", "TOLL_PARKING", "LOADING_UNLOADING", "REPAIR_MAINTENANCE", "SPAREPART", "OFFICE_OPERATIONAL", "EMPLOYEE_SALARY", "OPERATIONAL_COST", "ELECTRICITY", "WATER", "TELECOMMUNICATION", "OFFICE_EQUIPMENT", "COMMISSION_FEE", "DOCUMENT_ADMINISTRATION", "BPJS", "TAX", "EMPLOYEE_RECEIVABLE", "FINANCE_DEBT_PAYMENT", "OTHER"];
 
 function ensureRole(req, res) {
   const role = req.user?.role;
@@ -42,7 +42,7 @@ function xmlCell(value, type = "String") {
   return `<Cell><Data ss:Type="${type}">${escaped}</Data></Cell>`;
 }
 
-const categoryLabels = { PANJAR: "Panjar", TRIP_ALLOWANCE: "Uang jalan", REMAINING_TRIP_ALLOWANCE: "Sisa uang jalan", UNLOADING_FEE: "Uang bongkar", FUEL_LOAN: "Pinjaman minyak", DRIVER_SALARY: "Gaji pengemudi", FUEL: "Bahan bakar", TOLL_PARKING: "Tol & parkir", LOADING_UNLOADING: "Bongkar muat", REPAIR_MAINTENANCE: "Perbaikan & servis", SPAREPART: "Sparepart", OFFICE_OPERATIONAL: "Operasional kantor", EMPLOYEE_SALARY: "Gaji karyawan", OPERATIONAL_COST: "Biaya operasional", ELECTRICITY: "Listrik", WATER: "Air", TELECOMMUNICATION: "Telkom / komunikasi", OFFICE_EQUIPMENT: "Peralatan kantor", COMMISSION_FEE: "Komisi / fee", DOCUMENT_ADMINISTRATION: "Pengurusan surat", BPJS: "BPJS", TAX: "Pajak", EMPLOYEE_RECEIVABLE: "Piutang karyawan", OTHER: "Lainnya" };
+const categoryLabels = { PANJAR: "Panjar", TRIP_ALLOWANCE: "Uang jalan", REMAINING_TRIP_ALLOWANCE: "Sisa uang jalan", UNLOADING_FEE: "Uang bongkar", FUEL_LOAN: "Pinjaman minyak", DRIVER_SALARY: "Gaji pengemudi", FUEL: "Bahan bakar", TOLL_PARKING: "Tol & parkir", LOADING_UNLOADING: "Bongkar muat", REPAIR_MAINTENANCE: "Perbaikan & servis", SPAREPART: "Sparepart", OFFICE_OPERATIONAL: "Operasional kantor", EMPLOYEE_SALARY: "Gaji karyawan", OPERATIONAL_COST: "Biaya operasional", ELECTRICITY: "Listrik", WATER: "Air", TELECOMMUNICATION: "Telkom / komunikasi", OFFICE_EQUIPMENT: "Peralatan kantor", COMMISSION_FEE: "Komisi / fee", DOCUMENT_ADMINISTRATION: "Pengurusan surat", BPJS: "BPJS", TAX: "Pajak", EMPLOYEE_RECEIVABLE: "Piutang karyawan", FINANCE_DEBT_PAYMENT: "Pembayaran utang finance", OTHER: "Lainnya" };
 const methodLabels = { BANK_TRANSFER: "Transfer bank", CASH: "Tunai", OTHER: "Lainnya" };
 const statusLabels = { SUBMITTED: "Diajukan", APPROVED: "Disetujui", PAID: "Dibayar", REJECTED: "Ditolak" };
 
@@ -92,6 +92,7 @@ router.get("/", authRequired, async (req, res) => {
           },
         },
         employee: { select: { id: true, name: true, email: true } },
+        financeDebt: { include: { truck: { select: { id: true, plateNumber: true, brand: true, model: true } } } },
         trip: {
           include: {
             truck: true,
@@ -243,6 +244,27 @@ router.get("/employees", authRequired, async (req, res) => {
   res.json({ employees });
 });
 
+router.get("/finance-debts", authRequired, async (req, res) => {
+  if (!ensureRole(req, res)) return;
+  const debts = await prisma.financeDebt.findMany({ where: { isActive: true }, include: { truck: { select: { id: true, plateNumber: true, brand: true, model: true } }, expenses: { where: { category: "FINANCE_DEBT_PAYMENT", status: { in: ["PAID", "APPROVED"] } }, select: { id: true, amount: true, expenseDate: true, status: true } } }, orderBy: [{ leasingName: "asc" }, { createdAt: "desc" }] });
+  res.json({ debts: debts.map(debt => { const paid = debt.expenses.reduce((sum, item) => sum + item.amount, 0); return { ...debt, paid, balance: Math.max(0, debt.originalAmount - paid) }; }) });
+});
+
+router.post("/finance-debts", authRequired, async (req, res) => {
+  if (!ensureRole(req, res)) return;
+  const leasingName = cleanStr(req.body.leasingName);
+  const contractNumber = cleanStr(req.body.contractNumber);
+  const truckId = cleanStr(req.body.truckId);
+  const originalAmount = Math.round(Number(req.body.originalAmount));
+  if (!leasingName || !Number.isFinite(originalAmount) || originalAmount <= 0) return res.status(400).json({ error: "Leasing dan jumlah utang awal wajib diisi" });
+  const debt = await prisma.$transaction(async tx => {
+    const created = await tx.financeDebt.create({ data: { leasingName, contractNumber, originalAmount, notes: cleanStr(req.body.notes), createdById: req.user.id }, include: { truck: true } });
+    await postJournal(tx, { date: created.createdAt, description: `Saldo awal utang finance ${created.leasingName}`, sourceType: "FINANCE_DEBT", sourceId: created.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.EQUITY, debit: created.originalAmount }, { code: SYSTEM_ACCOUNTS.FINANCE_AP, credit: created.originalAmount }] });
+    return created;
+  });
+  res.status(201).json({ ...debt, paid: 0, balance: debt.originalAmount });
+});
+
 // Create expense
 router.post("/", authRequired, async (req, res) => {
   if (!ensureRole(req, res)) return;
@@ -260,6 +282,7 @@ router.post("/", authRequired, async (req, res) => {
   const tripId = cleanStr(req.body.tripId);
   const truckId = cleanStr(req.body.truckId);
   const employeeId = cleanStr(req.body.employeeId);
+  const financeDebtId = cleanStr(req.body.financeDebtId);
   const expenseDateInput = cleanStr(req.body.expenseDate);
   const expenseDate = parseExpenseDate(expenseDateInput);
 
@@ -292,6 +315,14 @@ router.post("/", authRequired, async (req, res) => {
     if (!employeeId) return res.status(400).json({ error: "Pilih nama karyawan yang akan ditagih" });
     employee = await prisma.user.findFirst({ where: { id: employeeId, isActive: true }, select: { id: true, name: true, email: true } });
     if (!employee) return res.status(400).json({ error: "Karyawan tidak ditemukan atau sudah tidak aktif" });
+  }
+  let financeDebt = null;
+  if (category === "FINANCE_DEBT_PAYMENT") {
+    if (!financeDebtId) return res.status(400).json({ error: "Pilih kontrak leasing yang akan dibayar" });
+    financeDebt = await prisma.financeDebt.findFirst({ where: { id: financeDebtId, isActive: true }, include: { expenses: { where: { category: "FINANCE_DEBT_PAYMENT", status: { not: "REJECTED" } }, select: { amount: true } } } });
+    if (!financeDebt) return res.status(404).json({ error: "Kontrak leasing tidak ditemukan" });
+    const balance = financeDebt.originalAmount - financeDebt.expenses.reduce((sum, item) => sum + item.amount, 0);
+    if (Math.round(amount) > balance) return res.status(400).json({ error: `Pembayaran melebihi sisa utang leasing Rp${balance.toLocaleString("id-ID")}` });
   }
   let trip = null;
   if (tripId) {
@@ -330,10 +361,12 @@ router.post("/", authRequired, async (req, res) => {
       tripId: tripId || null,
       truckId: truckId || null,
       employeeId: category === "EMPLOYEE_RECEIVABLE" ? employee.id : null,
+      financeDebtId: category === "FINANCE_DEBT_PAYMENT" ? financeDebt.id : null,
       createdById: req.user?.id,
     }, include: {
       truck: { select: { id: true, plateNumber: true, brand: true, model: true } },
       employee: { select: { id: true, name: true, email: true } },
+      financeDebt: { include: { truck: { select: { id: true, plateNumber: true, brand: true, model: true } } } },
       trip: {
         include: {
           truck: true,
@@ -471,7 +504,8 @@ router.post("/:id/proof", authRequired, async (req, res) => {
         approvedBy: { select: { id: true, name: true, email: true } },
       },
     });
-    await postJournal(tx, { date: paid.paidAt, description: paid.reason, sourceType: "EXPENSE_PAYMENT", sourceId: paid.id, createdById: req.user.id, lines: [{ code: existing.category === "EMPLOYEE_RECEIVABLE" ? SYSTEM_ACCOUNTS.AR : SYSTEM_ACCOUNTS.EXPENSE, debit: paid.amount }, { code: cashCode(paid.paymentMethod), credit: paid.amount }] });
+    const debitCode = existing.category === "EMPLOYEE_RECEIVABLE" ? SYSTEM_ACCOUNTS.AR : existing.category === "FINANCE_DEBT_PAYMENT" ? SYSTEM_ACCOUNTS.FINANCE_AP : SYSTEM_ACCOUNTS.EXPENSE;
+    await postJournal(tx, { date: paid.paidAt, description: paid.reason, sourceType: "EXPENSE_PAYMENT", sourceId: paid.id, createdById: req.user.id, lines: [{ code: debitCode, debit: paid.amount }, { code: cashCode(paid.paymentMethod), credit: paid.amount }] });
     return paid;
   });
 
