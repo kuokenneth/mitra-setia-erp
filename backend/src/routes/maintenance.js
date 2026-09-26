@@ -431,8 +431,8 @@ router.post("/:id/notes", authRequired, async (req, res) => {
 ////////////////////////////////////////////////////
 // UPDATE STATUS
 // PATCH /maintenance/:id/status
-// body: { status: "OPEN"|"DONE"|"CANCELLED" }
-// ✅ Sets doneAt, and returns truck.status to READY when DONE/CANCELLED
+// body: { status: "OPEN"|"DONE" }
+// Once a service job starts it may be completed, but it must not be cancelled.
 ////////////////////////////////////////////////////
 router.patch("/:id/status", authRequired, async (req, res) => {
   try {
@@ -440,7 +440,10 @@ router.patch("/:id/status", authRequired, async (req, res) => {
 
     const id = req.params.id;
     const { status } = req.body || {};
-    if (!["OPEN", "DONE", "CANCELLED"].includes(status)) {
+    if (status === "CANCELLED") {
+      return res.status(400).json({ error: "Servis yang sudah dimulai tidak dapat dibatalkan" });
+    }
+    if (!["OPEN", "DONE"].includes(status)) {
       return res.status(400).json({ error: "Invalid status" });
     }
 
@@ -816,7 +819,7 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
 
     const maintenanceId = req.params.id;
-    const { stockUnitId, note, replaceStockUnitId, replaceDisposition = "IN_STOCK", retread } = req.body || {};
+    const { stockUnitId, note, replaceStockUnitId, replaceDisposition = "IN_STOCK", retread, second } = req.body || {};
     if (!stockUnitId) return res.status(400).json({ error: "stockUnitId is required" });
 
     // ✅ Read-only fetches OUTSIDE transaction (faster + safer)
@@ -870,7 +873,19 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
             data: { removedAt: now },
           });
 
-          if (replaceDisposition === "RETREADING") {
+          if (replaceDisposition === "SECOND") {
+            if (oldUnit.item.category !== "TIRE" || !oldUnit.item.isSerialized) throw new Error("Hanya ban berserial yang dapat dijadikan Ban Second");
+            const oldItem = await tx.item.findUnique({ where: { id: oldUnit.itemId }, select: { sku: true } });
+            if (!oldItem || oldItem.sku.endsWith("_SECOND")) throw new Error("Unit ini sudah merupakan Ban Second");
+            const secondItem = await tx.item.findUnique({ where: { sku: `${oldItem.sku}_SECOND` }, select: { id: true, sku: true, category: true, isSerialized: true } });
+            if (!secondItem) throw new Error(`Item tujuan ${oldItem.sku}_SECOND belum tersedia`);
+            if (!secondItem.isSerialized || secondItem.category !== "TIRE") throw new Error(`Item ${secondItem.sku} harus berupa Ban berserial`);
+            const locationId = String(second?.locationId || fromLocationId || "");
+            if (!locationId || !(await tx.inventoryLocation.findUnique({ where: { id: locationId }, select: { id: true } }))) throw new Error("Pilih lokasi stok Ban Second");
+            await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: secondItem.id, locationId } }, create: { itemId: secondItem.id, locationId, qty: 1 }, update: { qty: { increment: 1 } } });
+            await tx.stockUnit.update({ where: { id: oldUnitId }, data: { itemId: secondItem.id, locationId, inventoryBatchId: null, status: "IN_STOCK", scrappedAt: null } });
+            await tx.stockMovement.create({ data: { type: "IN", itemId: secondItem.id, qty: 1, note: `Ban dilepas dari ${job.truck.plateNumber} dan dijadikan ${secondItem.sku}${second?.notes ? ` · ${String(second.notes)}` : ""}`, createdById: req.user.id, toLocationId: locationId, maintenanceId, stockUnitId: oldUnitId } });
+          } else if (replaceDisposition === "RETREADING") {
             if (oldUnit.item.category !== "TIRE" || !oldUnit.item.isSerialized) throw new Error("Hanya ban berserial yang dapat dikirim untuk masak");
             const toItemId = String(retread?.toItemId || "");
             const supplierId = retread?.supplierId ? String(retread.supplierId) : null;

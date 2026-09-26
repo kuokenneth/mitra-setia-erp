@@ -689,7 +689,9 @@ export default function Trucks() {
                 <tr>
                   <th style={s.th}>Dipasang</th>
                   <th style={s.th}>Dilepas</th>
+                  <th style={s.th}>Jenis</th>
                   <th style={s.th}>Barang</th>
+                  <th style={s.th}>Jumlah</th>
                   <th style={s.th}>Serial / Barcode</th>
                   <th style={s.th}>Status</th>
                   <th style={s.th}>Catatan</th>
@@ -697,30 +699,32 @@ export default function Trucks() {
               </thead>
               <tbody>
                 {asgLoading ? (
-                  <tr><td style={s.empty} colSpan={6}>Memuat suku cadang…</td></tr>
+                  <tr><td style={s.empty} colSpan={8}>Memuat suku cadang…</td></tr>
                 ) : assignments.length === 0 ? (
-                  <tr><td style={s.empty} colSpan={6}>Belum ada riwayat suku cadang kendaraan ini.</td></tr>
+                  <tr><td style={s.empty} colSpan={8}>Belum ada riwayat suku cadang kendaraan ini.</td></tr>
                 ) : (
                   pagedAssignments.map((a) => (
                     <tr key={a.id} style={s.tr}>
-                      <td style={s.td}>{fmtDateTime(a.installedAt)}</td>
-                      <td style={s.td}>{a.removedAt ? fmtDateTime(a.removedAt) : "-"}</td>
+                      <td style={s.td}>{a.recordType === "NON_SERIALIZED" && a.type === "IN" ? "-" : fmtDateTime(a.installedAt || a.createdAt)}</td>
+                      <td style={s.td}>{a.recordType === "NON_SERIALIZED" && a.type === "IN" ? fmtDateTime(a.createdAt) : a.removedAt ? fmtDateTime(a.removedAt) : "-"}</td>
+                      <td style={s.td}><span style={statusPill(a.recordType === "SERIALIZED" ? "READY" : "INACTIVE")}>{a.recordType === "SERIALIZED" ? "SERIAL" : "NON-SERIAL"}</span></td>
                       <td style={s.td}>
-                        <div style={{ fontWeight: 600 }}>{a.stockUnit?.item?.name || "-"}</div>
-                        <div style={s.smallMuted}>{a.stockUnit?.item?.sku ? `SKU: ${a.stockUnit.item.sku}` : "—"}</div>
+                        <div style={{ fontWeight: 600 }}>{(a.stockUnit?.item || a.item)?.name || "-"}</div>
+                        <div style={s.smallMuted}>{(a.stockUnit?.item || a.item)?.sku ? `SKU: ${(a.stockUnit?.item || a.item).sku}` : "—"}</div>
+                      </td>
+                      <td style={s.td}>{a.recordType === "SERIALIZED" ? `1 ${(a.stockUnit?.item || a.item)?.unit || "unit"}` : `${Number(a.qty || 0).toLocaleString("id-ID")} ${a.item?.unit || "unit"}`}</td>
+                      <td style={s.td}>
+                        <div>{a.recordType === "SERIALIZED" ? a.stockUnit?.serialNumber || "-" : "Tidak memakai serial"}</div>
+                        <div style={s.smallMuted}>{a.recordType === "SERIALIZED" && a.stockUnit?.barcode ? `Barcode: ${a.stockUnit.barcode}` : "—"}</div>
                       </td>
                       <td style={s.td}>
-                        <div>{a.stockUnit?.serialNumber || "-"}</div>
-                        <div style={s.smallMuted}>{a.stockUnit?.barcode ? `Barcode: ${a.stockUnit.barcode}` : "—"}</div>
-                      </td>
-                      <td style={s.td}>
-                        <span style={a.removedAt ? statusPill("INACTIVE") : statusPill("READY")}>
-                          {a.removedAt ? "REMOVED" : "INSTALLED"}
+                        <span style={(a.removedAt || (a.recordType === "NON_SERIALIZED" && a.type === "IN")) ? statusPill("INACTIVE") : statusPill("READY")}>
+                          {a.recordType === "NON_SERIALIZED" ? (a.type === "IN" ? "DIKEMBALIKAN" : a.type === "ADJUST" ? "DIPINDAHKAN" : "DIGUNAKAN") : a.removedAt ? "REMOVED" : "INSTALLED"}
                         </span>
                       </td>
                       <td style={s.td}>
                         <div>{a.note || "-"}</div>
-                        <div style={s.smallMuted}>{a.maintenance?.title ? `Maint: ${a.maintenance.title}` : "—"}</div>
+                        <div style={s.smallMuted}>{a.maintenance?.title ? `Servis: ${a.maintenance.title}` : "—"}</div>
                       </td>
                     </tr>
                   ))

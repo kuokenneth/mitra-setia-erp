@@ -7,7 +7,7 @@ import { ProtectedImage } from "../components/ProtectedFile";
 import LoadingState from "../components/LoadingState";
 import ImageAnnotationEditor from "../components/ImageAnnotationEditor";
 import UploadProgress from "../components/UploadProgress";
-import { FiActivity, FiCalendar, FiCamera, FiCheck, FiClock, FiPlus, FiRefreshCw, FiSearch, FiTool, FiTruck, FiX } from "react-icons/fi";
+import { FiActivity, FiCalendar, FiCamera, FiCheck, FiClock, FiPlus, FiRefreshCw, FiSearch, FiTool, FiTruck } from "react-icons/fi";
 import "./Maintenance.css";
 
 const OIL_CHANGE_INTERVAL_KM = 8500;
@@ -903,15 +903,15 @@ export default function Maintenance() {
 
   async function changeReplaceDisposition(value) {
     setReplaceDisposition(value);
-    if (value !== "RETREADING") return;
+    if (!["RETREADING", "SECOND"].includes(value)) return;
     try {
       const data = await api("/inventory/retread-options");
       const options = { items: data.items || [], suppliers: data.suppliers || [], locations: data.locations || [] };
       setRetreadOptions(options);
       const oldItemId = selectedReturnAssignment?.stockUnit?.itemId;
       setRetreadForm({
-        toItemId: options.items.find((item) => item.id !== oldItemId && /masak|retread/i.test(`${item.sku || ""} ${item.name || ""}`))?.id || "",
-        locationId: "",
+        toItemId: value === "RETREADING" ? options.items.find((item) => item.id !== oldItemId && /masak|retread/i.test(`${item.sku || ""} ${item.name || ""}`))?.id || "" : "",
+        locationId: value === "SECOND" ? options.locations[0]?.id || "" : "",
         supplierId: "",
         cost: "",
         sentAt: "",
@@ -934,6 +934,7 @@ export default function Maintenance() {
         if (!retreadForm.toItemId) throw new Error("Pilih item tujuan Ban Masak");
         if (retreadForm.cost === "") throw new Error("Masukkan biaya masak ban");
       }
+      if (replaceDisposition === "SECOND" && !retreadForm.locationId) throw new Error("Pilih lokasi stok Ban Second");
       await api(`/maintenance/${activeJob.id}/assign-unit`, {
         method: "POST",
         body: JSON.stringify({
@@ -948,6 +949,7 @@ export default function Maintenance() {
             sentAt: retreadForm.sentAt || undefined,
             notes: retreadForm.notes || undefined,
           } : undefined,
+          second: replaceDisposition === "SECOND" ? { locationId: retreadForm.locationId, notes: retreadForm.notes || undefined } : undefined,
         }),
       });
 
@@ -1533,7 +1535,7 @@ export default function Maintenance() {
             <section className="maintenance-detail-hero">
               <div className="maintenance-detail-hero-main">
                 <div><small>DETAIL PEKERJAAN SERVIS · {activeJob.number}</small><h2>{activeJob.title}</h2><p><b>{activeJob.truck?.plateNumber || "—"}</b><span>•</span><FiCalendar /> Masuk {fmtDateTime(activeJob.createdAt)}</p></div>
-                <div className="maintenance-hero-side"><StatusBadge status={activeJob.status} />{allowed && <div className="maintenance-hero-actions"><Button variant="primary" icon={FiCheck} onClick={() => setJobStatus("DONE")} disabled={activeJob.status !== "OPEN" || hasPendingParts} title={hasPendingParts ? "Sparepart pesanan belum diterima dan dipasang seluruhnya" : undefined} data-testid="mark-done-hero-btn">Selesaikan</Button><Button variant="secondary" icon={FiRefreshCw} onClick={refreshDetail}>Muat Ulang</Button><Button variant="danger" icon={FiX} onClick={() => setJobStatus("CANCELLED")} disabled={activeJob.status !== "OPEN"} data-testid="cancel-job-hero-btn">Batalkan</Button></div>}</div>
+                <div className="maintenance-hero-side"><StatusBadge status={activeJob.status} />{allowed && <div className="maintenance-hero-actions"><Button variant="primary" icon={FiCheck} onClick={() => setJobStatus("DONE")} disabled={activeJob.status !== "OPEN" || hasPendingParts} title={hasPendingParts ? "Sparepart pesanan belum diterima dan dipasang seluruhnya" : undefined} data-testid="mark-done-hero-btn">Selesaikan</Button><Button variant="secondary" icon={FiRefreshCw} onClick={refreshDetail}>Muat Ulang</Button></div>}</div>
               </div>
               {hasPendingParts && <div className="maintenance-pending-parts-warning"><FiClock /><span><strong>Servis belum dapat diselesaikan</strong><small>Sparepart dari {pendingPartsRequests.map(request => request.number).join(", ")} belum diterima dan dipasang seluruhnya.</small></span></div>}
               <div className="maintenance-detail-metrics">
@@ -1616,15 +1618,6 @@ export default function Maintenance() {
                       data-testid="mark-done-btn"
                     >
                       Selesaikan Servis
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      icon={FiX}
-                      onClick={() => setJobStatus("CANCELLED")}
-                      disabled={activeJob.status !== "OPEN"}
-                      data-testid="cancel-job-btn"
-                    >
-                      Batalkan
                     </Button>
                     <Button variant="secondary" icon={FiRefreshCw} onClick={refreshDetail} data-testid="refresh-btn">
                       Muat Ulang
@@ -1817,15 +1810,19 @@ export default function Maintenance() {
                       </Select></div>
                       {donorMode === "SWAP" && <div className="maintenance-part-field"><label>Unit dari mobil servis untuk ditukar</label><SearchableSwapUnitPicker assignments={returnAssignments.filter((a) => a.stockUnit?.itemId === assignItemId)} value={returnStockUnitId} onChange={setReturnStockUnitId} plateNumber={activeJob?.truck?.plateNumber} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId} testId="swap-unit-search" /></div>}
                     </div>}
-                    {serializedSource === "INVENTORY" && <div className="maintenance-part-field"><label>Unit lama yang dilepas <em>Opsional</em></label><Select value={returnStockUnitId} onChange={(e) => { setReturnStockUnitId(e.target.value); setReplaceDisposition("IN_STOCK"); }} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId}>
+                    {serializedSource === "INVENTORY" && <div className="maintenance-part-field"><label>Unit lama yang dilepas <em>Opsional</em></label><Select value={returnStockUnitId} onChange={(e) => { const nextId=e.target.value; const nextAssignment=returnAssignments.find((assignment)=>assignment.stockUnitId===nextId); setReturnStockUnitId(nextId); if(nextAssignment?.stockUnit?.item?.category==="TIRE") changeReplaceDisposition("SECOND"); else setReplaceDisposition("IN_STOCK"); }} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId}>
                       <option value="">Tidak mengganti unit lama</option>
                       {returnAssignments.map((a) => <option key={a.assignmentId} value={a.stockUnitId}>Ganti {a.stockUnit?.item?.name} · {a.stockUnit?.serialNumber || a.stockUnit?.barcode || a.stockUnitId} · {installedDays(a.installedAt)} hari</option>)}
                     </Select></div>}
                     {serializedSource === "INVENTORY" && returnStockUnitId && <div className="maintenance-part-field"><label>Setelah dilepas</label><Select value={replaceDisposition} onChange={(e) => changeReplaceDisposition(e.target.value)} disabled={!allowed || activeJob.status !== "OPEN"}>
-                      <option value="IN_STOCK">Unit lama kembali ke Inventory</option>
-                      {selectedReturnAssignment?.stockUnit?.item?.category === "TIRE" ? <option value="RETREADING">Kirim untuk masak ban</option> : <option value="REPAIRING">Unit lama dikirim untuk perbaikan</option>}
+                      {selectedReturnAssignment?.stockUnit?.item?.category === "TIRE" ? <><option value="SECOND">Jadikan Ban Second & kembali ke Inventory</option><option value="RETREADING">Kirim untuk masak ban</option></> : <><option value="IN_STOCK">Unit lama kembali ke Inventory</option><option value="REPAIRING">Unit lama dikirim untuk perbaikan</option></>}
                       <option value="SCRAPPED">Unit lama di-scrap</option>
                     </Select></div>}
+                    {serializedSource === "INVENTORY" && returnStockUnitId && replaceDisposition === "SECOND" && <div className="maintenance-retread-inline maintenance-second-inline">
+                      <div className="maintenance-retread-notice"><strong>Ban lama menjadi {selectedReturnAssignment?.stockUnit?.item?.sku}_SECOND</strong><small>Nomor seri tetap sama dan unit kembali tersedia di Inventory.</small></div>
+                      <label className="wide">Lokasi stok Ban Second<Select value={retreadForm.locationId} onChange={(e)=>setRetreadForm((form)=>({...form,locationId:e.target.value}))}><option value="">Pilih lokasi Inventory</option>{retreadOptions.locations.map((location)=><option key={location.id} value={location.id}>{location.name}</option>)}</Select></label>
+                      <label className="wide">Catatan<Input value={retreadForm.notes} onChange={(e)=>setRetreadForm((form)=>({...form,notes:e.target.value}))} placeholder="Contoh: tapak masih layak sebagai ban second"/></label>
+                    </div>}
                     {serializedSource === "INVENTORY" && returnStockUnitId && replaceDisposition === "RETREADING" && <div className="maintenance-retread-inline">
                       <div className="maintenance-retread-notice"><strong>Ban lama akan dikirim untuk masak</strong><small>Nomor seri tetap sama dan status unit berubah menjadi RETREADING.</small></div>
                       <label>Item tujuan setelah dimasak<Select value={retreadForm.toItemId} onChange={(e)=>setRetreadForm((form)=>({...form,toItemId:e.target.value}))}><option value="">Pilih item Ban Masak</option>{retreadOptions.items.filter((item)=>item.id!==selectedReturnAssignment?.stockUnit?.itemId).map((item)=><option key={item.id} value={item.id}>{item.sku} — {item.name}</option>)}</Select></label>

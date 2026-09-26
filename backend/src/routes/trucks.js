@@ -458,7 +458,7 @@ router.get(
     // inclusive end date
     if (to) to.setHours(23, 59, 59, 999);
 
-    const where = {
+    const assignmentWhere = {
       truckId: id,
       ...(from || to
         ? {
@@ -482,30 +482,82 @@ router.get(
         : {}),
     };
 
-    const rows = await prisma.truckSparePartAssignment.findMany({
-      where,
-      orderBy: { installedAt: "desc" },
-      include: {
-        stockUnit: { include: { item: true, location: true } },
-        maintenance: true,
-        createdBy: { select: { id: true, name: true, email: true } },
-      },
-      take: 500,
-    });
+    const movementWhere = {
+      stockUnitId: null,
+      item: { isSerialized: false },
+      OR: [{ fromTruckId: id }, { toTruckId: id }, { maintenance: { truckId: id } }],
+      ...(from || to
+        ? { createdAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } }
+        : {}),
+      ...(q
+        ? {
+            AND: [{ OR: [
+              { note: { contains: q } },
+              { item: { name: { contains: q } } },
+              { item: { sku: { contains: q } } },
+              { maintenance: { title: { contains: q } } },
+            ] }],
+          }
+        : {}),
+    };
+
+    const [assignments, movements] = await Promise.all([
+      prisma.truckSparePartAssignment.findMany({
+        where: assignmentWhere,
+        orderBy: { installedAt: "desc" },
+        include: {
+          stockUnit: { include: { item: true, location: true } },
+          maintenance: true,
+          createdBy: { select: { id: true, name: true, email: true } },
+        },
+        take: 500,
+      }),
+      prisma.stockMovement.findMany({
+        where: movementWhere,
+        orderBy: { createdAt: "desc" },
+        include: {
+          item: true,
+          maintenance: true,
+          createdBy: { select: { id: true, name: true, email: true } },
+          fromLocation: true,
+          toLocation: true,
+          fromTruck: { select: { id: true, plateNumber: true } },
+          toTruck: { select: { id: true, plateNumber: true } },
+        },
+        take: 500,
+      }),
+    ]);
+
+    const rows = [
+      ...assignments.map((row) => ({ ...row, recordType: "SERIALIZED", eventAt: row.installedAt })),
+      ...movements.map((row) => ({
+        ...row,
+        id: `movement:${row.id}`,
+        movementId: row.id,
+        recordType: "NON_SERIALIZED",
+        eventAt: row.createdAt,
+      })),
+    ].sort((a, b) => new Date(b.eventAt) - new Date(a.eventAt)).slice(0, 500);
 
     // ✅ THIS MONTH TOTAL COST (based on installCost snapshot)
     const now = new Date();
     const monthFrom = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthTo = new Date(now.getFullYear(), now.getMonth() + 1, 1); // exclusive
 
-    const agg = await prisma.truckSparePartAssignment.aggregate({
-      where: {
-        truckId: id,
-        installedAt: { gte: monthFrom, lt: monthTo },
-        installCost: { not: null },
-      },
-      _sum: { installCost: true },
-    });
+    const [agg, nonSerializedOut, nonSerializedReturns] = await Promise.all([
+      prisma.truckSparePartAssignment.aggregate({
+        where: { truckId: id, installedAt: { gte: monthFrom, lt: monthTo }, installCost: { not: null } },
+        _sum: { installCost: true },
+      }),
+      prisma.stockMovement.aggregate({
+        where: { stockUnitId: null, item: { isSerialized: false }, maintenance: { truckId: id }, type: "OUT", createdAt: { gte: monthFrom, lt: monthTo } },
+        _sum: { totalCost: true },
+      }),
+      prisma.stockMovement.aggregate({
+        where: { stockUnitId: null, item: { isSerialized: false }, maintenance: { truckId: id }, type: "IN", note: { startsWith: "RETURN_OF:" }, createdAt: { gte: monthFrom, lt: monthTo } },
+        _sum: { totalCost: true },
+      }),
+    ]);
 
     const anyCurrency = await prisma.truckSparePartAssignment.findFirst({
       where: {
@@ -520,7 +572,7 @@ router.get(
 
     res.json({
       rows,
-      monthTotalCost: agg._sum.installCost || 0,
+      monthTotalCost: Number(agg._sum.installCost || 0) + Number(nonSerializedOut._sum.totalCost || 0) - Number(nonSerializedReturns._sum.totalCost || 0),
       monthCurrency: anyCurrency?.currency || "IDR",
       monthFrom,
       monthTo,
