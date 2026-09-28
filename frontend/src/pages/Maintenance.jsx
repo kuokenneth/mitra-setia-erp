@@ -107,6 +107,21 @@ function pendingServicePurchaseRequests(job) {
   });
 }
 
+function pendingServiceRepairs(job) {
+  const serialized = (job?.partRepairs || [])
+    .filter((repair) => repair.status === "SENT")
+    .map((repair) => repair.stockUnit?.item?.name || repair.stockUnit?.serialNumber || "Unit berserial");
+  const movements = job?.movements || [];
+  const receivedIds = new Set(movements
+    .filter((movement) => String(movement.note || "").startsWith("REPAIR_SECOND_OF:"))
+    .map((movement) => String(movement.note || "").match(/^REPAIR_SECOND_OF:([^\s·]+)/)?.[1])
+    .filter(Boolean));
+  const nonSerialized = movements
+    .filter((movement) => String(movement.note || "").startsWith("NON_SERIAL_REPAIR_OF:") && !receivedIds.has(movement.id))
+    .map((movement) => movement.item?.name || "Barang non-serial");
+  return [...serialized, ...nonSerialized];
+}
+
 //////////////////////
 // UI COMPONENTS
 //////////////////////
@@ -1141,6 +1156,12 @@ export default function Maintenance() {
   const maintenanceSummary = listSummary;
   const pendingPartsRequests = pendingServicePurchaseRequests(activeJob);
   const hasPendingParts = pendingPartsRequests.length > 0;
+  const pendingRepairs = pendingServiceRepairs(activeJob);
+  const hasPendingRepairs = pendingRepairs.length > 0;
+  const cannotCompleteService = hasPendingParts || hasPendingRepairs;
+  const completionBlockTitle = hasPendingParts
+    ? "Sparepart pesanan belum diterima dan dipasang seluruhnya"
+    : hasPendingRepairs ? "Barang perbaikan belum diterima kembali" : undefined;
   const serializedHistoryRows = useMemo(() => {
     const installed = (activeJob?.sparePartAssignments || []).map((assignment) => ({
       ...assignment,
@@ -1495,9 +1516,10 @@ export default function Maintenance() {
             <section className="maintenance-detail-hero">
               <div className="maintenance-detail-hero-main">
                 <div><small>DETAIL PEKERJAAN SERVIS · {activeJob.number}</small><h2>{activeJob.title}</h2><p><b>{activeJob.truck?.plateNumber || "—"}</b><span>•</span><FiCalendar /> Masuk {fmtDateTime(activeJob.createdAt)}</p></div>
-                <div className="maintenance-hero-side"><StatusBadge status={activeJob.status} />{allowed && <div className="maintenance-hero-actions"><Button variant="primary" icon={FiCheck} onClick={() => setJobStatus("DONE")} disabled={activeJob.status !== "OPEN" || hasPendingParts} title={hasPendingParts ? "Sparepart pesanan belum diterima dan dipasang seluruhnya" : undefined} data-testid="mark-done-hero-btn">Selesaikan</Button><Button variant="secondary" icon={FiRefreshCw} onClick={refreshDetail}>Muat Ulang</Button></div>}</div>
+                <div className="maintenance-hero-side"><StatusBadge status={activeJob.status} />{allowed && <div className="maintenance-hero-actions"><Button variant="primary" icon={FiCheck} onClick={() => setJobStatus("DONE")} disabled={activeJob.status !== "OPEN" || cannotCompleteService} title={completionBlockTitle} data-testid="mark-done-hero-btn">Selesaikan</Button><Button variant="secondary" icon={FiRefreshCw} onClick={refreshDetail}>Muat Ulang</Button></div>}</div>
               </div>
               {hasPendingParts && <div className="maintenance-pending-parts-warning"><FiClock /><span><strong>Servis belum dapat diselesaikan</strong><small>Sparepart dari {pendingPartsRequests.map(request => request.number).join(", ")} belum diterima dan dipasang seluruhnya.</small></span></div>}
+              {hasPendingRepairs && <div className="maintenance-pending-parts-warning"><FiTool /><span><strong>Barang perbaikan belum kembali</strong><small>{pendingRepairs.join(", ")} masih berada di tempat perbaikan. Terima dahulu melalui Penerimaan Barang → Barang Perbaikan.</small></span></div>}
               <div className="maintenance-detail-metrics">
                 <article><small>DURASI {activeJob.status === "OPEN" ? "BERJALAN" : "TOTAL"}</small><strong>{fmtDuration((activeJob.status === "OPEN" ? Date.now() : activeJob.doneAt ? new Date(activeJob.doneAt).getTime() : Date.now()) - new Date(activeJob.createdAt).getTime())}</strong><span><FiClock /> Waktu pengerjaan bengkel</span></article>
                 <article><small>BIAYA SPAREPART</small><strong>{fmtMoney(activeJob.totalCost || 0, activeJob.currency || "IDR")}</strong><span><FiTool /> Akumulasi pemakaian stok</span></article>
@@ -1573,8 +1595,8 @@ export default function Maintenance() {
                       variant="primary"
                       icon={FiCheck}
                       onClick={() => setJobStatus("DONE")}
-                      disabled={activeJob.status !== "OPEN" || hasPendingParts}
-                      title={hasPendingParts ? "Sparepart pesanan belum diterima dan dipasang seluruhnya" : undefined}
+                      disabled={activeJob.status !== "OPEN" || cannotCompleteService}
+                      title={completionBlockTitle}
                       data-testid="mark-done-btn"
                     >
                       Selesaikan Servis

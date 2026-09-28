@@ -478,6 +478,29 @@ router.patch("/:id/status", authRequired, async (req, res) => {
         });
       });
       if (unfinished.length) return res.status(400).json({ error: `Servis belum dapat diselesaikan. Sparepart dari ${unfinished.map(request => request.number).join(", ")} belum diterima dan dipasang seluruhnya.`, code: "MAINTENANCE_PARTS_PENDING" });
+
+      const [serializedRepairs, repairMovements] = await Promise.all([
+        prisma.partRepair.findMany({
+          where: { maintenanceId: id, status: "SENT" },
+          include: { stockUnit: { include: { item: true } } },
+        }),
+        prisma.stockMovement.findMany({
+          where: { maintenanceId: id, OR: [{ note: { startsWith: "NON_SERIAL_REPAIR_OF:" } }, { note: { startsWith: "REPAIR_SECOND_OF:" } }] },
+          select: { id: true, note: true, item: { select: { name: true } } },
+        }),
+      ]);
+      const receivedRepairIds = new Set(repairMovements
+        .filter(movement => String(movement.note || "").startsWith("REPAIR_SECOND_OF:"))
+        .map(movement => String(movement.note || "").match(/^REPAIR_SECOND_OF:([^\s·]+)/)?.[1])
+        .filter(Boolean));
+      const nonSerializedRepairs = repairMovements.filter(movement => String(movement.note || "").startsWith("NON_SERIAL_REPAIR_OF:") && !receivedRepairIds.has(movement.id));
+      if (serializedRepairs.length || nonSerializedRepairs.length) {
+        const names = [
+          ...serializedRepairs.map(repair => repair.stockUnit?.item?.name || repair.stockUnit?.serialNumber || "Unit berserial"),
+          ...nonSerializedRepairs.map(repair => repair.item?.name || "Barang non-serial"),
+        ];
+        return res.status(400).json({ error: `Servis belum dapat diselesaikan. Barang perbaikan belum kembali: ${names.join(", ")}.`, code: "MAINTENANCE_REPAIRS_PENDING" });
+      }
     }
     if (status === "DONE" && existing.isOilChange) {
       const oilUsage = await prisma.stockMovement.count({
