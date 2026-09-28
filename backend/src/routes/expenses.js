@@ -254,15 +254,36 @@ router.post("/finance-debts", authRequired, async (req, res) => {
   if (!ensureRole(req, res)) return;
   const leasingName = cleanStr(req.body.leasingName);
   const contractNumber = cleanStr(req.body.contractNumber);
-  const truckId = cleanStr(req.body.truckId);
   const originalAmount = Math.round(Number(req.body.originalAmount));
   if (!leasingName || !Number.isFinite(originalAmount) || originalAmount <= 0) return res.status(400).json({ error: "Leasing dan jumlah utang awal wajib diisi" });
-  const debt = await prisma.$transaction(async tx => {
-    const created = await tx.financeDebt.create({ data: { leasingName, contractNumber, originalAmount, notes: cleanStr(req.body.notes), createdById: req.user.id }, include: { truck: true } });
-    await postJournal(tx, { date: created.createdAt, description: `Saldo awal utang finance ${created.leasingName}`, sourceType: "FINANCE_DEBT", sourceId: created.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.EQUITY, debit: created.originalAmount }, { code: SYSTEM_ACCOUNTS.FINANCE_AP, credit: created.originalAmount }] });
-    return created;
-  });
-  res.status(201).json({ ...debt, paid: 0, balance: debt.originalAmount });
+  if (!Number.isSafeInteger(originalAmount) || originalAmount > 2_147_483_647) return res.status(400).json({ error: "Jumlah utang maksimal Rp2.147.483.647" });
+
+  try {
+    const debt = await prisma.$transaction(async tx => {
+      const created = await tx.financeDebt.create({
+        data: { leasingName, contractNumber, originalAmount, notes: cleanStr(req.body.notes), createdById: req.user.id },
+        include: { truck: true },
+      });
+      await postJournal(tx, {
+        date: created.createdAt,
+        description: `Saldo awal utang finance ${created.leasingName}`,
+        sourceType: "FINANCE_DEBT",
+        sourceId: created.id,
+        createdById: req.user.id,
+        lines: [{ code: SYSTEM_ACCOUNTS.EQUITY, debit: created.originalAmount }, { code: SYSTEM_ACCOUNTS.FINANCE_AP, credit: created.originalAmount }],
+      });
+      return created;
+    }, { maxWait: 10_000, timeout: 20_000 });
+    res.status(201).json({ ...debt, paid: 0, balance: debt.originalAmount });
+  } catch (error) {
+    console.error("Failed to create finance debt:", error);
+    const message = error?.code === "P2003"
+      ? "Akun pengguna atau data referensi tidak valid. Silakan login ulang lalu coba lagi."
+      : error?.message === "Akun sistem accounting belum lengkap"
+        ? error.message
+        : "Utang finance gagal disimpan. Silakan coba kembali.";
+    res.status(500).json({ error: message });
+  }
 });
 
 // Create expense
