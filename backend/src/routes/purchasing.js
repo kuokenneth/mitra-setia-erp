@@ -130,9 +130,52 @@ router.get("/overview", async (_req, res) => {
   const nonSerializedRepairQueue = nonSerializedRepairs.map((repair) => {
     const receipts = repairReceiptsByMovement.get(repair.id) || [];
     const receivedQty = receipts.reduce((sum, receipt) => sum + Number(receipt.qty || 0), 0);
-    return { ...repair, receipts, receivedQty, remainingQty: Math.max(0, Number(repair.qty) - receivedQty), status: receivedQty >= Number(repair.qty) ? "COMPLETED" : receivedQty > 0 ? "PARTIALLY_RECEIVED" : "SENT" };
+    const encodedVendor = String(repair.note || "").match(/REPAIR_VENDOR:([^ ·]+)/)?.[1];
+    let repairVendor = "Belum ditentukan";
+    try { if (encodedVendor) repairVendor = decodeURIComponent(encodedVendor); } catch { repairVendor = encodedVendor || repairVendor; }
+    return { ...repair, repairVendor, receipts, receivedQty, remainingQty: Math.max(0, Number(repair.qty) - receivedQty), status: receivedQty >= Number(repair.qty) ? "COMPLETED" : receivedQty > 0 ? "PARTIALLY_RECEIVED" : "SENT" };
   });
   res.json({ ok: true, requests, orders, suppliers, locations, items, retreadingUnits, bills, trucks, nonSerializedRepairQueue });
+});
+
+async function receiveNonSerializedRepair(tx, { movementId, qty, unitPrice, locationId, notes, userId }) {
+  const repair = await tx.stockMovement.findFirst({ where: { id: movementId, type: "ADJUST", stockUnitId: null, note: { startsWith: "NON_SERIAL_REPAIR_OF:" } }, include: { item: true, maintenance: true } });
+  if (!repair) throw new Error("Data perbaikan non-serial tidak ditemukan");
+  const priorReceipts = await tx.stockMovement.aggregate({ where: { type: "IN", stockUnitId: null, note: { startsWith: `REPAIR_SECOND_OF:${repair.id}` } }, _sum: { qty: true } });
+  const remainingQty = Number(repair.qty) - Number(priorReceipts._sum.qty || 0);
+  if (qty > remainingQty + 0.000001) throw new Error(`Maksimal penerimaan ${repair.item.name}: ${remainingQty} ${repair.item.unit}`);
+  const secondSku = repair.item.sku.endsWith("_SECOND") ? repair.item.sku : `${repair.item.sku}_SECOND`;
+  let secondItem = await tx.item.findUnique({ where: { sku: secondSku } });
+  if (!secondItem) secondItem = await tx.item.create({ data: { sku: secondSku, name: `${repair.item.name} (SECOND)`, unit: repair.item.unit, isSerialized: false, category: repair.item.category } });
+  if (secondItem.isSerialized) throw new Error(`Item ${secondSku} harus berupa barang non-serial`);
+  const totalCost = Math.round(qty * unitPrice);
+  await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: secondItem.id, locationId } }, create: { itemId: secondItem.id, locationId, qty }, update: { qty: { increment: qty } } });
+  await tx.inventoryBatch.create({ data: { itemId: secondItem.id, locationId, receivedQty: qty, remainingQty: qty, unitPrice, receivedAt: new Date() } });
+  return tx.stockMovement.create({ data: { type: "IN", itemId: secondItem.id, qty, unitPrice, totalCost, note: `REPAIR_SECOND_OF:${repair.id} · Hasil perbaikan ${repair.item.sku} menjadi ${secondSku}${notes ? ` · ${notes}` : ""}`, createdById: userId, toLocationId: locationId, maintenanceId: repair.maintenanceId } });
+}
+
+router.post("/repairs/non-serialized/receive-batch", async (req, res) => {
+  try {
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    const locationId = String(req.body?.locationId || "");
+    const notes = String(req.body?.notes || "").trim();
+    if (!items.length) throw new Error("Pilih minimal satu hasil perbaikan");
+    if (!locationId) throw new Error("Lokasi penerimaan wajib dipilih");
+    const prepared = items.map((row) => ({ movementId: String(row.movementId || ""), qty: Number(row.qty), unitPrice: Math.round(Number(row.unitPrice)) }));
+    if (prepared.some(row => !row.movementId || !Number.isFinite(row.qty) || row.qty <= 0 || !Number.isFinite(row.unitPrice) || row.unitPrice <= 0)) throw new Error("Jumlah dan harga perbaikan setiap barang wajib diisi");
+    const receipts = await prisma.$transaction(async tx => {
+      const location = await tx.inventoryLocation.findUnique({ where: { id: locationId }, select: { id: true } });
+      if (!location) throw new Error("Lokasi Inventory tidak ditemukan");
+      const repairs = await tx.stockMovement.findMany({ where: { id: { in: prepared.map(row => row.movementId) } }, select: { id: true, note: true } });
+      if (repairs.length !== prepared.length) throw new Error("Sebagian data perbaikan tidak ditemukan");
+      const vendors = new Set(repairs.map(repair => String(repair.note || "").match(/REPAIR_VENDOR:([^ ·]+)/)?.[1] || "LEGACY"));
+      if (vendors.size !== 1) throw new Error("Checklist hanya boleh berisi barang dari tempat perbaikan yang sama");
+      const created = [];
+      for (const row of prepared) created.push(await receiveNonSerializedRepair(tx, { ...row, locationId, notes, userId: req.user.id }));
+      return created;
+    }, { timeout: 30000 });
+    res.status(201).json({ ok: true, receipts });
+  } catch (error) { res.status(400).json({ error: error.message || "Gagal menerima hasil perbaikan gabungan" }); }
 });
 
 router.post("/repairs/non-serialized/:movementId/receive", async (req, res) => {

@@ -383,7 +383,7 @@ function SearchableInstalledUnitPicker({ assignments, value, onChange, disabled,
   }, [assignments, query]);
   const label = (assignment) => {
     const unit = assignment.stockUnit || {};
-    const days = installedDays(assignment.installedAt);
+    const days = installedDays(assignment.firstInstalledAt || assignment.installedAt);
     return `${unit.serialNumber || unit.barcode || assignment.stockUnitId.slice(0, 8)} • ${days == null ? "umur tidak diketahui" : `${days} hari digunakan`}`;
   };
 
@@ -418,9 +418,11 @@ function LastPartChange({ item, history, loading }) {
 function SelectedSerialAge({ item, assignment }) {
   if (!item) return null;
   if (!assignment) return <div className="maintenance-last-change empty"><FiClock /><span><strong>Pilih nomor seri unit lama</strong><small>Usia pemakaian akan mengikuti unit yang dipilih untuk dilepas.</small></span></div>;
-  const days = installedDays(assignment.installedAt);
+  const usageStartedAt = assignment.firstInstalledAt || assignment.installedAt;
+  const days = installedDays(usageStartedAt);
   const serial = assignment.stockUnit?.serialNumber || assignment.stockUnit?.barcode || assignment.stockUnitId;
-  return <div className="maintenance-last-change"><FiClock /><span><strong>{days === 0 ? "Dipasang hari ini" : `Dipasang ${days} hari lalu`}</strong><small>{serial} · {fmtDateTime(assignment.installedAt)} · {item.name}</small></span></div>;
+  const moved = new Date(usageStartedAt).getTime() !== new Date(assignment.installedAt).getTime();
+  return <div className="maintenance-last-change"><FiClock /><span><strong>{days === 0 ? "Mulai dipakai hari ini" : `Sudah dipakai ${days} hari`}</strong><small>{serial} · Mulai {fmtDateTime(usageStartedAt)}{moved ? ` · Dipasang di armada ini ${fmtDateTime(assignment.installedAt)}` : ""} · {item.name}</small></span></div>;
 }
 
 function ServicePhoto({ photo, alt }) {
@@ -596,7 +598,7 @@ export default function Maintenance() {
   const [useOilOdometer, setUseOilOdometer] = useState("");
   const [usingStock, setUsingStock] = useState(false);
   const [returnStockTarget, setReturnStockTarget] = useState(null);
-  const [returnStockForm, setReturnStockForm] = useState({ qty: "", reason: "" });
+  const [returnStockForm, setReturnStockForm] = useState({ qty: "", reason: "", repairVendor: "" });
   const [returnStockError, setReturnStockError] = useState("");
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [photoError, setPhotoError] = useState("");
@@ -972,7 +974,7 @@ export default function Maintenance() {
     setErr("");
     setReturnStockError("");
     setReturnStockTarget({ movement, remaining, disposition });
-    setReturnStockForm({ qty: String(remaining), reason: "" });
+    setReturnStockForm({ qty: String(remaining), reason: "", repairVendor: "" });
   }
 
   async function returnNonSerializedStock(event) {
@@ -990,11 +992,15 @@ export default function Maintenance() {
       setReturnStockError(returnStockTarget.disposition === "REPAIR_SECOND" ? "Catatan perbaikan wajib diisi." : "Alasan pengembalian wajib diisi.");
       return;
     }
+    if (returnStockTarget.disposition === "REPAIR_SECOND" && !returnStockForm.repairVendor.trim()) {
+      setReturnStockError("Tempat perbaikan wajib diisi.");
+      return;
+    }
     setUsingStock(true); setErr(""); setReturnStockError("");
     try {
-      await api(`/maintenance/${activeJob.id}/return-stock`, { method: "POST", body: JSON.stringify({ movementId: movement.id, qty: requestedQty, reason, disposition: returnStockTarget.disposition }) });
+      await api(`/maintenance/${activeJob.id}/return-stock`, { method: "POST", body: JSON.stringify({ movementId: movement.id, qty: requestedQty, reason, repairVendor: returnStockForm.repairVendor.trim(), disposition: returnStockTarget.disposition }) });
       setReturnStockTarget(null);
-      setReturnStockForm({ qty: "", reason: "" });
+      setReturnStockForm({ qty: "", reason: "", repairVendor: "" });
       await refreshDetail(); await load();
     } catch (e) { setReturnStockError(e.message || "Gagal mengembalikan stok ke Inventory"); }
     finally { setUsingStock(false); }
@@ -1736,7 +1742,7 @@ export default function Maintenance() {
                     </div>}
                     {serializedSource === "INVENTORY" && <div className="maintenance-part-field"><label>Unit lama yang dilepas <em>Opsional</em></label><Select value={returnStockUnitId} onChange={(e) => { const nextId=e.target.value; const nextAssignment=returnAssignments.find((assignment)=>assignment.stockUnitId===nextId); setReturnStockUnitId(nextId); if(nextAssignment?.stockUnit?.item?.category==="TIRE") changeReplaceDisposition("SECOND"); else setReplaceDisposition("IN_STOCK"); }} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId}>
                       <option value="">Tidak mengganti unit lama</option>
-                      {returnAssignments.map((a) => <option key={a.assignmentId} value={a.stockUnitId}>Ganti {a.stockUnit?.item?.name} · {a.stockUnit?.serialNumber || a.stockUnit?.barcode || a.stockUnitId} · {installedDays(a.installedAt)} hari</option>)}
+                      {returnAssignments.map((a) => <option key={a.assignmentId} value={a.stockUnitId}>Ganti {a.stockUnit?.item?.name} · {a.stockUnit?.serialNumber || a.stockUnit?.barcode || a.stockUnitId} · {installedDays(a.firstInstalledAt || a.installedAt)} hari</option>)}
                     </Select></div>}
                     {serializedSource === "INVENTORY" && returnStockUnitId && <div className="maintenance-part-field"><label>Setelah dilepas</label><Select value={replaceDisposition} onChange={(e) => changeReplaceDisposition(e.target.value)} disabled={!allowed || activeJob.status !== "OPEN"}>
                       {selectedReturnAssignment?.stockUnit?.item?.category === "TIRE" ? <><option value="SECOND">Jadikan Ban Second & kembali ke Inventory</option><option value="RETREADING">Kirim untuk masak ban</option></> : <><option value="IN_STOCK">Unit lama kembali ke Inventory</option><option value="REPAIRING">Unit lama dikirim untuk perbaikan</option></>}
@@ -2024,6 +2030,11 @@ export default function Maintenance() {
             <small>{returnStockTarget.movement.item?.sku || "—"} · {returnStockTarget.disposition === "REPAIR_SECOND" ? "Akan masuk antrean Penerimaan Hasil Perbaikan" : `Dari ${returnStockTarget.movement.fromLocation?.name || "Inventory"}`}</small>
           </div>
           <div className="maintenance-return-fields">
+            {returnStockTarget.disposition === "REPAIR_SECOND" && <label>
+              Tempat perbaikan
+              <Input required value={returnStockForm.repairVendor} onChange={(event) => setReturnStockForm((form) => ({ ...form, repairVendor: event.target.value }))} placeholder="Contoh: Bengkel ABC" />
+              <small>Dipakai untuk menggabungkan penerimaan dari bengkel yang sama.</small>
+            </label>}
             <label>
               {returnStockTarget.disposition === "REPAIR_SECOND" ? "Jumlah diperbaiki" : "Jumlah dikembalikan"}
               <Input

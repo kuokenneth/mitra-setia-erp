@@ -580,10 +580,12 @@ router.post("/:id/return-stock", authRequired, async (req, res) => {
     const movementId = String(req.body.movementId || "");
     const requestedQty = num(req.body.qty, 0);
     const reason = String(req.body.reason || "").trim();
+    const repairVendor = String(req.body.repairVendor || "").trim();
     const disposition = String(req.body.disposition || "RETURN").toUpperCase();
     if (!movementId || requestedQty <= 0) return res.status(400).json({ error: "Movement dan jumlah pengembalian wajib diisi" });
     if (!["RETURN", "REPAIR_SECOND"].includes(disposition)) return res.status(400).json({ error: "Tindakan pengembalian tidak valid" });
     if (!reason) return res.status(400).json({ error: disposition === "REPAIR_SECOND" ? "Catatan perbaikan wajib diisi" : "Alasan pengembalian wajib diisi" });
+    if (disposition === "REPAIR_SECOND" && !repairVendor) return res.status(400).json({ error: "Tempat perbaikan wajib diisi" });
     if (reason.length > 500) return res.status(400).json({ error: "Catatan maksimal 500 karakter" });
 
     const returned = await prisma.$transaction(async (tx) => {
@@ -601,7 +603,7 @@ router.post("/:id/return-stock", authRequired, async (req, res) => {
       const returnCost = movement.unitPrice == null ? null : Math.round(Number(movement.unitPrice) * requestedQty);
       await tx.truckPartStock.update({ where: { truckId_itemId: { truckId: job.truckId, itemId: movement.itemId } }, data: { qty: { decrement: requestedQty } } });
       if (disposition === "REPAIR_SECOND") {
-        return tx.stockMovement.create({ data: { type: "ADJUST", itemId: movement.itemId, qty: requestedQty, unitPrice: null, totalCost: null, note: `NON_SERIAL_REPAIR_OF:${movement.id} · Dikirim untuk perbaikan dari ${job.truck.plateNumber} · Catatan: ${reason}`, createdById: req.user.id, fromTruckId: job.truckId, toLocationId: movement.fromLocationId, maintenanceId } });
+        return tx.stockMovement.create({ data: { type: "ADJUST", itemId: movement.itemId, qty: requestedQty, unitPrice: null, totalCost: null, note: `NON_SERIAL_REPAIR_OF:${movement.id} · REPAIR_VENDOR:${encodeURIComponent(repairVendor)} · Dikirim untuk perbaikan dari ${job.truck.plateNumber} · Catatan: ${reason}`, createdById: req.user.id, fromTruckId: job.truckId, toLocationId: movement.fromLocationId, maintenanceId } });
       }
       const returnedItem = movement.item;
       await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: returnedItem.id, locationId: movement.fromLocationId } }, create: { itemId: returnedItem.id, locationId: movement.fromLocationId, qty: requestedQty }, update: { qty: { increment: requestedQty } } });
@@ -656,12 +658,19 @@ router.get("/:id/assigned-units", authRequired, async (req, res) => {
         stockUnit: { include: { item: true, location: true } },
       },
     });
+    const firstInstallations = rows.length ? await prisma.truckSparePartAssignment.groupBy({
+      by: ["stockUnitId"],
+      where: { stockUnitId: { in: rows.map((row) => row.stockUnitId) } },
+      _min: { installedAt: true },
+    }) : [];
+    const firstInstalledAtByUnit = new Map(firstInstallations.map((row) => [row.stockUnitId, row._min.installedAt]));
 
     res.json({
       units: rows.map((a) => ({
         assignmentId: a.id,
         stockUnitId: a.stockUnitId,
         installedAt: a.installedAt,
+        firstInstalledAt: firstInstalledAtByUnit.get(a.stockUnitId) || a.installedAt,
         note: a.note || null,
         stockUnit: a.stockUnit,
       })),

@@ -145,3 +145,11 @@
 @media(max-width:560px){
   .p-head-actions>.p-direct-order,.p-head-actions>.p-new-request{width:100%}
 }
+
+.repair-receipt-toolbar{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:12px 14px;border-bottom:1px solid #e2ebe5;background:#f7fbf8;color:#597063;font-size:12px;font-weight:700}
+.repair-receipt-toolbar .receive:disabled{cursor:not-allowed;opacity:.45}
+.repair-batch-modal{width:min(820px,calc(100vw - 28px))!important}
+.repair-batch-lines{display:grid;gap:10px}
+.repair-batch-line{display:grid;grid-template-columns:minmax(220px,1fr) 150px 170px;align-items:start;gap:12px;padding:13px;border:1px solid #dfe9e2;border-radius:11px;background:#f9fcfa}
+.repair-batch-line>span b,.repair-batch-line>span small{display:block}.repair-batch-line>span small{margin-top:4px;color:#75847b;font-size:10px}
+@media(max-width:680px){.repair-batch-line{grid-template-columns:1fr}.repair-batch-modal{width:calc(100vw - 14px)!important}}

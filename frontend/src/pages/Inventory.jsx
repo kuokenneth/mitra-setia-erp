@@ -538,20 +538,6 @@ export default function Inventory() {
     });
   }, [items, qNorm]);
 
-  const filteredUnits = useMemo(() => {
-    if (!qNorm) return units;
-    return units.filter((u) => {
-      const currentTruck = (u.assignments || [])[0]?.truck;
-      const text = `
-        ${u.item?.sku || ""} ${u.item?.name || ""}
-        ${u.serialNumber || ""} ${u.barcode || ""}
-        ${u.status || ""} ${u.location?.name || ""}
-        ${currentTruck?.plateNumber || ""}
-      `.toLowerCase();
-      return text.includes(qNorm);
-    });
-  }, [units, qNorm]);
-
   async function loadLocations() {
     const data = await api("/inventory/locations");
     setLocations(data.locations || []);
@@ -845,6 +831,21 @@ export default function Inventory() {
     refresh();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
+
+  useEffect(() => {
+    if (!allowed || tab !== "UNITS") return undefined;
+    const timer = setTimeout(async () => {
+      setUnitPage(1);
+      setLoading(true);
+      setErr("");
+      try { await loadUnits(1); }
+      catch (e) { setErr(String(e?.message || e)); }
+      finally { setLoading(false); }
+    }, 300);
+    return () => clearTimeout(timer);
+  // Search is intentionally server-side so it covers units on every page.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowed, q, tab]);
 
   async function createItem() {
     setErr("");
@@ -1247,7 +1248,7 @@ export default function Inventory() {
               <input
                 value={q}
                 onChange={(e) => { setQ(e.target.value); setItemPage(1); setUnitPage(1); setMovementPage(1); setBatchPage(1); }}
-                placeholder="Cari berdasarkan nama / SKU / barcode..."
+                placeholder={tab === "UNITS" ? "Cari nomor seri, barcode, barang, atau nomor polisi..." : "Cari berdasarkan nama / SKU / barcode..."}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") refresh();
                 }}
@@ -1293,7 +1294,7 @@ export default function Inventory() {
             {tab === "UNITS" ? (
               <>
               <UnitsTable
-                units={filteredUnits}
+                units={units}
                 loading={loading}
                 items={serializedItems}
                 locations={locations}
@@ -1319,7 +1320,7 @@ export default function Inventory() {
                   setOpenScrap(true);
                 }}
                 onCompleteRetread={openCompleteRetreadUnit}
-                onApplyFilters={loadUnits}
+                onApplyFilters={() => { setUnitPage(1); loadUnits(1); }}
               />
               <Pagination pagination={unitPagination} onChange={changeUnitPage} />
               </>
