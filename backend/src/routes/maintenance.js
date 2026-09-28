@@ -800,9 +800,8 @@ router.post("/:id/repair-unit", authRequired, async (req, res) => {
       await tx.truckSparePartAssignment.update({ where: { id: assignment.id }, data: { removedAt: now, maintenanceId: job.id, note: [assignment.note, "Dilepas untuk perbaikan"].filter(Boolean).join(" · ") } });
       await tx.stockUnit.update({ where: { id: stockUnitId }, data: { status: "REPAIRING", locationId: null } });
       const repair = await tx.partRepair.create({ data: { stockUnitId, maintenanceId: job.id, sentAt: now, notes: String(req.body.notes || "").trim() || null, createdById: req.user.id } });
-      const request = await tx.purchaseRequest.create({ data: { number: await nextDailyNumber(tx, "purchaseRequest", "PR"), status: "WAITING_APPROVAL", urgency: req.body.urgency || "NORMAL", purpose: "REPAIR", truckId: job.truckId, maintenanceId: job.id, reason: String(req.body.reason || `Perbaikan ${assignment.stockUnit.item.name} dari ${job.truck.plateNumber}`), notes: req.body.notes || null, createdById: req.user.id, items: { create: { itemId: assignment.stockUnit.itemId, originalQty: 1, partRepairId: repair.id } } } });
-      await tx.stockMovement.create({ data: { type: "OUT", itemId: assignment.stockUnit.itemId, qty: 1, stockUnitId, maintenanceId: job.id, createdById: req.user.id, note: `Dilepas dari ${job.truck.plateNumber} untuk perbaikan · ${request.number}` } });
-      return { repair, request };
+      await tx.stockMovement.create({ data: { type: "OUT", itemId: assignment.stockUnit.itemId, qty: 1, stockUnitId, maintenanceId: job.id, createdById: req.user.id, note: `Dilepas dari ${job.truck.plateNumber} untuk perbaikan · menunggu permintaan pembelian gabungan` } });
+      return { repair };
     });
     res.json({ ok: true, ...result });
   } catch (e) { res.status(400).json({ error: e.message || "Gagal mengirim sparepart untuk perbaikan" }); }
@@ -917,9 +916,8 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
             await tx.stockMovement.create({ data: { type: "OUT", itemId: oldUnit.itemId, qty: 1, note: `Dilepas dari ${job.truck.plateNumber} dan dikirim untuk masak ban${retreadRecord.supplier?.name ? ` ke ${retreadRecord.supplier.name}` : ""}`, createdById: req.user.id, maintenanceId, stockUnitId: oldUnitId } });
           } else if (replaceDisposition === "REPAIRING") {
             await tx.stockUnit.update({ where: { id: oldUnitId }, data: { status: "REPAIRING", locationId: null } });
-            const repair = await tx.partRepair.create({ data: { stockUnitId: oldUnitId, maintenanceId, sentAt: now, notes: note ? String(note) : null, createdById: req.user.id } });
-            const request = await tx.purchaseRequest.create({ data: { number: await nextDailyNumber(tx, "purchaseRequest", "PR"), status: "WAITING_APPROVAL", urgency: "URGENT", purpose: "REPAIR", truckId: job.truckId, maintenanceId, reason: `Perbaikan unit lama ${oldUnit.serialNumber || oldUnit.barcode || oldUnit.id.slice(0, 8)} dari ${job.truck.plateNumber}`, createdById: req.user.id, items: { create: { itemId: oldUnit.itemId, originalQty: 1, partRepairId: repair.id } } } });
-            await tx.stockMovement.create({ data: { type: "OUT", itemId: oldUnit.itemId, qty: 1, note: `Unit lama dilepas untuk perbaikan · ${request.number}`, createdById: req.user.id, maintenanceId, stockUnitId: oldUnitId } });
+            await tx.partRepair.create({ data: { stockUnitId: oldUnitId, maintenanceId, sentAt: now, notes: note ? String(note) : null, createdById: req.user.id } });
+            await tx.stockMovement.create({ data: { type: "OUT", itemId: oldUnit.itemId, qty: 1, note: "Unit lama dilepas untuk perbaikan · menunggu permintaan pembelian gabungan", createdById: req.user.id, maintenanceId, stockUnitId: oldUnitId } });
           } else if (replaceDisposition === "SCRAPPED") {
             await tx.stockUnit.update({ where: { id: oldUnitId }, data: { status: "SCRAPPED", scrappedAt: now, locationId: null } });
             await tx.stockMovement.create({ data: { type: "ADJUST", itemId: oldUnit.itemId, qty: 1, note: `Unit lama dilepas dan di-scrap pada ${job.title}`, createdById: req.user.id, maintenanceId, stockUnitId: oldUnitId } });

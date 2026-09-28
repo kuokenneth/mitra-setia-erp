@@ -80,7 +80,7 @@ const includePO = { supplier: true, request: { include: { maintenance: { include
 
 router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"));
 router.get("/overview", async (_req, res) => {
-  const [requests, orders, suppliers, locations, items, retreadingUnits, bills, trucks, nonSerializedRepairs, nonSerializedRepairReceipts] = await Promise.all([
+  const [requests, orders, suppliers, locations, items, retreadingUnits, repairingUnits, bills, trucks, nonSerializedRepairs, nonSerializedRepairReceipts] = await Promise.all([
     prisma.purchaseRequest.findMany({ include: { maintenance: { include: { truck: true } }, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } }, partRepair: { include: { stockUnit: true } } } }, createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } }, orderBy: { createdAt: "desc" } }),
     prisma.purchaseOrder.findMany({ include: includePO, orderBy: { createdAt: "desc" } }),
     prisma.supplier.findMany({ orderBy: { name: "asc" } }), prisma.inventoryLocation.findMany({ orderBy: { name: "asc" } }), prisma.item.findMany({ orderBy: { name: "asc" } }),
@@ -95,6 +95,11 @@ router.get("/overview", async (_req, res) => {
           take: 1,
         },
       },
+      orderBy: { updatedAt: "asc" },
+    }),
+    prisma.stockUnit.findMany({
+      where: { status: "REPAIRING", partRepairs: { some: { status: "SENT", purchaseRequestItems: { none: { request: { status: { notIn: ["REJECTED", "CANCELLED"] } } } } } } },
+      include: { item: true, partRepairs: { where: { status: "SENT", purchaseRequestItems: { none: { request: { status: { notIn: ["REJECTED", "CANCELLED"] } } } } }, include: { supplier: true, maintenance: { include: { truck: true } } }, orderBy: { sentAt: "desc" }, take: 1 } },
       orderBy: { updatedAt: "asc" },
     }),
     prisma.supplierBill.findMany({
@@ -135,7 +140,7 @@ router.get("/overview", async (_req, res) => {
     try { if (encodedVendor) repairVendor = decodeURIComponent(encodedVendor); } catch { repairVendor = encodedVendor || repairVendor; }
     return { ...repair, repairVendor, receipts, receivedQty, remainingQty: Math.max(0, Number(repair.qty) - receivedQty), status: receivedQty >= Number(repair.qty) ? "COMPLETED" : receivedQty > 0 ? "PARTIALLY_RECEIVED" : "SENT" };
   });
-  res.json({ ok: true, requests, orders, suppliers, locations, items, retreadingUnits, bills, trucks, nonSerializedRepairQueue });
+  res.json({ ok: true, requests, orders, suppliers, locations, items, retreadingUnits, repairingUnits, bills, trucks, nonSerializedRepairQueue });
 });
 
 async function receiveNonSerializedRepair(tx, { movementId, qty, unitPrice, locationId, notes, userId }) {
@@ -303,7 +308,7 @@ router.post("/requests", async (req, res) => {
     return res.status(400).json({ error: "Truk tujuan tidak ditemukan" });
   }
   if (!damageProofUrl || !String(damageProofMimeType || "").startsWith("image/")) return res.status(400).json({ error: "Foto bukti barang rusak wajib dilampirkan" });
-  const regularItemIds = items.filter(row => row.itemId && !row.retreadUnitId).map(row => String(row.itemId));
+  const regularItemIds = items.filter(row => row.itemId && !row.retreadUnitId && !row.partRepairId).map(row => String(row.itemId));
   if (regularItemIds.length && !acknowledgeAvailableStock) {
     const catalogItems = await prisma.item.findMany({
       where: { id: { in: regularItemIds } },
@@ -344,6 +349,12 @@ router.post("/requests", async (req, res) => {
       });
       if (existingRequest) throw new Error(`${unit.serialNumber || unit.id} sudah memiliki Permintaan Pembelian retreading`);
       preparedItems.push({ itemId: retread.toItemId, originalQty: 1, notes: row.notes, tireRetreadId: retread.id });
+    } else if (row.partRepairId) {
+      const repair = await prisma.partRepair.findFirst({ where: { id: String(row.partRepairId), status: "SENT" }, include: { stockUnit: true } });
+      if (!repair || repair.stockUnit.status !== "REPAIRING") throw new Error("Barang tidak lagi berstatus dalam perbaikan");
+      const existingRequest = await prisma.purchaseRequestItem.findFirst({ where: { partRepairId: repair.id, request: { status: { notIn: ["REJECTED", "CANCELLED"] } } } });
+      if (existingRequest) throw new Error(`${repair.stockUnit.serialNumber || repair.stockUnit.id} sudah memiliki Permintaan Pembelian perbaikan`);
+      preparedItems.push({ itemId: repair.stockUnit.itemId, originalQty: 1, notes: row.notes, partRepairId: repair.id });
     } else {
       const requestedQty = purpose === "STOCK" ? 0 : Number(row.qty);
       if (purpose !== "STOCK" && (!Number.isFinite(requestedQty) || requestedQty <= 0)) {

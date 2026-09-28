@@ -32,7 +32,7 @@
 .purchasing .request-modal-heading p{font-size:12px}
 .request-modal-body{grid-template-columns:minmax(0,1.2fr) minmax(310px,.8fr);align-items:start;gap:16px;overflow-y:auto;padding:20px 22px}
 .request-form-section{align-self:start;padding:20px;border-radius:16px}
-.request-redesign-modal .request-item-mode{grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+.request-redesign-modal .request-item-mode{grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
 .request-redesign-modal .request-item-mode button{min-height:44px;padding:8px 10px;font-size:11px}
 .request-redesign-modal input:not([type=checkbox]),.request-redesign-modal select{height:46px!important;min-height:46px!important}
 .request-redesign-modal textarea{min-height:98px!important}
