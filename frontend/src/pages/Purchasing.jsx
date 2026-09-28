@@ -148,7 +148,9 @@ export default function Purchasing() {
     setSelectedRepairIds(current => {
       if (current.includes(repair.id)) return current.filter(id => id !== repair.id);
       const selected = (data.nonSerializedRepairQueue || []).filter(row => current.includes(row.id));
-      if (selected.length && selected[0].repairVendor !== repair.repairVendor) { setFormError("Checklist hanya boleh dari tempat perbaikan yang sama."); return current; }
+      const selectedSupplier = selected[0]?.repairSupplierId || selected[0]?.repairVendor;
+      const repairSupplier = repair.repairSupplierId || repair.repairVendor;
+      if (selected.length && selectedSupplier !== repairSupplier) { setFormError("Checklist hanya boleh dari supplier tempat perbaikan yang sama."); return current; }
       return [...current, repair.id];
     });
   }

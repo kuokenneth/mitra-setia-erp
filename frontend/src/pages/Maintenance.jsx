@@ -583,7 +583,7 @@ export default function Maintenance() {
   const [detailTab, setDetailTab] = useState("PARTS");
   const [partMode, setPartMode] = useState("SERIALIZED");
   const [externalRepairType, setExternalRepairType] = useState("SERIALIZED");
-  const [externalRepairForm, setExternalRepairForm] = useState({ stockUnitId: "", itemId: "", qty: 1, supplierId: "", repairVendor: "", notes: "" });
+  const [externalRepairForm, setExternalRepairForm] = useState({ stockUnitId: "", itemId: "", qty: 1, supplierId: "", notes: "" });
   const [sendingExternalRepair, setSendingExternalRepair] = useState(false);
 
   // items/locations
@@ -616,7 +616,7 @@ export default function Maintenance() {
   const [useOilOdometer, setUseOilOdometer] = useState("");
   const [usingStock, setUsingStock] = useState(false);
   const [returnStockTarget, setReturnStockTarget] = useState(null);
-  const [returnStockForm, setReturnStockForm] = useState({ qty: "", reason: "", repairVendor: "" });
+  const [returnStockForm, setReturnStockForm] = useState({ qty: "", reason: "", supplierId: "" });
   const [returnStockError, setReturnStockError] = useState("");
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [photoError, setPhotoError] = useState("");
@@ -992,7 +992,7 @@ export default function Maintenance() {
     }
   }
 
-  function openReturnStock(movement, disposition = "RETURN") {
+  async function openReturnStock(movement, disposition = "RETURN") {
     if (!activeJob?.id || !movement?.id) return;
     const alreadyReturned = (activeJob.movements || []).filter((row) => (row.type === "IN" && String(row.note || "").startsWith(`RETURN_OF:${movement.id}`)) || (row.type === "ADJUST" && String(row.note || "").startsWith(`NON_SERIAL_REPAIR_OF:${movement.id}`))).reduce((sum, row) => sum + Number(row.qty || 0), 0);
     const remaining = Math.max(0, Number(movement.qty || 0) - alreadyReturned);
@@ -1000,7 +1000,13 @@ export default function Maintenance() {
     setErr("");
     setReturnStockError("");
     setReturnStockTarget({ movement, remaining, disposition });
-    setReturnStockForm({ qty: String(remaining), reason: "", repairVendor: "" });
+    setReturnStockForm({ qty: String(remaining), reason: "", supplierId: "" });
+    if (disposition === "REPAIR_SECOND" && !retreadOptions.suppliers.length) {
+      try {
+        const data = await api("/inventory/retread-options");
+        setRetreadOptions({ items: data.items || [], suppliers: data.suppliers || [], locations: data.locations || [] });
+      } catch (e) { setReturnStockError(e.message || "Gagal memuat supplier tempat perbaikan"); }
+    }
   }
 
   async function returnNonSerializedStock(event) {
@@ -1018,15 +1024,15 @@ export default function Maintenance() {
       setReturnStockError(returnStockTarget.disposition === "REPAIR_SECOND" ? "Catatan perbaikan wajib diisi." : "Alasan pengembalian wajib diisi.");
       return;
     }
-    if (returnStockTarget.disposition === "REPAIR_SECOND" && !returnStockForm.repairVendor.trim()) {
-      setReturnStockError("Tempat perbaikan wajib diisi.");
+    if (returnStockTarget.disposition === "REPAIR_SECOND" && !returnStockForm.supplierId) {
+      setReturnStockError("Supplier tempat perbaikan wajib dipilih.");
       return;
     }
     setUsingStock(true); setErr(""); setReturnStockError("");
     try {
-      await api(`/maintenance/${activeJob.id}/return-stock`, { method: "POST", body: JSON.stringify({ movementId: movement.id, qty: requestedQty, reason, repairVendor: returnStockForm.repairVendor.trim(), disposition: returnStockTarget.disposition }) });
+      await api(`/maintenance/${activeJob.id}/return-stock`, { method: "POST", body: JSON.stringify({ movementId: movement.id, qty: requestedQty, reason, supplierId: returnStockForm.supplierId, disposition: returnStockTarget.disposition }) });
       setReturnStockTarget(null);
-      setReturnStockForm({ qty: "", reason: "", repairVendor: "" });
+      setReturnStockForm({ qty: "", reason: "", supplierId: "" });
       await refreshDetail(); await load();
     } catch (e) { setReturnStockError(e.message || "Gagal mengembalikan stok ke Inventory"); }
     finally { setUsingStock(false); }
@@ -1042,10 +1048,10 @@ export default function Maintenance() {
         await api(`/maintenance/${activeJob.id}/repair-unit`, { method: "POST", body: JSON.stringify({ stockUnitId: externalRepairForm.stockUnitId, supplierId: externalRepairForm.supplierId, notes: externalRepairForm.notes }) });
       } else {
         if (!externalRepairForm.itemId) throw new Error("Pilih barang non-serial yang akan diperbaiki");
-        if (!externalRepairForm.repairVendor.trim()) throw new Error("Isi tempat perbaikan");
-        await api(`/maintenance/${activeJob.id}/repair-non-serialized`, { method: "POST", body: JSON.stringify({ itemId: externalRepairForm.itemId, qty: Number(externalRepairForm.qty), repairVendor: externalRepairForm.repairVendor.trim(), notes: externalRepairForm.notes }) });
+        if (!externalRepairForm.supplierId) throw new Error("Pilih supplier tempat perbaikan");
+        await api(`/maintenance/${activeJob.id}/repair-non-serialized`, { method: "POST", body: JSON.stringify({ itemId: externalRepairForm.itemId, qty: Number(externalRepairForm.qty), supplierId: externalRepairForm.supplierId, notes: externalRepairForm.notes }) });
       }
-      setExternalRepairForm({ stockUnitId: "", itemId: "", qty: 1, supplierId: "", repairVendor: "", notes: "" });
+      setExternalRepairForm({ stockUnitId: "", itemId: "", qty: 1, supplierId: "", notes: "" });
       await refreshDetail(); await load();
     } catch (e) { setErr(e.message || "Gagal mengirim barang untuk perbaikan"); }
     finally { setSendingExternalRepair(false); }
@@ -1946,7 +1952,7 @@ export default function Maintenance() {
                 <div className={`maintenance-part-box external-repair ${detailTab !== "PARTS" || partMode !== "REPAIR" ? "maintenance-detail-section-hidden" : ""}`} style={{ padding: 16, borderRadius: 6, border: `1px solid ${BRAND.border}` }}>
                   <div className="maintenance-part-box-title"><span>C</span><div><strong>Kirim komponen ke tempat perbaikan</strong><small>Lepas barang dari mobil, kirim keluar, lalu terima kembali setelah selesai diperbaiki.</small></div></div>
                   <div className="maintenance-source-switch">
-                    <button type="button" className={externalRepairType === "SERIALIZED" ? "active" : ""} onClick={() => { setExternalRepairType("SERIALIZED"); setExternalRepairForm(form => ({ ...form, itemId: "", qty: 1, repairVendor: "" })); }}><span>01</span><div><strong>Unit berserial</strong><small>Kembali dengan serial yang sama</small></div></button>
+                    <button type="button" className={externalRepairType === "SERIALIZED" ? "active" : ""} onClick={() => { setExternalRepairType("SERIALIZED"); setExternalRepairForm(form => ({ ...form, itemId: "", qty: 1 })); }}><span>01</span><div><strong>Unit berserial</strong><small>Kembali dengan serial yang sama</small></div></button>
                     <button type="button" className={externalRepairType === "NON_SERIAL" ? "active" : ""} onClick={() => { setExternalRepairType("NON_SERIAL"); setExternalRepairForm(form => ({ ...form, stockUnitId: "", supplierId: "" })); }}><span>02</span><div><strong>Barang non-serial</strong><small>Kembali sebagai stok SECOND</small></div></button>
                   </div>
                   {externalRepairType === "SERIALIZED" ? <div className="maintenance-external-repair-fields">
@@ -1955,11 +1961,11 @@ export default function Maintenance() {
                   </div> : <div className="maintenance-external-repair-fields">
                     <label>Barang yang dilepas<Select value={externalRepairForm.itemId} onChange={event => setExternalRepairForm(form => ({ ...form, itemId: event.target.value }))} disabled={!allowed || activeJob.status !== "OPEN"}><option value="">Pilih barang di mobil</option>{(activeJob.repairCandidates?.nonSerialized || []).map(stock => <option key={stock.itemId} value={stock.itemId}>{stock.item?.name} — tersedia {Number(stock.qty).toLocaleString("id-ID")} {stock.item?.unit}</option>)}</Select></label>
                     <label>Jumlah<Input type="number" min="0.01" step="0.01" value={externalRepairForm.qty} onChange={event => setExternalRepairForm(form => ({ ...form, qty: event.target.value }))}/></label>
-                    <label>Tempat perbaikan<Input value={externalRepairForm.repairVendor} onChange={event => setExternalRepairForm(form => ({ ...form, repairVendor: event.target.value }))} placeholder="Contoh: Bengkel Pump ABC"/></label>
+                    <label>Supplier tempat perbaikan<Select value={externalRepairForm.supplierId} onChange={event => setExternalRepairForm(form => ({ ...form, supplierId: event.target.value }))}><option value="">Pilih supplier / bengkel</option>{retreadOptions.suppliers.map(supplier => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</Select></label>
                   </div>}
                   <label className="maintenance-external-repair-note">Keluhan / catatan<Input value={externalRepairForm.notes} onChange={event => setExternalRepairForm(form => ({ ...form, notes: event.target.value }))} placeholder="Contoh: pump bocor dan tekanan lemah"/></label>
                   <div className="maintenance-retread-notice"><strong>Barang akan keluar sementara dari mobil</strong><small>Setelah siap, terima kembali melalui Pembelian → Penerimaan Barang → Barang Perbaikan. Biaya perbaikan dicatat saat penerimaan.</small></div>
-                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}><Button variant="primary" onClick={sendExternalRepair} disabled={!allowed || activeJob.status !== "OPEN" || sendingExternalRepair}>{sendingExternalRepair ? "Mengirim..." : "Lepas & Kirim Perbaikan"}</Button></div>
+                  <div className="maintenance-external-repair-actions"><small>Supplier pilihan akan dibawa ke proses penerimaan dan pencatatan tagihan perbaikan di Pembelian.</small><Button variant="primary" onClick={sendExternalRepair} disabled={!allowed || activeJob.status !== "OPEN" || sendingExternalRepair}>{sendingExternalRepair ? "Mengirim..." : "Lepas & Kirim Perbaikan"}</Button></div>
                 </div>
               </div>
             </Card>}
@@ -2106,9 +2112,9 @@ export default function Maintenance() {
           </div>
           <div className="maintenance-return-fields">
             {returnStockTarget.disposition === "REPAIR_SECOND" && <label>
-              Tempat perbaikan
-              <Input required value={returnStockForm.repairVendor} onChange={(event) => setReturnStockForm((form) => ({ ...form, repairVendor: event.target.value }))} placeholder="Contoh: Bengkel ABC" />
-              <small>Dipakai untuk menggabungkan penerimaan dari bengkel yang sama.</small>
+              Supplier tempat perbaikan
+              <Select required value={returnStockForm.supplierId} onChange={(event) => setReturnStockForm((form) => ({ ...form, supplierId: event.target.value }))}><option value="">Pilih supplier / bengkel</option>{retreadOptions.suppliers.map(supplier => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</Select>
+              <small>Supplier ini dipakai untuk mengelompokkan penerimaan dan pencatatan tagihan perbaikan.</small>
             </label>}
             <label>
               {returnStockTarget.disposition === "REPAIR_SECOND" ? "Jumlah diperbaiki" : "Jumlah dikembalikan"}

@@ -132,13 +132,16 @@ router.get("/overview", async (_req, res) => {
     map.set(movementId, rows);
     return map;
   }, new Map());
+  const suppliersById = new Map(suppliers.map(supplier => [supplier.id, supplier]));
   const nonSerializedRepairQueue = nonSerializedRepairs.map((repair) => {
     const receipts = repairReceiptsByMovement.get(repair.id) || [];
     const receivedQty = receipts.reduce((sum, receipt) => sum + Number(receipt.qty || 0), 0);
     const encodedVendor = String(repair.note || "").match(/REPAIR_VENDOR:([^ ·]+)/)?.[1];
     let repairVendor = "Belum ditentukan";
     try { if (encodedVendor) repairVendor = decodeURIComponent(encodedVendor); } catch { repairVendor = encodedVendor || repairVendor; }
-    return { ...repair, repairVendor, receipts, receivedQty, remainingQty: Math.max(0, Number(repair.qty) - receivedQty), status: receivedQty >= Number(repair.qty) ? "COMPLETED" : receivedQty > 0 ? "PARTIALLY_RECEIVED" : "SENT" };
+    const repairSupplierId = String(repair.note || "").match(/REPAIR_SUPPLIER_ID:([^ ·]+)/)?.[1] || null;
+    const repairSupplier = repairSupplierId ? suppliersById.get(repairSupplierId) || null : null;
+    return { ...repair, repairSupplierId, repairSupplier, repairVendor: repairSupplier?.name || repairVendor, receipts, receivedQty, remainingQty: Math.max(0, Number(repair.qty) - receivedQty), status: receivedQty >= Number(repair.qty) ? "COMPLETED" : receivedQty > 0 ? "PARTIALLY_RECEIVED" : "SENT" };
   });
   res.json({ ok: true, requests, orders, suppliers, locations, items, retreadingUnits, repairingUnits, bills, trucks, nonSerializedRepairQueue });
 });
@@ -173,7 +176,7 @@ router.post("/repairs/non-serialized/receive-batch", async (req, res) => {
       if (!location) throw new Error("Lokasi Inventory tidak ditemukan");
       const repairs = await tx.stockMovement.findMany({ where: { id: { in: prepared.map(row => row.movementId) } }, select: { id: true, note: true } });
       if (repairs.length !== prepared.length) throw new Error("Sebagian data perbaikan tidak ditemukan");
-      const vendors = new Set(repairs.map(repair => String(repair.note || "").match(/REPAIR_VENDOR:([^ ·]+)/)?.[1] || "LEGACY"));
+      const vendors = new Set(repairs.map(repair => String(repair.note || "").match(/REPAIR_SUPPLIER_ID:([^ ·]+)/)?.[1] || String(repair.note || "").match(/REPAIR_VENDOR:([^ ·]+)/)?.[1] || "LEGACY"));
       if (vendors.size !== 1) throw new Error("Checklist hanya boleh berisi barang dari tempat perbaikan yang sama");
       const created = [];
       for (const row of prepared) created.push(await receiveNonSerializedRepair(tx, { ...row, locationId, notes, userId: req.user.id }));

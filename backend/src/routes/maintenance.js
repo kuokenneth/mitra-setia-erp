@@ -615,17 +615,19 @@ router.post("/:id/return-stock", authRequired, async (req, res) => {
     const movementId = String(req.body.movementId || "");
     const requestedQty = num(req.body.qty, 0);
     const reason = String(req.body.reason || "").trim();
-    const repairVendor = String(req.body.repairVendor || "").trim();
+    const supplierId = String(req.body.supplierId || "").trim();
     const disposition = String(req.body.disposition || "RETURN").toUpperCase();
     if (!movementId || requestedQty <= 0) return res.status(400).json({ error: "Movement dan jumlah pengembalian wajib diisi" });
     if (!["RETURN", "REPAIR_SECOND"].includes(disposition)) return res.status(400).json({ error: "Tindakan pengembalian tidak valid" });
     if (!reason) return res.status(400).json({ error: disposition === "REPAIR_SECOND" ? "Catatan perbaikan wajib diisi" : "Alasan pengembalian wajib diisi" });
-    if (disposition === "REPAIR_SECOND" && !repairVendor) return res.status(400).json({ error: "Tempat perbaikan wajib diisi" });
+    if (disposition === "REPAIR_SECOND" && !supplierId) return res.status(400).json({ error: "Supplier tempat perbaikan wajib dipilih" });
     if (reason.length > 500) return res.status(400).json({ error: "Catatan maksimal 500 karakter" });
 
     const returned = await prisma.$transaction(async (tx) => {
       const job = await tx.truckMaintenance.findUnique({ where: { id: maintenanceId }, select: { id: true, status: true, truckId: true, truck: { select: { plateNumber: true } } } });
       if (!job || job.status !== "OPEN") throw new Error("Pengembalian hanya dapat dilakukan saat servis masih berjalan");
+      const supplier = disposition === "REPAIR_SECOND" ? await tx.supplier.findUnique({ where: { id: supplierId }, select: { id: true, name: true } }) : null;
+      if (disposition === "REPAIR_SECOND" && !supplier) throw new Error("Supplier tempat perbaikan tidak ditemukan");
       const movement = await tx.stockMovement.findFirst({ where: { id: movementId, maintenanceId, type: "OUT", stockUnitId: null }, include: { item: true } });
       if (!movement || !movement.fromLocationId) throw new Error("Pemakaian stok dari Inventory tidak ditemukan");
       if (movement.item.category === "OIL") throw new Error("Oli yang sudah digunakan tidak dapat dikembalikan ke Inventory");
@@ -638,7 +640,7 @@ router.post("/:id/return-stock", authRequired, async (req, res) => {
       const returnCost = movement.unitPrice == null ? null : Math.round(Number(movement.unitPrice) * requestedQty);
       await tx.truckPartStock.update({ where: { truckId_itemId: { truckId: job.truckId, itemId: movement.itemId } }, data: { qty: { decrement: requestedQty } } });
       if (disposition === "REPAIR_SECOND") {
-        return tx.stockMovement.create({ data: { type: "ADJUST", itemId: movement.itemId, qty: requestedQty, unitPrice: null, totalCost: null, note: `NON_SERIAL_REPAIR_OF:${movement.id} · REPAIR_VENDOR:${encodeURIComponent(repairVendor)} · Dikirim untuk perbaikan dari ${job.truck.plateNumber} · Catatan: ${reason}`, createdById: req.user.id, fromTruckId: job.truckId, toLocationId: movement.fromLocationId, maintenanceId } });
+        return tx.stockMovement.create({ data: { type: "ADJUST", itemId: movement.itemId, qty: requestedQty, unitPrice: null, totalCost: null, note: `NON_SERIAL_REPAIR_OF:${movement.id} · REPAIR_SUPPLIER_ID:${supplier.id} · REPAIR_VENDOR:${encodeURIComponent(supplier.name)} · Dikirim untuk perbaikan dari ${job.truck.plateNumber} · Catatan: ${reason}`, createdById: req.user.id, fromTruckId: job.truckId, toLocationId: movement.fromLocationId, maintenanceId } });
       }
       const returnedItem = movement.item;
       await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: returnedItem.id, locationId: movement.fromLocationId } }, create: { itemId: returnedItem.id, locationId: movement.fromLocationId, qty: requestedQty }, update: { qty: { increment: requestedQty } } });
@@ -849,18 +851,20 @@ router.post("/:id/repair-non-serialized", authRequired, async (req, res) => {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
     const itemId = String(req.body.itemId || "");
     const qty = num(req.body.qty, 0);
-    const repairVendor = String(req.body.repairVendor || "").trim();
+    const supplierId = String(req.body.supplierId || "").trim();
     const notes = String(req.body.notes || "").trim();
     if (!itemId || qty <= 0) return res.status(400).json({ error: "Barang dan jumlah perbaikan wajib diisi" });
-    if (!repairVendor) return res.status(400).json({ error: "Tempat perbaikan wajib diisi" });
+    if (!supplierId) return res.status(400).json({ error: "Supplier tempat perbaikan wajib dipilih" });
     const movement = await prisma.$transaction(async tx => {
       const job = await tx.truckMaintenance.findUnique({ where: { id: req.params.id }, include: { truck: true } });
       if (!job || job.status !== "OPEN") throw new Error("Servis aktif tidak ditemukan");
+      const supplier = await tx.supplier.findUnique({ where: { id: supplierId }, select: { id: true, name: true } });
+      if (!supplier) throw new Error("Supplier tempat perbaikan tidak ditemukan");
       const stock = await tx.truckPartStock.findUnique({ where: { truckId_itemId: { truckId: job.truckId, itemId } }, include: { item: true } });
       if (!stock || Number(stock.qty) < qty) throw new Error(`Stok di mobil tidak mencukupi. Tersedia ${Number(stock?.qty || 0)} ${stock?.item?.unit || "unit"}`);
       if (stock.item.category === "OIL") throw new Error("Oli tidak dapat dikirim untuk perbaikan");
       await tx.truckPartStock.update({ where: { truckId_itemId: { truckId: job.truckId, itemId } }, data: { qty: { decrement: qty } } });
-      return tx.stockMovement.create({ data: { type: "ADJUST", itemId, qty, unitPrice: null, totalCost: null, note: `NON_SERIAL_REPAIR_OF:DIRECT-${job.id}-${Date.now()} · REPAIR_VENDOR:${encodeURIComponent(repairVendor)} · Dikirim untuk perbaikan dari ${job.truck.plateNumber}${notes ? ` · Catatan: ${notes}` : ""}`, createdById: req.user.id, fromTruckId: job.truckId, maintenanceId: job.id } });
+      return tx.stockMovement.create({ data: { type: "ADJUST", itemId, qty, unitPrice: null, totalCost: null, note: `NON_SERIAL_REPAIR_OF:DIRECT-${job.id}-${Date.now()} · REPAIR_SUPPLIER_ID:${supplier.id} · REPAIR_VENDOR:${encodeURIComponent(supplier.name)} · Dikirim untuk perbaikan dari ${job.truck.plateNumber}${notes ? ` · Catatan: ${notes}` : ""}`, createdById: req.user.id, fromTruckId: job.truckId, maintenanceId: job.id } });
     });
     res.json({ ok: true, movement });
   } catch (e) { res.status(400).json({ error: e.message || "Gagal mengirim barang untuk perbaikan" }); }
