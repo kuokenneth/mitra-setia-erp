@@ -1,0 +1,6 @@
+ALTER TABLE "FinanceDebt"
+  ALTER COLUMN "originalAmount" TYPE BIGINT;
+
+ALTER TABLE "JournalLine"
+  ALTER COLUMN "debit" TYPE BIGINT,
+  ALTER COLUMN "credit" TYPE BIGINT;

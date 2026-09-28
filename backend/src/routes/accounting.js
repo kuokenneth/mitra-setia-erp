@@ -16,7 +16,7 @@ router.get("/overview", async (req, res) => {
       prisma.journalEntry.findMany({ where: { status: "POSTED", date: { gte: from, lte: to } }, include: { lines: { include: { account: true } }, createdBy: { select: { name: true } } }, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 500 }),
     ]);
     const balances = Object.fromEntries(accounts.map(account => [account.id, { ...account, debit: 0, credit: 0, balance: 0 }]));
-    for (const entry of entries) for (const line of entry.lines) { balances[line.accountId].debit += line.debit; balances[line.accountId].credit += line.credit; }
+    for (const entry of entries) for (const line of entry.lines) { balances[line.accountId].debit += Number(line.debit); balances[line.accountId].credit += Number(line.credit); }
     for (const row of Object.values(balances)) row.balance = ["ASSET","EXPENSE"].includes(row.type) ? row.debit - row.credit : row.credit - row.debit;
     const rows = Object.values(balances);
     const revenue = rows.filter(x => x.type === "REVENUE").reduce((s,x)=>s+x.balance,0);
@@ -25,7 +25,8 @@ router.get("/overview", async (req, res) => {
     const receivables = rows.find(x=>x.code===SYSTEM_ACCOUNTS.AR)?.balance || 0;
     const payables = rows.find(x=>x.code===SYSTEM_ACCOUNTS.AP)?.balance || 0;
     const financePayables = rows.find(x=>x.code===SYSTEM_ACCOUNTS.FINANCE_AP)?.balance || 0;
-    res.json({ ok:true, from, to, accounts: rows, entries, summary: { revenue, expenses, profit: revenue-expenses, cash, receivables, payables, financePayables } });
+    const serializedEntries = entries.map(entry => ({ ...entry, lines: entry.lines.map(line => ({ ...line, debit: Number(line.debit), credit: Number(line.credit) })) }));
+    res.json({ ok:true, from, to, accounts: rows, entries: serializedEntries, summary: { revenue, expenses, profit: revenue-expenses, cash, receivables, payables, financePayables } });
   } catch (error) { res.status(400).json({ error: error.message || "Gagal memuat accounting" }); }
 });
 

@@ -740,7 +740,7 @@ model FinanceDebt {
   contractNumber String?
   truckId        String?
   truck          Truck?    @relation(fields: [truckId], references: [id], onDelete: SetNull)
-  originalAmount Int
+  originalAmount BigInt
   notes          String?
   isActive       Boolean   @default(true)
   createdById    String
@@ -1645,8 +1645,8 @@ model JournalLine {
   accountId   String
   account     Account      @relation(fields: [accountId], references: [id])
   description String?
-  debit       Int          @default(0)
-  credit      Int          @default(0)
+  debit       BigInt       @default(0)
+  credit      BigInt       @default(0)
 
   @@index([entryId])
   @@index([accountId])

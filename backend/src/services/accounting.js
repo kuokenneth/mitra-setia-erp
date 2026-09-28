@@ -8,9 +8,10 @@ async function postJournal(tx, { date = new Date(), description, sourceType, sou
   if (!sourceType || !sourceId) throw new Error("Referensi jurnal wajib diisi");
   const existing = await tx.journalEntry.findUnique({ where: { sourceType_sourceId: { sourceType, sourceId } }, select: { id: true } });
   if (existing) return existing;
-  const debit = lines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
-  const credit = lines.reduce((sum, line) => sum + Number(line.credit || 0), 0);
-  if (debit <= 0 || debit !== credit) throw new Error("Jurnal tidak seimbang");
+  const toAmount = value => BigInt(Math.round(Number(value || 0)));
+  const debit = lines.reduce((sum, line) => sum + toAmount(line.debit), 0n);
+  const credit = lines.reduce((sum, line) => sum + toAmount(line.credit), 0n);
+  if (debit <= 0n || debit !== credit) throw new Error("Jurnal tidak seimbang");
   const codes = [...new Set(lines.map(line => line.code))];
   const accounts = await tx.account.findMany({ where: { code: { in: codes }, isActive: true }, select: { id: true, code: true } });
   if (accounts.length !== codes.length) throw new Error("Akun sistem accounting belum lengkap");
@@ -18,7 +19,7 @@ async function postJournal(tx, { date = new Date(), description, sourceType, sou
   return tx.journalEntry.create({ data: {
     number: await nextDailyNumber(tx, "journalEntry", "JRN", { date: new Date(date) }), date: new Date(date), description, sourceType, sourceId,
     createdById: createdById || null,
-    lines: { create: lines.map(line => ({ accountId: ids[line.code], description: line.description || null, debit: Number(line.debit || 0), credit: Number(line.credit || 0) })) },
+    lines: { create: lines.map(line => ({ accountId: ids[line.code], description: line.description || null, debit: toAmount(line.debit), credit: toAmount(line.credit) })) },
   }});
 }
 

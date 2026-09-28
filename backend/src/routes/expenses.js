@@ -247,7 +247,7 @@ router.get("/employees", authRequired, async (req, res) => {
 router.get("/finance-debts", authRequired, async (req, res) => {
   if (!ensureRole(req, res)) return;
   const debts = await prisma.financeDebt.findMany({ where: { isActive: true }, include: { truck: { select: { id: true, plateNumber: true, brand: true, model: true } }, expenses: { where: { category: "FINANCE_DEBT_PAYMENT", status: { in: ["PAID", "APPROVED"] } }, select: { id: true, amount: true, expenseDate: true, status: true } } }, orderBy: [{ leasingName: "asc" }, { createdAt: "desc" }] });
-  res.json({ debts: debts.map(debt => { const paid = debt.expenses.reduce((sum, item) => sum + item.amount, 0); return { ...debt, paid, balance: Math.max(0, debt.originalAmount - paid) }; }) });
+  res.json({ debts: debts.map(debt => { const originalAmount = Number(debt.originalAmount); const paid = debt.expenses.reduce((sum, item) => sum + item.amount, 0); return { ...debt, originalAmount, paid, balance: Math.max(0, originalAmount - paid) }; }) });
 });
 
 router.post("/finance-debts", authRequired, async (req, res) => {
@@ -256,12 +256,12 @@ router.post("/finance-debts", authRequired, async (req, res) => {
   const contractNumber = cleanStr(req.body.contractNumber);
   const originalAmount = Math.round(Number(req.body.originalAmount));
   if (!leasingName || !Number.isFinite(originalAmount) || originalAmount <= 0) return res.status(400).json({ error: "Leasing dan jumlah utang awal wajib diisi" });
-  if (!Number.isSafeInteger(originalAmount) || originalAmount > 2_147_483_647) return res.status(400).json({ error: "Jumlah utang maksimal Rp2.147.483.647" });
+  if (!Number.isSafeInteger(originalAmount)) return res.status(400).json({ error: "Jumlah utang terlalu besar atau tidak valid" });
 
   try {
     const debt = await prisma.$transaction(async tx => {
       const created = await tx.financeDebt.create({
-        data: { leasingName, contractNumber, originalAmount, notes: cleanStr(req.body.notes), createdById: req.user.id },
+        data: { leasingName, contractNumber, originalAmount: BigInt(originalAmount), notes: cleanStr(req.body.notes), createdById: req.user.id },
         include: { truck: true },
       });
       await postJournal(tx, {
@@ -274,7 +274,7 @@ router.post("/finance-debts", authRequired, async (req, res) => {
       });
       return created;
     }, { maxWait: 10_000, timeout: 20_000 });
-    res.status(201).json({ ...debt, paid: 0, balance: debt.originalAmount });
+    res.status(201).json({ ...debt, originalAmount: Number(debt.originalAmount), paid: 0, balance: Number(debt.originalAmount) });
   } catch (error) {
     console.error("Failed to create finance debt:", error);
     const message = error?.code === "P2003"
@@ -342,7 +342,7 @@ router.post("/", authRequired, async (req, res) => {
     if (!financeDebtId) return res.status(400).json({ error: "Pilih kontrak leasing yang akan dibayar" });
     financeDebt = await prisma.financeDebt.findFirst({ where: { id: financeDebtId, isActive: true }, include: { expenses: { where: { category: "FINANCE_DEBT_PAYMENT", status: { not: "REJECTED" } }, select: { amount: true } } } });
     if (!financeDebt) return res.status(404).json({ error: "Kontrak leasing tidak ditemukan" });
-    const balance = financeDebt.originalAmount - financeDebt.expenses.reduce((sum, item) => sum + item.amount, 0);
+    const balance = Number(financeDebt.originalAmount) - financeDebt.expenses.reduce((sum, item) => sum + item.amount, 0);
     if (Math.round(amount) > balance) return res.status(400).json({ error: `Pembayaran melebihi sisa utang leasing Rp${balance.toLocaleString("id-ID")}` });
   }
   let trip = null;
