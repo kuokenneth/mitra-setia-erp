@@ -257,7 +257,6 @@ router.get("/:id/part-history/:itemId", authRequired, async (req, res) => {
       select: { truckId: true },
     });
     if (!job) return res.status(404).json({ error: "Maintenance job not found" });
-
     const [assignment, movement] = await Promise.all([
       prisma.truckSparePartAssignment.findFirst({
         where: { truckId: job.truckId, stockUnit: { itemId: req.params.itemId } },
@@ -343,6 +342,19 @@ router.get("/:id", authRequired, async (req, res) => {
     });
 
     if (!job) return res.status(404).json({ error: "Maintenance job not found" });
+    const [repairSerialized, repairNonSerialized] = await Promise.all([
+      prisma.truckSparePartAssignment.findMany({
+        where: { truckId: job.truckId, removedAt: null, stockUnit: { status: "ASSIGNED", item: { isSerialized: true } } },
+        include: { stockUnit: { include: { item: true } } },
+        orderBy: { installedAt: "desc" },
+      }),
+      prisma.truckPartStock.findMany({
+        where: { truckId: job.truckId, qty: { gt: 0 }, item: { category: { not: "OIL" } } },
+        include: { item: true },
+        orderBy: { item: { name: "asc" } },
+      }),
+    ]);
+    job.repairCandidates = { serialized: repairSerialized, nonSerialized: repairNonSerialized };
     job.previousOilChange = await prisma.truckMaintenance.findFirst({
       where: { truckId: job.truckId, isOilChange: true, status: "DONE", id: { not: job.id } },
       orderBy: [{ oilChangedAt: "desc" }, { createdAt: "desc" }],
@@ -799,12 +811,36 @@ router.post("/:id/repair-unit", authRequired, async (req, res) => {
       const now = new Date();
       await tx.truckSparePartAssignment.update({ where: { id: assignment.id }, data: { removedAt: now, maintenanceId: job.id, note: [assignment.note, "Dilepas untuk perbaikan"].filter(Boolean).join(" · ") } });
       await tx.stockUnit.update({ where: { id: stockUnitId }, data: { status: "REPAIRING", locationId: null } });
-      const repair = await tx.partRepair.create({ data: { stockUnitId, maintenanceId: job.id, sentAt: now, notes: String(req.body.notes || "").trim() || null, createdById: req.user.id } });
+      const supplierId = req.body.supplierId ? String(req.body.supplierId) : null;
+      if (supplierId && !(await tx.supplier.findUnique({ where: { id: supplierId }, select: { id: true } }))) throw new Error("Tempat perbaikan tidak ditemukan");
+      const repair = await tx.partRepair.create({ data: { stockUnitId, maintenanceId: job.id, supplierId, sentAt: now, notes: String(req.body.notes || "").trim() || null, createdById: req.user.id } });
       await tx.stockMovement.create({ data: { type: "OUT", itemId: assignment.stockUnit.itemId, qty: 1, stockUnitId, maintenanceId: job.id, createdById: req.user.id, note: `Dilepas dari ${job.truck.plateNumber} untuk perbaikan · menunggu permintaan pembelian gabungan` } });
       return { repair };
     });
     res.json({ ok: true, ...result });
   } catch (e) { res.status(400).json({ error: e.message || "Gagal mengirim sparepart untuk perbaikan" }); }
+});
+
+router.post("/:id/repair-non-serialized", authRequired, async (req, res) => {
+  try {
+    if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
+    const itemId = String(req.body.itemId || "");
+    const qty = num(req.body.qty, 0);
+    const repairVendor = String(req.body.repairVendor || "").trim();
+    const notes = String(req.body.notes || "").trim();
+    if (!itemId || qty <= 0) return res.status(400).json({ error: "Barang dan jumlah perbaikan wajib diisi" });
+    if (!repairVendor) return res.status(400).json({ error: "Tempat perbaikan wajib diisi" });
+    const movement = await prisma.$transaction(async tx => {
+      const job = await tx.truckMaintenance.findUnique({ where: { id: req.params.id }, include: { truck: true } });
+      if (!job || job.status !== "OPEN") throw new Error("Servis aktif tidak ditemukan");
+      const stock = await tx.truckPartStock.findUnique({ where: { truckId_itemId: { truckId: job.truckId, itemId } }, include: { item: true } });
+      if (!stock || Number(stock.qty) < qty) throw new Error(`Stok di mobil tidak mencukupi. Tersedia ${Number(stock?.qty || 0)} ${stock?.item?.unit || "unit"}`);
+      if (stock.item.category === "OIL") throw new Error("Oli tidak dapat dikirim untuk perbaikan");
+      await tx.truckPartStock.update({ where: { truckId_itemId: { truckId: job.truckId, itemId } }, data: { qty: { decrement: qty } } });
+      return tx.stockMovement.create({ data: { type: "ADJUST", itemId, qty, unitPrice: null, totalCost: null, note: `NON_SERIAL_REPAIR_OF:DIRECT-${job.id}-${Date.now()} · REPAIR_VENDOR:${encodeURIComponent(repairVendor)} · Dikirim untuk perbaikan dari ${job.truck.plateNumber}${notes ? ` · Catatan: ${notes}` : ""}`, createdById: req.user.id, fromTruckId: job.truckId, maintenanceId: job.id } });
+    });
+    res.json({ ok: true, movement });
+  } catch (e) { res.status(400).json({ error: e.message || "Gagal mengirim barang untuk perbaikan" }); }
 });
 
 ////////////////////////////////////////////////////
