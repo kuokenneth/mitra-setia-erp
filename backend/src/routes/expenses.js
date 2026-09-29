@@ -331,6 +331,9 @@ router.post("/", authRequired, async (req, res) => {
   if (!reason) {
     return res.status(400).json({ error: "Reason is required" });
   }
+  if (tripId && paymentMethod === "BANK_TRANSFER" && (!bankName || !accountName || !accountNumber)) {
+    return res.status(400).json({ error: "Nama bank, nama pemilik rekening, dan nomor rekening wajib diisi untuk transfer bank" });
+  }
   let employee = null;
   if (category === "EMPLOYEE_RECEIVABLE") {
     if (!employeeId) return res.status(400).json({ error: "Pilih nama karyawan yang akan ditagih" });

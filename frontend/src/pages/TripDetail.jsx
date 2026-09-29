@@ -284,7 +284,7 @@ export default function TripDetail() {
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [expenseBusy, setExpenseBusy] = useState(false);
   const [expenseErr, setExpenseErr] = useState("");
-  const [expenseForm, setExpenseForm] = useState({ expenseDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()), category: "TRIP_ALLOWANCE", reason: "", amount: "", paymentMethod: "BANK_TRANSFER", notes: "" });
+  const [expenseForm, setExpenseForm] = useState({ expenseDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()), category: "TRIP_ALLOWANCE", reason: "", amount: "", paymentMethod: "BANK_TRANSFER", bankName: "", accountName: "", accountNumber: "", notes: "" });
 
   async function load() {
     try {
@@ -432,7 +432,7 @@ export default function TripDetail() {
         method: "POST",
         body: JSON.stringify({ ...expenseForm, tripId: id, amount: Number(expenseForm.amount), currency: "IDR" }),
       });
-      setExpenseForm({ expenseDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()), category: "TRIP_ALLOWANCE", reason: "", amount: "", paymentMethod: "BANK_TRANSFER", notes: "" });
+      setExpenseForm({ expenseDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()), category: "TRIP_ALLOWANCE", reason: "", amount: "", paymentMethod: "BANK_TRANSFER", bankName: "", accountName: "", accountNumber: "", notes: "" });
       setExpenseOpen(false);
       await load();
     } catch (e) {
@@ -801,7 +801,7 @@ export default function TripDetail() {
             <div className="trip-expense-list">
               {(trip.expenses || []).map((item) => <article key={item.id}>
                 <i><FiDollarSign/></i>
-                <div><strong>{item.reason}</strong><span>{EXPENSE_LABELS[item.category] || item.category} · {fmtDateTime(item.createdAt)}</span><small>{item.notes || `Dibuat oleh ${item.createdBy?.name || "Sistem"}`}</small></div>
+                <div><strong>{item.reason}</strong><span>{EXPENSE_LABELS[item.category] || item.category} · {fmtDateTime(item.createdAt)}</span>{item.paymentMethod === "BANK_TRANSFER" && <small>{item.bankName || "Bank belum diisi"} · {item.accountNumber || "No. rekening belum diisi"}{item.accountName ? ` · a.n. ${item.accountName}` : ""}</small>}<small>{item.notes || `Dibuat oleh ${item.createdBy?.name || "Sistem"}`}</small></div>
                 <div className="trip-expense-value"><strong>{money(item.amount)}</strong><span className={String(item.status).toLowerCase()}>{item.status === "SUBMITTED" ? "Menunggu persetujuan" : item.status === "APPROVED" ? "Disetujui" : "Dibayar"}</span></div>
               </article>)}
               {!(trip.expenses || []).length && <div className="trip-expense-empty"><FiDollarSign/><strong>Belum ada pengeluaran</strong><span>Panjar, borongan, BBM, dan biaya perjalanan akan tampil di sini.</span></div>}
@@ -898,7 +898,8 @@ export default function TripDetail() {
                 <div className="trip-expense-form">
                   <label><span>Tanggal pengeluaran</span><input required type="date" value={expenseForm.expenseDate} onChange={(event) => setExpenseForm((form) => ({ ...form, expenseDate: event.target.value }))}/></label>
                   <label><span>Jenis pengeluaran</span><select value={expenseForm.category} onChange={(event) => setExpenseForm((form) => ({ ...form, category: event.target.value }))}>{EXPENSE_CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-                  <label><span>Metode pembayaran</span><select value={expenseForm.paymentMethod} onChange={(event) => setExpenseForm((form) => ({ ...form, paymentMethod: event.target.value }))}><option value="BANK_TRANSFER">Transfer bank</option><option value="CASH">Tunai</option><option value="OTHER">Lainnya</option></select></label>
+                  <label><span>Metode pembayaran</span><select value={expenseForm.paymentMethod} onChange={(event) => setExpenseForm((form) => ({ ...form, paymentMethod: event.target.value, ...(event.target.value === "BANK_TRANSFER" ? {} : { bankName: "", accountName: "", accountNumber: "" }) }))}><option value="BANK_TRANSFER">Transfer bank</option><option value="CASH">Tunai</option><option value="OTHER">Lainnya</option></select></label>
+                  {expenseForm.paymentMethod === "BANK_TRANSFER" && <><label><span>Nama bank</span><input required value={expenseForm.bankName} onChange={(event) => setExpenseForm((form) => ({ ...form, bankName: event.target.value }))} placeholder="Contoh: BCA"/></label><label><span>Nama pemilik rekening</span><input required value={expenseForm.accountName} onChange={(event) => setExpenseForm((form) => ({ ...form, accountName: event.target.value }))} placeholder="Nama sesuai rekening"/></label><label className="wide"><span>Nomor rekening</span><input required inputMode="numeric" value={expenseForm.accountNumber} onChange={(event) => setExpenseForm((form) => ({ ...form, accountNumber: event.target.value }))} placeholder="Masukkan nomor rekening"/></label></>}
                   <label className="wide"><span>Pengeluaran untuk apa</span><input required value={expenseForm.reason} onChange={(event) => setExpenseForm((form) => ({ ...form, reason: event.target.value }))} placeholder="Contoh: Panjar borongan pengiriman ke Palmaris"/></label>
                   <label className="wide"><span>Nominal</span><div className="trip-expense-money"><b>Rp</b><input required min="1" type="number" value={expenseForm.amount} onChange={(event) => setExpenseForm((form) => ({ ...form, amount: event.target.value }))} placeholder="0"/></div></label>
                   <label className="wide"><span>Catatan <small>opsional</small></span><textarea rows="3" value={expenseForm.notes} onChange={(event) => setExpenseForm((form) => ({ ...form, notes: event.target.value }))} placeholder="Keterangan tambahan atau penerima dana…"/></label>
