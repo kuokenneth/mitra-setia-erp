@@ -1204,7 +1204,7 @@ router.post("/:id/use-stock", authRequired, async (req, res) => {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
 
     const maintenanceId = req.params.id;
-    const { itemId, locationId, qty, note, oilChangedAt, odometerKm } = req.body || {};
+    const { itemId, locationId, qty, note, oilUsageType, oilChangedAt, odometerKm } = req.body || {};
 
     if (!itemId) return res.status(400).json({ error: "itemId is required" });
     if (!locationId) return res.status(400).json({ error: "locationId is required" });
@@ -1224,7 +1224,11 @@ router.post("/:id/use-stock", authRequired, async (req, res) => {
     if (item.isSerialized) return res.status(400).json({ error: "Item is serialized. Use Assign Unit instead." });
     let oilDate = null;
     let oilOdometer = null;
-    if (item.category === "OIL") {
+    const normalizedOilUsageType = item.category === "OIL" ? String(oilUsageType || "CHANGE").toUpperCase() : null;
+    if (item.category === "OIL" && !["CHANGE", "RESERVE"].includes(normalizedOilUsageType)) {
+      return res.status(400).json({ error: "Tujuan pemakaian oli tidak valid" });
+    }
+    if (item.category === "OIL" && normalizedOilUsageType === "CHANGE") {
       oilDate = oilChangedAt ? new Date(oilChangedAt) : null;
       oilOdometer = odometerKm != null && odometerKm !== "" ? num(odometerKm, null) : null;
       if (!oilDate || Number.isNaN(oilDate.getTime())) return res.status(400).json({ error: "Tanggal ganti oli wajib diisi" });
@@ -1292,7 +1296,7 @@ router.post("/:id/use-stock", authRequired, async (req, res) => {
         data: { qty: current - q },
       });
 
-      if (item.category === "OIL") {
+      if (item.category === "OIL" && normalizedOilUsageType === "CHANGE") {
         await tx.truckMaintenance.update({
           where: { id: maintenanceId },
           data: { isOilChange: true, oilChangedAt: oilDate, odometerKm: oilOdometer },
@@ -1321,7 +1325,7 @@ router.post("/:id/use-stock", authRequired, async (req, res) => {
           qty: q,
           unitPrice: movementUnitPrice,
           totalCost: movementTotalCost,
-          note: note ? String(note) : `Used in maintenance: ${job.title}`,
+          note: note ? String(note) : normalizedOilUsageType === "RESERVE" ? `Stok cadangan oli: ${job.title}` : `Used in maintenance: ${job.title}`,
           createdById: req.user?.id || null,
           fromLocationId: String(locationId),
           toLocationId: null,

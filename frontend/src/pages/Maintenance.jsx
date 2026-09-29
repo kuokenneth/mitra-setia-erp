@@ -616,6 +616,7 @@ export default function Maintenance() {
   const [donorTruckId, setDonorTruckId] = useState("");
   const [useOilDate, setUseOilDate] = useState(localDateValue());
   const [useOilOdometer, setUseOilOdometer] = useState("");
+  const [oilUsageType, setOilUsageType] = useState("CHANGE");
   const [usingStock, setUsingStock] = useState(false);
   const [returnStockTarget, setReturnStockTarget] = useState(null);
   const [returnStockForm, setReturnStockForm] = useState({ qty: "", reason: "", supplierId: "" });
@@ -1106,9 +1107,10 @@ export default function Maintenance() {
     if (stockSource === "INVENTORY" && !useLocationId) return setErr("Pilih lokasi stok");
     if (stockSource === "DONOR" && !donorTruckId) return setErr("Pilih mobil donor");
     if (!Number.isFinite(qty) || qty <= 0) return setErr("Qty must be > 0");
-    if (selectedUseItem?.category === "OIL" && !useOilDate) return setErr("Tanggal ganti oli wajib diisi");
-    if (selectedUseItem?.category === "OIL" && (!Number.isInteger(Number(useOilOdometer)) || Number(useOilOdometer) < 0)) return setErr("Odometer saat ganti oli wajib diisi");
-    if (selectedUseItem?.category === "OIL" && hasPreviousOilOdometer && !oilMileageEligible) {
+    const isOilChange = selectedUseItem?.category === "OIL" && oilUsageType === "CHANGE";
+    if (isOilChange && !useOilDate) return setErr("Tanggal ganti oli wajib diisi");
+    if (isOilChange && (!Number.isInteger(Number(useOilOdometer)) || Number(useOilOdometer) < 0)) return setErr("Odometer saat ganti oli wajib diisi");
+    if (isOilChange && hasPreviousOilOdometer && !oilMileageEligible) {
       return setErr(`Kendaraan harus berjalan minimal ${OIL_CHANGE_INTERVAL_KM.toLocaleString("id-ID")} km sejak ganti oli terakhir. Odometer minimal ${minimumOilOdometer.toLocaleString("id-ID")} km.`);
     }
 
@@ -1123,8 +1125,9 @@ export default function Maintenance() {
           donorTruckId: stockSource === "DONOR" ? donorTruckId : undefined,
           qty,
           note: useNote || undefined,
-          oilChangedAt: selectedUseItem?.category === "OIL" ? useOilDate : undefined,
-          odometerKm: selectedUseItem?.category === "OIL" ? Number(useOilOdometer) : undefined,
+          oilUsageType: selectedUseItem?.category === "OIL" ? oilUsageType : undefined,
+          oilChangedAt: isOilChange ? useOilDate : undefined,
+          odometerKm: isOilChange ? Number(useOilOdometer) : undefined,
         }),
       });
       setUseQty("");
@@ -1891,7 +1894,7 @@ export default function Maintenance() {
                     <div className="maintenance-part-field item-field"><label>Jenis sparepart</label><SearchableItemPicker
                       items={nonSerializedItems}
                       value={useItemId}
-                      onChange={(itemId) => { const picked = nonSerializedItems.find((item) => item.id === itemId); setUseItemId(itemId); setDonorTruckId(""); loadPartHistory(itemId, "stock"); if (picked?.category === "OIL") setStockSource("INVENTORY"); else if (stockSource === "DONOR") loadDonorStocks(itemId).catch((e) => setErr(e.message)); }}
+                      onChange={(itemId) => { const picked = nonSerializedItems.find((item) => item.id === itemId); setUseItemId(itemId); setDonorTruckId(""); setOilUsageType("CHANGE"); loadPartHistory(itemId, "stock"); if (picked?.category === "OIL") setStockSource("INVENTORY"); else if (stockSource === "DONOR") loadDonorStocks(itemId).catch((e) => setErr(e.message)); }}
                       disabled={!allowed || activeJob.status !== "OPEN"}
                       placeholder="Cari SKU / nama sparepart..."
                       testId="non-serialized-item-search"
@@ -1919,6 +1922,12 @@ export default function Maintenance() {
 
                   {selectedUseItem?.category === "OIL" && (
                     <div style={{ padding: 14, marginBottom: 10, borderRadius: 6, border: `1px solid ${BRAND.primary}`, background: BRAND.successBg }}>
+                      <div style={{ marginBottom: 10, fontWeight: 700, color: BRAND.primary }}>Tujuan pemakaian oli</div>
+                      <div className="maintenance-source-switch" role="radiogroup" aria-label="Tujuan pemakaian oli" style={{ marginBottom: 12 }}>
+                        <button type="button" role="radio" aria-checked={oilUsageType === "CHANGE"} className={oilUsageType === "CHANGE" ? "active" : ""} onClick={() => setOilUsageType("CHANGE")} disabled={!allowed || activeJob.status !== "OPEN"}><span>01</span><div><strong>Ganti oli</strong><small>Catat tanggal dan odometer kendaraan</small></div></button>
+                        <button type="button" role="radio" aria-checked={oilUsageType === "RESERVE"} className={oilUsageType === "RESERVE" ? "active" : ""} onClick={() => setOilUsageType("RESERVE")} disabled={!allowed || activeJob.status !== "OPEN"}><span>02</span><div><strong>Stok cadangan</strong><small>Ambil oli untuk persediaan, tanpa odometer</small></div></button>
+                      </div>
+                      {oilUsageType === "CHANGE" ? <>
                       <div style={{ marginBottom: 10, fontWeight: 700, color: BRAND.primary }}>Data ganti oli</div>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                         <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
@@ -1943,6 +1952,7 @@ export default function Maintenance() {
                             : `Odometer minimal untuk ganti oli: ${minimumOilOdometer.toLocaleString("id-ID")} km.`}
                       </div>
                       <div style={{ marginTop: 5, fontSize: 12, color: BRAND.textMuted }}>Foto dokumentasi dapat diunggah secara opsional pada bagian foto maintenance.</div>
+                      </> : <div style={{ fontSize: 12, color: BRAND.textLight }}>Pemakaian ini hanya dicatat sebagai pengambilan stok oli cadangan dan tidak masuk ke riwayat ganti oli kendaraan.</div>}
                     </div>
                   )}
 
