@@ -490,7 +490,13 @@ export default function OrderDetail() {
       const [, , candidateData] = await Promise.all([
         loadDrivers(),
         loadTrucks(""),
-        order?.cargoCategory === "MATERIAL" ? Promise.resolve({ items: [] }) : api(`/orders/${id}/trip-allocation-candidates`),
+        order?.cargoCategory === "MATERIAL" ? Promise.resolve({ items: [] }) : api(`/orders/${id}/trip-allocation-candidates`).catch(async () => {
+          const fallback = await api("/orders?statuses=DRAFT,CONFIRMED,IN_PROGRESS");
+          const items = (fallback?.items || []).filter((candidate) => candidate.id !== id
+            && candidate.pickupLocationId === order?.pickupLocationId
+            && candidate.cargoCategory === order?.cargoCategory);
+          return { items: items.map((candidate) => ({ ...candidate, remainingQty: candidate.qtyRemaining })) };
+        }),
       ]);
       setTripAllocationCandidates(candidateData?.items || []);
     } catch (e) {
