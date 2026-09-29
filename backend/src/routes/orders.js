@@ -335,12 +335,13 @@ router.get("/:id", authRequired, async (req, res) => {
             truck: true,
             driverUser: true,
             dispatchLetter: true,
+            dispatchDocuments: { orderBy: { createdAt: "asc" } },
             orderAllocations: { include: { order: { include: { customer: true } } } },
           },
         },
         tripAllocations: {
           orderBy: { createdAt: "desc" },
-          include: { trip: { include: { truck: true, driverUser: true, dispatchLetter: true, orderAllocations: { include: { order: { include: { customer: true } } } } } } },
+          include: { trip: { include: { truck: true, driverUser: true, dispatchLetter: true, dispatchDocuments: { orderBy: { createdAt: "asc" } }, orderAllocations: { include: { order: { include: { customer: true } } } } } } },
         },
       },
     });
@@ -718,7 +719,7 @@ router.post("/:id/trips", authRequired, async (req, res) => {
 
     const full = await prisma.trip.findUnique({
       where: { id: trip.id },
-      include: { truck: true, driverUser: true, dispatchLetter: true },
+      include: { truck: true, driverUser: true, dispatchLetter: true, dispatchDocuments: { orderBy: { createdAt: "asc" } } },
     });
 
     res.json(full);

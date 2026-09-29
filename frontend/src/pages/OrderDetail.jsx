@@ -415,6 +415,14 @@ export default function OrderDetail() {
         destinationLocationId: materialInvoiceForm.destinationLocationId, stopSequence: materialInvoiceForm.stopSequence,
         notes: materialInvoiceForm.notes, lines,
       }) });
+      try {
+        await api(`/dispatch/trips/${materialInvoiceForm.tripId}`, {
+          method: "POST",
+          body: JSON.stringify({ city: "Medan", companyName: "CV. MITRA SETIA", companyAddress: "JLN. CEMARA NO. 40 TELP. (061) 6642646. FAX. (061) 6642647\nDs. Sampali Kec. Percut Sei Tuan Kab. Deli Serdang", companyPhone: "Telp. (061) 6642646" }),
+        });
+      } catch (dispatchError) {
+        setMaterialInvoiceError(`Faktur Muatan berhasil disimpan, tetapi surat jalannya gagal dibuat: ${dispatchError?.message || "Kesalahan tidak diketahui"}`);
+      }
       setMaterialInvoiceForm((form) => ({ ...form, number: "", customerId: "", destinationLocationId: "", stopSequence: 1, notes: "" }));
       setMaterialAvailable([]);
       setMaterialSelected({});
@@ -933,11 +941,9 @@ export default function OrderDetail() {
                         {t.dispatchedAt && <span style={{ fontSize: 13, color: BRAND.textMuted }}>Dispatched: {fmtDateTime(t.dispatchedAt)}</span>}
                       </div>
 
-                      {t.dispatchLetter?.pdfUrl ? (
-                        <div style={{ marginTop: 8, fontSize: 13 }}>
-                          Dispatch:{" "}
-                          <button type="button" onClick={() => openProtectedFile(t.dispatchLetter.pdfUrl).catch((e) => setErr(e.message))} style={{ border: 0, padding: 0, background: "transparent", cursor: "pointer", color: BRAND.primary, fontWeight: 500 }}>Open PDF</button>{" "}
-                          <span style={{ color: BRAND.textMuted }}>({t.dispatchLetter.number})</span>
+                      {(t.dispatchDocuments || []).length ? (
+                        <div style={{ marginTop: 8, display: "grid", gap: 5, fontSize: 13 }}>
+                          {(t.dispatchDocuments || []).map((document) => <div key={document.id}><button type="button" onClick={() => openProtectedFile(document.pdfUrl).catch((e) => setErr(e.message))} style={{ border: 0, padding: 0, background: "transparent", cursor: "pointer", color: BRAND.primary, fontWeight: 600 }}>{document.number}</button><span style={{ color: BRAND.textMuted }}> · {document.recipientName || document.destination || "Muatan"}</span></div>)}
                         </div>
                       ) : (
                         <div style={{ marginTop: 8, fontSize: 13, color: BRAND.textMuted }}>Surat jalan belum dibuat.</div>
@@ -950,7 +956,7 @@ export default function OrderDetail() {
                       </Button>
                       {canWrite && (
                         <Button variant="primary" size="small" disabled={Boolean(dispatchBusyId)} onClick={() => generateDispatch(t.id)}>
-                          {dispatchBusyId === t.id ? (t.dispatchLetter ? "Membuat ulang…" : "Membuat…") : `${t.dispatchLetter ? "Buat Ulang" : "Buat"} Surat Jalan`}
+                          {dispatchBusyId === t.id ? ((t.dispatchDocuments || []).length ? "Membuat ulang…" : "Membuat…") : `${(t.dispatchDocuments || []).length ? "Buat Ulang" : "Buat"} Surat Jalan`}
                         </Button>
                       )}
                     </div>

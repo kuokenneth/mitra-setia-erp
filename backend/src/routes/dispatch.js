@@ -20,6 +20,10 @@ async function nextDispatchNo(tx) {
   return nextDailyNumber(tx, "dispatchLetter", "SP");
 }
 
+async function nextLoadDispatchNo(tx) {
+  return nextDailyNumber(tx, "dispatchDocument", "SJ");
+}
+
 function fmtDateId(d) {
   if (!d) return "";
   const dt = new Date(d);
@@ -277,7 +281,72 @@ router.post("/trips/:tripId", authRequired, async (req, res) => {
         },
       });
 
-    res.json(saved);
+      const orderSources = allocations
+        .filter((item) => item.plannedWeightKg != null || item.sackCount != null || item.order.cargoCategory !== "MATERIAL")
+        .map((item) => ({
+          sourceType: "ORDER_ALLOCATION",
+          sourceId: item.id,
+          recipientName: item.order.customer?.name || item.order.customerName || "",
+          cargoName: `${item.order.cargoName || "Muatan"} (${item.order.orderNo} · DO ${item.order.deliveryOrderNo || "-"})`,
+          qtyText: item.sackCount && item.kgPerSack
+            ? `${Number(item.sackCount)} sak × ${Number(item.kgPerSack)} kg = ${Number(item.plannedWeightKg || 0)} kg`
+            : `${Number(item.qtyPlanned || 0)} ${item.unitSnap || ""}`.trim(),
+          destination: item.order.destinationLocation?.name || item.order.toText || "Tujuan",
+        }));
+      const materialSources = materialInvoices.map((item) => {
+        const lines = item.lines?.length ? item.lines : [{ itemName: item.materialName, qty: item.qty, unit: item.unit }];
+        return {
+          sourceType: "MATERIAL_INVOICE",
+          sourceId: item.id,
+          recipientName: item.billingCustomerName || "",
+          cargoName: lines.map((line) => line.itemName).filter(Boolean).join("; ") || item.materialName || "Material",
+          qtyText: lines.map((line) => `${line.itemName}: ${Number(line.qty || 0)} ${line.unit || ""}`.trim()).join("; "),
+          destination: item.destinationLocation?.name || trip.toText || "Tujuan",
+        };
+      });
+      const documentSources = [...orderSources, ...materialSources];
+      if (!documentSources.length) documentSources.push({ sourceType: "TRIP", sourceId: trip.id, recipientName, cargoName, qtyText, destination });
+
+      const documents = [];
+      const documentBrowser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--disable-setuid-sandbox"] });
+      try {
+        for (const source of documentSources) {
+          const existing = await prisma.dispatchDocument.findUnique({ where: { sourceType_sourceId: { sourceType: source.sourceType, sourceId: source.sourceId } } });
+          const number = existing?.number || await prisma.$transaction((tx) => nextLoadDispatchNo(tx));
+          const sourceHtml = buildHtmlTemplate({
+            companyName: body.companyName || "CV. Mitra Setia",
+            companyAddress: body.companyAddress || "",
+            companyPhone: body.companyPhone || "",
+            city: body.city || "",
+            dispatchNo: number,
+            recipientName: source.recipientName,
+            cargoName: source.cargoName,
+            qtyText: source.qtyText,
+            driverName,
+            plateNumber,
+            loadDateText,
+            destination: source.destination,
+          });
+          const sourceFileName = `${number}.pdf`.replace(/[^\w\-\.]/g, "_");
+          const page = await documentBrowser.newPage();
+          try {
+            await page.setContent(sourceHtml, { waitUntil: "networkidle0" });
+            await page.pdf({ path: path.join(outDir, sourceFileName), format: "A4", printBackground: true, margin: { top: "18mm", right: "16mm", bottom: "18mm", left: "16mm" } });
+          } finally {
+            await page.close();
+          }
+          const sourcePdfUrl = `${backendOrigin}/dispatch/${sourceFileName}?v=${issuedAt.getTime()}`;
+          documents.push(await prisma.dispatchDocument.upsert({
+            where: { sourceType_sourceId: { sourceType: source.sourceType, sourceId: source.sourceId } },
+            create: { tripId: trip.id, sourceType: source.sourceType, sourceId: source.sourceId, number, city: body.city || null, issuedAt, pdfUrl: sourcePdfUrl, recipientName: source.recipientName || null, cargoName: source.cargoName || null, driverName: driverName || null, plateNumber: plateNumber || null, loadDateText: loadDateText || null, destination: source.destination || null },
+            update: { city: body.city || null, issuedAt, pdfUrl: sourcePdfUrl, recipientName: source.recipientName || null, cargoName: source.cargoName || null, driverName: driverName || null, plateNumber: plateNumber || null, loadDateText: loadDateText || null, destination: source.destination || null },
+          }));
+        }
+      } finally {
+        await documentBrowser.close();
+      }
+
+    res.json({ legacy: saved, documents });
   } catch (e) {
     console.error(e);
     res.status(400).json({ error: e.message || "Failed to generate dispatch letter" });

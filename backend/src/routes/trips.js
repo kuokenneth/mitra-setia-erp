@@ -369,6 +369,7 @@ router.get("/my", authRequired, async (req, res) => {
           select: { id: true, orderNo: true, customerName: true, cargoName: true, qty: true, unit: true, fromText: true, toText: true },
         },
         dispatchLetter: true,
+        dispatchDocuments: { orderBy: { createdAt: "asc" } },
         materialInvoices: { include: { destinationLocation: true, lines: true }, orderBy: { stopSequence: "asc" } },
       },
     });
@@ -878,6 +879,7 @@ router.get("/:id", authRequired, async (req, res) => {
           include: { createdBy: { select: { id: true, name: true } } },
         },
         dispatchLetter: true,
+        dispatchDocuments: { orderBy: { createdAt: "asc" } },
         materialInvoices: {
           include: { destinationLocation: true, lines: true },
           orderBy: { stopSequence: "asc" },

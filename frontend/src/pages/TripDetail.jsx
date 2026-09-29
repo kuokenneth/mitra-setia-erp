@@ -725,7 +725,7 @@ export default function TripDetail() {
               <InfoRow
                 label="Surat jalan"
                 icon={FiFileText}
-                value={<span className="trip-dispatch-actions">{trip.dispatchLetter?.pdfUrl ? <button type="button" className="trip-dispatch-link" onClick={() => openProtectedFile(trip.dispatchLetter.pdfUrl).catch((e) => setErr(e.message))}>{trip.dispatchLetter.number || "Buka PDF"}</button> : <span>Belum dibuat</span>}{canWrite && trip.purpose === "SINGLE_TRIP" && currentStatus !== "CANCELLED" && <button type="button" className="trip-dispatch-create" disabled={dispatchBusy} onClick={generateDispatchLetter}>{dispatchBusy ? "Membuat…" : trip.dispatchLetter ? "Buat ulang" : "Buat surat jalan"}</button>}</span>}
+                value={<span className="trip-dispatch-actions">{(trip.dispatchDocuments || []).length ? (trip.dispatchDocuments || []).map((document) => <button key={document.id} type="button" className="trip-dispatch-link" onClick={() => openProtectedFile(document.pdfUrl).catch((e) => setErr(e.message))}>{document.number} · {document.recipientName || document.destination || "Muatan"}</button>) : <span>Belum dibuat</span>}{canWrite && trip.purpose === "SINGLE_TRIP" && currentStatus !== "CANCELLED" && <button type="button" className="trip-dispatch-create" disabled={dispatchBusy} onClick={generateDispatchLetter}>{dispatchBusy ? "Membuat…" : (trip.dispatchDocuments || []).length ? "Buat ulang" : "Buat surat jalan"}</button>}</span>}
               />
             </div>
           </div>
