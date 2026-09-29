@@ -564,6 +564,7 @@ export default function OrderDetail() {
   }
 
   async function patchOrderStatus(nextStatus) {
+    if (nextStatus === "CANCELLED" && !window.confirm("Batalkan pesanan ini? Semua trip aktif yang hanya terkait pesanan ini juga akan otomatis dibatalkan.")) return;
     try {
       await api(`/orders/${id}`, {
         method: "PATCH",

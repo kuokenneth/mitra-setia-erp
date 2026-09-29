@@ -413,9 +413,7 @@ router.patch("/:id", authRequired, async (req, res) => {
     if (body.destinationLocationId !== undefined && !destinationLocation) return res.status(400).json({ error: "Tujuan wajib dipilih dari Master Lokasi aktif" });
     if (pickupLocation && destinationLocation && pickupLocation.id === destinationLocation.id) return res.status(400).json({ error: "Lokasi muat dan tujuan harus berbeda" });
 
-    const updated = await prisma.order.update({
-      where: { id },
-      data: {
+    const orderData = {
         orderType: body.orderType ?? undefined,
         deliveryOrderNo: body.deliveryOrderNo !== undefined ? String(body.deliveryOrderNo || "").trim() || null : undefined,
         spkNo: body.spkNo !== undefined ? String(body.spkNo || "").trim() || null : undefined,
@@ -432,9 +430,54 @@ router.patch("/:id", authRequired, async (req, res) => {
         toText: destinationLocation?.name ?? body.toText ?? undefined,
         plannedAt: body.plannedAt !== undefined ? (body.plannedAt ? new Date(body.plannedAt) : null) : undefined,
         status: body.status ?? undefined,
-      },
-      include: { customer: true, pickupLocation: true, destinationLocation: true, createdBy: { select: { id: true, name: true, email: true } }, proofs: true },
-    });
+    };
+    const orderInclude = { customer: true, pickupLocation: true, destinationLocation: true, createdBy: { select: { id: true, name: true, email: true } }, proofs: true };
+
+    const updated = body.status === "CANCELLED"
+      ? await prisma.$transaction(async (tx) => {
+          const linkedTrips = await tx.trip.findMany({
+            where: {
+              status: { notIn: ["COMPLETED", "CANCELLED"] },
+              OR: [{ orderId: id }, { orderAllocations: { some: { orderId: id } } }],
+            },
+            include: {
+              truck: true,
+              orderAllocations: { include: { order: { select: { id: true, status: true } } } },
+            },
+          });
+
+          for (const trip of linkedTrips) {
+            // A shared trip must keep running when it still carries another
+            // non-cancelled order. Cancelling this order must not strand the
+            // other customer's delivery.
+            const hasOtherActiveOrder = trip.orderAllocations.some((allocation) =>
+              allocation.orderId !== id && allocation.order?.status !== "CANCELLED");
+            if (hasOtherActiveOrder) continue;
+
+            await tx.trip.update({
+              where: { id: trip.id },
+              data: { status: "CANCELLED" },
+            });
+
+            const truck = trip.truck;
+            if (!truck || ["MAINTENANCE", "INACTIVE"].includes(truck.status)) continue;
+            const normalizeLocation = (value) => String(value || "").trim().toLocaleLowerCase("id-ID");
+            const baseLocation = normalizeLocation(truck.baseLocation || trip.fromText);
+            const currentLocation = normalizeLocation(truck.currentLocation || trip.fromText);
+            const awayFromBase = Boolean(baseLocation && currentLocation && baseLocation !== currentLocation);
+            await tx.truck.update({
+              where: { id: truck.id },
+              data: {
+                status: awayFromBase ? "WAITING_BACKHAUL" : "READY",
+                availableForBackhaul: awayFromBase,
+                idleSince: awayFromBase ? new Date() : null,
+              },
+            });
+          }
+
+          return tx.order.update({ where: { id }, data: orderData, include: orderInclude });
+        }, { maxWait: 5000, timeout: 15000 })
+      : await prisma.order.update({ where: { id }, data: orderData, include: orderInclude });
 
     res.json(updated);
   } catch (e) {
