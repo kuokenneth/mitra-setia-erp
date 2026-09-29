@@ -190,33 +190,44 @@ router.post("/:id/purchase-requests", authRequired, async (req, res) => {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
     const maintenance = await prisma.truckMaintenance.findUnique({ where: { id: req.params.id }, include: { truck: true } });
     if (!maintenance || maintenance.status !== "OPEN") return res.status(400).json({ error: "Permintaan hanya dapat dibuat pada servis yang masih terbuka" });
-    const qty = Number(req.body.qty);
-    if (!Number.isFinite(qty) || qty <= 0) return res.status(400).json({ error: "Jumlah barang harus lebih dari nol" });
     if (!req.body.damageProofUrl || !String(req.body.damageProofMimeType || "").startsWith("image/")) return res.status(400).json({ error: "Foto bukti barang rusak wajib dilampirkan" });
-
-    let itemId = req.body.itemId;
-    if (!itemId && req.body.newItem) {
-      const input = req.body.newItem;
-      if (!String(input.sku || "").trim() || !String(input.name || "").trim()) return res.status(400).json({ error: "SKU dan nama sparepart baru wajib diisi" });
-      const created = await prisma.item.create({ data: { sku: String(input.sku).trim(), name: String(input.name).trim(), unit: String(input.unit || "PCS").trim(), isSerialized: Boolean(input.isSerialized), category: input.category || "GENERAL_SPAREPART" } });
-      itemId = created.id;
-    }
-    const item = itemId ? await prisma.item.findUnique({ where: { id: itemId } }) : null;
-    if (!item) return res.status(400).json({ error: "Sparepart wajib dipilih" });
+    const requestedRows = Array.isArray(req.body.items) && req.body.items.length
+      ? req.body.items
+      : [{ itemId: req.body.itemId, newItem: req.body.newItem, qty: req.body.qty }];
+    if (requestedRows.some(row => !Number.isFinite(Number(row.qty)) || Number(row.qty) <= 0)) return res.status(400).json({ error: "Jumlah setiap barang harus lebih dari nol" });
+    if (requestedRows.some(row => !row.itemId && (!row.newItem || !String(row.newItem.sku || "").trim() || !String(row.newItem.name || "").trim()))) return res.status(400).json({ error: "Setiap sparepart wajib dipilih; SKU dan nama barang baru wajib diisi" });
+    const requestedIds = requestedRows.map(row => row.itemId).filter(Boolean);
+    if (new Set(requestedIds).size !== requestedIds.length) return res.status(400).json({ error: "Sparepart yang sama tidak boleh dipilih dua kali" });
+    const existingItems = requestedIds.length ? await prisma.item.findMany({ where: { id: { in: requestedIds } } }) : [];
+    if (existingItems.length !== requestedIds.length) return res.status(400).json({ error: "Salah satu sparepart tidak ditemukan" });
     if (!req.body.acknowledgeAvailableStock) {
-      const availableQty = item.isSerialized
-        ? await prisma.stockUnit.count({ where: { itemId: item.id, status: "IN_STOCK" } })
-        : (await prisma.inventoryStock.aggregate({ where: { itemId: item.id }, _sum: { qty: true } }))._sum.qty || 0;
-      if (Number(availableQty) > 0) {
+      const availability = await Promise.all(existingItems.map(async item => ({
+        item,
+        qty: item.isSerialized
+          ? await prisma.stockUnit.count({ where: { itemId: item.id, status: "IN_STOCK" } })
+          : (await prisma.inventoryStock.aggregate({ where: { itemId: item.id }, _sum: { qty: true } }))._sum.qty || 0,
+      })));
+      const available = availability.filter(row => Number(row.qty) > 0);
+      if (available.length) {
         return res.status(409).json({
-          error: `Stok ${item.name} masih tersedia ${Number(availableQty).toLocaleString("id-ID")} ${item.unit}. Periksa Inventory atau konfirmasi untuk tetap membuat permintaan.`,
+          error: `Stok masih tersedia untuk ${available.map(row => `${row.item.name} (${Number(row.qty).toLocaleString("id-ID")} ${row.item.unit})`).join(", ")}. Periksa Inventory atau konfirmasi untuk tetap membuat permintaan.`,
           code: "STOCK_AVAILABLE",
         });
       }
     }
 
-    const request = await prisma.$transaction(async tx => tx.purchaseRequest.create({
-      data: {
+    const request = await prisma.$transaction(async tx => {
+      const rows = [];
+      for (const row of requestedRows) {
+        let itemId = row.itemId;
+        if (!itemId) {
+          const input = row.newItem;
+          const created = await tx.item.create({ data: { sku: String(input.sku).trim(), name: String(input.name).trim(), unit: String(input.unit || "PCS").trim(), isSerialized: Boolean(input.isSerialized), category: input.category || "GENERAL_SPAREPART" } });
+          itemId = created.id;
+        }
+        rows.push({ itemId, originalQty: Number(row.qty), notes: req.body.notes ? String(req.body.notes).trim() : null });
+      }
+      return tx.purchaseRequest.create({ data: {
         number: await nextDailyNumber(tx, "purchaseRequest", "PR"),
         status: "WAITING_APPROVAL",
         urgency: req.body.urgency || "URGENT",
@@ -231,14 +242,15 @@ router.post("/:id/purchase-requests", authRequired, async (req, res) => {
         damageProofMimeType: req.body.damageProofMimeType,
         damageProofSize: req.body.damageProofSize == null ? null : Number(req.body.damageProofSize),
         createdById: req.user.id,
-        items: { create: [{ itemId: item.id, originalQty: qty, notes: req.body.notes ? String(req.body.notes).trim() : null }] },
+        items: { create: rows },
       },
       include: { items: { include: { item: true } }, maintenance: { include: { truck: true } } },
-    }));
+    });
+    });
     await notifyOwnerSafely({
       event: "Permintaan sparepart servis",
       title: `${request.number} · ${maintenance.truck?.plateNumber || "Armada"}`,
-      details: `${item.name} · ${qty.toLocaleString("id-ID")} ${item.unit} · ${request.reason}`,
+      details: `${request.items.map(row => `${row.item.name} · ${Number(row.originalQty).toLocaleString("id-ID")} ${row.item.unit}`).join(", ")} · ${request.reason}`,
       path: `/purchasing?approveRequest=${encodeURIComponent(request.id)}`,
       actionLabel: "Setujui Permintaan",
       proof: { url: request.damageProofUrl, fileName: request.damageProofFileName, mimeType: request.damageProofMimeType },
