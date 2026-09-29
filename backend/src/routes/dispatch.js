@@ -180,7 +180,7 @@ router.post("/trips/:tripId", authRequired, async (req, res) => {
         ? item.lines
         : [{ itemName: item.materialName, qty: item.qty, unit: item.unit }]);
       const cargoName = allocations.length
-        ? allocations.map((item) => `${item.order.cargoName || "Muatan"} (${item.order.orderNo})`).join("; ")
+        ? allocations.map((item) => `${item.order.cargoName || "Muatan"} (${item.order.orderNo} · DO ${item.order.deliveryOrderNo || "-"})`).join("; ")
         : materialInvoices.length
           ? [...new Set(materialLines.map((line) => line.itemName).filter(Boolean))].join("; ")
           : trip.cargoNameSnap || order?.cargoName || "";

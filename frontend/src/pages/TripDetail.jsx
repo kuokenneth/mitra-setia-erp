@@ -265,10 +265,7 @@ export default function TripDetail() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [trip, setTrip] = useState(null);
-  const [allocationCandidates, setAllocationCandidates] = useState([]);
-  const [allocationForm, setAllocationForm] = useState({ orderId: "", sackCount: "", kgPerSack: "50", stopSequence: 2 });
   const [allocationBusy, setAllocationBusy] = useState(false);
-  const [loadDrafts, setLoadDrafts] = useState({});
   const [singleLoadForm, setSingleLoadForm] = useState({ sackCount: "", kgPerSack: "50" });
   const [operationalLocations, setOperationalLocations] = useState([]);
   const [singleMaterialOpen, setSingleMaterialOpen] = useState(false);
@@ -292,16 +289,13 @@ export default function TripDetail() {
     try {
       setErr("");
       setLoading(true);
-      const [data, candidates, locationData, customerData] = await Promise.all([
+      const [data, locationData, customerData] = await Promise.all([
         api(`/trips/${id}`),
-        canWrite ? api(`/trips/${id}/allocation-candidates`).catch(() => ({ items: [] })) : Promise.resolve({ items: [] }),
         api("/operational-locations").catch(() => ({ items: [] })),
         canWrite ? api("/customers").catch(() => ({ items: [] })) : Promise.resolve({ items: [] }),
       ]);
       setTrip(data);
-      setLoadDrafts(Object.fromEntries((data.orderAllocations || []).map((allocation) => [allocation.id, { sackCount: allocation.sackCount == null ? "" : String(allocation.sackCount), kgPerSack: allocation.kgPerSack == null ? "50" : String(allocation.kgPerSack) }])));
       if (data.purpose === "SINGLE_TRIP") setSingleLoadForm({ sackCount: data.sackCount == null ? "" : String(data.sackCount), kgPerSack: data.kgPerSack == null ? "50" : String(data.kgPerSack) });
-      setAllocationCandidates(candidates?.items || []);
       setOperationalLocations((locationData?.items || []).filter((location) => location.isActive));
       setMaterialCustomers(customerData?.items || []);
     } catch (e) {
@@ -444,30 +438,6 @@ export default function TripDetail() {
     } finally {
       setExpenseBusy(false);
     }
-  }
-
-  async function addOrderAllocation(event) {
-    event.preventDefault();
-    try {
-      setAllocationBusy(true);
-      setSaveErr("");
-      await api(`/trips/${id}/allocations`, { method: "POST", body: JSON.stringify(allocationForm) });
-      setAllocationForm({ orderId: "", sackCount: "", kgPerSack: "50", stopSequence: (trip?.orderAllocations?.length || 1) + 1 });
-      await load();
-    } catch (e) {
-      setSaveErr(e?.message || "Gagal menambahkan muatan order");
-    } finally {
-      setAllocationBusy(false);
-    }
-  }
-
-  async function saveAllocationLoad(allocationId) {
-    try {
-      setAllocationBusy(true); setSaveErr("");
-      await api(`/trips/${id}/allocations/${allocationId}/load`, { method: "PATCH", body: JSON.stringify(loadDrafts[allocationId] || {}) });
-      await load();
-    } catch (e) { setSaveErr(e?.message || "Gagal mencatat muatan order"); }
-    finally { setAllocationBusy(false); }
   }
 
   async function saveSingleLoad(event) {
@@ -775,17 +745,10 @@ export default function TripDetail() {
             <div className="trip-allocation-list">
               {(trip.orderAllocations || []).map((allocation) => <article className={`trip-allocation-row ${allocation.destinationCompletedAt ? "completed" : ""}`} key={allocation.id}>
                 <b>{allocation.stopSequence || 1}</b>
-                <div><strong>{allocation.order?.orderNo}</strong><span> · {allocation.order?.customer?.name || allocation.order?.customerName || "Tanpa customer"}</span><small>{allocation.order?.cargoName || "Muatan"} · tujuan {allocation.order?.destinationLocation?.name || allocation.order?.toText || "-"}{allocation.isPrimary ? " · order utama" : " · order tambahan"}</small></div>
-                <div className="trip-allocation-value"><strong>{allocation.plannedWeightKg ? `${Number(allocation.plannedWeightKg).toLocaleString("id-ID")} kg` : "Muatan belum dicatat"}</strong>{allocation.sackCount ? <span>{Number(allocation.sackCount).toLocaleString("id-ID")} sak × {Number(allocation.kgPerSack).toLocaleString("id-ID")} kg</span> : null}{allocation.order?.cargoCategory === "MATERIAL" ? <span>Mengikuti Faktur Muatan</span> : allocation.destinationCompletedAt ? <span className="completed">Selesai</span> : allocation.destinationArrivedAt ? <button type="button" disabled={saving} onClick={() => completeOrderStop(allocation.id)}>Selesai bongkar</button> : canWrite && !["TO_DESTINATION", "AT_DESTINATION", "COMPLETED"].includes(currentPhase) ? <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: 5, marginTop: 5 }}><input aria-label="Jumlah sak" title="Jumlah sak" type="number" min="1" step="1" value={loadDrafts[allocation.id]?.sackCount || ""} onChange={(e) => setLoadDrafts((drafts) => ({ ...drafts, [allocation.id]: { ...drafts[allocation.id], sackCount: e.target.value } }))} placeholder="Jumlah sak" style={{ width: 90, height: 32, border: "1px solid #DCE5E0", borderRadius: 7, padding: "0 7px" }}/><input aria-label="Kg per sak" title="Kg per sak" type="number" min="0.01" step="any" value={loadDrafts[allocation.id]?.kgPerSack || ""} onChange={(e) => setLoadDrafts((drafts) => ({ ...drafts, [allocation.id]: { ...drafts[allocation.id], kgPerSack: e.target.value } }))} placeholder="Kg/sak" style={{ width: 78, height: 32, border: "1px solid #DCE5E0", borderRadius: 7, padding: "0 7px" }}/><button type="button" disabled={allocationBusy} onClick={() => saveAllocationLoad(allocation.id)}>Simpan</button></div> : <span>Menunggu tiba</span>}</div>
+                <div><strong>{allocation.order?.orderNo}</strong><span> · DO {allocation.order?.deliveryOrderNo || "-"} · {allocation.order?.customer?.name || allocation.order?.customerName || "Tanpa customer"}</span><small>{allocation.order?.cargoName || "Muatan"} · tujuan {allocation.order?.destinationLocation?.name || allocation.order?.toText || "-"}{allocation.isPrimary ? " · order utama" : " · order tambahan"}</small></div>
+                <div className="trip-allocation-value"><strong>{allocation.plannedWeightKg ? `${Number(allocation.plannedWeightKg).toLocaleString("id-ID")} kg` : "Muatan belum dicatat"}</strong>{allocation.sackCount ? <span>{Number(allocation.sackCount).toLocaleString("id-ID")} sak × {Number(allocation.kgPerSack).toLocaleString("id-ID")} kg</span> : null}{allocation.order?.cargoCategory === "MATERIAL" ? <span>Mengikuti Faktur Muatan</span> : allocation.destinationCompletedAt ? <span className="completed">Selesai</span> : allocation.destinationArrivedAt ? <button type="button" disabled={saving} onClick={() => completeOrderStop(allocation.id)}>Selesai bongkar</button> : <span>Menunggu tiba</span>}</div>
               </article>)}
             </div>
-            {canWrite && ["PLANNED", "DISPATCHED"].includes(currentStatus) && !["TO_DESTINATION", "AT_DESTINATION"].includes(currentPhase) && <form className="trip-allocation-form" onSubmit={addOrderAllocation} style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
-              <select required value={allocationForm.orderId} onChange={(e) => setAllocationForm((form) => ({ ...form, orderId: e.target.value }))} style={{ flex: "1 1 280px", height: 40, border: "1px solid #DCE5E0", borderRadius: 8, padding: "0 10px" }}><option value="">Pilih order pupuk tambahan</option>{allocationCandidates.filter((candidate) => candidate.remainingQty == null || candidate.remainingQty > 0).map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.orderNo} · DO {candidate.deliveryOrderNo || "-"} · {candidate.customer?.name || candidate.customerName || "Tanpa customer"} · sisa {candidate.remainingQty ?? "-"} {candidate.unit || ""} → {candidate.destinationLocation?.name || candidate.toText}</option>)}</select>
-              <input aria-label="Jumlah sak tambahan" required type="number" min="1" step="1" value={allocationForm.sackCount} onChange={(e) => setAllocationForm((form) => ({ ...form, sackCount: e.target.value }))} placeholder="Jumlah sak" style={{ width: 110, height: 38, border: "1px solid #DCE5E0", borderRadius: 8, padding: "0 10px" }} />
-              <input aria-label="Berat per sak tambahan" required type="number" min="0.01" step="any" value={allocationForm.kgPerSack} onChange={(e) => setAllocationForm((form) => ({ ...form, kgPerSack: e.target.value }))} placeholder="Kg/sak" style={{ width: 90, height: 38, border: "1px solid #DCE5E0", borderRadius: 8, padding: "0 10px" }} />
-              <input aria-label="Urutan tujuan" title="Urutan tujuan" required type="number" min="1" value={allocationForm.stopSequence} onChange={(e) => setAllocationForm((form) => ({ ...form, stopSequence: e.target.value }))} placeholder="Urutan" style={{ width: 76, height: 38, border: "1px solid #DCE5E0", borderRadius: 8, padding: "0 10px" }} />
-              <button type="submit" disabled={allocationBusy || !allocationCandidates.length} style={{ ...btnGhost, background: "#0D7C3D", color: "white" }}>{allocationBusy ? "Menyimpan…" : "Tambah"}</button>
-            </form>}
           </section>}
 
           {trip.purpose !== "EMPTY_RETURN" && <section className="trip-material-destinations-panel">

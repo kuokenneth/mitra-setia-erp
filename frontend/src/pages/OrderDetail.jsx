@@ -360,6 +360,9 @@ export default function OrderDetail() {
   const [selectedTruckId, setSelectedTruckId] = useState("");
   const [selectedDriverId, setSelectedDriverId] = useState("");
   const [plannedDepartAt, setPlannedDepartAt] = useState("");
+  const [tripAllocationCandidates, setTripAllocationCandidates] = useState([]);
+  const [tripLoadRows, setTripLoadRows] = useState([]);
+  const [additionalOrderId, setAdditionalOrderId] = useState("");
 
   // proofs upload
   const [uploadingProofs, setUploadingProofs] = useState(false);
@@ -472,9 +475,16 @@ export default function OrderDetail() {
     setSelectedDriverId("");
     setPlannedDepartAt("");
     setTruckQ("");
+    setAdditionalOrderId("");
+    setTripLoadRows(order?.cargoCategory === "MATERIAL" ? [] : [{ orderId: id, sackCount: "", kgPerSack: "50", primary: true }]);
 
     try {
-      await Promise.all([loadDrivers(), loadTrucks("")]);
+      const [, , candidateData] = await Promise.all([
+        loadDrivers(),
+        loadTrucks(""),
+        order?.cargoCategory === "MATERIAL" ? Promise.resolve({ items: [] }) : api(`/orders/${id}/trip-allocation-candidates`),
+      ]);
+      setTripAllocationCandidates(candidateData?.items || []);
     } catch (e) {
       setAssignErr(e?.message || "Gagal memuat drivers/trucks");
     }
@@ -514,15 +524,30 @@ export default function OrderDetail() {
         truckId: selectedTruckId,
         driverUserId: selectedDriverId,
         plannedDepartAt: plannedDepartAt ? new Date(plannedDepartAt).toISOString() : null,
+        allocations: tripLoadRows.map(({ orderId, sackCount, kgPerSack }) => ({ orderId, sackCount, kgPerSack })),
       };
 
-      await api(`/orders/${id}/trips`, {
+      const createdTrip = await api(`/orders/${id}/trips`, {
         method: "POST",
         body: JSON.stringify(tripPayload),
       });
 
       setShowAssign(false);
       await load();
+      try {
+        await api(`/dispatch/trips/${createdTrip.id}`, {
+          method: "POST",
+          body: JSON.stringify({
+            city: "Medan",
+            companyName: "CV. MITRA SETIA",
+            companyAddress: "JLN. CEMARA NO. 40 TELP. (061) 6642646. FAX. (061) 6642647\nDs. Sampali Kec. Percut Sei Tuan Kab. Deli Serdang",
+            companyPhone: "Telp. (061) 6642646",
+          }),
+        });
+        await load();
+      } catch (dispatchError) {
+        setErr(`Trip berhasil dibuat, tetapi surat jalan gagal dibuat: ${dispatchError?.message || "Kesalahan tidak diketahui"}`);
+      }
     } catch (e) {
       setAssignErr(e?.message || "Gagal membuat trip");
     } finally {
@@ -1047,7 +1072,21 @@ export default function OrderDetail() {
           <Card>
             <div className="order-trip-details" style={{ padding: 16 }}>
               <div className="order-trip-section-title"><div><span>LANGKAH 2</span><strong>Informasi Perjalanan</strong></div></div>
-              <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>Berat tidak diisi saat membuat trip. Jumlah sak dan berat per sak dicatat setelah proses muat.</div>
+              <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>Tentukan muatan setiap order. Total kilogram dihitung dari jumlah sak × berat per sak.</div>
+
+              {order?.cargoCategory !== "MATERIAL" && <div style={{ border: `1px solid ${BRAND.border}`, borderRadius: 10, padding: 12, marginBottom: 14, background: "#FAFCFB" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10 }}><strong style={{ fontSize: 13 }}>Alokasi order dalam trip</strong><span style={{ fontSize: 12, color: BRAND.primary, fontWeight: 700 }}>{tripLoadRows.reduce((sum, row) => sum + Number(row.sackCount || 0) * Number(row.kgPerSack || 0), 0).toLocaleString("id-ID")} kg</span></div>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {tripLoadRows.map((row, index) => {
+                    const rowOrder = row.primary ? order : tripAllocationCandidates.find((item) => item.id === row.orderId);
+                    return <div key={row.orderId} style={{ border: `1px solid ${BRAND.border}`, borderRadius: 8, padding: 9, background: BRAND.white }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 7 }}><span style={{ minWidth: 0 }}><strong style={{ display: "block", fontSize: 12 }}>{rowOrder?.orderNo || "Order"} · DO {rowOrder?.deliveryOrderNo || "-"}</strong><small style={{ color: BRAND.textMuted }}>{rowOrder?.customer?.name || rowOrder?.customerName || "Tanpa customer"} · sisa {row.primary ? fmtNum(remaining) : fmtNum(rowOrder?.remainingQty)} {rowOrder?.unit || ""}</small></span>{!row.primary && <button type="button" aria-label="Hapus order tambahan" onClick={() => setTripLoadRows((rows) => rows.filter((_, rowIndex) => rowIndex !== index))} style={{ border: 0, background: "transparent", color: BRAND.danger, cursor: "pointer" }}><FiX/></button>}</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 7, alignItems: "end" }}><label style={{ fontSize: 11, color: BRAND.textMuted }}>Jumlah sak<Input required type="number" min="1" step="1" value={row.sackCount} onChange={(event) => setTripLoadRows((rows) => rows.map((item, rowIndex) => rowIndex === index ? { ...item, sackCount: event.target.value } : item))}/></label><label style={{ fontSize: 11, color: BRAND.textMuted }}>Kg per sak<Input required type="number" min="0.01" step="any" value={row.kgPerSack} onChange={(event) => setTripLoadRows((rows) => rows.map((item, rowIndex) => rowIndex === index ? { ...item, kgPerSack: event.target.value } : item))}/></label><strong style={{ paddingBottom: 10, color: BRAND.primary, whiteSpace: "nowrap", fontSize: 12 }}>{(Number(row.sackCount || 0) * Number(row.kgPerSack || 0)).toLocaleString("id-ID")} kg</strong></div>
+                    </div>;
+                  })}
+                </div>
+                <div style={{ display: "flex", gap: 7, marginTop: 9 }}><Select value={additionalOrderId} onChange={(event) => setAdditionalOrderId(event.target.value)}><option value="">Tambah order pupuk berdasarkan DO</option>{tripAllocationCandidates.filter((candidate) => (candidate.remainingQty == null || candidate.remainingQty > 0) && !tripLoadRows.some((row) => row.orderId === candidate.id)).map((candidate) => <option key={candidate.id} value={candidate.id}>DO {candidate.deliveryOrderNo || "-"} · {candidate.orderNo} · {candidate.customer?.name || candidate.customerName || "Tanpa customer"} · sisa {fmtNum(candidate.remainingQty)} {candidate.unit || ""}</option>)}</Select><Button type="button" variant="secondary" icon={FiPlus} disabled={!additionalOrderId} onClick={() => { setTripLoadRows((rows) => [...rows, { orderId: additionalOrderId, sackCount: "", kgPerSack: "50", primary: false }]); setAdditionalOrderId(""); }}>Tambah</Button></div>
+              </div>}
 
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <Select
@@ -1094,7 +1133,8 @@ export default function OrderDetail() {
                   disabled={
                     assigning ||
                     !selectedTruckId ||
-                    !selectedDriverId
+                    !selectedDriverId ||
+                    (order?.cargoCategory !== "MATERIAL" && tripLoadRows.some((row) => !(Number(row.sackCount) > 0) || !(Number(row.kgPerSack) > 0)))
                   }
                 >
                   {assigning ? "Membuat..." : "Buat Perjalanan"}

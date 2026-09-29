@@ -31,6 +31,18 @@ function toDate(v) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+function sackLoad(body, order) {
+  const sackCount = Number(body?.sackCount);
+  const kgPerSack = Number(body?.kgPerSack);
+  if (!Number.isInteger(sackCount) || sackCount <= 0) throw new Error("Jumlah sak harus berupa bilangan bulat lebih dari nol");
+  if (!Number.isFinite(kgPerSack) || kgPerSack <= 0) throw new Error("Berat per sak harus lebih dari nol");
+  const plannedWeightKg = sackCount * kgPerSack;
+  const unit = String(order?.unit || "KG").trim().toUpperCase();
+  if (!["SAK", "BAG", "ZAK", "TON", "KG"].includes(unit)) throw new Error(`Satuan order ${order?.unit || "-"} belum mendukung perhitungan sak`);
+  const orderQty = ["SAK", "BAG", "ZAK"].includes(unit) ? sackCount : unit === "TON" ? plannedWeightKg / 1000 : plannedWeightKg;
+  return { sackCount, kgPerSack, plannedWeightKg, orderQty, orderUnit: order?.unit || "KG" };
+}
+
 // Daily sequential order number in Jakarta time.
 // Format: ORD-YYYY-DD/MM-0001
 async function nextOrderNo(tx) {
@@ -272,6 +284,38 @@ router.post("/", authRequired, async (req, res) => {
  * GET /orders/:id
  * Returns order + proofs + trips + dispatch letters
  */
+router.get("/:id/trip-allocation-candidates", authRequired, async (req, res) => {
+  try {
+    const primary = await prisma.order.findUnique({ where: { id: req.params.id } });
+    if (!primary) return res.status(404).json({ error: "Order not found" });
+    if (primary.cargoCategory === "MATERIAL") return res.json({ items: [] });
+    const orders = await prisma.order.findMany({
+      where: {
+        id: { not: primary.id },
+        status: { in: ["DRAFT", "CONFIRMED", "IN_PROGRESS"] },
+        pickupLocationId: primary.pickupLocationId,
+        cargoCategory: primary.cargoCategory,
+      },
+      include: {
+        customer: true,
+        destinationLocation: true,
+        tripAllocations: {
+          where: { trip: { status: { not: "CANCELLED" } } },
+          select: { qtyPlanned: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json({ items: orders.map((item) => ({
+      ...item,
+      remainingQty: item.qty == null ? null : Math.max(0, Number(item.qty) - item.tripAllocations.reduce((sum, allocation) => sum + Number(allocation.qtyPlanned || 0), 0)),
+      tripAllocations: undefined,
+    })) });
+  } catch (e) {
+    res.status(400).json({ error: e.message || "Gagal memuat kandidat muatan" });
+  }
+});
+
 router.get("/:id", authRequired, async (req, res) => {
   try {
     const id = req.params.id;
@@ -533,13 +577,13 @@ router.post("/:id/proofs", authRequired, async (req, res) => {
  *  - Driver must be ACTIVE and role DRIVER
  *  - Driver cannot be assigned to another active trip
  *  - Truck cannot be assigned to another active trip
- *  - Load quantity is recorded after loading, not while assigning the trip.
+ *  - Sack count and weight per sack are recorded together with every order allocation.
  *
  * Body:
  *  {
  *    truckId,
  *    driverUserId,
- *    plannedDepartAt?
+ *    plannedDepartAt?, allocations: [{ orderId, sackCount, kgPerSack }]
  *  }
  */
 router.post("/:id/trips", authRequired, async (req, res) => {
@@ -547,7 +591,7 @@ router.post("/:id/trips", authRequired, async (req, res) => {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
 
     const orderId = req.params.id;
-    const { truckId, driverUserId, plannedDepartAt } = req.body || {};
+    const { truckId, driverUserId, plannedDepartAt, allocations } = req.body || {};
 
     if (!truckId) return res.status(400).json({ error: "truckId is required" });
     if (!driverUserId) return res.status(400).json({ error: "driverUserId is required" });
@@ -558,6 +602,29 @@ router.post("/:id/trips", authRequired, async (req, res) => {
       const order = await tx.order.findUnique({ where: { id: orderId }, include: { pickupLocation: true, destinationLocation: true } });
       if (!order) throw new Error("Order not found");
       if (order.status === "CANCELLED") throw new Error("Order is cancelled");
+
+      const requestedLoads = Array.isArray(allocations) ? allocations : [];
+      if (order.cargoCategory !== "MATERIAL" && !requestedLoads.some((item) => item?.orderId === order.id)) {
+        throw new Error("Jumlah sak untuk order utama wajib diisi");
+      }
+      const allocationOrderIds = [...new Set(requestedLoads.map((item) => String(item?.orderId || "").trim()).filter(Boolean))];
+      if (allocationOrderIds.length !== requestedLoads.length) throw new Error("Order muatan tidak boleh kosong atau dipilih lebih dari sekali");
+      const allocationOrders = allocationOrderIds.length ? await tx.order.findMany({
+        where: { id: { in: allocationOrderIds } },
+        include: { tripAllocations: { where: { trip: { status: { not: "CANCELLED" } } }, select: { qtyPlanned: true } } },
+      }) : [];
+      if (allocationOrders.length !== allocationOrderIds.length) throw new Error("Salah satu order muatan tidak ditemukan");
+      const orderById = new Map(allocationOrders.map((item) => [item.id, item]));
+      const preparedLoads = requestedLoads.map((item, index) => {
+        const selectedOrder = orderById.get(item.orderId);
+        if (["CANCELLED", "COMPLETED"].includes(selectedOrder.status)) throw new Error(`Order ${selectedOrder.orderNo} tidak tersedia`);
+        if (selectedOrder.pickupLocationId !== order.pickupLocationId || selectedOrder.cargoCategory !== order.cargoCategory) throw new Error(`Order ${selectedOrder.orderNo} harus memiliki lokasi muat dan kategori yang sama`);
+        const load = sackLoad(item, selectedOrder);
+        const allocated = selectedOrder.tripAllocations.reduce((sum, allocation) => sum + Number(allocation.qtyPlanned || 0), 0);
+        if (selectedOrder.qty != null && allocated + load.orderQty > Number(selectedOrder.qty) + 1e-9) throw new Error(`Muatan ${selectedOrder.orderNo} melebihi sisa order ${Math.max(0, Number(selectedOrder.qty) - allocated)} ${selectedOrder.unit || load.orderUnit}`);
+        return { ...load, order: selectedOrder, stopSequence: index + 1 };
+      });
+      const plannedWeightKg = preparedLoads.reduce((sum, item) => sum + item.plannedWeightKg, 0);
 
       const truck = await tx.truck.findUnique({ where: { id: truckId } });
       if (!truck) throw new Error("Truck not found");
@@ -595,9 +662,9 @@ router.post("/:id/trips", authRequired, async (req, res) => {
           status: "PLANNED",
           plannedDepartAt: plannedDepartAt ? new Date(plannedDepartAt) : null,
 
-          // Filled after loading from sack count × weight per sack.
-          qtyPlanned: null,
-          unitSnap: null,
+          qtyPlanned: plannedWeightKg || null,
+          unitSnap: plannedWeightKg ? "KG" : null,
+          plannedWeightKg: plannedWeightKg || null,
 
           // snapshot
           plateNumberSnap: truck.plateNumber,
@@ -613,15 +680,30 @@ router.post("/:id/trips", authRequired, async (req, res) => {
         },
       });
 
-      await tx.tripOrderAllocation.create({
-        data: {
+      for (const load of preparedLoads) {
+        await tx.tripOrderAllocation.create({ data: {
+          tripId: createdTrip.id,
+          orderId: load.order.id,
+          qtyPlanned: load.orderQty,
+          unitSnap: load.orderUnit,
+          sackCount: load.sackCount,
+          kgPerSack: load.kgPerSack,
+          plannedWeightKg: load.plannedWeightKg,
+          isPrimary: load.order.id === order.id,
+          stopSequence: load.stopSequence,
+        } });
+        if (!['IN_PROGRESS', 'COMPLETED'].includes(load.order.status)) await tx.order.update({ where: { id: load.order.id }, data: { status: 'IN_PROGRESS' } });
+      }
+      if (!preparedLoads.length) {
+        await tx.tripOrderAllocation.create({ data: {
           tripId: createdTrip.id,
           orderId: order.id,
-          qtyPlanned: createdTrip.qtyPlanned,
-          unitSnap: createdTrip.unitSnap,
+          qtyPlanned: null,
+          unitSnap: null,
           isPrimary: true,
-        },
-      });
+          stopSequence: 1,
+        } });
+      }
 
       // update order status => IN_PROGRESS (if not already completed/cancelled)
       if (order.status !== "COMPLETED" && order.status !== "IN_PROGRESS") {
