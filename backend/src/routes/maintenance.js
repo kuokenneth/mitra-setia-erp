@@ -1303,7 +1303,9 @@ router.post("/:id/use-stock", authRequired, async (req, res) => {
         });
       }
 
-      if (item.category !== "OIL") {
+      // Sparepart non-serial dan oli cadangan menjadi stok bawaan kendaraan.
+      // Oli yang langsung dipakai untuk ganti oli tidak dimasukkan ke stok kendaraan.
+      if (item.category !== "OIL" || normalizedOilUsageType === "RESERVE") {
         const existingTruckStock = await tx.truckPartStock.findUnique({ where: { truckId_itemId: { truckId: job.truckId, itemId: item.id } } });
         const oldQty = Number(existingTruckStock?.qty || 0);
         const oldValue = existingTruckStock?.unitPrice == null ? 0 : oldQty * Number(existingTruckStock.unitPrice);
@@ -1329,6 +1331,7 @@ router.post("/:id/use-stock", authRequired, async (req, res) => {
           createdById: req.user?.id || null,
           fromLocationId: String(locationId),
           toLocationId: null,
+          toTruckId: normalizedOilUsageType === "RESERVE" ? job.truckId : null,
           maintenanceId,
           stockUnitId: null,
         },
