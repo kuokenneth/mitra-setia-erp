@@ -100,7 +100,7 @@ export default function Purchasing() {
   const [itemsError, setItemsError] = useState("");
   const [poRequest, setPoRequest] = useState(null);
   const [newSupplier, setNewSupplier] = useState(false);
-  const [supplierForm, setSupplierForm] = useState({ name: "", phone: "", email: "" });
+  const [supplierForm, setSupplierForm] = useState({ name: "", phone: "", email: "", address: "" });
   const [poForm, setPoForm] = useState({ supplierId: "", quantities: {}, prices: {}, tax: 0, shippingCost: 0, discount: 0, paymentTerms: "30 hari", deliveryAddress: "", estimatedArrival: "" });
   const [directForm, setDirectForm] = useState({ itemId: "", supplierId: "", qty: 1, reason: "", notes: "", paymentTerms: "Ditagihkan kemudian", deliveryAddress: "", estimatedArrival: "" });
   const [directBusy, setDirectBusy] = useState(false);
@@ -235,10 +235,25 @@ export default function Purchasing() {
   async function openDirectOrderForm() {
     setFormError("");
     setNewSupplier(!data.suppliers.length);
-    setSupplierForm({ name: "", phone: "", email: "" });
+    setSupplierForm({ name: "", phone: "", email: "", address: "" });
     setDirectForm({ itemId: "", supplierId: data.suppliers[0]?.id || "", qty: 1, reason: "", notes: "", paymentTerms: "Ditagihkan kemudian", deliveryAddress: "", estimatedArrival: "" });
     setModal("direct-order");
     await loadInventoryItems();
+  }
+  function openSupplierForm() {
+    setSupplierForm({ name: "", phone: "", email: "", address: "" });
+    setFormError("");
+    setModal("supplier");
+  }
+  async function createStandaloneSupplier(event) {
+    event.preventDefault(); setBusy(true); setFormError("");
+    try {
+      const name = supplierForm.name.trim();
+      if (!name) throw new Error("Nama supplier atau vendor wajib diisi");
+      await api("/purchasing/suppliers", { method: "POST", body: JSON.stringify({ ...supplierForm, name, phone: supplierForm.phone.trim() || null, email: supplierForm.email.trim() || null, address: supplierForm.address.trim() || null }) });
+      setModal(""); setSupplierForm({ name: "", phone: "", email: "", address: "" }); await load();
+    } catch (error) { setFormError(error.message || "Gagal menambahkan supplier"); }
+    finally { setBusy(false); }
   }
   const selectedRequestItem = useMemo(() => data.items.find(item => item.id === form.itemId) || null, [data.items, form.itemId]);
   const selectedRequestStock = Number(selectedRequestItem?.qtyTotal || 0);
@@ -344,7 +359,7 @@ export default function Purchasing() {
         supplierId = created.supplier.id;
       }
       await api("/purchasing/orders", { method: "POST", body: JSON.stringify({ ...poForm, requestId: poRequest.id, supplierId, items: poRequest.items.map(i => ({ purchaseRequestItemId: i.id, itemId: i.itemId, qty: i.tireRetreadId || i.partRepairId ? 1 : poRequest.purpose === "STOCK" ? poForm.quantities[i.id] : (i.approvedQty ?? i.originalQty) })) }) });
-      setModal(""); setPoRequest(null); setSupplierForm({ name: "", phone: "", email: "" }); setTab("orders"); await load();
+      setModal(""); setPoRequest(null); setSupplierForm({ name: "", phone: "", email: "", address: "" }); setTab("orders"); await load();
     } catch (err) { setFormError(err.message); } finally { setBusy(false); }
   }
   async function createDirectOrder(event) {
@@ -361,7 +376,7 @@ export default function Purchasing() {
         supplierId = created.supplier.id;
       }
       await api("/purchasing/orders/direct", { method: "POST", body: JSON.stringify({ ...directForm, supplierId }) });
-      setModal(""); setSupplierForm({ name: "", phone: "", email: "" }); setTab("orders"); await load();
+      setModal(""); setSupplierForm({ name: "", phone: "", email: "", address: "" }); setTab("orders"); await load();
     } catch (err) { setFormError(err.message); }
     finally { setDirectBusy(false); }
   }
@@ -560,7 +575,7 @@ export default function Purchasing() {
   const currentTotal = ({requests:filteredRequests.length,orders:filteredOrders.length,receipts:filteredReceipts.length,repairReceipts:filteredRepairReceipts.length,payments:filteredBills.length})[activeListKey]||0;
   const searchPlaceholder = ({requests:"Cari nomor permintaan, barang, alasan, atau kendaraan…",orders:"Cari nomor PO, supplier, permintaan, atau barang…",receipts:"Cari nomor penerimaan, PO, supplier, surat jalan, atau barang…",repairReceipts:"Cari barang perbaikan, servis, atau kendaraan…",payments:"Cari nomor invoice, supplier, penerimaan, atau barang…"})[activeListKey];
   return <div className="purchasing">
-    <header className="p-head"><div><div className="eyebrow">BENGKEL & PEMBELIAN</div><h1>Pembelian</h1><p>Kelola permintaan, pemesanan, penerimaan, hingga tagihan supplier.</p></div><div className="p-head-actions">{canCreateDirectOrder&&<button className="p-direct-order" onClick={openDirectOrderForm}><FiShoppingCart/> Buat PO Langsung</button>}<button className="primary p-new-request" onClick={openRequestForm}><FiPlus/> Buat Permintaan</button></div></header>
+    <header className="p-head"><div><div className="eyebrow">BENGKEL & PEMBELIAN</div><h1>Pembelian</h1><p>Kelola permintaan, pemesanan, penerimaan, hingga tagihan supplier.</p></div><div className="p-head-actions"><button className="p-direct-order" onClick={openSupplierForm}><FiPlus/> Tambah Supplier</button>{canCreateDirectOrder&&<button className="p-direct-order" onClick={openDirectOrderForm}><FiShoppingCart/> Buat PO Langsung</button>}<button className="primary p-new-request" onClick={openRequestForm}><FiPlus/> Buat Permintaan</button></div></header>
     <section className="p-stats"><article><div className="p-stat-icon"><FiFileText/></div><div><span>Perlu persetujuan</span><strong>{stats.waiting}</strong><small>Permintaan menunggu tindakan</small></div></article><article><div className="p-stat-icon"><FiShoppingCart/></div><div><span>PO berjalan</span><strong>{stats.open}</strong><small>Belum diterima penuh</small></div></article><article><div className="p-stat-icon"><FiPackage/></div><div><span>Nilai pembelian</span><strong>{money(stats.spend)}</strong><small>PO valid, tidak termasuk ditolak/dibatalkan</small></div></article></section>
     <nav className="p-tabs"><button className={tab==="requests"?"active":""} onClick={()=>setTab("requests")}>Permintaan Pembelian <i>{data.requests.length}</i></button><button className={tab==="orders"?"active":""} onClick={()=>setTab("orders")}>Pesanan Pembelian <i>{data.orders.length}</i></button><button onClick={()=>setTab("receipts")} className={tab==="receipts"?"active":""}>Penerimaan Barang <i>{(data.nonSerializedRepairQueue||[]).filter(row=>row.remainingQty>0).length}</i></button><button onClick={()=>setTab("payments")} className={tab==="payments"?"active":""}>Tagihan & Pembayaran <i>{data.bills.length}</i></button><button className="refresh" onClick={load}><FiRefreshCw className={busy?"spin":""}/></button></nav>
     <section className={`p-panel ${busy && !data.requests.length && !data.orders.length ? "initial-loading" : ""}`}>
@@ -583,6 +598,7 @@ export default function Purchasing() {
       {tab==="payments" && <div className="supplier-billing"><div className="supplier-billing-toolbar"><div><strong>Tagihan supplier</strong><small>Gabungkan penerimaan, cocokkan barang dan harga, lalu ajukan pembayaran.</small></div><button className="primary supplier-bill-create" onClick={openBillForm}><span><FiPlus/></span><b>Catat Tagihan Supplier</b></button></div><div className="activity-list">{pagedBills.map(bill=>{const paid=bill.payments.filter(row=>row.status==="PAID").reduce((sum,row)=>sum+row.amount,0);return <article key={bill.id}><div className="activity-icon money-icon">Rp</div><div><span className={`status ${bill.status}`}>{label(bill.status)}</span><h3>{bill.invoiceNumber}</h3><p>{bill.supplier.name} · {bill.receipts.length} penerimaan · {bill.items?.length||0} barang dicocokkan</p><strong>{money(bill.amount)}</strong><small>Sisa {money(bill.amount-paid)}</small>{bill.payments.filter(pay=>pay.status==="PAID"&&pay.approvedBy?.name).map(pay=><small className="approval-person" key={pay.id}>Pembayaran {money(pay.amount)} disetujui oleh {pay.approvedBy.name}</small>)}</div><div className="payment-side"><time>{new Date(bill.invoiceDate).toLocaleDateString("id-ID")}</time><button type="button" onClick={()=>openPrintDocument(`/purchasing/bills/${bill.id}/receipt-print`).catch(err=>setFormError(err.message))}><FiPrinter/> Cetak penerimaan</button>{bill.status!=="PAID"&&!bill.payments.some(row=>row.status==="WAITING_PAYMENT_APPROVAL")&&<button onClick={()=>openPaymentForm(bill)}>Ajukan pembayaran</button>}{bill.payments.map(pay=>owner&&pay.status==="WAITING_PAYMENT_APPROVAL"?<div className="payment-approval-proof" key={pay.id}>{pay.proofUrl&&<ProtectedFilePreview url={pay.proofUrl} mimeType={pay.proofMimeType} fileName={pay.proofFileName||"Bukti pembayaran"} imageStyle={{width:72,height:48,objectFit:"cover",borderRadius:7}} onError={e=>setFormError(e.message)}/>}<button onClick={()=>approvePayment(pay)}><FiCheck/> Setujui {money(pay.amount)}</button></div>:null)}</div></article>})}{!filteredBills.length&&<Empty icon={<FiShoppingCart/>} text={normalizedQuery?"Tagihan tidak ditemukan":"Belum ada tagihan dari supplier"}/>}</div></div>}
       <ListPager total={currentTotal} page={listPages[activeListKey]||1} pageSize={PAGE_SIZE} onPage={page=>setListPages(current=>({...current,[activeListKey]:page}))}/>
     </section>
+    {modal==="supplier"&&<div className="overlay" onMouseDown={()=>!busy&&setModal("")}><form className="modal purchase-request-modal transaction-modal" onSubmit={createStandaloneSupplier} onMouseDown={event=>event.stopPropagation()}><div className="modal-heading"><span className="eyebrow">MASTER SUPPLIER & VENDOR</span><h2>Tambah Supplier / Vendor</h2><p>Supplier ini tersedia untuk PO, masak ban, dan perbaikan sparepart.</p></div><div className="po-form-body"><label>Nama supplier / vendor<input required autoFocus value={supplierForm.name} onChange={event=>setSupplierForm(form=>({...form,name:event.target.value}))} placeholder="Contoh: Bengkel Pump ABC"/></label><div className="grid2"><label>Nomor telepon<input value={supplierForm.phone} onChange={event=>setSupplierForm(form=>({...form,phone:event.target.value}))} placeholder="0812..."/></label><label>Email<input type="email" value={supplierForm.email} onChange={event=>setSupplierForm(form=>({...form,email:event.target.value}))} placeholder="supplier@email.com"/></label></div><label>Alamat<textarea rows="3" value={supplierForm.address} onChange={event=>setSupplierForm(form=>({...form,address:event.target.value}))} placeholder="Alamat supplier atau tempat perbaikan"/></label>{formError&&<div className="form-error">{formError}</div>}</div><div className="modal-actions"><button type="button" className="secondary-btn" disabled={busy} onClick={()=>setModal("")}>Batal</button><button className="primary" disabled={busy}>{busy?"Menyimpan...":"Simpan Supplier"}</button></div></form></div>}
     {modal==="repair-receipt"&&repairReceipt&&<div className="overlay" onMouseDown={()=>setModal("")}><form className="modal purchase-request-modal transaction-modal repair-batch-modal" onSubmit={receiveNonSerializedRepair} onMouseDown={e=>e.stopPropagation()}><div className="modal-heading"><span className="eyebrow">PENERIMAAN HASIL PERBAIKAN</span><h2>{selectedRepairIds.length} barang · {repairReceipt.repairVendor}</h2><p>Isi jumlah dan harga perbaikan setiap barang.</p></div><div className="po-form-body"><div className="po-cancel-warning"><FiPackage/><span><strong>{repairReceipt.repairVendor}</strong><small>Seluruh pilihan berasal dari tempat perbaikan yang sama. Harga stok SECOND hanya memakai biaya perbaikan.</small></span></div><div className="repair-batch-lines">{(data.nonSerializedRepairQueue||[]).filter(row=>selectedRepairIds.includes(row.id)).map(row=>{const line=repairReceiptForm.items[row.id]||{};return <div className="repair-batch-line" key={row.id}><span><b>{row.item?.name}</b><small>{row.item?.sku} · {row.maintenance?.truck?.plateNumber||row.fromTruck?.plateNumber||"Armada"}</small></span><label>Jumlah<input required min="0.01" max={row.remainingQty} step="0.01" type="number" value={line.qty||""} onChange={e=>setRepairReceiptForm(form=>({...form,items:{...form.items,[row.id]:{...line,qty:e.target.value}}}))}/><small>Maks. {row.remainingQty} {row.item?.unit}</small></label><label>Harga/unit<input required min="1" step="1" type="number" value={line.unitPrice||""} onChange={e=>setRepairReceiptForm(form=>({...form,items:{...form.items,[row.id]:{...line,unitPrice:e.target.value}}}))} placeholder="Rp 0"/></label></div>})}</div><label>Lokasi Inventory<select required value={repairReceiptForm.locationId} onChange={e=>setRepairReceiptForm({...repairReceiptForm,locationId:e.target.value})}><option value="">Pilih lokasi</option>{data.locations.map(location=><option key={location.id} value={location.id}>{location.name}</option>)}</select></label><label>Catatan<input value={repairReceiptForm.notes} onChange={e=>setRepairReceiptForm({...repairReceiptForm,notes:e.target.value})} placeholder="Kondisi hasil perbaikan"/></label>{formError&&<div className="form-error">{formError}</div>}</div><div className="modal-actions"><button className="secondary-btn" type="button" disabled={busy} onClick={()=>setModal("")}>Batal</button><button className="primary" disabled={busy}>{busy?"Menerima...":`Terima ${selectedRepairIds.length} Barang`}</button></div></form></div>}
     {modal==="direct-order"&&<div className="overlay direct-order-overlay" onMouseDown={()=>setModal("")}><form className="modal purchase-request-modal direct-order-modal" onSubmit={createDirectOrder} onMouseDown={e=>e.stopPropagation()}>
       <header className="direct-order-header"><div className="direct-order-header-icon"><FiShoppingCart/></div><div><span>PEMBELIAN LANGSUNG OWNER</span><h2>Buat PO langsung</h2><p>Pesanan langsung dikirim ke supplier tanpa menunggu persetujuan.</p></div><button type="button" onClick={()=>setModal("")} aria-label="Tutup">×</button></header>

@@ -586,10 +586,6 @@ export default function Maintenance() {
   const [externalRepairType, setExternalRepairType] = useState("SERIALIZED");
   const [externalRepairForm, setExternalRepairForm] = useState({ stockUnitId: "", itemId: "", qty: 1, supplierId: "", notes: "" });
   const [sendingExternalRepair, setSendingExternalRepair] = useState(false);
-  const [showSupplierCreate, setShowSupplierCreate] = useState(false);
-  const [supplierForm, setSupplierForm] = useState({ name: "", phone: "", email: "", address: "" });
-  const [supplierSaving, setSupplierSaving] = useState(false);
-  const [supplierError, setSupplierError] = useState("");
 
   // items/locations
   const [items, setItems] = useState([]);
@@ -962,20 +958,6 @@ export default function Maintenance() {
     } catch (e) { setErr(e.message || "Gagal memuat tempat perbaikan"); }
   }
 
-  async function createSupplier(event) {
-    event.preventDefault();
-    const name = supplierForm.name.trim();
-    if (!name) return setSupplierError("Nama supplier atau vendor wajib diisi");
-    setSupplierSaving(true); setSupplierError("");
-    try {
-      const data = await api("/purchasing/suppliers", { method: "POST", body: JSON.stringify({ ...supplierForm, name, phone: supplierForm.phone.trim() || null, email: supplierForm.email.trim() || null, address: supplierForm.address.trim() || null }) });
-      setRetreadOptions(current => ({ ...current, suppliers: [...current.suppliers.filter(supplier => supplier.id !== data.supplier.id), data.supplier].sort((a, b) => a.name.localeCompare(b.name, "id")) }));
-      setSupplierForm({ name: "", phone: "", email: "", address: "" });
-      setShowSupplierCreate(false);
-    } catch (e) { setSupplierError(e.message || "Gagal menambahkan supplier"); }
-    finally { setSupplierSaving(false); }
-  }
-
   async function assignUnit() {
     if (!activeJob?.id) return;
     if (!unitPick) return setErr("Pick a stock unit first");
@@ -1256,7 +1238,6 @@ export default function Maintenance() {
         </div>
 
         {allowed && <div className="maintenance-head-actions">
-          <Button variant="secondary" icon={FiPlus} onClick={() => { setSupplierError(""); setShowSupplierCreate(true); }} data-testid="new-supplier-btn"><span>Tambah Supplier</span></Button>
           <Button variant="primary" icon={FiPlus} onClick={startCreate} data-testid="new-maintenance-btn"><span>Servis Baru</span></Button>
         </div>}
       </div>
@@ -1540,20 +1521,6 @@ export default function Maintenance() {
             </div>
           </Card>
         </div>
-      </Modal>
-
-      <Modal open={showSupplierCreate} title="Tambah Supplier / Vendor" onClose={() => !supplierSaving && setShowSupplierCreate(false)} width={560} className="maintenance-return-modal">
-        <form className="maintenance-return-form" onSubmit={createSupplier}>
-          <div className="maintenance-return-summary"><span>SUPPLIER & TEMPAT PERBAIKAN</span><strong>Daftarkan supplier atau vendor baru</strong><small>Supplier yang disimpan langsung tersedia untuk pembelian, masak ban, dan perbaikan sparepart.</small></div>
-          <div className="maintenance-return-fields">
-            <label>Nama supplier / vendor<Input required autoFocus value={supplierForm.name} onChange={event => setSupplierForm(form => ({ ...form, name: event.target.value }))} placeholder="Contoh: Bengkel Pump ABC" /></label>
-            <label>Nomor telepon<Input value={supplierForm.phone} onChange={event => setSupplierForm(form => ({ ...form, phone: event.target.value }))} placeholder="Contoh: 0812 3456 7890" /></label>
-            <label>Email<Input type="email" value={supplierForm.email} onChange={event => setSupplierForm(form => ({ ...form, email: event.target.value }))} placeholder="supplier@email.com" /></label>
-            <label>Alamat<textarea rows="3" value={supplierForm.address} onChange={event => setSupplierForm(form => ({ ...form, address: event.target.value }))} placeholder="Alamat supplier atau tempat perbaikan" /></label>
-          </div>
-          {supplierError && <div className="maintenance-return-error">{supplierError}</div>}
-          <div className="maintenance-return-actions"><Button type="button" variant="secondary" disabled={supplierSaving} onClick={() => setShowSupplierCreate(false)}>Batal</Button><Button type="submit" variant="primary" disabled={supplierSaving}>{supplierSaving ? "Menyimpan..." : "Simpan Supplier"}</Button></div>
-        </form>
       </Modal>
 
       {/* DETAIL MODAL */}
