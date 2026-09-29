@@ -340,7 +340,7 @@ router.post("/", authRequired, async (req, res) => {
   let financeDebt = null;
   if (category === "FINANCE_DEBT_PAYMENT") {
     if (!financeDebtId) return res.status(400).json({ error: "Pilih kontrak leasing yang akan dibayar" });
-    financeDebt = await prisma.financeDebt.findFirst({ where: { id: financeDebtId, isActive: true }, include: { expenses: { where: { category: "FINANCE_DEBT_PAYMENT", status: { not: "REJECTED" } }, select: { amount: true } } } });
+    financeDebt = await prisma.financeDebt.findFirst({ where: { id: financeDebtId, isActive: true }, include: { expenses: { where: { category: "FINANCE_DEBT_PAYMENT" }, select: { amount: true } } } });
     if (!financeDebt) return res.status(404).json({ error: "Kontrak leasing tidak ditemukan" });
     const balance = Number(financeDebt.originalAmount) - financeDebt.expenses.reduce((sum, item) => sum + item.amount, 0);
     if (Math.round(amount) > balance) return res.status(400).json({ error: `Pembayaran melebihi sisa utang leasing Rp${balance.toLocaleString("id-ID")}` });

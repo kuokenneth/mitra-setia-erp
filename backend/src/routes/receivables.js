@@ -152,7 +152,7 @@ router.get("/overview", async (_req, res) => {
       }),
       prisma.materialInvoice.findMany({ where: { billedInvoiceId: null, destinationCompletedAt: { not: null } }, include: { lines: { include: { stockAllocations: { include: { receipt: { include: { customer: true, location: true } } } } } }, trip: { include: { truck: true } }, destinationLocation: true }, orderBy: { issuedAt: "asc" } }),
       prisma.trip.findMany({ where: { purpose: "SINGLE_TRIP", status: "COMPLETED", cargoCategorySnap: { in: ["FERTILIZER", "CANGKANG"] }, billingCustomerName: { not: null }, invoiceLines: { none: {} }, singleInvoice: null }, include: { truck: true, billingCustomer: true }, orderBy: { completedAt: "asc" } }),
-      prisma.expense.findMany({ where: { category: "EMPLOYEE_RECEIVABLE", employeeId: { not: null }, status: { not: "REJECTED" } }, include: { employee: { select: { id: true, name: true, email: true } } }, orderBy: { expenseDate: "desc" } }),
+      prisma.expense.findMany({ where: { category: "EMPLOYEE_RECEIVABLE", employeeId: { not: null } }, include: { employee: { select: { id: true, name: true, email: true } } }, orderBy: { expenseDate: "desc" } }),
       prisma.employeeReceivablePayment.findMany({ include: { employee: { select: { id: true, name: true, email: true } }, createdBy: { select: { name: true } } }, orderBy: { receivedAt: "desc" } }),
     ]);
     const rows = invoices.map(summarize);
@@ -213,7 +213,7 @@ router.post("/employees/:employeeId/payments", async (req, res) => {
       const employee = await tx.user.findUnique({ where: { id: req.params.employeeId }, select: { id: true, name: true, email: true } });
       if (!employee) throw new Error("Karyawan tidak ditemukan");
       const [debt, paid] = await Promise.all([
-        tx.expense.aggregate({ where: { employeeId: employee.id, category: "EMPLOYEE_RECEIVABLE", status: { not: "REJECTED" } }, _sum: { amount: true } }),
+        tx.expense.aggregate({ where: { employeeId: employee.id, category: "EMPLOYEE_RECEIVABLE" }, _sum: { amount: true } }),
         tx.employeeReceivablePayment.aggregate({ where: { employeeId: employee.id }, _sum: { amount: true } }),
       ]);
       const balance = Number(debt._sum.amount || 0) - Number(paid._sum.amount || 0);
