@@ -99,6 +99,7 @@
 /* Consistent invoice creation actions and monthly report controls. */
 .ar-head-side .ar-manual-button{min-height:46px;padding:0 19px;border:1px solid #a9cdb7;border-radius:12px;background:#fff;color:#176f43;font-size:14px;font-weight:700;box-shadow:0 7px 16px rgba(31,85,49,.07)}
 .ar-head-side .ar-manual-button:hover:not(:disabled){border-color:#6bab82;background:#f5fbf7;color:#126439;box-shadow:0 8px 18px rgba(31,85,49,.12)}
+.ar-head-side .ar-employee-switch{margin-left:2px}
 .ar-panel-head-actions{display:flex;align-items:center;gap:18px}
 .ar-report-controls{display:flex;align-items:center;gap:8px}
 .ar-report-controls input{box-sizing:border-box;height:39px;padding:0 10px;border:1px solid #d7e2da;border-radius:9px;background:#fff;color:#33483b;font:inherit;font-size:11px}
