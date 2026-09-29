@@ -190,7 +190,12 @@ router.post("/:id/purchase-requests", authRequired, async (req, res) => {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
     const maintenance = await prisma.truckMaintenance.findUnique({ where: { id: req.params.id }, include: { truck: true } });
     if (!maintenance || maintenance.status !== "OPEN") return res.status(400).json({ error: "Permintaan hanya dapat dibuat pada servis yang masih terbuka" });
-    if (!req.body.damageProofUrl || !String(req.body.damageProofMimeType || "").startsWith("image/")) return res.status(400).json({ error: "Foto bukti barang rusak wajib dilampirkan" });
+    const damageProofs = (Array.isArray(req.body.damageProofs) && req.body.damageProofs.length
+      ? req.body.damageProofs
+      : req.body.damageProofUrl ? [{ url: req.body.damageProofUrl, fileName: req.body.damageProofFileName, mimeType: req.body.damageProofMimeType, size: req.body.damageProofSize }] : [])
+      .filter(proof => proof?.url && String(proof.mimeType || "").startsWith("image/"));
+    if (!damageProofs.length) return res.status(400).json({ error: "Minimal satu foto bukti barang rusak wajib dilampirkan" });
+    const primaryProof = damageProofs[0];
     const requestedRows = Array.isArray(req.body.items) && req.body.items.length
       ? req.body.items
       : [{ itemId: req.body.itemId, newItem: req.body.newItem, qty: req.body.qty }];
@@ -237,14 +242,15 @@ router.post("/:id/purchase-requests", authRequired, async (req, res) => {
         directUse: true,
         reason: String(req.body.reason || `Kebutuhan sparepart servis ${maintenance.title}`).trim(),
         notes: req.body.notes ? String(req.body.notes).trim() : null,
-        damageProofUrl: req.body.damageProofUrl,
-        damageProofFileName: req.body.damageProofFileName || null,
-        damageProofMimeType: req.body.damageProofMimeType,
-        damageProofSize: req.body.damageProofSize == null ? null : Number(req.body.damageProofSize),
+        damageProofUrl: primaryProof.url,
+        damageProofFileName: primaryProof.fileName || null,
+        damageProofMimeType: primaryProof.mimeType,
+        damageProofSize: primaryProof.size == null ? null : Number(primaryProof.size),
         createdById: req.user.id,
         items: { create: rows },
+        damageProofs: { create: damageProofs.map(proof => ({ url: proof.url, fileName: proof.fileName || null, mimeType: proof.mimeType || null, size: Number.isFinite(Number(proof.size)) ? Number(proof.size) : null })) },
       },
-      include: { items: { include: { item: true } }, maintenance: { include: { truck: true } } },
+      include: { items: { include: { item: true } }, damageProofs: true, maintenance: { include: { truck: true } } },
     });
     });
     await notifyOwnerSafely({
@@ -348,7 +354,7 @@ router.get("/:id", authRequired, async (req, res) => {
           orderBy: { createdAt: "desc" },
           include: { createdBy: { select: { id: true, name: true, email: true, role: true } } },
         },
-        purchaseRequests: { select: { id: true, number: true, status: true, urgency: true, purpose: true, directUse: true, createdAt: true, damageProofUrl: true, damageProofFileName: true, damageProofMimeType: true, purchaseOrders: { select: { id: true, number: true, status: true, items: { select: { itemId: true, qty: true, receivedQty: true } } }, orderBy: { createdAt: "desc" } }, items: { select: { id: true, itemId: true, originalQty: true, approvedQty: true, item: { select: { id: true, sku: true, name: true, unit: true } } } } }, orderBy: { createdAt: "desc" } },
+        purchaseRequests: { select: { id: true, number: true, status: true, urgency: true, purpose: true, directUse: true, createdAt: true, damageProofUrl: true, damageProofFileName: true, damageProofMimeType: true, damageProofs: true, purchaseOrders: { select: { id: true, number: true, status: true, items: { select: { itemId: true, qty: true, receivedQty: true } } }, orderBy: { createdAt: "desc" } }, items: { select: { id: true, itemId: true, originalQty: true, approvedQty: true, item: { select: { id: true, sku: true, name: true, unit: true } } } } }, orderBy: { createdAt: "desc" } },
         partRepairs: { include: { stockUnit: { include: { item: true } }, supplier: true }, orderBy: { createdAt: "desc" } },
       },
     });

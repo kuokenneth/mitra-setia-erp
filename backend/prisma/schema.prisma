@@ -331,12 +331,26 @@ model PurchaseRequest {
   approvalNotes          String?
   approvalReminderSentAt DateTime?
   items                  PurchaseRequestItem[]
+  damageProofs           PurchaseRequestDamageProof[]
   purchaseOrders         PurchaseOrder[]
   createdAt              DateTime              @default(now())
   updatedAt              DateTime              @updatedAt
 
   @@index([status])
   @@index([maintenanceId])
+}
+
+model PurchaseRequestDamageProof {
+  id        String          @id @default(cuid())
+  requestId String
+  request   PurchaseRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  url       String
+  fileName  String?
+  mimeType  String?
+  size      Int?
+  createdAt DateTime        @default(now())
+
+  @@index([requestId])
 }
 
 model PurchaseRequestItem {

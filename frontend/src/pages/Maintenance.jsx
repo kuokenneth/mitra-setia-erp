@@ -628,7 +628,8 @@ export default function Maintenance() {
   const [savingProgressNote, setSavingProgressNote] = useState(false);
   const [purchaseRequestForm, setPurchaseRequestForm] = useState({ ...EMPTY_PURCHASE_REQUEST });
   const [purchaseRequestLines, setPurchaseRequestLines] = useState([newPurchaseRequestLine()]);
-  const [purchaseDamagePhoto, setPurchaseDamagePhoto] = useState(null);
+  const [purchaseDamagePhotos, setPurchaseDamagePhotos] = useState([]);
+  const [purchasePhotoEditorIndex, setPurchasePhotoEditorIndex] = useState(null);
   const [showPurchasePhotoEditor, setShowPurchasePhotoEditor] = useState(false);
   const [purchaseUploadProgress, setPurchaseUploadProgress] = useState(null);
   const [purchasePhotoError, setPurchasePhotoError] = useState("");
@@ -684,7 +685,7 @@ export default function Maintenance() {
   }
 
   async function openDetail(id) {
-    if (activeId && activeJob) purchaseDraftsRef.current.set(activeId, { form: { ...purchaseRequestForm }, lines: purchaseRequestLines.map(line => ({ ...line })), photo: purchaseDamagePhoto });
+    if (activeId && activeJob) purchaseDraftsRef.current.set(activeId, { form: { ...purchaseRequestForm }, lines: purchaseRequestLines.map(line => ({ ...line })), photos: [...purchaseDamagePhotos] });
     const purchaseDraft = purchaseDraftsRef.current.get(id);
     setShowDetail(true);
     setDetailTab("PARTS");
@@ -719,7 +720,7 @@ export default function Maintenance() {
       setProgressNote("");
       setPurchaseRequestForm(purchaseDraft?.form ? { ...purchaseDraft.form } : { ...EMPTY_PURCHASE_REQUEST });
       setPurchaseRequestLines(purchaseDraft?.lines?.length ? purchaseDraft.lines.map(line => ({ ...line })) : [newPurchaseRequestLine()]);
-      setPurchaseDamagePhoto(purchaseDraft?.photo || null);
+      setPurchaseDamagePhotos(purchaseDraft?.photos || (purchaseDraft?.photo ? [purchaseDraft.photo] : []));
       setPurchasePhotoError("");
     } catch (e) {
       setErr(e.message || "Gagal memuat detail");
@@ -729,7 +730,7 @@ export default function Maintenance() {
   }
 
   function closeDetail() {
-    if (activeId) purchaseDraftsRef.current.set(activeId, { form: { ...purchaseRequestForm }, lines: purchaseRequestLines.map(line => ({ ...line })), photo: purchaseDamagePhoto });
+    if (activeId) purchaseDraftsRef.current.set(activeId, { form: { ...purchaseRequestForm }, lines: purchaseRequestLines.map(line => ({ ...line })), photos: [...purchaseDamagePhotos] });
     setShowDetail(false);
   }
 
@@ -765,8 +766,8 @@ export default function Maintenance() {
     event.preventDefault();
     if (!activeJob?.id) return;
     const form = purchaseRequestForm;
-    if (!purchaseDamagePhoto) {
-      setPurchasePhotoError("Foto bukti barang rusak wajib ditambahkan sebelum membuat permintaan.");
+    if (!purchaseDamagePhotos.length) {
+      setPurchasePhotoError("Minimal satu foto bukti barang rusak wajib ditambahkan sebelum membuat permintaan.");
       return;
     }
     setPurchasePhotoError("");
@@ -791,12 +792,13 @@ export default function Maintenance() {
     setRequestingPurchase(true); setErr("");
     try {
       setPurchaseUploadProgress(0);
-      const proof = (await uploadFiles([purchaseDamagePhoto], { onProgress: setPurchaseUploadProgress }))[0];
-      await api(`/maintenance/${activeJob.id}/purchase-requests`, { method: "POST", body: JSON.stringify({ items: requestItems, urgency: form.urgency, reason: form.reason, notes: form.notes, acknowledgeAvailableStock: Boolean(form.acknowledgeAvailableStock), damageProofUrl: proof?.url, damageProofFileName: proof?.fileName, damageProofMimeType: proof?.mimeType, damageProofSize: proof?.size }) });
+      const proofs = await uploadFiles(purchaseDamagePhotos, { onProgress: setPurchaseUploadProgress });
+      const proof = proofs[0];
+      await api(`/maintenance/${activeJob.id}/purchase-requests`, { method: "POST", body: JSON.stringify({ items: requestItems, urgency: form.urgency, reason: form.reason, notes: form.notes, acknowledgeAvailableStock: Boolean(form.acknowledgeAvailableStock), damageProofs: proofs.map(file => ({ url: file.url, fileName: file.fileName, mimeType: file.mimeType, size: file.size })), damageProofUrl: proof?.url, damageProofFileName: proof?.fileName, damageProofMimeType: proof?.mimeType, damageProofSize: proof?.size }) });
       purchaseDraftsRef.current.delete(activeJob.id);
       setPurchaseRequestForm({ ...EMPTY_PURCHASE_REQUEST });
       setPurchaseRequestLines([newPurchaseRequestLine()]);
-      setPurchaseDamagePhoto(null);
+      setPurchaseDamagePhotos([]);
       setPurchasePhotoError("");
       await refreshDetail();
     } catch (e) {
@@ -1763,7 +1765,7 @@ export default function Maintenance() {
                 </div>}
 
                 <form className={`maintenance-direct-request ${detailTab !== "PURCHASE" ? "maintenance-detail-section-hidden" : ""}`} onSubmit={createMaintenancePurchaseRequest}>
-                  <section className={`maintenance-request-card maintenance-proof-card ${purchasePhotoError ? "has-error" : ""}`}><div className="maintenance-request-card-title"><span>03</span><div><strong>Bukti barang rusak</strong><small>Foto wajib disertakan agar pemilik dapat memeriksa pengajuan.</small></div></div><button type="button" className={`maintenance-damage-proof ${purchaseDamagePhoto ? "has-file" : ""}`} onClick={() => purchaseDamageInputRef.current?.click()}><span className="maintenance-proof-icon"><FiCamera /></span><span className="maintenance-proof-copy"><strong>{purchaseDamagePhoto ? "Foto siap dikirim" : "Ketuk untuk tambah foto barang rusak"}</strong><small>{purchaseDamagePhoto ? `${purchaseDamagePhoto.name} · Ketuk kembali untuk mengganti` : "Ambil foto menggunakan kamera belakang"}</small></span></button>{purchasePhotoError && <div className="maintenance-proof-error">{purchasePhotoError}</div>}{purchaseDamagePhoto && <button type="button" className="maintenance-proof-annotate" onClick={() => setShowPurchasePhotoEditor(true)}>Tandai bagian yang rusak (opsional)</button>}<UploadProgress progress={purchaseUploadProgress} label="Mengunggah bukti barang rusak" /><button className="maintenance-request-submit maintenance-proof-submit" disabled={requestingPurchase || activeJob.status !== "OPEN"}>{requestingPurchase ? "Mengirim..." : purchaseRequestForm.acknowledgeAvailableStock ? "Tetap Buat Permintaan" : "Buat Permintaan"}</button></section>
+                  <section className={`maintenance-request-card maintenance-proof-card ${purchasePhotoError ? "has-error" : ""}`}><div className="maintenance-request-card-title"><span>03</span><div><strong>Bukti barang rusak</strong><small>Tambahkan satu atau beberapa foto agar pemilik dapat memeriksa kerusakan.</small></div></div><button type="button" className={`maintenance-damage-proof ${purchaseDamagePhotos.length ? "has-file" : ""}`} onClick={() => purchaseDamageInputRef.current?.click()}><span className="maintenance-proof-icon"><FiCamera /></span><span className="maintenance-proof-copy"><strong>{purchaseDamagePhotos.length ? `Tambah foto lagi · ${purchaseDamagePhotos.length} foto dipilih` : "Ketuk untuk tambah foto barang rusak"}</strong><small>Ambil dari kamera atau pilih beberapa foto dari galeri</small></span></button>{purchaseDamagePhotos.length > 0 && <div className="maintenance-proof-list">{purchaseDamagePhotos.map((file, index) => <div key={`${file.name}-${file.lastModified}-${index}`}><span><strong>Foto {index + 1}</strong><small>{file.name}</small></span><button type="button" onClick={() => { setPurchasePhotoEditorIndex(index); setShowPurchasePhotoEditor(true); }}>Tandai</button><button type="button" className="remove" onClick={() => setPurchaseDamagePhotos(current => current.filter((_, photoIndex) => photoIndex !== index))}>Hapus</button></div>)}</div>}{purchasePhotoError && <div className="maintenance-proof-error">{purchasePhotoError}</div>}<UploadProgress progress={purchaseUploadProgress} label="Mengunggah bukti barang rusak" /><button className="maintenance-request-submit maintenance-proof-submit" disabled={requestingPurchase || activeJob.status !== "OPEN"}>{requestingPurchase ? "Mengirim..." : purchaseRequestForm.acknowledgeAvailableStock ? "Tetap Buat Permintaan" : "Buat Permintaan"}</button></section>
                   <div className="maintenance-request-head"><span><FiPlus /></span><div><strong>Pesan sparepart untuk servis ini</strong><small>Permintaan tetap terlacak di servis; barang masuk Inventory saat diterima.</small></div><em>UNTUK SERVIS</em></div>
                   <section className="maintenance-request-card"><div className="maintenance-request-card-title"><span>01</span><div><strong>Pilih barang</strong><small>Gunakan katalog atau daftarkan sparepart baru.</small></div></div><div className="maintenance-request-mode"><button type="button" className={!purchaseRequestForm.newItem ? "active" : ""} onClick={() => { setErr(""); setPurchaseRequestForm(form => ({ ...form, newItem: false, acknowledgeAvailableStock: false })); }}>Pilih katalog</button><button type="button" className={purchaseRequestForm.newItem ? "active" : ""} onClick={() => { setErr(""); setPurchaseRequestForm(form => ({ ...form, newItem: true, acknowledgeAvailableStock: false })); }}>Sparepart baru</button></div>
                     {!purchaseRequestForm.newItem ? <div className="maintenance-purchase-lines">{purchaseRequestLines.map((line, index) => { const selected = items.find(item => item.id === line.itemId); return <div className="maintenance-purchase-line" key={line.key}><span className="maintenance-purchase-line-number">{index + 1}</span><label>Sparepart<SearchableItemPicker items={items} value={line.itemId} onChange={itemId => { setErr(""); setPurchaseRequestForm(form => ({ ...form, acknowledgeAvailableStock: false })); setPurchaseRequestLines(current => current.map(row => row.key === line.key ? { ...row, itemId } : row)); }} disabled={requestingPurchase} placeholder="Cari SKU atau nama sparepart..." testId={`maintenance-purchase-item-search-${index}`} />{Number(selected?.qtyTotal || 0) > 0 && <span className="maintenance-stock-warning">⚠ Stok tersedia: <b>{Number(selected.qtyTotal).toLocaleString("id-ID")} {selected.unit}</b></span>}</label><label className="maintenance-purchase-line-qty">Jumlah<input required type="number" min="0.01" step="0.01" value={line.qty} onChange={event => { setPurchaseRequestForm(form => ({ ...form, acknowledgeAvailableStock: false })); setPurchaseRequestLines(current => current.map(row => row.key === line.key ? { ...row, qty: event.target.value } : row)); }} /></label>{purchaseRequestLines.length > 1 && <button type="button" className="maintenance-purchase-line-remove" onClick={() => setPurchaseRequestLines(current => current.filter(row => row.key !== line.key))}>Hapus</button>}</div>; })}<button type="button" className="maintenance-purchase-line-add" onClick={() => setPurchaseRequestLines(current => [...current, newPurchaseRequestLine()])}><FiPlus /> Tambah sparepart</button></div> : <div className="maintenance-request-new-item"><label>SKU<input required value={purchaseRequestForm.sku} onChange={event => setPurchaseRequestForm(form => ({ ...form, sku: event.target.value }))} placeholder="Contoh: BRK-HINO-02" /></label><label>Nama sparepart<input required value={purchaseRequestForm.name} onChange={event => setPurchaseRequestForm(form => ({ ...form, name: event.target.value }))} placeholder="Contoh: Master rem Hino" /></label><label>Satuan<select value={purchaseRequestForm.unit} onChange={event => setPurchaseRequestForm(form => ({ ...form, unit: event.target.value }))}><option>PCS</option><option>SET</option><option>UNIT</option><option>LITER</option></select></label><label className="maintenance-request-check"><input type="checkbox" checked={purchaseRequestForm.isSerialized} onChange={event => setPurchaseRequestForm(form => ({ ...form, isSerialized: event.target.checked }))} /> Memiliki nomor serial</label></div>}
@@ -2102,25 +2104,28 @@ export default function Maintenance() {
         ref={purchaseDamageInputRef}
         type="file"
         accept="image/*"
+        multiple
         capture="environment"
         hidden
         onChange={(event) => {
-          const file = event.target.files?.[0] || null;
-          if (file) {
-            setPurchaseDamagePhoto(file);
+          const files = Array.from(event.target.files || []);
+          if (files.length) {
+            const firstNewIndex = purchaseDamagePhotos.length;
+            setPurchaseDamagePhotos(current => [...current, ...files]);
             setPurchasePhotoError("");
             // Open in the same React update as the selected file. Timers started
             // immediately after returning from the native camera can be suspended
             // by Android WebView/Chrome, leaving the editor closed indefinitely.
             // The detail modal is conditionally unmounted while this is true, so
             // only one fixed overlay is ever composited at a time.
-            setShowPurchasePhotoEditor(true);
+            setPurchasePhotoEditorIndex(firstNewIndex);
+            if (files.length === 1) setShowPurchasePhotoEditor(true);
           }
           event.target.value = "";
         }}
       />
 
-      <ImageAnnotationEditor file={purchaseDamagePhoto} open={showPurchasePhotoEditor} onClose={() => setShowPurchasePhotoEditor(false)} onSave={(file) => { setPurchaseDamagePhoto(file); setShowPurchasePhotoEditor(false); }} />
+      <ImageAnnotationEditor file={purchasePhotoEditorIndex == null ? null : purchaseDamagePhotos[purchasePhotoEditorIndex]} open={showPurchasePhotoEditor} onClose={() => { setShowPurchasePhotoEditor(false); setPurchasePhotoEditorIndex(null); }} onSave={(file) => { setPurchaseDamagePhotos(current => current.map((photo, index) => index === purchasePhotoEditorIndex ? file : photo)); setShowPurchasePhotoEditor(false); setPurchasePhotoEditorIndex(null); }} />
 
       <Modal
         open={Boolean(returnStockTarget)}
