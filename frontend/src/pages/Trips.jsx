@@ -205,7 +205,7 @@ export default function Trips() {
   const [singleTripLocations, setSingleTripLocations] = useState([]);
   const [singleTripCustomers, setSingleTripCustomers] = useState([]);
   const [singleTripQ, setSingleTripQ] = useState("");
-  const [singleTripForm, setSingleTripForm] = useState({ truckId: "", pickupLocationId: "", destinationLocationId: "", plannedDepartAt: "", cargoCategory: "CANGKANG", cargoName: "", billingCustomerId: "", reason: "" });
+  const [singleTripForm, setSingleTripForm] = useState({ truckId: "", pickupLocationId: "", destinationLocationId: "", plannedDepartAt: "", cargoCategory: "CANGKANG", cargoName: "", billingCustomerId: "", sackCount: "", kgPerSack: "50", reason: "" });
   const [emptyReturnBusy, setEmptyReturnBusy] = useState(false);
   const [emptyReturnTrucks, setEmptyReturnTrucks] = useState([]);
   const [baseLocations, setBaseLocations] = useState([]);
@@ -245,6 +245,14 @@ export default function Trips() {
     setError("");
     try {
       const trip = await api("/trips/single", { method: "POST", body: JSON.stringify(singleTripForm) });
+      try {
+        await api(`/dispatch/trips/${trip.id}`, { method: "POST", body: JSON.stringify({ city: "Medan", companyName: "CV. MITRA SETIA", companyAddress: "JLN. CEMARA NO. 40 TELP. (061) 6642646. FAX. (061) 6642647\nDs. Sampali Kec. Percut Sei Tuan Kab. Deli Serdang", companyPhone: "Telp. (061) 6642646" }) });
+      } catch (dispatchError) {
+        setSingleTripOpen(false);
+        await load();
+        setError(`Trip Tunggal berhasil dibuat, tetapi surat jalan gagal dibuat: ${dispatchError?.message || "Kesalahan tidak diketahui"}`);
+        return;
+      }
       setSingleTripOpen(false);
       nav(`/trips/${trip.id}`);
     } catch (error) {
@@ -492,17 +500,18 @@ export default function Trips() {
             </section>
             <section className="empty-return-details">
               <div className="empty-return-section-title"><div><span>LANGKAH 2</span><strong>Muatan & Rute</strong></div></div>
-              <div><span className="single-trip-field-label">Kategori muatan</span><div className="single-trip-categories">{[{ value: "FERTILIZER", label: "Pupuk", note: "Berat diisi setelah muat" }, { value: "CANGKANG", label: "Cangkang", note: "Berat diisi setelah muat" }, { value: "MATERIAL", label: "Ambang / Material", note: "Mengikuti faktur muatan" }].map(option => <button key={option.value} type="button" className={singleTripForm.cargoCategory === option.value ? "active" : ""} onClick={() => setSingleTripForm(form => ({ ...form, cargoCategory: option.value }))}><FiPackage/><span><strong>{option.label}</strong><small>{option.note}</small></span></button>)}</div></div>
+              <div><span className="single-trip-field-label">Kategori muatan</span><div className="single-trip-categories">{[{ value: "FERTILIZER", label: "Pupuk", note: "Hitung dari jumlah sak" }, { value: "CANGKANG", label: "Cangkang", note: "Hitung dari jumlah sak" }, { value: "MATERIAL", label: "Ambang / Material", note: "Mengikuti faktur muatan" }].map(option => <button key={option.value} type="button" className={singleTripForm.cargoCategory === option.value ? "active" : ""} onClick={() => setSingleTripForm(form => ({ ...form, cargoCategory: option.value }))}><FiPackage/><span><strong>{option.label}</strong><small>{option.note}</small></span></button>)}</div></div>
               <label><span>Nama barang / muatan</span><input required value={singleTripForm.cargoName} onChange={event => setSingleTripForm(form => ({ ...form, cargoName: event.target.value }))} placeholder="Contoh: Pupuk NPK, cangkang, pasir"/></label>
+              {singleTripForm.cargoCategory !== "MATERIAL" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}><label><span>Jumlah sak</span><input required type="number" min="1" step="1" value={singleTripForm.sackCount} onChange={event => setSingleTripForm(form => ({ ...form, sackCount: event.target.value }))} placeholder="Contoh: 600"/></label><label><span>Berat per sak (kg)</span><input required type="number" min="0.01" step="any" value={singleTripForm.kgPerSack} onChange={event => setSingleTripForm(form => ({ ...form, kgPerSack: event.target.value }))}/></label><div style={{ gridColumn: "1 / -1", padding: "9px 11px", borderRadius: 8, background: "#EDF7F0", color: "#176B3C", fontWeight: 700 }}>Total: {(Number(singleTripForm.sackCount || 0) * Number(singleTripForm.kgPerSack || 0)).toLocaleString("id-ID")} kg</div></div>}
               <label><span>Customer tagihan</span><select required value={singleTripForm.billingCustomerId} onChange={event => setSingleTripForm(form => ({ ...form, billingCustomerId: event.target.value }))}><option value="">Pilih customer dari Master Customer</option>{singleTripCustomers.map(customer => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
               <label><span>Lokasi muat</span><select required value={singleTripForm.pickupLocationId} onChange={event => setSingleTripForm(form => ({ ...form, pickupLocationId: event.target.value }))}><option value="">Pilih lokasi muat</option>{singleTripLocations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
               <label><span>Tujuan bongkar</span><select required value={singleTripForm.destinationLocationId} onChange={event => setSingleTripForm(form => ({ ...form, destinationLocationId: event.target.value }))}><option value="">Pilih tujuan</option>{singleTripLocations.filter(location => location.id !== singleTripForm.pickupLocationId).map(location => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
               <label><span>Rencana berangkat</span><input required type="datetime-local" value={singleTripForm.plannedDepartAt} onChange={event => setSingleTripForm(form => ({ ...form, plannedDepartAt: event.target.value }))}/></label>
               <label><span>Keterangan (opsional)</span><textarea rows="2" value={singleTripForm.reason} onChange={event => setSingleTripForm(form => ({ ...form, reason: event.target.value }))} placeholder="Informasi tambahan perjalanan"/></label>
-              {selectedSingleTruck && selectedSinglePickup && selectedSingleDestination && <div className="empty-return-summary"><span>RUTE TRIP TUNGGAL</span><strong>{selectedSinglePickup.name} <b>→</b> {selectedSingleDestination.name}</strong><small>{selectedSingleTruck.plateNumber} · {singleTripForm.cargoName || "Muatan"} · jumlah sak dan berat diisi setelah muat</small></div>}
+              {selectedSingleTruck && selectedSinglePickup && selectedSingleDestination && <div className="empty-return-summary"><span>RUTE TRIP TUNGGAL</span><strong>{selectedSinglePickup.name} <b>→</b> {selectedSingleDestination.name}</strong><small>{selectedSingleTruck.plateNumber} · {singleTripForm.cargoName || "Muatan"}{singleTripForm.cargoCategory === "MATERIAL" ? " · mengikuti Faktur Muatan" : ` · ${singleTripForm.sackCount || 0} sak × ${singleTripForm.kgPerSack || 0} kg`}</small></div>}
             </section>
           </div>
-          <footer><button type="button" className="secondary" disabled={singleTripBusy} onClick={() => setSingleTripOpen(false)}>Batal</button><button type="submit" disabled={singleTripBusy || !singleTripForm.truckId || !singleTripForm.billingCustomerId || !singleTripForm.pickupLocationId || !singleTripForm.destinationLocationId || singleTripForm.pickupLocationId === singleTripForm.destinationLocationId}>{singleTripBusy ? "Menyiapkan…" : "Buat Trip Tunggal"}</button></footer>
+          <footer><button type="button" className="secondary" disabled={singleTripBusy} onClick={() => setSingleTripOpen(false)}>Batal</button><button type="submit" disabled={singleTripBusy || !singleTripForm.truckId || !singleTripForm.billingCustomerId || !singleTripForm.pickupLocationId || !singleTripForm.destinationLocationId || singleTripForm.pickupLocationId === singleTripForm.destinationLocationId || (singleTripForm.cargoCategory !== "MATERIAL" && (!(Number(singleTripForm.sackCount) > 0) || !(Number(singleTripForm.kgPerSack) > 0)))}>{singleTripBusy ? "Menyiapkan…" : "Buat Trip Tunggal"}</button></footer>
         </form>
       </section>
     </div>}

@@ -442,7 +442,7 @@ router.post("/:id/material-invoices", authRequired, async (req, res) => {
 router.post("/single", authRequired, async (req, res) => {
   try {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
-    const { truckId, driverUserId, pickupLocationId, destinationLocationId, plannedDepartAt, cargoCategory, cargoName, billingCustomerId, reason } = req.body || {};
+    const { truckId, driverUserId, pickupLocationId, destinationLocationId, plannedDepartAt, cargoCategory, cargoName, billingCustomerId, reason, sackCount, kgPerSack } = req.body || {};
     const allowedCargoCategories = new Set(["FERTILIZER", "CANGKANG", "MATERIAL"]);
     const selectedCargoCategory = str(cargoCategory) === "AMBANG" ? "MATERIAL" : str(cargoCategory);
     if (!truckId) return res.status(400).json({ error: "Truk wajib dipilih" });
@@ -451,6 +451,7 @@ router.post("/single", authRequired, async (req, res) => {
     if (!billingCustomerId) return res.status(400).json({ error: "Customer tagihan wajib dipilih" });
     if (!pickupLocationId || !destinationLocationId) return res.status(400).json({ error: "Lokasi muat dan tujuan wajib dipilih" });
     if (pickupLocationId === destinationLocationId) return res.status(400).json({ error: "Lokasi muat dan tujuan harus berbeda" });
+    const load = selectedCargoCategory === "MATERIAL" ? null : sackLoad({ sackCount, kgPerSack });
 
     const created = await prisma.$transaction(async (tx) => {
       const [truck, pickup, destination, billingCustomer] = await Promise.all([
@@ -499,9 +500,12 @@ router.post("/single", authRequired, async (req, res) => {
           destinationLat: destination.latitude,
           destinationLng: destination.longitude,
           arrivalRadiusM: destination.radiusM,
-          qtyPlanned: null,
+          sackCount: load?.sackCount || null,
+          kgPerSack: load?.kgPerSack || null,
+          plannedWeightKg: load?.plannedWeightKg || null,
+          qtyPlanned: load?.plannedWeightKg || null,
           qtyActual: null,
-          unitSnap: null,
+          unitSnap: load ? "KG" : null,
         },
       });
     });
