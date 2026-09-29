@@ -77,6 +77,24 @@ function sameLocation(a, b) {
   return Boolean(normalize(a) && normalize(a) === normalize(b));
 }
 
+function sackLoad(body, order = null) {
+  const sackCount = Number(body?.sackCount);
+  const kgPerSack = Number(body?.kgPerSack);
+  if (!Number.isInteger(sackCount) || sackCount <= 0) throw new Error("Jumlah sak harus berupa bilangan bulat lebih dari nol");
+  if (!Number.isFinite(kgPerSack) || kgPerSack <= 0) throw new Error("Berat per sak harus lebih dari nol");
+  const plannedWeightKg = sackCount * kgPerSack;
+  const unit = String(order?.unit || "KG").trim().toUpperCase();
+  const orderQty = ["SAK", "BAG", "ZAK"].includes(unit) ? sackCount : unit === "TON" ? plannedWeightKg / 1000 : plannedWeightKg;
+  if (order?.qty != null && !["SAK", "BAG", "ZAK", "TON", "KG"].includes(unit)) throw new Error(`Satuan order ${order.unit} belum mendukung perhitungan sak`);
+  return { sackCount, kgPerSack, plannedWeightKg, orderQty, orderUnit: order?.unit || "KG" };
+}
+
+async function refreshTripPlannedWeight(tx, tripId) {
+  const allocations = await tx.tripOrderAllocation.findMany({ where: { tripId }, select: { plannedWeightKg: true } });
+  const plannedWeightKg = allocations.reduce((sum, item) => sum + Number(item.plannedWeightKg || 0), 0);
+  await tx.trip.update({ where: { id: tripId }, data: { qtyPlanned: plannedWeightKg || null, unitSnap: plannedWeightKg ? "KG" : null, plannedWeightKg: plannedWeightKg || null } });
+}
+
 function distanceMeters(lat1, lng1, lat2, lng2) {
   const radians = (value) => value * Math.PI / 180;
   const dLat = radians(lat2 - lat1);
@@ -717,11 +735,8 @@ router.post("/:id/allocations", authRequired, async (req, res) => {
   try {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
     const orderId = str(req.body?.orderId);
-    const qtyPlanned = Number(req.body?.qtyPlanned);
-    const unitSnap = str(req.body?.unit) || "TON";
     const requestedSequence = Math.max(1, Math.round(Number(req.body?.stopSequence) || 1));
     if (!orderId) throw new Error("Order tambahan wajib dipilih");
-    if (!Number.isFinite(qtyPlanned) || qtyPlanned <= 0) throw new Error("Jumlah muatan tambahan harus lebih dari nol");
 
     const allocation = await prisma.$transaction(async (tx) => {
       const trip = await tx.trip.findUnique({
@@ -740,17 +755,17 @@ router.post("/:id/allocations", authRequired, async (req, res) => {
       if (trip.order && (order.cargoCategory !== trip.order.cargoCategory || order.cargoCategory === "MATERIAL")) {
         throw new Error("Order tambahan harus merupakan muatan pupuk/cangkang dengan jenis yang sama");
       }
-      if (!['TON', 'KG'].includes(unitSnap.toUpperCase())) throw new Error("Muatan tambahan pupuk/cangkang harus menggunakan TON atau KG");
-      if (order.unit && order.unit.toUpperCase() !== unitSnap.toUpperCase()) throw new Error(`Satuan alokasi harus mengikuti order: ${order.unit}`);
+      const load = sackLoad(req.body, order);
       const alreadyAllocated = order.tripAllocations.reduce((sum, item) => sum + Number(item.qtyPlanned || 0), 0);
-      if (order.qty != null && alreadyAllocated + qtyPlanned > Number(order.qty) + 1e-9) {
-        throw new Error(`Alokasi melebihi sisa order ${Math.max(0, Number(order.qty) - alreadyAllocated)} ${order.unit || unitSnap}`);
+      if (order.qty != null && alreadyAllocated + load.orderQty > Number(order.qty) + 1e-9) {
+        throw new Error(`Alokasi melebihi sisa order ${Math.max(0, Number(order.qty) - alreadyAllocated)} ${order.unit || load.orderUnit}`);
       }
       await tx.tripOrderAllocation.updateMany({ where: { tripId: trip.id, stopSequence: { gte: requestedSequence } }, data: { stopSequence: { increment: 1 } } });
       const created = await tx.tripOrderAllocation.create({
-        data: { tripId: trip.id, orderId: order.id, qtyPlanned, unitSnap, isPrimary: false, stopSequence: requestedSequence },
+        data: { tripId: trip.id, orderId: order.id, qtyPlanned: load.orderQty, unitSnap: load.orderUnit, sackCount: load.sackCount, kgPerSack: load.kgPerSack, plannedWeightKg: load.plannedWeightKg, isPrimary: false, stopSequence: requestedSequence },
         include: { order: { include: { customer: true, destinationLocation: true } } },
       });
+      await refreshTripPlannedWeight(tx, trip.id);
       if (!["IN_PROGRESS", "COMPLETED"].includes(order.status)) {
         await tx.order.update({ where: { id: order.id }, data: { status: "IN_PROGRESS" } });
       }
@@ -760,6 +775,55 @@ router.post("/:id/allocations", authRequired, async (req, res) => {
   } catch (e) {
     res.status(e.code === "P2002" ? 409 : 400).json({ error: e.code === "P2002" ? "Order sudah dialokasikan ke trip ini" : e.message || "Gagal menambah muatan" });
   }
+});
+
+router.patch("/:id/allocations/:allocationId/load", authRequired, async (req, res) => {
+  try {
+    if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
+    const saved = await prisma.$transaction(async (tx) => {
+      const allocation = await tx.tripOrderAllocation.findFirst({
+        where: { id: req.params.allocationId, tripId: req.params.id },
+        include: {
+          order: {
+            include: {
+              tripAllocations: {
+                where: { trip: { status: { not: "CANCELLED" } } },
+                select: { id: true, qtyPlanned: true },
+              },
+            },
+          },
+          trip: true,
+        },
+      });
+      if (!allocation) throw new Error("Alokasi order tidak ditemukan");
+      if (!["PLANNED", "DISPATCHED"].includes(allocation.trip.status) || ["TO_DESTINATION", "AT_DESTINATION", "COMPLETED"].includes(allocation.trip.phase)) throw new Error("Muatan hanya dapat dicatat sebelum kendaraan selesai memuat");
+      const load = sackLoad(req.body, allocation.order);
+      const alreadyAllocated = allocation.order.tripAllocations.filter((item) => item.id !== allocation.id).reduce((sum, item) => sum + Number(item.qtyPlanned || 0), 0);
+      if (allocation.order.qty != null && alreadyAllocated + load.orderQty > Number(allocation.order.qty) + 1e-9) throw new Error(`Muatan melebihi sisa order ${Math.max(0, Number(allocation.order.qty) - alreadyAllocated)} ${allocation.order.unit || load.orderUnit}`);
+      const updated = await tx.tripOrderAllocation.update({
+        where: { id: allocation.id },
+        data: { qtyPlanned: load.orderQty, unitSnap: load.orderUnit, sackCount: load.sackCount, kgPerSack: load.kgPerSack, plannedWeightKg: load.plannedWeightKg },
+        include: { order: { include: { customer: true, destinationLocation: true } } },
+      });
+      await refreshTripPlannedWeight(tx, allocation.tripId);
+      return updated;
+    });
+    res.json(saved);
+  } catch (e) { res.status(400).json({ error: e.message || "Gagal mencatat muatan" }); }
+});
+
+router.patch("/:id/load", authRequired, async (req, res) => {
+  try {
+    if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
+    const trip = await prisma.trip.findUnique({ where: { id: req.params.id } });
+    if (!trip) return res.status(404).json({ error: "Trip tidak ditemukan" });
+    if (trip.purpose !== "SINGLE_TRIP") throw new Error("Muatan trip pesanan dicatat pada alokasi order");
+    if (trip.cargoCategorySnap === "MATERIAL") throw new Error("Berat material mengikuti Faktur Muatan");
+    if (!["PLANNED", "DISPATCHED"].includes(trip.status) || ["TO_DESTINATION", "AT_DESTINATION", "COMPLETED"].includes(trip.phase)) throw new Error("Muatan hanya dapat dicatat sebelum kendaraan selesai memuat");
+    const load = sackLoad(req.body);
+    const saved = await prisma.trip.update({ where: { id: trip.id }, data: { sackCount: load.sackCount, kgPerSack: load.kgPerSack, plannedWeightKg: load.plannedWeightKg, qtyPlanned: load.plannedWeightKg, unitSnap: "KG" } });
+    res.json(saved);
+  } catch (e) { res.status(400).json({ error: e.message || "Gagal mencatat muatan" }); }
 });
 
 router.patch("/:id/order-stops/:allocationId/complete", authRequired, async (req, res) => {
@@ -863,13 +927,24 @@ router.post("/:id/start-delivery", authRequired, async (req, res) => {
     const ts = toDate(req.body?.timestamp) || new Date();
     const trip = await prisma.trip.findUnique({
       where: { id },
-      include: { truck: true, driverUser: true, order: true },
+      include: {
+        truck: true,
+        driverUser: true,
+        order: true,
+        orderAllocations: { select: { plannedWeightKg: true } },
+      },
     });
     if (!trip) return res.status(404).json({ error: "Trip not found" });
     if (!canWrite(req.user) && !(isDriver(req.user) && trip.driverUserId === req.user.id)) return res.status(403).json({ error: "Forbidden" });
     if (trip.purpose !== "DELIVERY") return res.status(400).json({ error: "Tahap muat hanya tersedia untuk trip pengiriman" });
     if (trip.status !== "DISPATCHED" || trip.phase !== "AT_PICKUP") {
       return res.status(400).json({ error: "Mobil harus tiba di lokasi muat sebelum memulai pengiriman" });
+    }
+    if (trip.order?.cargoCategory !== "MATERIAL") {
+      const recordedWeight = trip.orderAllocations.reduce((sum, item) => sum + Number(item.plannedWeightKg || 0), 0);
+      if (!(recordedWeight > 0)) {
+        return res.status(400).json({ error: "Catat jumlah sak dan berat per sak sebelum kendaraan berangkat dari lokasi muat" });
+      }
     }
 
     const saved = await prisma.trip.update({
@@ -1049,10 +1124,12 @@ router.patch("/:id/status", authRequired, async (req, res) => {
             },
           });
         }
-        await tx.tripOrderAllocation.updateMany({
-          where: { tripId: trip.id, isPrimary: true },
-          data: { qtyActual: resolvedQtyActual },
-        });
+        for (const allocation of trip.orderAllocations.filter((item) => item.isPrimary)) {
+          await tx.tripOrderAllocation.update({
+            where: { id: allocation.id },
+            data: { qtyActual: allocation.plannedWeightKg != null ? allocation.qtyPlanned : resolvedQtyActual },
+          });
+        }
         if (nextStatus === "COMPLETED") {
           for (const allocation of trip.orderAllocations.filter((item) => !item.isPrimary && item.qtyActual == null)) {
             await tx.tripOrderAllocation.update({ where: { id: allocation.id }, data: { qtyActual: allocation.qtyPlanned } });

@@ -185,7 +185,9 @@ router.post("/trips/:tripId", authRequired, async (req, res) => {
           ? [...new Set(materialLines.map((line) => line.itemName).filter(Boolean))].join("; ")
           : trip.cargoNameSnap || order?.cargoName || "";
       const qtyText = allocations.length
-        ? allocations.map((item) => `${Number(item.qtyPlanned || 0)} ${item.unitSnap || ""}`.trim()).join("; ")
+        ? allocations.map((item) => item.sackCount && item.kgPerSack
+          ? `${Number(item.sackCount)} sak × ${Number(item.kgPerSack)} kg = ${Number(item.plannedWeightKg || 0)} kg`
+          : `${Number(item.qtyPlanned || 0)} ${item.unitSnap || ""}`.trim()).join("; ")
         : materialInvoices.length
           ? materialLines.map((line) => `${line.itemName}: ${Number(line.qty || 0)} ${line.unit || ""}`.trim()).join("; ")
           : (trip.qtyPlanned != null ? `${Number(trip.qtyPlanned)} ${trip.unitSnap || order?.unit || ""}`.trim() : "");

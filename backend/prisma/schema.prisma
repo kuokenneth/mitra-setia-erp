@@ -238,34 +238,34 @@ model User {
   drivingTrucks  Truck[]         @relation("TruckDriverUser")
   trips          Trip[]
 
-  sparePartAssignmentsCreated TruckSparePartAssignment[] @relation("SparePartAssignmentCreatedBy")
-  expensesCreated             Expense[]                  @relation("ExpenseCreatedBy")
-  expensesApproved            Expense[]                  @relation("ExpenseApprovedBy")
-  expensesProofed             Expense[]                  @relation("ExpenseProofBy")
-  employeeReceivables         Expense[]                  @relation("ExpenseEmployee")
+  sparePartAssignmentsCreated TruckSparePartAssignment[]  @relation("SparePartAssignmentCreatedBy")
+  expensesCreated             Expense[]                   @relation("ExpenseCreatedBy")
+  expensesApproved            Expense[]                   @relation("ExpenseApprovedBy")
+  expensesProofed             Expense[]                   @relation("ExpenseProofBy")
+  employeeReceivables         Expense[]                   @relation("ExpenseEmployee")
   employeeReceivablePayments  EmployeeReceivablePayment[] @relation("EmployeeReceivableEmployee")
   employeePaymentsCreated     EmployeeReceivablePayment[] @relation("EmployeeReceivableCreatedBy")
-  financeDebtsCreated         FinanceDebt[]                @relation("FinanceDebtCreatedBy")
-  purchaseRequests            PurchaseRequest[]          @relation("PurchaseRequestCreatedBy")
-  purchaseRequestsApproved    PurchaseRequest[]          @relation("PurchaseRequestApprovedBy")
-  purchaseOrdersCreated       PurchaseOrder[]            @relation("PurchaseOrderCreatedBy")
-  purchaseOrdersCancelled     PurchaseOrder[]            @relation("PurchaseOrderCancelledBy")
-  goodsReceiptsCreated        GoodsReceipt[]             @relation("GoodsReceiptCreatedBy")
-  materialStocksCreated       MaterialStockReceipt[]     @relation("MaterialStockCreatedBy")
-  supplierBillsCreated        SupplierBill[]             @relation("SupplierBillCreatedBy")
-  purchasePaymentsCreated     PurchasePayment[]          @relation("PurchasePaymentCreatedBy")
-  purchasePaymentsApproved    PurchasePayment[]          @relation("PurchasePaymentApprovedBy")
-  invoicesCreated             Invoice[]                  @relation("InvoiceCreatedBy")
-  receivablePaymentsCreated   ReceivablePayment[]        @relation("ReceivablePaymentCreatedBy")
-  ordersCreated               Order[]                    @relation("OrderCreatedBy")
-  auditLogs                   AuditLog[]                 @relation("AuditLogActor")
-  journalEntriesCreated       JournalEntry[]             @relation("JournalEntryCreatedBy")
-  tireRetreadsCreated         TireRetread[]              @relation("TireRetreadCreatedBy")
-  partRepairsCreated          PartRepair[]               @relation("PartRepairCreatedBy")
-  maintenanceNotesCreated     MaintenanceNote[]          @relation("MaintenanceNoteCreatedBy")
-  tripActionsCreated          TripOperationalAction[]    @relation("TripActionCreatedBy")
-  tripActionsAssigned         TripOperationalAction[]    @relation("TripActionAssignedTo")
-  truckManualRevenuesCreated  TruckManualRevenue[]       @relation("TruckManualRevenueCreatedBy")
+  financeDebtsCreated         FinanceDebt[]               @relation("FinanceDebtCreatedBy")
+  purchaseRequests            PurchaseRequest[]           @relation("PurchaseRequestCreatedBy")
+  purchaseRequestsApproved    PurchaseRequest[]           @relation("PurchaseRequestApprovedBy")
+  purchaseOrdersCreated       PurchaseOrder[]             @relation("PurchaseOrderCreatedBy")
+  purchaseOrdersCancelled     PurchaseOrder[]             @relation("PurchaseOrderCancelledBy")
+  goodsReceiptsCreated        GoodsReceipt[]              @relation("GoodsReceiptCreatedBy")
+  materialStocksCreated       MaterialStockReceipt[]      @relation("MaterialStockCreatedBy")
+  supplierBillsCreated        SupplierBill[]              @relation("SupplierBillCreatedBy")
+  purchasePaymentsCreated     PurchasePayment[]           @relation("PurchasePaymentCreatedBy")
+  purchasePaymentsApproved    PurchasePayment[]           @relation("PurchasePaymentApprovedBy")
+  invoicesCreated             Invoice[]                   @relation("InvoiceCreatedBy")
+  receivablePaymentsCreated   ReceivablePayment[]         @relation("ReceivablePaymentCreatedBy")
+  ordersCreated               Order[]                     @relation("OrderCreatedBy")
+  auditLogs                   AuditLog[]                  @relation("AuditLogActor")
+  journalEntriesCreated       JournalEntry[]              @relation("JournalEntryCreatedBy")
+  tireRetreadsCreated         TireRetread[]               @relation("TireRetreadCreatedBy")
+  partRepairsCreated          PartRepair[]                @relation("PartRepairCreatedBy")
+  maintenanceNotesCreated     MaintenanceNote[]           @relation("MaintenanceNoteCreatedBy")
+  tripActionsCreated          TripOperationalAction[]     @relation("TripActionCreatedBy")
+  tripActionsAssigned         TripOperationalAction[]     @relation("TripActionAssignedTo")
+  truckManualRevenuesCreated  TruckManualRevenue[]        @relation("TruckManualRevenueCreatedBy")
 }
 
 model AuditLog {
@@ -358,30 +358,30 @@ model PurchaseRequestItem {
 }
 
 model PurchaseOrder {
-  id               String              @id @default(cuid())
-  number           String              @unique
-  requestId        String
-  request          PurchaseRequest     @relation(fields: [requestId], references: [id])
-  supplierId       String
-  supplier         Supplier            @relation(fields: [supplierId], references: [id])
-  status           PurchaseOrderStatus @default(DRAFT)
-  tax              Int                 @default(0)
-  shippingCost     Int                 @default(0)
-  discount         Int                 @default(0)
-  paymentTerms     String?
-  deliveryAddress  String?
-  estimatedArrival DateTime?
-  createdById      String
-  createdBy        User                @relation("PurchaseOrderCreatedBy", fields: [createdById], references: [id])
-  cancelledAt      DateTime?
+  id                 String              @id @default(cuid())
+  number             String              @unique
+  requestId          String
+  request            PurchaseRequest     @relation(fields: [requestId], references: [id])
+  supplierId         String
+  supplier           Supplier            @relation(fields: [supplierId], references: [id])
+  status             PurchaseOrderStatus @default(DRAFT)
+  tax                Int                 @default(0)
+  shippingCost       Int                 @default(0)
+  discount           Int                 @default(0)
+  paymentTerms       String?
+  deliveryAddress    String?
+  estimatedArrival   DateTime?
+  createdById        String
+  createdBy          User                @relation("PurchaseOrderCreatedBy", fields: [createdById], references: [id])
+  cancelledAt        DateTime?
   cancellationReason String?
-  cancelledById    String?
-  cancelledBy      User?               @relation("PurchaseOrderCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
-  items            PurchaseOrderItem[]
-  receipts         GoodsReceipt[]
-  payments         PurchasePayment[]
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
+  cancelledById      String?
+  cancelledBy        User?               @relation("PurchaseOrderCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  items              PurchaseOrderItem[]
+  receipts           GoodsReceipt[]
+  payments           PurchasePayment[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
   @@index([status])
   @@index([cancelledById])
@@ -408,12 +408,12 @@ model PurchaseOrderItem {
 }
 
 model GoodsReceipt {
-  id                      String               @id @default(cuid())
-  number                  String               @unique
+  id                      String                @id @default(cuid())
+  number                  String                @unique
   purchaseOrderId         String
-  purchaseOrder           PurchaseOrder        @relation(fields: [purchaseOrderId], references: [id])
+  purchaseOrder           PurchaseOrder         @relation(fields: [purchaseOrderId], references: [id])
   locationId              String
-  location                InventoryLocation    @relation(fields: [locationId], references: [id])
+  location                InventoryLocation     @relation(fields: [locationId], references: [id])
   deliveryNote            String?
   deliveryNoteProofUrl    String?
   deliveryNoteFileName    String?
@@ -427,19 +427,19 @@ model GoodsReceipt {
   supplierInvoiceFileName String?
   supplierInvoiceMimeType String?
   supplierInvoiceSize     Int?
-  receivedAt              DateTime             @default(now())
+  receivedAt              DateTime              @default(now())
   createdById             String
-  createdBy               User                 @relation("GoodsReceiptCreatedBy", fields: [createdById], references: [id])
+  createdBy               User                  @relation("GoodsReceiptCreatedBy", fields: [createdById], references: [id])
   items                   GoodsReceiptItem[]
   inventoryBatches        InventoryBatch[]
   supplierBillLines       SupplierBillReceipt[]
 }
 
 model SupplierBill {
-  id            String                @id @default(cuid())
-  number        String                @unique
+  id            String                   @id @default(cuid())
+  number        String                   @unique
   supplierId    String
-  supplier      Supplier              @relation(fields: [supplierId], references: [id])
+  supplier      Supplier                 @relation(fields: [supplierId], references: [id])
   invoiceNumber String
   invoiceDate   DateTime
   dueDate       DateTime?
@@ -449,15 +449,15 @@ model SupplierBill {
   proofFileName String?
   proofMimeType String?
   proofSize     Int?
-  status        SupplierBillStatus    @default(OPEN)
+  status        SupplierBillStatus       @default(OPEN)
   receipts      SupplierBillReceipt[]
   items         SupplierBillItem[]
   attachments   SupplierBillAttachment[]
   payments      PurchasePayment[]
   createdById   String
-  createdBy     User                  @relation("SupplierBillCreatedBy", fields: [createdById], references: [id])
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
+  createdBy     User                     @relation("SupplierBillCreatedBy", fields: [createdById], references: [id])
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
 
   @@unique([supplierId, invoiceNumber])
   @@index([supplierId, status])
@@ -484,8 +484,8 @@ model SupplierBillReceipt {
   receipt   GoodsReceipt @relation(fields: [receiptId], references: [id])
   amount    Int
 
-  @@index([billId])
   @@unique([billId, receiptId])
+  @@index([billId])
 }
 
 model SupplierBillItem {
@@ -779,9 +779,12 @@ model Trip {
   billingCustomer     Customer?   @relation("TripBillingCustomer", fields: [billingCustomerId], references: [id], onDelete: SetNull)
 
   // ✅ quantity per trip (for contract decrement)
-  qtyPlanned Float? // planned load for this trip
-  qtyActual  Float? // optional, fill when ARRIVED/COMPLETED
-  unitSnap   String? // ✅ ADD THIS
+  qtyPlanned      Float? // planned load for this trip
+  qtyActual       Float? // optional, fill when ARRIVED/COMPLETED
+  unitSnap        String? // ✅ ADD THIS
+  sackCount       Int?
+  kgPerSack       Float?
+  plannedWeightKg Float?
 
   // dates
   plannedDepartAt DateTime?
@@ -855,6 +858,9 @@ model TripOrderAllocation {
   qtyPlanned             Float?
   qtyActual              Float?
   unitSnap               String?
+  sackCount              Int?
+  kgPerSack              Float?
+  plannedWeightKg        Float?
   isPrimary              Boolean   @default(false)
   stopSequence           Int       @default(1)
   destinationArrivedAt   DateTime?
@@ -1423,12 +1429,12 @@ model InventoryBatch {
   receivedAt          DateTime @default(now())
   createdAt           DateTime @default(now())
 
-  item              Item               @relation(fields: [itemId], references: [id])
-  location          InventoryLocation  @relation(fields: [locationId], references: [id])
-  goodsReceipt      GoodsReceipt?      @relation(fields: [goodsReceiptId], references: [id], onDelete: SetNull)
-  goodsReceiptItem  GoodsReceiptItem?  @relation(fields: [goodsReceiptItemId], references: [id], onDelete: SetNull)
-  purchaseOrderItem PurchaseOrderItem? @relation(fields: [purchaseOrderItemId], references: [id], onDelete: SetNull)
-  stockUnits        StockUnit[]
+  item                   Item                           @relation(fields: [itemId], references: [id])
+  location               InventoryLocation              @relation(fields: [locationId], references: [id])
+  goodsReceipt           GoodsReceipt?                  @relation(fields: [goodsReceiptId], references: [id], onDelete: SetNull)
+  goodsReceiptItem       GoodsReceiptItem?              @relation(fields: [goodsReceiptItemId], references: [id], onDelete: SetNull)
+  purchaseOrderItem      PurchaseOrderItem?             @relation(fields: [purchaseOrderItemId], references: [id], onDelete: SetNull)
+  stockUnits             StockUnit[]
   consumptionAllocations StockMovementBatchAllocation[]
 
   @@index([itemId, locationId, remainingQty])
@@ -1478,7 +1484,7 @@ model StockMovement {
   stockUnitId String?
   stockUnit   StockUnit? @relation(fields: [stockUnitId], references: [id])
 
-  item Item @relation(fields: [itemId], references: [id])
+  item             Item                           @relation(fields: [itemId], references: [id])
   batchAllocations StockMovementBatchAllocation[]
 
   @@index([stockUnitId])
@@ -1562,7 +1568,7 @@ model Expense {
   truck   Truck?  @relation(fields: [truckId], references: [id])
 
   employeeId String?
-  employee   User? @relation("ExpenseEmployee", fields: [employeeId], references: [id], onDelete: SetNull)
+  employee   User?   @relation("ExpenseEmployee", fields: [employeeId], references: [id], onDelete: SetNull)
 
   financeDebtId String?
   financeDebt   FinanceDebt? @relation(fields: [financeDebtId], references: [id], onDelete: Restrict)
