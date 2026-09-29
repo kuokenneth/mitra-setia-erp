@@ -310,7 +310,12 @@ router.post("/requests", async (req, res) => {
   if (purpose === "TRUCK" && !(await prisma.truck.findUnique({ where: { id: String(truckId) }, select: { id: true } }))) {
     return res.status(400).json({ error: "Truk tujuan tidak ditemukan" });
   }
-  if (!damageProofUrl || !String(damageProofMimeType || "").startsWith("image/")) return res.status(400).json({ error: "Foto bukti barang rusak wajib dilampirkan" });
+  const damageProofs = (Array.isArray(req.body.damageProofs) && req.body.damageProofs.length
+    ? req.body.damageProofs
+    : damageProofUrl ? [{ url: damageProofUrl, fileName: damageProofFileName, mimeType: damageProofMimeType, size: damageProofSize }] : [])
+    .filter(proof => proof?.url && String(proof.mimeType || "").startsWith("image/"));
+  if (!damageProofs.length) return res.status(400).json({ error: "Minimal satu foto bukti barang rusak wajib dilampirkan" });
+  const primaryProof = damageProofs[0];
   const regularItemIds = items.filter(row => row.itemId && !row.retreadUnitId && !row.partRepairId).map(row => String(row.itemId));
   if (regularItemIds.length && !acknowledgeAvailableStock) {
     const catalogItems = await prisma.item.findMany({
@@ -366,7 +371,7 @@ router.post("/requests", async (req, res) => {
       preparedItems.push({ itemId: row.itemId, originalQty: requestedQty, notes: row.notes });
     }
   }
-  const request = await prisma.$transaction(async tx => tx.purchaseRequest.create({ data: { number: await nextDailyNumber(tx, "purchaseRequest", "PR"), urgency, purpose, truckId, reason, notes, damageProofUrl, damageProofFileName: damageProofFileName || null, damageProofMimeType, damageProofSize: damageProofSize == null ? null : Number(damageProofSize), status: submit ? "WAITING_APPROVAL" : "DRAFT", createdById: req.user.id, items: { create: preparedItems } }, include: { items: { include: { item: true } } } }));
+  const request = await prisma.$transaction(async tx => tx.purchaseRequest.create({ data: { number: await nextDailyNumber(tx, "purchaseRequest", "PR"), urgency, purpose, truckId, reason, notes, damageProofUrl: primaryProof.url, damageProofFileName: primaryProof.fileName || null, damageProofMimeType: primaryProof.mimeType, damageProofSize: Number.isFinite(Number(primaryProof.size)) ? Number(primaryProof.size) : null, status: submit ? "WAITING_APPROVAL" : "DRAFT", createdById: req.user.id, items: { create: preparedItems }, damageProofs: { create: damageProofs.map(proof => ({ url: proof.url, fileName: proof.fileName || null, mimeType: proof.mimeType || null, size: Number.isFinite(Number(proof.size)) ? Number(proof.size) : null })) } }, include: { items: { include: { item: true } }, damageProofs: true } }));
   if (request.status === "WAITING_APPROVAL") {
     await notifyOwnerSafely({
       event: "Permintaan pembelian baru",
