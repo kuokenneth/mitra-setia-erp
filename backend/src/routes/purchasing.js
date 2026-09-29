@@ -383,6 +383,7 @@ router.post("/orders/direct", requireRole("OWNER"), async (req, res) => {
   try {
     const {
       itemId,
+      items,
       supplierId,
       qty,
       reason,
@@ -391,16 +392,20 @@ router.post("/orders/direct", requireRole("OWNER"), async (req, res) => {
       deliveryAddress,
       estimatedArrival,
     } = req.body || {};
-    const quantity = Number(qty);
-    if (!itemId || !supplierId) return res.status(400).json({ error: "Barang dan supplier wajib dipilih" });
-    if (!Number.isFinite(quantity) || quantity <= 0) return res.status(400).json({ error: "Jumlah pesanan wajib lebih dari 0" });
+    const requestedItems = Array.isArray(items) && items.length ? items : [{ itemId, qty }];
+    if (!supplierId || !requestedItems.length || requestedItems.some(row => !row.itemId)) return res.status(400).json({ error: "Barang dan supplier wajib dipilih" });
+    const normalizedItems = requestedItems.map(row => ({ itemId: String(row.itemId), qty: Number(row.qty) }));
+    if (normalizedItems.some(row => !Number.isFinite(row.qty) || row.qty <= 0)) return res.status(400).json({ error: "Jumlah setiap barang wajib lebih dari 0" });
+    if (new Set(normalizedItems.map(row => row.itemId)).size !== normalizedItems.length) return res.status(400).json({ error: "Barang yang sama tidak boleh dimasukkan dua kali" });
 
-    const [item, supplier] = await Promise.all([
-      prisma.item.findUnique({ where: { id: String(itemId) } }),
+    const [catalogItems, supplier] = await Promise.all([
+      prisma.item.findMany({ where: { id: { in: normalizedItems.map(row => row.itemId) } } }),
       prisma.supplier.findUnique({ where: { id: String(supplierId) } }),
     ]);
-    if (!item) return res.status(404).json({ error: "Barang tidak ditemukan" });
+    if (catalogItems.length !== normalizedItems.length) return res.status(404).json({ error: "Salah satu barang tidak ditemukan" });
     if (!supplier) return res.status(404).json({ error: "Supplier tidak ditemukan" });
+    const itemById = new Map(catalogItems.map(item => [item.id, item]));
+    const orderItems = normalizedItems.map(row => ({ ...row, item: itemById.get(row.itemId) }));
 
     const result = await prisma.$transaction(async tx => {
       const request = await tx.purchaseRequest.create({
@@ -409,13 +414,13 @@ router.post("/orders/direct", requireRole("OWNER"), async (req, res) => {
           status: "APPROVED",
           urgency: "NORMAL",
           purpose: "STOCK",
-          reason: String(reason || `Pembelian langsung ${item.name}`).trim(),
+          reason: String(reason || `Pembelian langsung ${orderItems.map(row => row.item.name).join(", ")}`).trim(),
           notes: notes ? String(notes).trim() : null,
           createdById: req.user.id,
           approvedById: req.user.id,
           approvedAt: new Date(),
           approvalNotes: "Pembelian langsung oleh owner; persetujuan dilewati.",
-          items: { create: [{ itemId: item.id, originalQty: quantity, approvedQty: quantity }] },
+          items: { create: orderItems.map(row => ({ itemId: row.itemId, originalQty: row.qty, approvedQty: row.qty })) },
         },
       });
       const order = await tx.purchaseOrder.create({
@@ -428,7 +433,7 @@ router.post("/orders/direct", requireRole("OWNER"), async (req, res) => {
           deliveryAddress: deliveryAddress ? String(deliveryAddress).trim() : null,
           estimatedArrival: estimatedArrival ? new Date(estimatedArrival) : null,
           createdById: req.user.id,
-          items: { create: [{ itemId: item.id, qty: quantity, unitPrice: 0 }] },
+          items: { create: orderItems.map(row => ({ itemId: row.itemId, qty: row.qty, unitPrice: 0 })) },
         },
         include: includePO,
       });
