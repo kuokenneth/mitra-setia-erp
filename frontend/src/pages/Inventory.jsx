@@ -1754,7 +1754,7 @@ export default function Inventory() {
           </div>
         </Modal>
 
-        <Modal open={openConsume} eyebrow="STOK KELUAR" title="Gunakan stok" description="Pilih barang dan lokasi asal untuk mencatat pemakaian stok." tone="red" onClose={() => setOpenConsume(false)}>
+        <Modal open={openConsume} eyebrow="STOK KELUAR" title="Gunakan stok" description="Pemakaian langsung dari Inventory dicatat sebagai biaya operasional umum / kantor." tone="red" onClose={() => setOpenConsume(false)}>
           {locations.length === 0 ? (
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontWeight: 600, color: BRAND.text }}>Lokasi tidak ditemukan</div>

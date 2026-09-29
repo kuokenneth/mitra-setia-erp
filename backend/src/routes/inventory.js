@@ -4,6 +4,7 @@ const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { requireRole } = require("../middleware/requireRole");
 const { esc, num: fmtNum, date: fmtDate, documentHtml } = require("../utils/printDocument");
+const { SYSTEM_ACCOUNTS, postJournal } = require("../services/accounting");
 
 const router = express.Router();
 
@@ -189,6 +190,9 @@ async function ensureStockRow(tx, itemId, locationId) {
 
 async function consumeBatchesFifo(tx, itemId, locationId, qty) {
   let remaining = qty;
+  let totalCost = 0;
+  let fullyPriced = true;
+  const allocations = [];
   const batches = await tx.inventoryBatch.findMany({
     where: { itemId, locationId, remainingQty: { gt: 0 } },
     orderBy: [{ receivedAt: "asc" }, { createdAt: "asc" }],
@@ -196,10 +200,14 @@ async function consumeBatchesFifo(tx, itemId, locationId, qty) {
   for (const batch of batches) {
     if (remaining <= 0) break;
     const used = Math.min(remaining, batch.remainingQty);
+    if (batch.unitPrice == null) fullyPriced = false;
+    else totalCost += used * Number(batch.unitPrice);
+    allocations.push({ batchId: batch.id, qty: used });
     await tx.inventoryBatch.update({ where: { id: batch.id }, data: { remainingQty: { decrement: used } } });
     remaining -= used;
   }
-  return remaining;
+  if (remaining > 0.000001) fullyPriced = false;
+  return { remaining, allocations, totalCost: fullyPriced ? Math.round(totalCost) : null };
 }
 
 /**
@@ -1676,7 +1684,9 @@ router.post(
           data: { qty: { decrement: useQty } },
         });
 
-        await consumeBatchesFifo(tx, itemId, locationId, useQty);
+        const costing = await consumeBatchesFifo(tx, itemId, locationId, useQty);
+        if (costing.totalCost == null) throw new Error("Harga batch stok belum lengkap. Lengkapi harga penerimaan sebelum stok digunakan agar Accounting tidak kehilangan nilai.");
+        const unitPrice = costing.totalCost == null ? null : Math.round(costing.totalCost / useQty);
 
         // movement log (use CONSUME or OUT; pick one and keep consistent)
         const movement = await tx.stockMovement.create({
@@ -1684,17 +1694,31 @@ router.post(
             type: "OUT", // ✅ if your enum doesn't have this, change to "OUT" instead
             itemId,
             qty: useQty,
-            note: note ? String(note) : "Consumed",
+            unitPrice,
+            totalCost: costing.totalCost,
+            note: note ? String(note) : "Pemakaian operasional umum / kantor",
             createdById,
             fromLocationId: locationId,
             toLocationId: null,
           },
+        });
+        if (costing.allocations.length) await tx.stockMovementBatchAllocation.createMany({ data: costing.allocations.map(allocation => ({ ...allocation, movementId: movement.id })) });
+        if (Number(costing.totalCost || 0) > 0) await postJournal(tx, {
+          date: movement.createdAt,
+          description: `Pemakaian ${item.name} untuk operasional umum / kantor`,
+          sourceType: "INVENTORY_USAGE",
+          sourceId: movement.id,
+          createdById,
+          lines: [{ code: SYSTEM_ACCOUNTS.EXPENSE, debit: costing.totalCost }, { code: SYSTEM_ACCOUNTS.INVENTORY, credit: costing.totalCost }],
         });
 
         return {
           movement,
           newQtyAtLocation: updated.qty,
           usedQty: useQty,
+          unitPrice,
+          totalCost: costing.totalCost,
+          accountingPosted: Number(costing.totalCost || 0) > 0,
         };
       });
 
