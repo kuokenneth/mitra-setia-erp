@@ -16,6 +16,13 @@ const label = s => ({ OPEN: "Belum dibayar", WAITING_APPROVAL: "Menunggu approva
 const poTotal = po => po.items.reduce((sum, i) => sum + i.qty * i.unitPrice, 0) + po.tax + po.shippingCost - po.discount;
 const isCountedPurchaseOrder = po => !["REJECTED", "CANCELLED"].includes(po.status) && !["REJECTED", "CANCELLED"].includes(po.request?.status);
 const receiptValue = receipt => receipt.items.reduce((sum, row) => sum + Number(row.qty) * Number(row.purchaseOrderItem?.unitPrice || 0), 0);
+const PURCHASE_REQUEST_DRAFT_KEY = "erp:purchasing:request-draft";
+const emptyPurchaseRequestForm = { urgency: "NORMAL", purpose: "STOCK", truckId: "", reason: "", itemId: "", retreadUnitId: "", qty: 1 };
+const emptyPurchaseItemForm = { sku: "", name: "", unit: "PCS", isSerialized: false };
+function readPurchaseRequestDraft() {
+  try { return JSON.parse(sessionStorage.getItem(PURCHASE_REQUEST_DRAFT_KEY) || "null") || {}; }
+  catch { return {}; }
+}
 const requestProgress = (request, orders) => {
   if (request.status === "CANCELLED") return { text: "Dibatalkan", className: "CANCELLED" };
   if (request.status === "REJECTED") return { text: "Ditolak", className: "REJECTED" };
@@ -70,23 +77,24 @@ export default function Purchasing() {
   const canCreateDirectOrder = user?.role === "OWNER";
   const [searchParams, setSearchParams] = useSearchParams();
   const emailApprovalHandled = useRef(false);
+  const initialRequestDraft = useMemo(readPurchaseRequestDraft, []);
   const [data, setData] = useState({ requests: [], orders: [], items: [], suppliers: [], locations: [], retreadingUnits: [], repairingUnits: [], bills: [], trucks: [], nonSerializedRepairQueue: [] });
   const [tab, setTab] = useState("requests"); const [modal, setModal] = useState(""); const [busy, setBusy] = useState(false);
   const [requestBusy, setRequestBusy] = useState(false);
   const [requestDamagePhoto, setRequestDamagePhoto] = useState(null);
   const [showRequestPhotoEditor, setShowRequestPhotoEditor] = useState(false);
   const [requestUploadProgress, setRequestUploadProgress] = useState(null);
-  const [stockAcknowledged, setStockAcknowledged] = useState(false);
-  const [form, setForm] = useState({ urgency: "NORMAL", purpose: "STOCK", truckId: "", reason: "", itemId: "", retreadUnitId: "", qty: 1 });
-  const [newItem, setNewItem] = useState(false);
-  const [retreadRequest, setRetreadRequest] = useState(false);
-  const [selectedRetreadIds, setSelectedRetreadIds] = useState([]);
-  const [retreadSearch, setRetreadSearch] = useState("");
-  const [repairRequest, setRepairRequest] = useState(false);
-  const [selectedRepairUnitIds, setSelectedRepairUnitIds] = useState([]);
-  const [repairUnitSearch, setRepairUnitSearch] = useState("");
+  const [stockAcknowledged, setStockAcknowledged] = useState(Boolean(initialRequestDraft.stockAcknowledged));
+  const [form, setForm] = useState({ ...emptyPurchaseRequestForm, ...(initialRequestDraft.form || {}) });
+  const [newItem, setNewItem] = useState(Boolean(initialRequestDraft.newItem));
+  const [retreadRequest, setRetreadRequest] = useState(Boolean(initialRequestDraft.retreadRequest));
+  const [selectedRetreadIds, setSelectedRetreadIds] = useState(initialRequestDraft.selectedRetreadIds || []);
+  const [retreadSearch, setRetreadSearch] = useState(initialRequestDraft.retreadSearch || "");
+  const [repairRequest, setRepairRequest] = useState(Boolean(initialRequestDraft.repairRequest));
+  const [selectedRepairUnitIds, setSelectedRepairUnitIds] = useState(initialRequestDraft.selectedRepairUnitIds || []);
+  const [repairUnitSearch, setRepairUnitSearch] = useState(initialRequestDraft.repairUnitSearch || "");
   const [receiptTab, setReceiptTab] = useState("purchases");
-  const [itemForm, setItemForm] = useState({ sku: "", name: "", unit: "PCS", isSerialized: false });
+  const [itemForm, setItemForm] = useState({ ...emptyPurchaseItemForm, ...(initialRequestDraft.itemForm || {}) });
   const [formError, setFormError] = useState("");
   const [itemsLoading, setItemsLoading] = useState(false);
   const [itemsError, setItemsError] = useState("");
@@ -124,6 +132,9 @@ export default function Purchasing() {
       setData(current => ({ ...current, ...overview, items: inventory.items || overview.items || [], trucks: overview.trucks || [] }));
     } finally { setBusy(false); }
   }
+  useEffect(() => {
+    sessionStorage.setItem(PURCHASE_REQUEST_DRAFT_KEY, JSON.stringify({ form, itemForm, newItem, retreadRequest, selectedRetreadIds, retreadSearch, repairRequest, selectedRepairUnitIds, repairUnitSearch, stockAcknowledged }));
+  }, [form, itemForm, newItem, retreadRequest, selectedRetreadIds, retreadSearch, repairRequest, selectedRepairUnitIds, repairUnitSearch, stockAcknowledged]);
   useEffect(() => { load(); }, []);
   useLiveRefresh(load);
 
@@ -218,7 +229,7 @@ export default function Purchasing() {
     } finally { setItemsLoading(false); }
   }
   async function openRequestForm() {
-    setModal("request"); setFormError(""); setStockAcknowledged(false);
+    setModal("request"); setFormError("");
     await loadInventoryItems();
   }
   async function openDirectOrderForm() {
@@ -275,8 +286,9 @@ export default function Purchasing() {
           ? selectedRepairUnitIds.map(stockUnitId => ({ partRepairId: data.repairingUnits.find(unit => unit.id === stockUnitId)?.partRepairs?.[0]?.id, qty: 1 }))
         : [{ itemId, qty: form.purpose === "STOCK" ? undefined : form.qty }];
       await api("/purchasing/requests", { method: "POST", body: JSON.stringify({ ...form, truckId: form.purpose === "TRUCK" ? form.truckId : undefined, acknowledgeAvailableStock: stockAcknowledged, damageProofUrl: damageProof?.url, damageProofFileName: damageProof?.fileName, damageProofMimeType: damageProof?.mimeType, damageProofSize: damageProof?.size, items: requestItems }) });
-      setModal(""); setForm({ urgency: "NORMAL", purpose: "STOCK", truckId: "", reason: "", itemId: "", retreadUnitId: "", qty: 1 });
-      setItemForm({ sku: "", name: "", unit: "PCS", isSerialized: false }); setNewItem(false); setRetreadRequest(false); setRepairRequest(false); setSelectedRetreadIds([]); setSelectedRepairUnitIds([]); setRetreadSearch(""); setRepairUnitSearch(""); setStockAcknowledged(false); setRequestDamagePhoto(null); await load();
+      sessionStorage.removeItem(PURCHASE_REQUEST_DRAFT_KEY);
+      setModal(""); setForm({ ...emptyPurchaseRequestForm });
+      setItemForm({ ...emptyPurchaseItemForm }); setNewItem(false); setRetreadRequest(false); setRepairRequest(false); setSelectedRetreadIds([]); setSelectedRepairUnitIds([]); setRetreadSearch(""); setRepairUnitSearch(""); setStockAcknowledged(false); setRequestDamagePhoto(null); await load();
     } catch (err) {
       if (String(err.message || "").startsWith("Stok masih tersedia:")) setStockAcknowledged(true);
       setFormError(err.message);
