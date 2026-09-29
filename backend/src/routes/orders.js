@@ -49,6 +49,11 @@ async function nextOrderNo(tx) {
 router.get("/", authRequired, async (req, res) => {
   try {
     const status = str(req.query.status);
+    const allowedStatuses = new Set(["DRAFT", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED"]);
+    const statuses = String(req.query.statuses || "")
+      .split(",")
+      .map((value) => value.trim().toUpperCase())
+      .filter((value) => allowedStatuses.has(value));
     const type = str(req.query.type);
     const q = str(req.query.q);
     const customer = str(req.query.customer);
@@ -59,6 +64,7 @@ router.get("/", authRequired, async (req, res) => {
     const where = {};
 
     if (status) where.status = status;
+    else if (statuses.length) where.status = { in: statuses };
     if (type) where.orderType = type;
 
     if (customer) {

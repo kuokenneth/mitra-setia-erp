@@ -295,7 +295,7 @@ export default function Orders() {
 
   // Filters
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState("VISIBLE");
   const [customer, setCustomer] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -326,13 +326,14 @@ export default function Orders() {
 
   const [proofs, setProofs] = useState([]);
 
-  const statusOptions = useMemo(() => ["", "DRAFT", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED"], []);
+  const statusOptions = useMemo(() => ["VISIBLE", "", "DRAFT", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED"], []);
 
   function buildQuery() {
     const params = new URLSearchParams();
     if (q.trim()) params.set("q", q.trim());
     if (customer.trim()) params.set("customer", customer.trim());
-    if (status) params.set("status", status);
+    if (status === "VISIBLE") params.set("statuses", "CONFIRMED,IN_PROGRESS,COMPLETED");
+    else if (status) params.set("status", status);
     if (dateFrom) params.set("dateFrom", new Date(dateFrom).toISOString());
     if (dateTo) {
       const end = new Date(dateTo);
@@ -479,11 +480,11 @@ export default function Orders() {
 
       <section className="orders-v3-tools">
         <label className="orders-v3-search"><FiSearch /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari pesanan, DO, SPK, tujuan, atau muatan…" data-testid="search-input" />{loading && <LoadingMini />}</label>
-        <Select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="status-filter"><option value="">Semua status</option>{statusOptions.filter(Boolean).map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</Select>
+        <Select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="status-filter">{statusOptions.map((value) => <option key={value || "ALL"} value={value}>{value === "VISIBLE" ? "Aktif & selesai" : value ? value.replaceAll("_", " ") : "Semua status"}</option>)}</Select>
         <Input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Nama customer" />
         <span className={`date-placeholder-wrap ${dateFrom ? "has-value" : ""}`} data-placeholder="Dari tanggal"><Input className="tablet-date-input" aria-label="Tanggal mulai" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></span>
         <span className={`date-placeholder-wrap ${dateTo ? "has-value" : ""}`} data-placeholder="Sampai tanggal"><Input className="tablet-date-input" aria-label="Tanggal selesai" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} /></span>
-        <button className="orders-v3-reset" onClick={() => { setQ(""); setStatus(""); setCustomer(""); setDateFrom(""); setDateTo(""); }} disabled={loading}><FiX /> Reset</button>
+        <button className="orders-v3-reset" onClick={() => { setQ(""); setStatus("VISIBLE"); setCustomer(""); setDateFrom(""); setDateTo(""); }} disabled={loading}><FiX /> Reset</button>
       </section>
 
       <section className="orders-v3-board">
