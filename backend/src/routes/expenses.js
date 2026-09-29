@@ -46,6 +46,23 @@ const categoryLabels = { PANJAR: "Panjar", TRIP_ALLOWANCE: "Uang jalan", REMAINI
 const methodLabels = { BANK_TRANSFER: "Transfer bank", CASH: "Tunai", OTHER: "Lainnya" };
 const statusLabels = { SUBMITTED: "Diajukan", APPROVED: "Disetujui", PAID: "Dibayar", REJECTED: "Ditolak" };
 
+function expenseFilterWhere({ q, paymentMethod, status } = {}) {
+  return {
+    AND: [
+      ...(paymentMethod ? [{ paymentMethod }] : []),
+      ...(status ? [{ status }] : []),
+      ...(q ? [{ OR: [
+        { reason: { contains: q, mode: "insensitive" } },
+        { clientName: { contains: q, mode: "insensitive" } },
+        { bankName: { contains: q, mode: "insensitive" } },
+        { accountName: { contains: q, mode: "insensitive" } },
+        { accountNumber: { contains: q, mode: "insensitive" } },
+        { employee: { name: { contains: q, mode: "insensitive" } } },
+      ] }] : []),
+    ],
+  };
+}
+
 // List expenses
 router.get("/", authRequired, async (req, res) => {
   if (!ensureRole(req, res)) return;
@@ -55,27 +72,9 @@ router.get("/", authRequired, async (req, res) => {
   const take = Math.min(parseInt(req.query.take || "50", 10), 200);
   const skip = Math.max(parseInt(req.query.skip || "0", 10), 0);
 
-  const where = {
-    AND: [
-      ...(paymentMethod ? [{ paymentMethod }] : []),
-      ...(q
-        ? [
-            {
-              OR: [
-                { reason: { contains: q, mode: "insensitive" } },
-                { clientName: { contains: q, mode: "insensitive" } },
-                { bankName: { contains: q, mode: "insensitive" } },
-                { accountName: { contains: q, mode: "insensitive" } },
-                { accountNumber: { contains: q, mode: "insensitive" } },
-                { employee: { name: { contains: q, mode: "insensitive" } } },
-              ],
-            },
-          ]
-        : []),
-    ],
-  };
+  const where = expenseFilterWhere({ q, paymentMethod });
 
-  const [items, total] = await Promise.all([
+  const [items, total, pendingApprovalTotal] = await Promise.all([
     prisma.expense.findMany({
       where,
       orderBy: [{ expenseDate: "desc" }, { createdAt: "desc" }],
@@ -115,6 +114,7 @@ router.get("/", authRequired, async (req, res) => {
       },
     }),
     prisma.expense.count({ where }),
+    prisma.expense.count({ where: expenseFilterWhere({ q, paymentMethod, status: "PAID" }) }),
   ]);
 
   // Load duplicate candidates in one query instead of one query per visible row.
@@ -138,7 +138,7 @@ router.get("/", authRequired, async (req, res) => {
     return { ...x, duplicateFlag: duplicates.length > 1, duplicateCount: duplicates.length, duplicates };
   });
 
-  res.json({ items: withDup, total, skip, take });
+  res.json({ items: withDup, total, pendingApprovalTotal, skip, take });
 });
 
 // Export every expense as an Excel-compatible XML workbook.
@@ -557,6 +557,26 @@ router.patch("/:id/proof", authRequired, async (req, res) => {
     },
   });
   res.json({ ok: true, expense: updated });
+});
+
+// Approve all paid expenses matching the current list filters (OWNER only).
+router.post("/approve-all", authRequired, async (req, res) => {
+  const approver = await prisma.user.findUnique({
+    where: { id: req.user?.id },
+    select: { id: true, role: true, isActive: true, status: true },
+  });
+  if (!approver || !approver.isActive || approver.status !== "ACTIVE") return res.status(403).json({ error: "Akun tidak aktif" });
+  if (approver.role !== "OWNER") return res.status(403).json({ error: "Hanya OWNER yang dapat menyetujui semua pengeluaran" });
+
+  const q = cleanStr(req.body?.q || "");
+  const paymentMethod = cleanStr(req.body?.paymentMethod || "");
+  if (paymentMethod && !["BANK_TRANSFER", "CASH", "OTHER"].includes(paymentMethod)) return res.status(400).json({ error: "Metode pembayaran tidak valid" });
+  const approvedAt = new Date();
+  const result = await prisma.expense.updateMany({
+    where: expenseFilterWhere({ q, paymentMethod, status: "PAID" }),
+    data: { status: "APPROVED", approvedAt, approvedById: approver.id },
+  });
+  res.json({ ok: true, approvedCount: result.count, approvedAt });
 });
 
 // Approve expense (OWNER only)

@@ -81,6 +81,8 @@ export default function Expenses() {
 
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
+  const [pendingApprovalTotal, setPendingApprovalTotal] = useState(0);
+  const [approveAllBusy, setApproveAllBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [actionBusy, setActionBusy] = useState({});
   const [err, setErr] = useState("");
@@ -247,6 +249,7 @@ export default function Expenses() {
       const data = await api(`/expenses?${params.toString()}`);
       setItems(data.items || []);
       setTotal(data.total || 0);
+      setPendingApprovalTotal(data.pendingApprovalTotal || 0);
     } catch (e) {
       setErr(e.message || "Gagal memuat expenses");
     } finally {
@@ -471,6 +474,25 @@ export default function Expenses() {
     }
   }
 
+  async function onApproveAll() {
+    if (!pendingApprovalTotal || approveAllBusy) return;
+    if (!window.confirm(`Setujui ${pendingApprovalTotal} pengeluaran yang sudah dibayar${q.trim() || methodFilter ? " sesuai filter saat ini" : ""}?`)) return;
+    setApproveAllBusy(true);
+    setErr("");
+    try {
+      const result = await api("/expenses/approve-all", {
+        method: "POST",
+        body: JSON.stringify({ q: q.trim(), paymentMethod: methodFilter }),
+      });
+      setReportFeedback(`${result.approvedCount || 0} pengeluaran berhasil disetujui`);
+      await load();
+    } catch (e) {
+      setErr(e.message || "Gagal menyetujui semua pengeluaran");
+    } finally {
+      setApproveAllBusy(false);
+    }
+  }
+
   function openDetail(item) {
     setDetailItem(item);
     setDetailOpen(true);
@@ -648,7 +670,7 @@ export default function Expenses() {
       <div style={s.panel} className="expense-panel">
         <div className="expense-panel-heading">
           <div><div className="expense-eyebrow">DAFTAR TRANSAKSI</div><h2>Riwayat pengeluaran</h2></div>
-          <span className="expense-result-count">{items.length} ditampilkan</span>
+          <div className="expense-panel-heading-actions">{canApprove && pendingApprovalTotal > 0 && <button type="button" className="expense-approve-all" disabled={approveAllBusy} onClick={onApproveAll}><FiCheckCircle /> {approveAllBusy ? "Menyetujui…" : `Setujui Semua (${pendingApprovalTotal})`}</button>}<span className="expense-result-count">{items.length} ditampilkan</span></div>
         </div>
         {/* Filters */}
         <div style={s.filtersRow} className="expense-filters">
