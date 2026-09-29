@@ -1934,17 +1934,15 @@ function BatchesTable({ batches, loading }) {
   if (!batches.length) return <div style={{ padding: 20, color: BRAND.textMuted }}>Belum ada batch stok yang tercatat.</div>;
   return (
     <div style={tableWrap}>
-      <table style={{ ...table, minWidth: 1320 }}>
+      <table style={{ ...table, minWidth: 1080 }}>
         <thead><tr>
           <th style={th}>Barang</th><th style={th}>Jenis</th><th style={th}>Supplier</th><th style={th}>PO / GR</th>
-          <th style={th}>Tanggal Beli</th><th style={th}>Lokasi Terima</th><th style={th}>Diterima</th>
-          <th style={th}>Terpakai</th><th style={th}>Tersisa</th><th style={th}>Harga/Unit</th><th style={th}>Total Masuk</th>
+          <th style={th}>Tanggal Beli</th><th style={th}>Diterima</th><th style={th}>Tersisa</th>
+          <th style={th}>Harga/Unit</th><th style={th}>Total Masuk</th>
         </tr></thead>
         <tbody>{batches.map((batch) => {
           const po = batch.purchaseOrderItem?.purchaseOrder;
           const receivedQty = Number(batch.receivedQty || 0);
-          const remainingQty = Number(batch.remainingQty ?? batch.receivedQty ?? 0);
-          const usedQty = Math.max(0, receivedQty - remainingQty);
           const totalValue = batch.unitPrice == null ? null : Math.round(receivedQty * Number(batch.unitPrice));
           return <tr key={batch.id}>
             <td style={td}><div>{batch.item?.name || "-"}</div><div style={{ fontSize: 12, color: BRAND.textMuted }}>{batch.item?.sku || "-"}</div></td>
@@ -1952,9 +1950,7 @@ function BatchesTable({ batches, loading }) {
             <td style={td}>{po?.supplier?.name || <span style={{ color: BRAND.textMuted }}>Tidak tercatat</span>}</td>
             <td style={td}><div>{po?.number || "Manual"}</div><div style={{ fontSize: 12, color: BRAND.textMuted }}>{batch.goodsReceipt?.number || "Tanpa GR"}</div></td>
             <td style={tdSoft}>{fmtDate(batch.receivedAt)}</td>
-            <td style={tdSoft}>{batch.location?.name || "-"}</td>
             <td style={td}>{receivedQty} {batch.item?.unit || ""}</td>
-            <td style={tdSoft}>{usedQty} {batch.item?.unit || ""}</td>
             <td style={td}>{batch.remainingQty == null ? <Pill>Belum diketahui</Pill> : <Pill variant={Number(batch.remainingQty) > 0 ? "green" : "grey"}>{batch.remainingQty} {batch.item?.unit || ""}</Pill>}</td>
             <td style={tdSoft}>{batch.unitPrice == null ? "-" : new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(batch.unitPrice)}</td>
             <td style={{ ...td, fontWeight: 700 }}>{totalValue == null ? "-" : new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(totalValue)}</td>
