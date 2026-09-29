@@ -11,6 +11,7 @@ import { FiActivity, FiCalendar, FiCamera, FiCheck, FiClock, FiPlus, FiRefreshCw
 import "./Maintenance.css";
 
 const OIL_CHANGE_INTERVAL_KM = 8500;
+const EMPTY_PURCHASE_REQUEST = { itemId: "", qty: 1, urgency: "URGENT", reason: "", notes: "", newItem: false, sku: "", name: "", unit: "PCS", isSerialized: false };
 
 //////////////////////
 // THEME - CORPORATE MINIMALIST
@@ -628,7 +629,7 @@ export default function Maintenance() {
   const [retreadForm, setRetreadForm] = useState({ toItemId: "", locationId: "", supplierId: "", cost: "", sentAt: "", notes: "" });
   const [progressNote, setProgressNote] = useState("");
   const [savingProgressNote, setSavingProgressNote] = useState(false);
-  const [purchaseRequestForm, setPurchaseRequestForm] = useState({ itemId: "", qty: 1, urgency: "URGENT", reason: "", notes: "", newItem: false, sku: "", name: "", unit: "PCS", isSerialized: false });
+  const [purchaseRequestForm, setPurchaseRequestForm] = useState({ ...EMPTY_PURCHASE_REQUEST });
   const [purchaseDamagePhoto, setPurchaseDamagePhoto] = useState(null);
   const [showPurchasePhotoEditor, setShowPurchasePhotoEditor] = useState(false);
   const [purchaseUploadProgress, setPurchaseUploadProgress] = useState(null);
@@ -640,6 +641,7 @@ export default function Maintenance() {
 
   const truckSearchTimer = useRef(null);
   const purchaseDamageInputRef = useRef(null);
+  const purchaseDraftsRef = useRef(new Map());
 
   async function load(targetPage = page) {
     setLoading(true);
@@ -684,6 +686,8 @@ export default function Maintenance() {
   }
 
   async function openDetail(id) {
+    if (activeId && activeJob) purchaseDraftsRef.current.set(activeId, { form: { ...purchaseRequestForm }, photo: purchaseDamagePhoto });
+    const purchaseDraft = purchaseDraftsRef.current.get(id);
     setShowDetail(true);
     setDetailTab("PARTS");
     setActiveId(id);
@@ -715,12 +719,19 @@ export default function Maintenance() {
       setUseOilOdometer("");
       setPhotoError("");
       setProgressNote("");
-      setPurchaseRequestForm({ itemId: "", qty: 1, urgency: "URGENT", reason: "", notes: "", newItem: false, sku: "", name: "", unit: "PCS", isSerialized: false });
+      setPurchaseRequestForm(purchaseDraft?.form ? { ...purchaseDraft.form } : { ...EMPTY_PURCHASE_REQUEST });
+      setPurchaseDamagePhoto(purchaseDraft?.photo || null);
+      setPurchasePhotoError("");
     } catch (e) {
       setErr(e.message || "Gagal memuat detail");
     } finally {
       setDetailLoading(false);
     }
+  }
+
+  function closeDetail() {
+    if (activeId) purchaseDraftsRef.current.set(activeId, { form: { ...purchaseRequestForm }, photo: purchaseDamagePhoto });
+    setShowDetail(false);
   }
 
   async function refreshDetail() {
@@ -772,7 +783,8 @@ export default function Maintenance() {
       setPurchaseUploadProgress(0);
       const proof = (await uploadFiles([purchaseDamagePhoto], { onProgress: setPurchaseUploadProgress }))[0];
       await api(`/maintenance/${activeJob.id}/purchase-requests`, { method: "POST", body: JSON.stringify({ itemId: form.newItem ? undefined : form.itemId, newItem: form.newItem ? { sku: form.sku, name: form.name, unit: form.unit, isSerialized: form.isSerialized } : undefined, qty: form.qty, urgency: form.urgency, reason: form.reason, notes: form.notes, acknowledgeAvailableStock: Boolean(form.acknowledgeAvailableStock), damageProofUrl: proof?.url, damageProofFileName: proof?.fileName, damageProofMimeType: proof?.mimeType, damageProofSize: proof?.size }) });
-      setPurchaseRequestForm({ itemId: "", qty: 1, urgency: "URGENT", reason: "", notes: "", newItem: false, sku: "", name: "", unit: "PCS", isSerialized: false });
+      purchaseDraftsRef.current.delete(activeJob.id);
+      setPurchaseRequestForm({ ...EMPTY_PURCHASE_REQUEST });
       setPurchaseDamagePhoto(null);
       setPurchasePhotoError("");
       await refreshDetail();
@@ -1545,7 +1557,7 @@ export default function Maintenance() {
       </Modal>
 
       {/* DETAIL MODAL */}
-      <Modal open={showDetail && !showPurchasePhotoEditor} title="Detail Servis" onClose={() => setShowDetail(false)} width={1320} className="maintenance-detail-modal">
+      <Modal open={showDetail && !showPurchasePhotoEditor} title="Detail Servis" onClose={closeDetail} width={1320} className="maintenance-detail-modal">
         {detailLoading || !activeJob ? (
           <LoadingState compact label="Memuat detail servis" note="Menyiapkan pekerjaan dan penggunaan sparepart…" rows={4} />
         ) : (
