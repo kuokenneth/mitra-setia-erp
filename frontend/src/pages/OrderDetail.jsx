@@ -345,6 +345,7 @@ export default function OrderDetail() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [order, setOrder] = useState(null);
+  const [dispatchBusyId, setDispatchBusyId] = useState("");
 
   // tab
   const [tab, setTab] = useState("TRIPS");
@@ -540,6 +541,9 @@ export default function OrderDetail() {
   }
 
   async function generateDispatch(tripId) {
+    if (dispatchBusyId) return;
+    setDispatchBusyId(tripId);
+    setErr("");
     try {
       await api(`/dispatch/trips/${tripId}`, {
         method: "POST",
@@ -553,7 +557,9 @@ export default function OrderDetail() {
       });
       await load();
     } catch (e) {
-      alert(e?.message || "Failed to generate dispatch letter");
+      setErr(e?.message || "Gagal membuat ulang surat jalan");
+    } finally {
+      setDispatchBusyId("");
     }
   }
 
@@ -927,8 +933,8 @@ export default function OrderDetail() {
                         Buka Trip
                       </Button>
                       {canWrite && (
-                        <Button variant="primary" size="small" onClick={() => generateDispatch(t.id)}>
-                          {t.dispatchLetter ? "Buat Ulang" : "Buat"} Surat Jalan
+                        <Button variant="primary" size="small" disabled={Boolean(dispatchBusyId)} onClick={() => generateDispatch(t.id)}>
+                          {dispatchBusyId === t.id ? (t.dispatchLetter ? "Membuat ulang…" : "Membuat…") : `${t.dispatchLetter ? "Buat Ulang" : "Buat"} Surat Jalan`}
                         </Button>
                       )}
                     </div>

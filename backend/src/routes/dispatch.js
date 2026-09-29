@@ -158,12 +158,14 @@ router.post("/trips/:tripId", authRequired, async (req, res) => {
 
     const backendOrigin = getBackendOrigin(req);
 
-    const result = await prisma.$transaction(async (tx) => {
-      const trip = await tx.trip.findUnique({
+    // Do not keep an interactive database transaction open while Chromium
+    // starts and renders the PDF. On production this can exceed Prisma's
+    // transaction timeout even though the PDF itself is generated correctly.
+    const trip = await prisma.trip.findUnique({
         where: { id: tripId },
         include: { truck: true, driverUser: true, order: true, dispatchLetter: true, materialInvoices: { include: { lines: true, destinationLocation: true }, orderBy: [{ stopSequence: "asc" }, { createdAt: "asc" }] }, orderAllocations: { include: { order: { include: { customer: true, destinationLocation: true } } }, orderBy: [{ stopSequence: "asc" }, { createdAt: "asc" }] } },
-      });
-      if (!trip) throw new Error("Trip not found");
+    });
+    if (!trip) return res.status(404).json({ error: "Trip tidak ditemukan" });
 
       const order = trip.order;
 
@@ -174,15 +176,18 @@ router.post("/trips/:tripId", authRequired, async (req, res) => {
         : materialInvoices.length
           ? [...new Set(materialInvoices.map((item) => item.billingCustomerName).filter(Boolean))].join(" / ")
           : trip.billingCustomerName || order?.customerName || "";
+      const materialLines = materialInvoices.flatMap((item) => item.lines?.length
+        ? item.lines
+        : [{ itemName: item.materialName, qty: item.qty, unit: item.unit }]);
       const cargoName = allocations.length
         ? allocations.map((item) => `${item.order.cargoName || "Muatan"} (${item.order.orderNo})`).join("; ")
         : materialInvoices.length
-          ? materialInvoices.map((item) => item.lines?.length ? item.lines.map((line) => line.itemName).join(", ") : item.materialName).filter(Boolean).join("; ")
+          ? [...new Set(materialLines.map((line) => line.itemName).filter(Boolean))].join("; ")
           : trip.cargoNameSnap || order?.cargoName || "";
       const qtyText = allocations.length
         ? allocations.map((item) => `${Number(item.qtyPlanned || 0)} ${item.unitSnap || ""}`.trim()).join("; ")
         : materialInvoices.length
-          ? materialInvoices.map((item) => `${Number(item.qty || 0)} ${item.unit || ""}`.trim()).join("; ")
+          ? materialLines.map((line) => `${line.itemName}: ${Number(line.qty || 0)} ${line.unit || ""}`.trim()).join("; ")
           : (trip.qtyPlanned != null ? `${Number(trip.qtyPlanned)} ${trip.unitSnap || order?.unit || ""}`.trim() : "");
 
       const driverName = trip.driverNameSnap || trip.driverUser?.name || "";
@@ -194,7 +199,7 @@ router.post("/trips/:tripId", authRequired, async (req, res) => {
           : trip.toText || order?.toText || "";
 
       const issuedAt = new Date();
-      const dispatchNo = trip.dispatchLetter?.number || (await nextDispatchNo(tx));
+      const dispatchNo = trip.dispatchLetter?.number || (await prisma.$transaction((tx) => nextDispatchNo(tx)));
 
       const loadDateText =
         body.loadDateText ||
@@ -238,9 +243,11 @@ router.post("/trips/:tripId", authRequired, async (req, res) => {
       }
 
       // ✅ IMPORTANT: ABSOLUTE URL so frontend opens backend, not React
-      const pdfUrl = `${backendOrigin}/dispatch/${fileName}`;
+      // A changing query string prevents Safari/Chrome from reopening the old
+      // PDF after a letter is regenerated with additional cargo.
+      const pdfUrl = `${backendOrigin}/dispatch/${fileName}?v=${issuedAt.getTime()}`;
 
-      const saved = await tx.dispatchLetter.upsert({
+      const saved = await prisma.dispatchLetter.upsert({
         where: { tripId: trip.id },
         create: {
           tripId: trip.id,
@@ -268,10 +275,7 @@ router.post("/trips/:tripId", authRequired, async (req, res) => {
         },
       });
 
-      return saved;
-    });
-
-    res.json(result);
+    res.json(saved);
   } catch (e) {
     console.error(e);
     res.status(400).json({ error: e.message || "Failed to generate dispatch letter" });
