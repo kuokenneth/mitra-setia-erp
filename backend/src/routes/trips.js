@@ -423,17 +423,13 @@ router.post("/:id/material-invoices", authRequired, async (req, res) => {
 router.post("/single", authRequired, async (req, res) => {
   try {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
-    const { truckId, driverUserId, pickupLocationId, destinationLocationId, plannedDepartAt, cargoCategory, cargoName, billingCustomerId, qtyPlanned, unit, reason } = req.body || {};
+    const { truckId, driverUserId, pickupLocationId, destinationLocationId, plannedDepartAt, cargoCategory, cargoName, billingCustomerId, reason } = req.body || {};
     const allowedCargoCategories = new Set(["FERTILIZER", "CANGKANG", "MATERIAL"]);
     const selectedCargoCategory = str(cargoCategory) === "AMBANG" ? "MATERIAL" : str(cargoCategory);
-    const plannedQty = selectedCargoCategory === "MATERIAL" ? null : (qtyPlanned === "" || qtyPlanned == null ? null : Number(qtyPlanned));
     if (!truckId) return res.status(400).json({ error: "Truk wajib dipilih" });
     if (!allowedCargoCategories.has(selectedCargoCategory)) return res.status(400).json({ error: "Jenis muatan wajib dipilih" });
     if (!str(cargoName)) return res.status(400).json({ error: "Nama barang/muatan wajib diisi" });
     if (!billingCustomerId) return res.status(400).json({ error: "Customer tagihan wajib dipilih" });
-    if (["FERTILIZER", "CANGKANG"].includes(selectedCargoCategory) && (!Number.isFinite(plannedQty) || plannedQty <= 0)) return res.status(400).json({ error: "Jumlah muatan wajib diisi untuk pupuk atau cangkang" });
-    if (plannedQty != null && (!Number.isFinite(plannedQty) || plannedQty <= 0)) return res.status(400).json({ error: "Jumlah muatan harus lebih dari nol" });
-    if (plannedQty != null && !str(unit)) return res.status(400).json({ error: "Satuan muatan wajib diisi" });
     if (!pickupLocationId || !destinationLocationId) return res.status(400).json({ error: "Lokasi muat dan tujuan wajib dipilih" });
     if (pickupLocationId === destinationLocationId) return res.status(400).json({ error: "Lokasi muat dan tujuan harus berbeda" });
 
@@ -484,9 +480,9 @@ router.post("/single", authRequired, async (req, res) => {
           destinationLat: destination.latitude,
           destinationLng: destination.longitude,
           arrivalRadiusM: destination.radiusM,
-          qtyPlanned: plannedQty,
+          qtyPlanned: null,
           qtyActual: null,
-          unitSnap: plannedQty == null ? null : str(unit),
+          unitSnap: null,
         },
       });
     });

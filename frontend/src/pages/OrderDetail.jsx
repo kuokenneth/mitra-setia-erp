@@ -360,7 +360,6 @@ export default function OrderDetail() {
   const [selectedTruckId, setSelectedTruckId] = useState("");
   const [selectedDriverId, setSelectedDriverId] = useState("");
   const [plannedDepartAt, setPlannedDepartAt] = useState("");
-  const [tripQty, setTripQty] = useState("");
 
   // proofs upload
   const [uploadingProofs, setUploadingProofs] = useState(false);
@@ -473,7 +472,6 @@ export default function OrderDetail() {
     setSelectedDriverId("");
     setPlannedDepartAt("");
     setTruckQ("");
-    setTripQty("");
 
     try {
       await Promise.all([loadDrivers(), loadTrucks("")]);
@@ -512,19 +510,11 @@ export default function OrderDetail() {
       if (!selectedTruckId) throw new Error("Please select a truck");
       if (!selectedDriverId) throw new Error("Please select a driver");
 
-      const needsQty = !isMaterialShipment;
-      const qNum = tripQty ? Number(tripQty) : null;
-
-      if (needsQty) {
-        if (!Number.isFinite(qNum) || qNum <= 0) throw new Error("Please input Trip Qty");
-      }
-
       const tripPayload = {
         truckId: selectedTruckId,
         driverUserId: selectedDriverId,
         plannedDepartAt: plannedDepartAt ? new Date(plannedDepartAt).toISOString() : null,
       };
-      if (needsQty || Number.isFinite(qNum)) tripPayload.qtyPlanned = qNum;
 
       await api(`/orders/${id}/trips`, {
         method: "POST",
@@ -1057,22 +1047,9 @@ export default function OrderDetail() {
           <Card>
             <div className="order-trip-details" style={{ padding: 16 }}>
               <div className="order-trip-section-title"><div><span>LANGKAH 2</span><strong>Informasi Perjalanan</strong></div></div>
-              <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>
-                {isMaterialShipment
-                  ? "Untuk material/ambang, qty muatan belum wajib dan akan dicatat dari Faktur Muatan setelah barang dimuat."
-                  : `Trip Qty wajib diisi untuk ${order?.cargoCategory === "CANGKANG" ? "cangkang" : "pupuk"}. Sisa: ${remaining != null ? fmtNum(remaining) : "-"} ${order.unit || ""}`}
-              </div>
+              <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>Berat tidak diisi saat membuat trip. Jumlah sak dan berat per sak dicatat setelah proses muat.</div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder={isMaterialShipment ? "Qty muatan (opsional)" : `Trip Qty (${order.unit || "QTY"})`}
-                  value={tripQty}
-                  onChange={(e) => setTripQty(e.target.value)}
-                />
-
                 <Select
                   value={selectedDriverId}
                   onChange={(e) => setSelectedDriverId(e.target.value)}
@@ -1117,8 +1094,7 @@ export default function OrderDetail() {
                   disabled={
                     assigning ||
                     !selectedTruckId ||
-                    !selectedDriverId ||
-                    (order?.qty != null && !(Number.isFinite(Number(tripQty)) && Number(tripQty) > 0))
+                    !selectedDriverId
                   }
                 >
                   {assigning ? "Membuat..." : "Buat Perjalanan"}

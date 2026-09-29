@@ -533,15 +533,13 @@ router.post("/:id/proofs", authRequired, async (req, res) => {
  *  - Driver must be ACTIVE and role DRIVER
  *  - Driver cannot be assigned to another active trip
  *  - Truck cannot be assigned to another active trip
- *  - ✅ qtyPlanned required if order.qty exists
- *  - ✅ sum(trips.qtyPlanned) cannot exceed order.qty (excluding CANCELLED trips)
+ *  - Load quantity is recorded after loading, not while assigning the trip.
  *
  * Body:
  *  {
  *    truckId,
  *    driverUserId,
- *    plannedDepartAt?,
- *    qtyPlanned?   // ✅ NEW
+ *    plannedDepartAt?
  *  }
  */
 router.post("/:id/trips", authRequired, async (req, res) => {
@@ -549,15 +547,10 @@ router.post("/:id/trips", authRequired, async (req, res) => {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
 
     const orderId = req.params.id;
-    const { truckId, driverUserId, plannedDepartAt, qtyPlanned } = req.body || {};
+    const { truckId, driverUserId, plannedDepartAt } = req.body || {};
 
     if (!truckId) return res.status(400).json({ error: "truckId is required" });
     if (!driverUserId) return res.status(400).json({ error: "driverUserId is required" });
-
-    const tripQty = qtyPlanned != null ? num(qtyPlanned, null) : undefined;
-    if (qtyPlanned != null && (tripQty === null || tripQty <= 0)) {
-      return res.status(400).json({ error: "qtyPlanned must be a positive number" });
-    }
 
     const activeTripStatuses = ["PLANNED", "DISPATCHED", "ARRIVED"];
 
@@ -565,26 +558,6 @@ router.post("/:id/trips", authRequired, async (req, res) => {
       const order = await tx.order.findUnique({ where: { id: orderId }, include: { pickupLocation: true, destinationLocation: true } });
       if (!order) throw new Error("Order not found");
       if (order.status === "CANCELLED") throw new Error("Order is cancelled");
-
-      // Material/ambang receives its actual weight through MaterialInvoice after
-      // loading. Fertilizer must always have a planned load quantity.
-      const isMaterialShipment = order.cargoCategory === "MATERIAL" || (!(Number(order.qty) > 0) && order.cargoCategory !== "CANGKANG");
-      if (!isMaterialShipment) {
-        const q = tripQty === undefined ? null : tripQty;
-        if (q === null || q <= 0) throw new Error("qtyPlanned is required for this order");
-
-        const agg = await tx.trip.aggregate({
-          where: { orderId, status: { not: "CANCELLED" } },
-          _sum: { qtyPlanned: true },
-        });
-
-        const used = agg._sum.qtyPlanned || 0;
-        const remaining = order.qty - used;
-
-        if (q > remaining + 1e-9) {
-          throw new Error(`Trip qty exceeds remaining. Remaining: ${remaining} ${order.unit || ""}`.trim());
-        }
-      }
 
       const truck = await tx.truck.findUnique({ where: { id: truckId } });
       if (!truck) throw new Error("Truck not found");
@@ -622,9 +595,9 @@ router.post("/:id/trips", authRequired, async (req, res) => {
           status: "PLANNED",
           plannedDepartAt: plannedDepartAt ? new Date(plannedDepartAt) : null,
 
-          // ✅ NEW fields (requires prisma schema migration)
-          qtyPlanned: tripQty === undefined ? null : tripQty,
-          unitSnap: order.unit || null,
+          // Filled after loading from sack count × weight per sack.
+          qtyPlanned: null,
+          unitSnap: null,
 
           // snapshot
           plateNumberSnap: truck.plateNumber,
