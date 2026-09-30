@@ -161,7 +161,7 @@ router.post(
         for (const row of rows) {
           const unit = await tx.stockUnit.create({ data: { itemId: tireItem.id, serialNumber: row.serialNumber, barcode: row.barcode, purchasePrice: null, purchasedAt: null, status: "ASSIGNED", locationId: null } });
           const assignmentNote = ["Migrasi data ban lama", row.position ? `Posisi: ${row.position}` : null, note ? String(note).trim() : null].filter(Boolean).join(" · ");
-          const assignment = await tx.truckSparePartAssignment.create({ data: { truckId: truck.id, stockUnitId: unit.id, installedAt: row.installedAt, installCost: null, currency: "IDR", note: assignmentNote, createdById } });
+          const assignment = await tx.truckSparePartAssignment.create({ data: { truckId: truck.id, stockUnitId: unit.id, installedAt: row.installedAt, installCost: 0, currency: "IDR", note: assignmentNote, createdById } });
           await tx.stockMovement.create({ data: { type: "ADJUST", itemId: tireItem.id, qty: 1, unitPrice: null, totalCost: null, note: `Migrasi ban lama terpasang · ${truck.plateNumber}${row.position ? ` · ${row.position}` : ""}`, createdById, toTruckId: truck.id, stockUnitId: unit.id, createdAt: row.installedAt } });
           created.push({ unit, assignment });
         }
@@ -458,7 +458,7 @@ router.post("/emergency-dispatches/:id/install", authRequired, requireRole(...in
       if (item.isSerialized) {
         const unit = await tx.stockUnit.findUnique({ where: { id: dispatch.stockUnitId } });
         if (!unit || unit.status !== "IN_TRANSIT") throw new Error("Unit kiriman tidak lagi berstatus dalam perjalanan");
-        await tx.truckSparePartAssignment.create({ data: { truckId: dispatch.targetTruckId, stockUnitId: unit.id, installedAt: now, installCost: unit.purchasePrice, currency: unit.currency || "IDR", note: `Pemasangan darurat ${dispatch.id}${note ? ` · ${note}` : ""}`, createdById: req.user.id } });
+        await tx.truckSparePartAssignment.create({ data: { truckId: dispatch.targetTruckId, stockUnitId: unit.id, installedAt: now, installCost: unit.purchasePrice ?? 0, currency: unit.currency || "IDR", note: `Pemasangan darurat ${dispatch.id}${note ? ` · ${note}` : ""}`, createdById: req.user.id } });
         await tx.stockUnit.update({ where: { id: unit.id }, data: { status: "ASSIGNED", locationId: null } });
       }
       return tx.emergencyPartDispatch.update({ where: { id: dispatch.id }, data: { status: "INSTALLED", installedAt: now, installedById: req.user.id, installProofUrl, installProofFileName: installProofFileName || null, installProofMimeType, oldStockUnitId: oldStockUnitId || null, oldPartDisposition: oldStockUnitId ? (oldPartDisposition || "SCRAPPED") : null, note: [dispatch.note, note].filter(Boolean).join(" · ") || null } });
@@ -1406,12 +1406,8 @@ router.post(
           });
         }
 
-        // create assignment
-        // ✅ if serialized, require purchasePrice (so we can compute cost)
-        if (unit.item?.isSerialized && (unit.purchasePrice == null || unit.purchasePrice <= 0)) {
-          throw new Error("This unit must have purchasePrice before assigning to truck");
-        }
-
+        // Missing prices (for example migrated or second-hand tires) are free.
+        const unitPrice = Number.isFinite(Number(unit.purchasePrice)) ? Math.max(0, Number(unit.purchasePrice)) : 0;
         const assignment = await tx.truckSparePartAssignment.create({
           data: {
             truckId,
@@ -1423,7 +1419,7 @@ router.post(
             maintenanceId: maintenanceId || null,
 
             // ✅ NEW: snapshot cost at install time
-            installCost: unit.purchasePrice ?? null,
+            installCost: unitPrice,
             currency: unit.currency ?? "IDR",
           },
           include: {

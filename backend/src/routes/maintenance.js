@@ -838,8 +838,8 @@ router.post("/:id/transfer-donor-unit", authRequired, async (req, res) => {
       const now = new Date();
       await tx.truckSparePartAssignment.update({ where: { id: donor.id }, data: { removedAt: now, note: [donor.note, `Dipindahkan ke ${job.truck.plateNumber}`].filter(Boolean).join(" · ") } });
       if (returned) await tx.truckSparePartAssignment.update({ where: { id: returned.id }, data: { removedAt: now, maintenanceId: job.id, note: [returned.note, `Dikembalikan ke ${donor.truck.plateNumber}`].filter(Boolean).join(" · ") } });
-      const installed = await tx.truckSparePartAssignment.create({ data: { truckId: job.truckId, stockUnitId: donor.stockUnitId, installedAt: now, installCost: donor.installCost, currency: donor.currency || "IDR", note: String(req.body.note || `Donor dari ${donor.truck.plateNumber}`), maintenanceId: job.id, createdById: req.user.id } });
-      const returnedInstallation = returned ? await tx.truckSparePartAssignment.create({ data: { truckId: donor.truckId, stockUnitId: returned.stockUnitId, installedAt: now, installCost: returned.installCost, currency: returned.currency || "IDR", note: `Pertukaran dari ${job.truck.plateNumber}`, maintenanceId: donorJob?.id || job.id, createdById: req.user.id } }) : null;
+      const installed = await tx.truckSparePartAssignment.create({ data: { truckId: job.truckId, stockUnitId: donor.stockUnitId, installedAt: now, installCost: donor.installCost ?? 0, currency: donor.currency || "IDR", note: String(req.body.note || `Donor dari ${donor.truck.plateNumber}`), maintenanceId: job.id, createdById: req.user.id } });
+      const returnedInstallation = returned ? await tx.truckSparePartAssignment.create({ data: { truckId: donor.truckId, stockUnitId: returned.stockUnitId, installedAt: now, installCost: returned.installCost ?? 0, currency: returned.currency || "IDR", note: `Pertukaran dari ${job.truck.plateNumber}`, maintenanceId: donorJob?.id || job.id, createdById: req.user.id } }) : null;
       await tx.stockMovement.create({ data: { type: "ADJUST", itemId: donor.stockUnit.itemId, qty: 0, stockUnitId: donor.stockUnitId, fromTruckId: donor.truckId, toTruckId: job.truckId, maintenanceId: job.id, createdById: req.user.id, note: `Transfer unit dari ${donor.truck.plateNumber} ke ${job.truck.plateNumber}` } });
       if (donorJob) await tx.stockMovement.create({ data: { type: "ADJUST", itemId: donor.stockUnit.itemId, qty: 0, stockUnitId: donor.stockUnitId, fromTruckId: donor.truckId, toTruckId: job.truckId, maintenanceId: donorJob.id, createdById: req.user.id, note: `Otomatis dilepas dari ${donor.truck.plateNumber} · dipindahkan ke ${job.truck.plateNumber} melalui servis ${job.number}` } });
       if (returned) await tx.stockMovement.create({ data: { type: "ADJUST", itemId: returned.stockUnit.itemId, qty: 0, stockUnitId: returned.stockUnitId, fromTruckId: job.truckId, toTruckId: donor.truckId, maintenanceId: job.id, createdById: req.user.id, note: `Unit lama dikembalikan dari ${job.truck.plateNumber} ke ${donor.truck.plateNumber}` } });
@@ -939,13 +939,9 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
     if (!unit) return res.status(404).json({ error: "Stock unit not found" });
     if (unit.status !== "IN_STOCK") return res.status(400).json({ error: "Stock unit not available" });
 
-    // ✅ SAFETY: serialized units MUST have purchasePrice
-    if (unit.item?.isSerialized && (unit.purchasePrice == null || Number(unit.purchasePrice) <= 0)) {
-      return res.status(400).json({ error: "This unit has no purchase price and cannot be assigned" });
-    }
-
     const now = new Date();
     const fromLocationId = unit.locationId || null;
+    const unitPrice = Number.isFinite(Number(unit.purchasePrice)) ? Math.max(0, Number(unit.purchasePrice)) : 0;
 
     // ✅ Make transaction shorter + allow more time on hosted DB
     const created = await prisma.$transaction(
@@ -959,7 +955,7 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
           // use select (lighter than include)
           const oldUnit = await tx.stockUnit.findUnique({
             where: { id: oldUnitId },
-            select: { id: true, itemId: true, serialNumber: true, barcode: true, inventoryBatchId: true, item: { select: { category: true, isSerialized: true } } },
+            select: { id: true, itemId: true, serialNumber: true, barcode: true, inventoryBatchId: true, purchasePrice: true, item: { select: { category: true, isSerialized: true } } },
           });
           if (!oldUnit) throw new Error("Replace unit not found");
 
@@ -985,7 +981,7 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
             const locationId = String(second?.locationId || fromLocationId || "");
             if (!locationId || !(await tx.inventoryLocation.findUnique({ where: { id: locationId }, select: { id: true } }))) throw new Error("Pilih lokasi stok Ban Second");
             await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: secondItem.id, locationId } }, create: { itemId: secondItem.id, locationId, qty: 1 }, update: { qty: { increment: 1 } } });
-            await tx.stockUnit.update({ where: { id: oldUnitId }, data: { itemId: secondItem.id, locationId, inventoryBatchId: null, status: "IN_STOCK", scrappedAt: null } });
+            await tx.stockUnit.update({ where: { id: oldUnitId }, data: { itemId: secondItem.id, locationId, inventoryBatchId: null, purchasePrice: oldUnit.purchasePrice ?? 0, status: "IN_STOCK", scrappedAt: null } });
             await tx.stockMovement.create({ data: { type: "IN", itemId: secondItem.id, qty: 1, note: `Ban dilepas dari ${job.truck.plateNumber} dan dijadikan ${secondItem.sku}${second?.notes ? ` · ${String(second.notes)}` : ""}`, createdById: req.user.id, toLocationId: locationId, maintenanceId, stockUnitId: oldUnitId } });
           } else if (replaceDisposition === "RETREADING") {
             if (oldUnit.item.category !== "TIRE" || !oldUnit.item.isSerialized) throw new Error("Hanya ban berserial yang dapat dikirim untuk masak");
@@ -1056,7 +1052,7 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
             note: note ? String(note) : null,
             createdById: req.user?.id || null,
             maintenanceId,
-            installCost: unit.purchasePrice,
+            installCost: unitPrice,
             currency: unit.currency || "IDR",
           },
         });
@@ -1077,8 +1073,8 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
             type: "OUT",
             itemId: unit.itemId,
             qty: 1,
-            unitPrice: unit.purchasePrice,
-            totalCost: unit.purchasePrice,
+            unitPrice,
+            totalCost: unitPrice,
             note: `Assigned to maintenance: ${job.title}`,
             createdById: req.user?.id || null,
             fromLocationId,
@@ -1087,7 +1083,7 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
             stockUnitId: unit.id,
           },
         });
-        await postJournal(tx, { date: outMovement.createdAt, description: `Pemakaian ${unit.item.name} untuk ${job.title}`, sourceType: "INVENTORY_USAGE", sourceId: outMovement.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.EXPENSE, debit: Number(unit.purchasePrice) }, { code: SYSTEM_ACCOUNTS.INVENTORY, credit: Number(unit.purchasePrice) }] });
+        if (unitPrice > 0) await postJournal(tx, { date: outMovement.createdAt, description: `Pemakaian ${unit.item.name} untuk ${job.title}`, sourceType: "INVENTORY_USAGE", sourceId: outMovement.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.EXPENSE, debit: unitPrice }, { code: SYSTEM_ACCOUNTS.INVENTORY, credit: unitPrice }] });
 
         return assignment;
       },
