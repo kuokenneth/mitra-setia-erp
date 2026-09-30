@@ -1226,6 +1226,32 @@ export default function Maintenance() {
       }));
     return [...installed, ...removed].sort((a, b) => new Date(b.eventAt) - new Date(a.eventAt));
   }, [activeJob]);
+  const nonSerializedHistoryRows = useMemo(() => {
+    const movements = activeJob?.movements || [];
+    return movements
+      .filter((movement) => !movement.stockUnitId && (
+        movement.type === "OUT"
+        || (movement.type === "IN" && String(movement.note || "").startsWith("RETURN_OF:"))
+        || (movement.type === "ADJUST" && movement.fromTruckId)
+      ))
+      .map((movement) => {
+        const returnedQty = movement.type === "OUT"
+          ? movements
+            .filter((row) => (row.type === "IN" && String(row.note || "").startsWith(`RETURN_OF:${movement.id}`))
+              || (row.type === "ADJUST" && String(row.note || "").startsWith(`NON_SERIAL_REPAIR_OF:${movement.id}`)))
+            .reduce((sum, row) => sum + Number(row.qty || 0), 0)
+          : 0;
+        return {
+          ...movement,
+          returnedQty,
+          displayQty: movement.type === "OUT" ? Math.max(0, Number(movement.qty || 0) - returnedQty) : Number(movement.qty || 0),
+          historyType: movement.type === "IN" ? "DIKEMBALIKAN" : movement.type === "ADJUST" ? "PERBAIKAN" : "OUT",
+          displayNote: movement.type === "IN"
+            ? String(movement.note || "").replace(/^RETURN_OF:[^·]+\s*·\s*/, "")
+            : movement.note,
+        };
+      });
+  }, [activeJob]);
 
   return (
     <div className="maintenance-page" data-testid="maintenance-page">
@@ -2067,7 +2093,7 @@ export default function Maintenance() {
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Waktu</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Jenis</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Barang</th>
-                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Jumlah</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Jumlah bersih</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Harga/Unit</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Total Biaya</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Dari</th>
@@ -2076,23 +2102,25 @@ export default function Maintenance() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(activeJob.movements || []).filter((m) => !m.stockUnitId && (m.type === "OUT" || (m.type === "ADJUST" && m.fromTruckId))).map((m) => {
-                        const returnedQty=(activeJob.movements||[]).filter(row=>(row.type==="IN"&&String(row.note||"").startsWith(`RETURN_OF:${m.id}`))||(row.type==="ADJUST"&&String(row.note||"").startsWith(`NON_SERIAL_REPAIR_OF:${m.id}`))).reduce((sum,row)=>sum+Number(row.qty||0),0);
+                      {nonSerializedHistoryRows.map((m) => {
+                        const returnedQty=m.returnedQty;
                         const returnableQty=m.type==="OUT"&&m.fromLocationId&&m.item?.category!=="OIL"?Math.max(0,Number(m.qty||0)-returnedQty):0;
                         return <tr key={m.id} style={{ borderBottom: `1px solid ${BRAND.border}` }}>
                           <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{fmtDateTime(m.createdAt)}</td>
-                          <td style={{ padding: "12px 8px", fontWeight: 500, color: BRAND.text }}>{m.type}</td>
+                          <td style={{ padding: "12px 8px", fontWeight: 500, color: m.type === "IN" ? BRAND.primary : BRAND.text }}>{m.historyType}</td>
                           <td style={{ padding: "12px 8px", color: BRAND.textLight }}>
                             {m.item?.sku} — {m.item?.name}
                           </td>
-                          <td style={{ padding: "12px 8px", fontWeight: 600, color: BRAND.text }}>{m.qty}</td>
+                          <td style={{ padding: "12px 8px", fontWeight: 600, color: BRAND.text }}>
+                            {m.displayQty}{m.type === "OUT" && returnedQty > 0 ? <small style={{ display: "block", color: BRAND.textMuted, fontWeight: 400 }}>Awal {m.qty}, dikembalikan {returnedQty}</small> : null}
+                          </td>
                           <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{m.unitPrice == null ? "—" : fmtMoney(m.unitPrice)}</td>
-                          <td style={{ padding: "12px 8px", fontWeight: 600, color: BRAND.primary }}>{m.totalCost == null ? "—" : fmtMoney(m.totalCost)}</td>
-                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{m.fromTruck?.plateNumber ? `${m.fromTruck.plateNumber} → ${m.toTruck?.plateNumber || activeJob.truck?.plateNumber}` : m.fromLocation?.name || "—"}</td>
-                          <td style={{ padding: "12px 8px", color: BRAND.textMuted }}>{m.note || "—"}</td>
+                          <td style={{ padding: "12px 8px", fontWeight: 600, color: BRAND.primary }}>{m.totalCost == null ? "—" : `${m.type === "IN" ? "−" : ""}${fmtMoney(m.totalCost)}`}</td>
+                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{m.type === "IN" ? `${activeJob.truck?.plateNumber || "Armada"} → ${m.toLocation?.name || "Inventory"}` : m.fromTruck?.plateNumber ? `${m.fromTruck.plateNumber} → ${m.toTruck?.plateNumber || activeJob.truck?.plateNumber}` : m.fromLocation?.name || "—"}</td>
+                          <td style={{ padding: "12px 8px", color: BRAND.textMuted }}>{m.displayNote || "—"}</td>
                           <td style={{ padding: "12px 8px" }}>{returnableQty>0&&activeJob.status==="OPEN"?<div style={{display:"flex",gap:8,flexWrap:"wrap"}}><Button variant="secondary" onClick={()=>openReturnStock(m,"REPAIR_SECOND")} disabled={usingStock}>Perbaiki</Button><Button variant="secondary" onClick={()=>openReturnStock(m,"RETURN")} disabled={usingStock}>Kembalikan</Button></div>:<span style={{color:BRAND.textMuted}}>{returnedQty>0?`Sudah diproses ${returnedQty}`:"—"}</span>}</td>
                         </tr>})}
-                      {(activeJob.movements || []).filter((m) => !m.stockUnitId && (m.type === "OUT" || (m.type === "ADJUST" && m.fromTruckId))).length === 0 && (
+                      {nonSerializedHistoryRows.length === 0 && (
                         <tr>
                           <td colSpan={9} style={{ padding: 16, color: BRAND.textMuted, textAlign: "center" }}>
                             Belum ada suku cadang non-serialized yang digunakan.
