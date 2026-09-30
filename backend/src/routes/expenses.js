@@ -27,6 +27,17 @@ function cleanStr(v) {
   return s.length ? s : undefined;
 }
 
+function serializeExpense(expense) {
+  if (!expense) return expense;
+  return {
+    ...expense,
+    financeDebt: expense.financeDebt ? {
+      ...expense.financeDebt,
+      originalAmount: Number(expense.financeDebt.originalAmount),
+    } : null,
+  };
+}
+
 function parseExpenseDate(value) {
   const text = cleanStr(value);
   if (!text || !/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
@@ -136,7 +147,7 @@ router.get("/", authRequired, async (req, res) => {
   }, new Map());
   const withDup = items.map(x => {
     const duplicates = x.tripId ? (duplicatesByTrip.get(x.tripId) || []) : [];
-    return { ...x, duplicateFlag: duplicates.length > 1, duplicateCount: duplicates.length, duplicates };
+    return serializeExpense({ ...x, duplicateFlag: duplicates.length > 1, duplicateCount: duplicates.length, duplicates });
   });
 
   res.json({ items: withDup, total, pendingApprovalTotal, skip, take });
@@ -447,7 +458,7 @@ router.post("/", authRequired, async (req, res) => {
     duplicateFlag = dupCount > 1;
   }
 
-  res.status(201).json({ ...created, duplicateFlag });
+  res.status(201).json({ ...serializeExpense(created), duplicateFlag });
 });
 
 // Update expense
