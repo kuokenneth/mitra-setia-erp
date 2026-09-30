@@ -189,7 +189,7 @@ function ItemSearchSelect({ items, value, onChange }) {
         onBlur={() => setTimeout(() => setOpen(false), 140)}
       />
       {open && (
-        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, maxHeight: 170, overflowY: "auto", background: BRAND.white, border: `1px solid ${BRAND.border}`, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", borderRadius: 8, zIndex: 50 }}>
+        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, maxHeight: 300, overflowY: "auto", background: BRAND.white, border: `1px solid ${BRAND.border}`, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", borderRadius: 8, zIndex: 50 }}>
           <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { onChange(""); setQuery(""); setOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "10px 12px", border: "none", borderBottom: `1px solid ${BRAND.border}`, background: BRAND.white, color: BRAND.textMuted, cursor: "pointer" }}>Semua item</button>
           {filtered.length ? filtered.map((item) => (
             <button key={item.id} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { onChange(item.id); setQuery(`${item.sku || ""} — ${item.name || ""}`); setOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "10px 12px", border: "none", borderBottom: `1px solid ${BRAND.border}`, background: item.id === value ? BRAND.secondary : BRAND.white, cursor: "pointer" }}>
@@ -506,10 +506,6 @@ export default function Inventory() {
     totalPurchasePrice: "",
   });
   const [receiveUnitRows, setReceiveUnitRows] = useState([{ serialNumber: "", purchasePrice: "" }]);
-  const [receiveMode, setReceiveMode] = useState("QUICK");
-  const [quickReceiveRows, setQuickReceiveRows] = useState([{ itemId: "", isNew: false, sku: "", name: "", unit: "PCS", category: "GENERAL_SPAREPART", qty: "1", unitPurchasePrice: "" }]);
-  const [receivingBulk, setReceivingBulk] = useState(false);
-
   const [assignForm, setAssignForm] = useState({
     unitId: "",
     truckId: "",
@@ -1030,29 +1026,6 @@ export default function Inventory() {
     }
   }
 
-  async function receiveStockBulk() {
-    setErr("");
-    setReceivingBulk(true);
-    try {
-      if (!receiveForm.locationId) throw new Error("Pilih lokasi penyimpanan");
-      const entries = quickReceiveRows.map((row, index) => {
-        if (!row.isNew && !row.itemId) throw new Error(`Pilih barang pada baris ${index + 1}`);
-        return row.isNew
-          ? { sku: row.sku, name: row.name, unit: row.unit, category: row.category, qty: Number(row.qty), unitPurchasePrice: Number(row.unitPurchasePrice) }
-          : { itemId: row.itemId, qty: Number(row.qty), unitPurchasePrice: Number(row.unitPurchasePrice) };
-      });
-      await api("/inventory/receive-bulk", { method: "POST", body: JSON.stringify({ locationId: receiveForm.locationId, note: receiveForm.note || undefined, entries }) });
-      setOpenReceive(false);
-      setQuickReceiveRows([{ itemId: "", isNew: false, sku: "", name: "", unit: "PCS", category: "GENERAL_SPAREPART", qty: "1", unitPurchasePrice: "" }]);
-      setReceiveForm({ itemId: "", locationId: "", qty: 1, note: "", unitLines: "", unitPurchasePrice: "", totalPurchasePrice: "" });
-      await Promise.all([loadItems(), loadMovements()]);
-    } catch (error) {
-      setErr(String(error?.message || error));
-    } finally {
-      setReceivingBulk(false);
-    }
-  }
-
   async function assignUnit() {
     setErr("");
     try {
@@ -1076,19 +1049,6 @@ export default function Inventory() {
     } catch (e) {
       setErr(String(e?.message || e));
     }
-  }
-
-  async function openLegacyTireForm() {
-    setErr("");
-    setLegacyTireNewItem(false);
-    const defaultDate=localDateTimeValue();
-    setLegacyTireForm({ truckId: "", itemId: "", installedAt: defaultDate, note: "", sku: "", name: "" });
-    setLegacyTireRows([{ serialNumber: "", barcode: "", position: "", installedAt: defaultDate }]);
-    try {
-      const [, itemData] = await Promise.all([loadTrucks(), api("/inventory/items")]);
-      setReceiveItems(itemData.items || []);
-      setOpenLegacyTire(true);
-    } catch (e) { setErr(e.message || "Gagal menyiapkan data ban lama"); }
   }
 
   async function saveLegacyTires(event) {
@@ -1227,8 +1187,6 @@ export default function Inventory() {
             </div>
 
             <button className="inventory-action inventory-action--soft" onClick={() => { setCreateItemError(""); setOpenCreateItem(true); }}><FiPlus /> Tambah Item</button>
-
-            <button className="inventory-action inventory-action--legacy" onClick={openLegacyTireForm}><FiTruck /> Alokasikan Ban Lama</button>
 
             <button
               className="inventory-action inventory-action--out"
@@ -1650,31 +1608,6 @@ export default function Inventory() {
             </div>
           ) : null}
 
-          <div className="inventory-receive-mode" style={{ marginBottom: 16 }}>
-            <button type="button" className={receiveMode === "QUICK" ? "active" : ""} onClick={() => setReceiveMode("QUICK")}><span>01</span><div><strong>Beberapa barang</strong><small>Input cepat item non-serial sekaligus</small></div></button>
-            <button type="button" className={receiveMode === "DETAILED" ? "active" : ""} onClick={() => setReceiveMode("DETAILED")}><span>02</span><div><strong>Unit berseri</strong><small>Ban, aki, atau barang dengan nomor seri</small></div></button>
-          </div>
-
-          {receiveMode === "QUICK" ? <div className="inventory-quick-receive">
-            <div className="inventory-quick-shared">
-              <label><span>Lokasi penyimpanan</span><select value={receiveForm.locationId} onChange={(event) => setReceiveForm(form => ({ ...form, locationId: event.target.value }))} disabled={!locations.length}><option value="">Pilih lokasi...</option>{locations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
-              <label><span>Catatan bersama (opsional)</span><input value={receiveForm.note} onChange={(event) => setReceiveForm(form => ({ ...form, note: event.target.value }))} placeholder="Contoh: stok awal / pembelian tunai"/></label>
-            </div>
-            <div className="inventory-quick-list">
-              {quickReceiveRows.map((row, index) => {
-                const updateRow = patch => setQuickReceiveRows(rows => rows.map((current, rowIndex) => rowIndex === index ? { ...current, ...patch } : current));
-                const selectedItem = receiveItems.find(item => item.id === row.itemId);
-                return <div className="inventory-quick-row" key={index}>
-                  <div className="inventory-quick-row-head"><strong>Barang {index + 1}</strong><div><button type="button" className={!row.isNew ? "active" : ""} onClick={() => updateRow({ isNew: false, sku: "", name: "" })}>Pilih item</button><button type="button" className={row.isNew ? "active" : ""} onClick={() => updateRow({ isNew: true, itemId: "" })}>+ Item baru</button>{quickReceiveRows.length > 1 && <button type="button" className="remove" onClick={() => setQuickReceiveRows(rows => rows.filter((_, rowIndex) => rowIndex !== index))}><FiX/></button>}</div></div>
-                  {row.isNew
-                    ? <div className="inventory-quick-new-item"><input value={row.sku} onChange={event => updateRow({ sku: event.target.value })} placeholder="SKU baru"/><input value={row.name} onChange={event => updateRow({ name: event.target.value })} placeholder="Nama barang baru"/><input value={row.unit} onChange={event => updateRow({ unit: event.target.value })} placeholder="Satuan"/><select value={row.category} onChange={event => updateRow({ category: event.target.value })}><option value="GENERAL_SPAREPART">Sparepart umum</option><option value="BATTERY">Aki/Baterai non-serial</option><option value="OIL">Oli</option><option value="OTHER">Lainnya</option></select></div>
-                    : <ItemSearchSelect items={receiveItems.filter(item => !item.isSerialized)} value={row.itemId} onChange={itemId => updateRow({ itemId })}/>}
-                  <div className="inventory-quick-values"><label><span>Jumlah {selectedItem?.unit ? `(${selectedItem.unit})` : ""}</span><input type="number" min="0.01" step="0.01" value={row.qty} onChange={event => updateRow({ qty: event.target.value })}/></label><label><span>Harga/unit (Rp)</span><input type="number" min="1" value={row.unitPurchasePrice} onChange={event => updateRow({ unitPurchasePrice: event.target.value })}/></label><div><span>Total</span><strong>{Number(row.qty) > 0 && Number(row.unitPurchasePrice) > 0 ? new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(row.qty) * Number(row.unitPurchasePrice)) : "—"}</strong></div></div>
-                </div>;
-              })}
-            </div>
-            <button type="button" className="inventory-add-serial" onClick={() => setQuickReceiveRows(rows => [...rows, { itemId: "", isNew: false, sku: "", name: "", unit: "PCS", category: "GENERAL_SPAREPART", qty: "1", unitPurchasePrice: "" }])}><FiPlus/> Tambah barang lain</button>
-          </div> : <>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
               <div className="inventory-receive-field-head">Barang</div>
@@ -1800,14 +1733,13 @@ export default function Inventory() {
               <button type="button" className="inventory-add-serial" onClick={() => { setReceiveUnitRows((rows) => [...rows, { serialNumber: "", purchasePrice: "" }]); setReceiveForm((form) => ({ ...form, qty: receiveUnitRows.length + 1 })); }}><FiPlus/> Tambah unit</button>
             </div>})()}
           </div>
-          </>}
 
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
             <Btn style={btn} onClick={() => setOpenReceive(false)}>
               Batal
             </Btn>
-            <Btn style={btnPrimary} onClick={receiveMode === "QUICK" ? receiveStockBulk : receiveStock} disabled={locations.length === 0 || receivingBulk}>
-              {receivingBulk ? "Menyimpan..." : receiveMode === "QUICK" ? `Simpan ${quickReceiveRows.length} Barang` : "Simpan Stok Masuk"}
+            <Btn style={btnPrimary} onClick={receiveStock} disabled={locations.length === 0}>
+              Simpan Stok Masuk
             </Btn>
           </div>
         </Modal>
@@ -1837,18 +1769,14 @@ export default function Inventory() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             {consumeForm.destinationType === "TRUCK" && <div style={{ gridColumn: "1 / -1" }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Mobil tujuan</div>
-              <select style={{ ...selectPill, minWidth: 0, width: "100%", boxSizing: "border-box" }} value={consumeForm.truckId} onChange={(e) => setConsumeForm(form => ({ ...form, truckId: e.target.value }))}>
-                <option value="">Pilih nomor polisi...</option>
-                {trucks.map(truck => <option key={truck.id} value={truck.id}>{truck.plateNumber}{truck.brand || truck.model ? ` — ${[truck.brand, truck.model].filter(Boolean).join(" ")}` : ""}</option>)}
-              </select>
+              <TruckSearchSelect trucks={trucks} value={consumeForm.truckId} onChange={(truckId) => setConsumeForm(form => ({ ...form, truckId }))} placeholder="Ketik nomor polisi, merek, atau model..."/>
             </div>}
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Barang tanpa nomor seri</div>
-              <select
-                style={{ ...selectPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
+              <ItemSearchSelect
+                items={receiveItems.filter((item) => !item.isSerialized)}
                 value={consumeForm.itemId}
-                onChange={(e) => {
-                  const nextItemId = e.target.value;
+                onChange={(nextItemId) => {
                   const item = receiveItems.find((x) => x.id === nextItemId) || items.find((x) => x.id === nextItemId);
                   const firstLocWithStock = (item?.stocks || []).find((s) => Number(s.qty || 0) > 0)?.locationId || "";
                   setConsumeForm((p) => ({
@@ -1857,14 +1785,7 @@ export default function Inventory() {
                     locationId: firstLocWithStock || p.locationId || "",
                   }));
                 }}
-              >
-                <option value="">Pilih barang...</option>
-                {receiveItems.filter((item) => !item.isSerialized).map((it) => (
-                  <option key={it.id} value={it.id}>
-                    {it.sku} — {it.name} ({it.unit || "UNIT"})
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             <div>

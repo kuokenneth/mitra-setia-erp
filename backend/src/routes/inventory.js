@@ -657,61 +657,6 @@ router.get(
  *   units: [{ serialNumber, barcode?, purchasePrice, purchasedAt? }]
  * }
  */
-// POST /inventory/receive
-router.post(
-  "/receive-bulk",
-  authRequired,
-  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
-  async (req, res) => {
-    const createdById = req.user?.id || null;
-    const locationId = String(req.body?.locationId || "").trim();
-    const note = String(req.body?.note || "").trim() || null;
-    const entries = Array.isArray(req.body?.entries) ? req.body.entries : [];
-    if (!locationId) return res.status(400).json({ error: "Lokasi penyimpanan wajib dipilih" });
-    if (!entries.length) return res.status(400).json({ error: "Tambahkan minimal satu barang" });
-    if (entries.length > 50) return res.status(400).json({ error: "Maksimal 50 barang dalam satu penerimaan" });
-    try {
-      const result = await prisma.$transaction(async tx => {
-        const location = await tx.inventoryLocation.findUnique({ where: { id: locationId }, select: { id: true } });
-        if (!location) throw new Error("Lokasi penyimpanan tidak ditemukan");
-        const received = [];
-        for (let index = 0; index < entries.length; index += 1) {
-          const entry = entries[index] || {};
-          const qty = Number(entry.qty);
-          const unitPrice = Math.round(Number(entry.unitPurchasePrice));
-          if (!Number.isFinite(qty) || qty <= 0) throw new Error(`Jumlah pada baris ${index + 1} harus lebih dari nol`);
-          if (!Number.isFinite(unitPrice) || unitPrice <= 0) throw new Error(`Harga satuan pada baris ${index + 1} harus lebih dari nol`);
-          let item;
-          if (entry.itemId) {
-            item = await tx.item.findUnique({ where: { id: String(entry.itemId) } });
-            if (!item) throw new Error(`Barang pada baris ${index + 1} tidak ditemukan`);
-            if (item.isSerialized) throw new Error(`${item.name} adalah barang berseri; gunakan mode Unit berseri`);
-          } else {
-            const sku = String(entry.sku || "").trim();
-            const name = String(entry.name || "").trim();
-            const unit = String(entry.unit || "PCS").trim() || "PCS";
-            const category = ["GENERAL_SPAREPART", "BATTERY", "OIL", "OTHER"].includes(entry.category) ? entry.category : "GENERAL_SPAREPART";
-            if (!sku || !name) throw new Error(`SKU dan nama item baru pada baris ${index + 1} wajib diisi`);
-            const duplicate = await tx.item.findFirst({ where: { OR: [{ sku: { equals: sku, mode: "insensitive" } }, { name: { equals: name, mode: "insensitive" } }] }, select: { sku: true, name: true } });
-            if (duplicate) throw new Error(`SKU atau nama item baru pada baris ${index + 1} sudah digunakan`);
-            item = await tx.item.create({ data: { sku, name, unit, category, isSerialized: false } });
-          }
-          const totalCost = Math.round(qty * unitPrice);
-          await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: item.id, locationId } }, create: { itemId: item.id, locationId, qty }, update: { qty: { increment: qty } } });
-          await tx.inventoryBatch.create({ data: { itemId: item.id, locationId, receivedQty: qty, remainingQty: qty, unitPrice, receivedAt: new Date() } });
-          const movement = await tx.stockMovement.create({ data: { type: "IN", itemId: item.id, qty, unitPrice, totalCost, note, createdById, toLocationId: locationId } });
-          received.push({ itemId: item.id, movementId: movement.id, qty });
-        }
-        return received;
-      });
-      res.json({ ok: true, received: result });
-    } catch (error) {
-      if (isUniqueError(error)) return res.status(400).json({ error: itemUniqueErrorMessage(error) });
-      res.status(400).json({ error: String(error?.message || error) });
-    }
-  }
-);
-
 router.post(
   "/receive",
   authRequired,

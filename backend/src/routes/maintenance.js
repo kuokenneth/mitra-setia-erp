@@ -822,6 +822,13 @@ router.post("/:id/transfer-donor-unit", authRequired, async (req, res) => {
       const donor = await tx.truckSparePartAssignment.findUnique({ where: { id: assignmentId }, include: { truck: true, stockUnit: true } });
       if (!donor || donor.removedAt || donor.stockUnit.status !== "ASSIGNED") throw new Error("Sparepart donor sudah tidak tersedia");
       if (donor.truckId === job.truckId) throw new Error("Unit sudah terpasang pada mobil servis ini");
+      // If the donor truck is also being serviced, mirror the removal into its
+      // latest open service so both workshops see the same transfer history.
+      const donorJob = await tx.truckMaintenance.findFirst({
+        where: { truckId: donor.truckId, status: "OPEN" },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, number: true },
+      });
       const returned = returnStockUnitId ? await tx.truckSparePartAssignment.findFirst({
         where: { truckId: job.truckId, stockUnitId: returnStockUnitId, removedAt: null },
         include: { stockUnit: true },
@@ -832,10 +839,11 @@ router.post("/:id/transfer-donor-unit", authRequired, async (req, res) => {
       await tx.truckSparePartAssignment.update({ where: { id: donor.id }, data: { removedAt: now, note: [donor.note, `Dipindahkan ke ${job.truck.plateNumber}`].filter(Boolean).join(" · ") } });
       if (returned) await tx.truckSparePartAssignment.update({ where: { id: returned.id }, data: { removedAt: now, maintenanceId: job.id, note: [returned.note, `Dikembalikan ke ${donor.truck.plateNumber}`].filter(Boolean).join(" · ") } });
       const installed = await tx.truckSparePartAssignment.create({ data: { truckId: job.truckId, stockUnitId: donor.stockUnitId, installedAt: now, installCost: donor.installCost, currency: donor.currency || "IDR", note: String(req.body.note || `Donor dari ${donor.truck.plateNumber}`), maintenanceId: job.id, createdById: req.user.id } });
-      const returnedInstallation = returned ? await tx.truckSparePartAssignment.create({ data: { truckId: donor.truckId, stockUnitId: returned.stockUnitId, installedAt: now, installCost: returned.installCost, currency: returned.currency || "IDR", note: `Pertukaran dari ${job.truck.plateNumber}`, maintenanceId: job.id, createdById: req.user.id } }) : null;
-      await tx.stockMovement.create({ data: { type: "ADJUST", itemId: donor.stockUnit.itemId, qty: 0, stockUnitId: donor.stockUnitId, maintenanceId: job.id, createdById: req.user.id, note: `Transfer unit dari ${donor.truck.plateNumber} ke ${job.truck.plateNumber}` } });
-      if (returned) await tx.stockMovement.create({ data: { type: "ADJUST", itemId: returned.stockUnit.itemId, qty: 0, stockUnitId: returned.stockUnitId, maintenanceId: job.id, createdById: req.user.id, note: `Unit lama dikembalikan dari ${job.truck.plateNumber} ke ${donor.truck.plateNumber}` } });
-      return { installed, returnedInstallation };
+      const returnedInstallation = returned ? await tx.truckSparePartAssignment.create({ data: { truckId: donor.truckId, stockUnitId: returned.stockUnitId, installedAt: now, installCost: returned.installCost, currency: returned.currency || "IDR", note: `Pertukaran dari ${job.truck.plateNumber}`, maintenanceId: donorJob?.id || job.id, createdById: req.user.id } }) : null;
+      await tx.stockMovement.create({ data: { type: "ADJUST", itemId: donor.stockUnit.itemId, qty: 0, stockUnitId: donor.stockUnitId, fromTruckId: donor.truckId, toTruckId: job.truckId, maintenanceId: job.id, createdById: req.user.id, note: `Transfer unit dari ${donor.truck.plateNumber} ke ${job.truck.plateNumber}` } });
+      if (donorJob) await tx.stockMovement.create({ data: { type: "ADJUST", itemId: donor.stockUnit.itemId, qty: 0, stockUnitId: donor.stockUnitId, fromTruckId: donor.truckId, toTruckId: job.truckId, maintenanceId: donorJob.id, createdById: req.user.id, note: `Otomatis dilepas dari ${donor.truck.plateNumber} · dipindahkan ke ${job.truck.plateNumber} melalui servis ${job.number}` } });
+      if (returned) await tx.stockMovement.create({ data: { type: "ADJUST", itemId: returned.stockUnit.itemId, qty: 0, stockUnitId: returned.stockUnitId, fromTruckId: job.truckId, toTruckId: donor.truckId, maintenanceId: job.id, createdById: req.user.id, note: `Unit lama dikembalikan dari ${job.truck.plateNumber} ke ${donor.truck.plateNumber}` } });
+      return { installed, returnedInstallation, donorMaintenance: donorJob || null };
     });
     res.json({ ok: true, ...result });
   } catch (e) { res.status(400).json({ error: e.message || "Gagal memindahkan sparepart" }); }

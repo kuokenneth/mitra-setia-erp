@@ -120,6 +120,17 @@ router.get("/", async (req, res) => {
           orderBy: [{ revenueDate: "asc" }, { createdAt: "asc" }],
         },
         sparePartAssignments: { where: { installedAt: dateRange }, include: { stockUnit: { select: { purchasePrice: true, item: { select: { name: true, sku: true } } } } } },
+        stockMovesTo: {
+          where: {
+            createdAt: dateRange,
+            type: "OUT",
+            stockUnitId: null,
+            maintenanceId: null,
+            fromLocationId: { not: null },
+          },
+          include: { item: { select: { name: true, sku: true, unit: true } }, fromLocation: { select: { name: true } } },
+          orderBy: { createdAt: "asc" },
+        },
         maintenances: {
           where: {
             movements: {
@@ -173,7 +184,8 @@ router.get("/", async (req, res) => {
         const cost = Number(movement.totalCost || 0);
         return movement.type === "IN" ? sum - cost : sum + cost;
       }, 0);
-      const spareParts = serializedSpareParts + nonSerializedSpareParts;
+      const directInventorySpareParts = truck.stockMovesTo.reduce((sum, movement) => sum + Number(movement.totalCost || 0), 0);
+      const spareParts = serializedSpareParts + nonSerializedSpareParts + directInventorySpareParts;
       const fixedCosts = truck.monthlyCosts[0] || Object.fromEntries(COST_FIELDS.map(field => [field, 0]));
       const fixedTotal = COST_FIELDS.reduce((sum, field) => sum + (fixedCosts[field] || 0), 0);
       const totalCost = tripExpenses + vehicleExpenses + spareParts + fixedTotal;
@@ -253,6 +265,17 @@ router.get("/", async (req, res) => {
         cost: movement.type === "IN" ? -Number(movement.totalCost || 0) : Number(movement.totalCost || 0),
         maintenanceTitle: movement.maintenanceTitle,
         isReturn: movement.type === "IN",
+      })));
+      sparePartDetails.push(...truck.stockMovesTo.map(movement => ({
+        id: `direct-movement:${movement.id}`,
+        name: movement.item?.name || "Sparepart",
+        sku: movement.item?.sku || null,
+        unit: movement.item?.unit || null,
+        quantity: movement.qty,
+        installedAt: movement.createdAt,
+        cost: Number(movement.totalCost || 0),
+        maintenanceTitle: `Langsung dari ${movement.fromLocation?.name || "Inventory"}`,
+        isDirectInventory: true,
       })));
       return {
         truck: { id: truck.id, plateNumber: truck.plateNumber, brand: truck.brand, model: truck.model, status: truck.status },
