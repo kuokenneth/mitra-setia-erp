@@ -46,7 +46,7 @@ function cashVoucherHtml({ type, number, date, party, amount, purpose, method, n
 }
 
 function cashVoucherBatchHtml(vouchers, title = "BUKTI PENERIMAAN KAS") {
-  if (!vouchers.length) return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title></head><body><p>Tidak ada penerimaan kas pada periode ini.</p></body></html>`;
+  if (!vouchers.length) return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title></head><body><p>Tidak ada transaksi kas pada periode ini.</p></body></html>`;
   const rendered = vouchers.map(cashVoucherHtml);
   const style = rendered[0].match(/<style>([\s\S]*?)<\/style>/)?.[1] || "";
   const pages = rendered.map(document => document.match(/<main class="voucher">[\s\S]*?<\/main>/)?.[0] || "").join("");

@@ -3,7 +3,7 @@ const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { SYSTEM_ACCOUNTS, cashCode, postJournal } = require("../services/accounting");
 const { esc, money, date: fmtDate, documentHtml } = require("../utils/printDocument");
-const { cashVoucherHtml } = require("../utils/cashVoucher");
+const { cashVoucherHtml, cashVoucherBatchHtml } = require("../utils/cashVoucher");
 
 const router = express.Router();
 
@@ -35,6 +35,25 @@ function serializeExpense(expense) {
       ...expense.financeDebt,
       originalAmount: Number(expense.financeDebt.originalAmount),
     } : null,
+  };
+}
+
+function cashOutVoucherData(expense) {
+  const dateKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(expense.expenseDate).replaceAll("-", "");
+  const party = expense.clientName || expense.accountName || expense.employee?.name || expense.trip?.driverUser?.name || expense.truck?.driverUser?.name || "-";
+  const allocation = expense.trip?.order?.orderNo || expense.trip?.truck?.plateNumber || expense.truck?.plateNumber;
+  const purpose = [expense.reason, allocation].filter(Boolean).join(" · ");
+  const method = expense.paymentMethod === "CASH" ? "Tunai" : expense.paymentMethod === "BANK_TRANSFER" ? `Transfer${expense.bankName ? ` - ${expense.bankName}` : ""}` : "Lainnya";
+  return {
+    type: "OUT",
+    number: `BKK-${dateKey}-${expense.id.slice(-6).toUpperCase()}`,
+    date: expense.expenseDate,
+    party,
+    amount: expense.amount,
+    purpose,
+    method,
+    notes: expense.notes,
+    signatures: [expense.proofUploadedBy?.name || expense.createdBy?.name, expense.approvedBy?.name, expense.createdBy?.name, party],
   };
 }
 
@@ -250,6 +269,38 @@ router.get("/report", authRequired, async (req, res) => {
   }));
 });
 
+// Print every cash-out voucher matching the active list filters.
+router.get("/vouchers-print", authRequired, async (req, res) => {
+  if (!ensureRole(req, res)) return;
+  const q = cleanStr(req.query.q || "");
+  const paymentMethod = cleanStr(req.query.paymentMethod || "");
+  const month = cleanStr(req.query.month || "");
+  if (paymentMethod && !["BANK_TRANSFER", "CASH", "OTHER"].includes(paymentMethod)) return res.status(400).send("Metode pembayaran tidak valid");
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) return res.status(400).send("Pilih periode bulan yang valid");
+  const [yearText, monthText] = month.split("-");
+  const year = Number(yearText);
+  const monthNumber = Number(monthText);
+  if (!Number.isInteger(year) || !Number.isInteger(monthNumber) || monthNumber < 1 || monthNumber > 12) return res.status(400).send("Periode bulan tidak valid");
+  const start = new Date(`${month}-01T00:00:00+07:00`);
+  const nextYear = monthNumber === 12 ? year + 1 : year;
+  const nextMonth = monthNumber === 12 ? 1 : monthNumber + 1;
+  const end = new Date(`${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00+07:00`);
+  const items = await prisma.expense.findMany({
+    where: { ...expenseFilterWhere({ q, paymentMethod }), expenseDate: { gte: start, lt: end } },
+    orderBy: [{ expenseDate: "asc" }, { createdAt: "asc" }],
+    include: {
+      employee: { select: { name: true } },
+      truck: { select: { plateNumber: true, driverUser: { select: { name: true } } } },
+      trip: { include: { truck: { select: { plateNumber: true } }, driverUser: { select: { name: true } }, order: { select: { orderNo: true } } } },
+      createdBy: { select: { name: true } },
+      proofUploadedBy: { select: { name: true } },
+      approvedBy: { select: { name: true } },
+    },
+  });
+  const monthLabel = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(start);
+  res.type("html").send(cashVoucherBatchHtml(items.map(cashOutVoucherData), `BUKTI PENGELUARAN KAS - ${monthLabel}`));
+});
+
 // Dot-matrix cash-out voucher, sized for 9.5 x 5.5 inch continuous forms.
 router.get("/:id/voucher-print", authRequired, async (req, res) => {
   if (!ensureRole(req, res)) return;
@@ -265,22 +316,7 @@ router.get("/:id/voucher-print", authRequired, async (req, res) => {
     },
   });
   if (!expense) return res.status(404).send("Pengeluaran tidak ditemukan");
-  const dateKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(expense.expenseDate).replaceAll("-", "");
-  const party = expense.clientName || expense.accountName || expense.employee?.name || expense.trip?.driverUser?.name || expense.truck?.driverUser?.name || "-";
-  const allocation = expense.trip?.order?.orderNo || expense.trip?.truck?.plateNumber || expense.truck?.plateNumber;
-  const purpose = [expense.reason, allocation].filter(Boolean).join(" · ");
-  const method = expense.paymentMethod === "CASH" ? "Tunai" : expense.paymentMethod === "BANK_TRANSFER" ? `Transfer${expense.bankName ? ` - ${expense.bankName}` : ""}` : "Lainnya";
-  res.type("html").send(cashVoucherHtml({
-    type: "OUT",
-    number: `BKK-${dateKey}-${expense.id.slice(-6).toUpperCase()}`,
-    date: expense.expenseDate,
-    party,
-    amount: expense.amount,
-    purpose,
-    method,
-    notes: expense.notes,
-    signatures: [expense.proofUploadedBy?.name || expense.createdBy?.name, expense.approvedBy?.name, expense.createdBy?.name, party],
-  }));
+  res.type("html").send(cashVoucherHtml(cashOutVoucherData(expense)));
 });
 
 router.get("/employees", authRequired, async (req, res) => {

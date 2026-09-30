@@ -493,6 +493,19 @@ export default function Expenses() {
     }
   }
 
+  function printAllCashVouchers() {
+    if (!reportMonth) {
+      setErr("Pilih periode bulan untuk mencetak semua kas");
+      return;
+    }
+    const params = new URLSearchParams();
+    params.set("month", reportMonth);
+    if (q.trim()) params.set("q", q.trim());
+    if (methodFilter) params.set("paymentMethod", methodFilter);
+    const query = params.toString();
+    openPrintDocument(`/expenses/vouchers-print${query ? `?${query}` : ""}`).catch((error) => setErr(error.message || "Gagal membuka semua bukti kas keluar"));
+  }
+
   function openDetail(item) {
     setDetailItem(item);
     setDetailOpen(true);
@@ -670,7 +683,7 @@ export default function Expenses() {
       <div style={s.panel} className="expense-panel">
         <div className="expense-panel-heading">
           <div><div className="expense-eyebrow">DAFTAR TRANSAKSI</div><h2>Riwayat pengeluaran</h2></div>
-          <div className="expense-panel-heading-actions">{canApprove && pendingApprovalTotal > 0 && <button type="button" className="expense-approve-all" disabled={approveAllBusy} onClick={onApproveAll}><FiCheckCircle /> {approveAllBusy ? "Menyetujui…" : `Setujui Semua (${pendingApprovalTotal})`}</button>}<span className="expense-result-count">{items.length} ditampilkan</span></div>
+          <div className="expense-panel-heading-actions">{canApprove && pendingApprovalTotal > 0 && <button type="button" className="expense-approve-all" disabled={approveAllBusy} onClick={onApproveAll}><FiCheckCircle /> {approveAllBusy ? "Menyetujui…" : `Setujui Semua (${pendingApprovalTotal})`}</button>}<button type="button" className="expense-print-all" disabled={!total || !reportMonth} onClick={printAllCashVouchers} title="Cetak seluruh bukti kas pada bulan yang dipilih di atas"><FiPrinter /> Cetak Semua Kas per Bulan</button><span className="expense-result-count">{items.length} ditampilkan</span></div>
         </div>
         {/* Filters */}
         <div style={s.filtersRow} className="expense-filters">
@@ -799,17 +812,6 @@ export default function Expenses() {
                           {actionBusy[x.id] === "approve" ? "Menyetujui…" : "Setujui"}
                         </button>
                       )}
-                      <button
-                        type="button"
-                        style={s.linkBtn}
-                        className="expense-action-button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openPrintDocument(`/expenses/${x.id}/voucher-print`).catch((error) => setErr(error.message || "Gagal membuka bukti kas keluar"));
-                        }}
-                      >
-                        <FiPrinter /> Cetak Kas
-                      </button>
                       {x.status === "SUBMITTED" && <button
                         style={s.deleteBtn}
                         onClick={(e) => {
