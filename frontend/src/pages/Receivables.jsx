@@ -137,8 +137,9 @@ export default function Receivables() {
   }
   async function savePayment(event) {
     event.preventDefault(); setBusy(true); setError("");
-    try { await api(`/receivables/invoices/${selected.id}/payments`, { method: "POST", body: JSON.stringify(paymentForm) }); setModal(""); setSelected(null); await load(); }
-    catch (err) { setError(err.message); }
+    const printPopup = window.open("", "_blank");
+    try { const result = await api(`/receivables/invoices/${selected.id}/payments`, { method: "POST", body: JSON.stringify(paymentForm) }); setModal(""); setSelected(null); await load(); if (result.payment?.id) await openPrintDocument(`/receivables/payments/${result.payment.id}/voucher-print`, printPopup); }
+    catch (err) { printPopup?.close(); setError(err.message); }
     finally { setBusy(false); }
   }
   function openEmployeePayment(row) {
@@ -146,8 +147,9 @@ export default function Receivables() {
   }
   async function saveEmployeePayment(event) {
     event.preventDefault(); setBusy(true); setError("");
-    try { await api(`/receivables/employees/${employeePayment.employee.id}/payments`, { method: "POST", body: JSON.stringify(paymentForm) }); setModal(""); setEmployeePayment(null); await load(); }
-    catch (err) { setError(err.message); }
+    const printPopup = window.open("", "_blank");
+    try { const result = await api(`/receivables/employees/${employeePayment.employee.id}/payments`, { method: "POST", body: JSON.stringify(paymentForm) }); setModal(""); setEmployeePayment(null); await load(); if (result.payment?.id) await openPrintDocument(`/receivables/employee-payments/${result.payment.id}/voucher-print`, printPopup); }
+    catch (err) { printPopup?.close(); setError(err.message); }
     finally { setBusy(false); }
   }
   async function voidInvoice(invoice) {
@@ -169,6 +171,14 @@ export default function Receivables() {
     setReportBusy(true); setError("");
     try { await openPrintDocument(`/receivables/report?month=${encodeURIComponent(reportMonth)}`); }
     catch (err) { setError(err.message || "Gagal membuka laporan piutang"); }
+    finally { setReportBusy(false); }
+  }
+
+  async function printMonthlyCashReceipts() {
+    if (!reportMonth) return setError("Pilih periode penerimaan terlebih dahulu");
+    setReportBusy(true); setError("");
+    try { await openPrintDocument(`/receivables/cash-receipts/vouchers-print?month=${encodeURIComponent(reportMonth)}`); }
+    catch (err) { setError(err.message || "Gagal membuka bukti penerimaan kas"); }
     finally { setReportBusy(false); }
   }
 
@@ -226,11 +236,11 @@ export default function Receivables() {
     {employeeView ? <section className="ar-panel ar-employee-panel">
       <div className="ar-panel-heading"><div><span>DAFTAR PIUTANG</span><h2>Saldo piutang per karyawan</h2><p>{filteredEmployeeReceivables.length} dari {data.employeeReceivables.length} karyawan ditampilkan · tanpa jatuh tempo</p></div></div>
       <div className="ar-employee-tools"><label><FiSearch/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Cari nama, email, atau keterangan piutang…"/></label><button className="ar-refresh" onClick={load} aria-label="Muat ulang"><FiRefreshCw className={loading ? "ar-spin" : ""}/></button></div>
-      <div className={`ar-table-wrap ${loading && !filteredEmployeeReceivables.length ? "initial-loading" : ""}`}>{loading && !filteredEmployeeReceivables.length && <LoadingState label="Memuat piutang karyawan" note="Menghitung transaksi, pembayaran, dan sisa saldo…" rows={4}/>}<table className="ar-invoice-table ar-employee-table"><thead><tr><th>Karyawan</th><th>Jumlah Transaksi</th><th>Total Piutang</th><th>Sudah Dibayar</th><th>Sisa</th><th>Tindakan</th></tr></thead><tbody>{filteredEmployeeReceivables.map(row => <tr key={row.employee.id}><td data-label="Karyawan" className="ar-customer-cell"><b>{row.employee.name || "Tanpa nama"}</b><small>{row.employee.email}</small></td><td data-label="Jumlah Transaksi"><span className="ar-employee-count">{row.expenses.length}</span> pengeluaran</td><td data-label="Total Piutang" className="ar-money-cell">{rupiah(row.total)}</td><td data-label="Sudah Dibayar" className="ar-money-cell paid">{rupiah(row.paid)}</td><td data-label="Sisa" className="ar-money-cell ar-balance-cell"><b>{rupiah(row.balance)}</b></td><td data-label="Tindakan" className="ar-action-cell"><div className="ar-actions"><button onClick={() => openEmployeePayment(row)}><FiCreditCard/> Catat Pembayaran</button></div></td></tr>)}</tbody></table></div>
+      <div className={`ar-table-wrap ${loading && !filteredEmployeeReceivables.length ? "initial-loading" : ""}`}>{loading && !filteredEmployeeReceivables.length && <LoadingState label="Memuat piutang karyawan" note="Menghitung transaksi, pembayaran, dan sisa saldo…" rows={4}/>}<table className="ar-invoice-table ar-employee-table"><thead><tr><th>Karyawan</th><th>Jumlah Transaksi</th><th>Total Piutang</th><th>Sudah Dibayar</th><th>Sisa</th><th>Tindakan</th></tr></thead><tbody>{filteredEmployeeReceivables.map(row => <tr key={row.employee.id}><td data-label="Karyawan" className="ar-customer-cell"><b>{row.employee.name || "Tanpa nama"}</b><small>{row.employee.email}</small></td><td data-label="Jumlah Transaksi"><span className="ar-employee-count">{row.expenses.length}</span> pengeluaran</td><td data-label="Total Piutang" className="ar-money-cell">{rupiah(row.total)}</td><td data-label="Sudah Dibayar" className="ar-money-cell paid">{rupiah(row.paid)}</td><td data-label="Sisa" className="ar-money-cell ar-balance-cell"><b>{rupiah(row.balance)}</b></td><td data-label="Tindakan" className="ar-action-cell"><div className="ar-actions"><button onClick={() => openEmployeePayment(row)}><FiCreditCard/> Catat Pembayaran</button>{row.payments?.[0] && <button onClick={() => openPrintDocument(`/receivables/employee-payments/${row.payments[0].id}/voucher-print`).catch(err => setError(err.message))}><FiPrinter/> Bukti Kas</button>}</div></td></tr>)}</tbody></table></div>
       {!loading && !filteredEmployeeReceivables.length && <div className="ar-empty ar-employee-empty"><span><FiCreditCard/></span><h3>{employeeQuery ? "Karyawan tidak ditemukan" : "Belum ada piutang karyawan"}</h3><p>{employeeQuery ? "Coba gunakan nama atau email yang berbeda." : "Piutang akan muncul setelah pengeluaran berkategori Piutang Karyawan dibuat."}</p></div>}
     </section> :
     <section className="ar-panel">
-      <div className="ar-panel-heading"><div><span>DAFTAR INVOICE</span><h2>Tagihan & pembayaran</h2><p>{rows.length} invoice ditampilkan</p></div><div className="ar-panel-head-actions"><div className="ar-status-legend"><span><i className="draft"/>Draft</span><span><i className="sent"/>Terkirim</span><span><i className="paid"/>Lunas</span></div><div className="ar-report-controls"><input aria-label="Periode laporan piutang" type="month" value={reportMonth} onChange={event => setReportMonth(event.target.value)}/><button type="button" disabled={reportBusy} onClick={printReport}><FiPrinter/> {reportBusy ? "Menyiapkan…" : "Cetak Laporan"}</button></div></div></div>
+      <div className="ar-panel-heading"><div><span>DAFTAR INVOICE</span><h2>Tagihan & pembayaran</h2><p>{rows.length} invoice ditampilkan</p></div><div className="ar-panel-head-actions"><div className="ar-status-legend"><span><i className="draft"/>Draft</span><span><i className="sent"/>Terkirim</span><span><i className="paid"/>Lunas</span></div><div className="ar-report-controls"><input aria-label="Periode laporan piutang" type="month" value={reportMonth} onChange={event => setReportMonth(event.target.value)}/><button type="button" disabled={reportBusy} onClick={printMonthlyCashReceipts}><FiPrinter/> {reportBusy ? "Menyiapkan…" : "Penerimaan Kas"}</button><button type="button" disabled={reportBusy} onClick={printReport}><FiPrinter/> {reportBusy ? "Menyiapkan…" : "Cetak Laporan"}</button></div></div></div>
       <div className="ar-tools"><input className="ar-search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Cari nomor invoice, pesanan, atau pelanggan..."/><select className="ar-filter" value={filter} onChange={e => setFilter(e.target.value)}><option value="ALL">Semua Status</option><option value="DRAFT">Draft</option><option value="SENT">Terkirim</option><option value="PARTIALLY_PAID">Dibayar Sebagian</option><option value="PAID">Lunas</option><option value="OVERDUE">Jatuh Tempo</option><option value="VOID">Dibatalkan</option></select><button className="ar-refresh" onClick={load} aria-label="Muat ulang"><FiRefreshCw className={loading ? "ar-spin" : ""}/></button></div>
       <div className={`ar-table-wrap ${loading && !rows.length ? "initial-loading" : ""}`}>{loading && !rows.length && <LoadingState label="Memuat piutang" note="Menghitung invoice, pembayaran, dan sisa tagihan…" rows={5} />}<table className="ar-invoice-table"><colgroup><col className="invoice"/><col className="customer"/><col className="due"/><col className="money"/><col className="money"/><col className="money"/><col className="status"/><col className="actions"/></colgroup><thead><tr><th>Invoice</th><th>Pelanggan</th><th>Jatuh Tempo</th><th>Total</th><th>Dibayar</th><th>Sisa</th><th>Status</th><th>Tindakan</th></tr></thead><tbody>
         {rows.map(invoice => <tr key={invoice.id}>
@@ -241,7 +251,7 @@ export default function Receivables() {
           <td className="ar-money-cell paid" data-label="Dibayar">{rupiah(invoice.paid)}</td>
           <td className="ar-money-cell ar-balance-cell" data-label="Sisa"><b>{rupiah(invoice.balance)}</b></td>
           <td data-label="Status"><span className={`ar-status ${invoice.displayStatus}`}>{statusLabel[invoice.displayStatus]}</span></td>
-          <td className="ar-action-cell" data-label="Tindakan"><div className="ar-actions">{invoice.status === "DRAFT" && !invoice.sourceType?.startsWith("MANUAL_") && <button onClick={() => openInvoiceDetail(invoice)}><FiFileText/> Detail</button>}<button onClick={() => printInvoice(invoice)}><FiPrinter/> Cetak</button>{invoice.status === "DRAFT" && <button onClick={() => sendInvoice(invoice)} disabled={busy || invoice.total <= 0} title={invoice.total <= 0 ? "Lengkapi harga terlebih dahulu" : "Kirim invoice"}><FiSend/> Kirim</button>}{["SENT", "PARTIALLY_PAID"].includes(invoice.status) && <button onClick={() => openPayment(invoice)}><FiCreditCard/> Bayar</button>}{canVoid && !invoice.payments.length && !["PAID", "VOID"].includes(invoice.status) && <button className="void" onClick={() => voidInvoice(invoice)}>Batalkan</button>}</div></td>
+          <td className="ar-action-cell" data-label="Tindakan"><div className="ar-actions">{invoice.status === "DRAFT" && !invoice.sourceType?.startsWith("MANUAL_") && <button onClick={() => openInvoiceDetail(invoice)}><FiFileText/> Detail</button>}<button onClick={() => printInvoice(invoice)}><FiPrinter/> Cetak</button>{invoice.payments?.[0] && <button onClick={() => openPrintDocument(`/receivables/payments/${invoice.payments[0].id}/voucher-print`).catch(err => setError(err.message))}><FiPrinter/> Bukti Kas</button>}{invoice.status === "DRAFT" && <button onClick={() => sendInvoice(invoice)} disabled={busy || invoice.total <= 0} title={invoice.total <= 0 ? "Lengkapi harga terlebih dahulu" : "Kirim invoice"}><FiSend/> Kirim</button>}{["SENT", "PARTIALLY_PAID"].includes(invoice.status) && <button onClick={() => openPayment(invoice)}><FiCreditCard/> Bayar</button>}{canVoid && !invoice.payments.length && !["PAID", "VOID"].includes(invoice.status) && <button className="void" onClick={() => voidInvoice(invoice)}>Batalkan</button>}</div></td>
         </tr>)}
       </tbody></table></div>
       {!loading && !rows.length && <div className="ar-empty"><FiFileText/><h3>Belum ada invoice</h3><p>{data.eligibleSources?.length ? "Buat invoice dari order, Faktur Muatan, atau Trip Tunggal yang siap ditagih." : "Selesaikan perjalanan terlebih dahulu agar dapat ditagih."}</p></div>}

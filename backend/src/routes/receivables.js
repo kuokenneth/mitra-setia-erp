@@ -5,6 +5,7 @@ const { requireRole } = require("../middleware/requireRole");
 const { SYSTEM_ACCOUNTS, cashCode, postJournal } = require("../services/accounting");
 const { esc, num, money, date, documentHtml } = require("../utils/printDocument");
 const { nextDailyNumber } = require("../utils/documentNumber");
+const { cashVoucherHtml, cashVoucherBatchHtml } = require("../utils/cashVoucher");
 
 const router = express.Router();
 // Keep the running server aligned with the generated Prisma relations.
@@ -226,6 +227,54 @@ router.post("/employees/:employeeId/payments", async (req, res) => {
     });
     res.status(201).json({ ok: true, payment: result });
   } catch (error) { res.status(400).json({ error: error.message || "Gagal mencatat pembayaran piutang karyawan" }); }
+});
+
+router.get("/payments/:id/voucher-print", async (req, res) => {
+  const payment = await prisma.receivablePayment.findUnique({
+    where: { id: req.params.id },
+    include: { invoice: { select: { number: true, customerName: true } }, createdBy: { select: { name: true } } },
+  });
+  if (!payment) return res.status(404).send("Penerimaan kas tidak ditemukan");
+  const method = payment.method === "CASH" ? "Tunai" : payment.method === "BANK_TRANSFER" ? "Transfer bank" : "Lainnya";
+  res.type("html").send(cashVoucherHtml({ type: "IN", number: payment.number, date: payment.receivedAt, party: payment.invoice.customerName, amount: payment.amount, purpose: `Pembayaran invoice ${payment.invoice.number}`, method, notes: [payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [payment.invoice.customerName, payment.createdBy?.name, payment.createdBy?.name, ""] }));
+});
+
+router.get("/employee-payments/:id/voucher-print", async (req, res) => {
+  const payment = await prisma.employeeReceivablePayment.findUnique({
+    where: { id: req.params.id },
+    include: { employee: { select: { name: true, email: true } }, createdBy: { select: { name: true } } },
+  });
+  if (!payment) return res.status(404).send("Penerimaan kas tidak ditemukan");
+  const employeeName = payment.employee.name || payment.employee.email;
+  const method = payment.method === "CASH" ? "Tunai" : payment.method === "BANK_TRANSFER" ? "Transfer bank" : "Lainnya";
+  res.type("html").send(cashVoucherHtml({ type: "IN", number: payment.number, date: payment.receivedAt, party: employeeName, amount: payment.amount, purpose: "Pembayaran piutang karyawan", method, notes: [payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [employeeName, payment.createdBy?.name, payment.createdBy?.name, ""] }));
+});
+
+router.get("/cash-receipts/vouchers-print", async (req, res) => {
+  try {
+    const month = String(req.query.month || "").trim();
+    const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month);
+    if (!match) return res.status(400).send("Periode harus dalam format YYYY-MM");
+    const year = Number(match[1]);
+    const monthNumber = Number(match[2]);
+    const start = new Date(`${month}-01T00:00:00+07:00`);
+    const nextYear = monthNumber === 12 ? year + 1 : year;
+    const nextMonth = monthNumber === 12 ? 1 : monthNumber + 1;
+    const end = new Date(`${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00+07:00`);
+    const [customerPayments, employeePayments] = await Promise.all([
+      prisma.receivablePayment.findMany({ where: { receivedAt: { gte: start, lt: end } }, include: { invoice: { select: { number: true, customerName: true } }, createdBy: { select: { name: true } } } }),
+      prisma.employeeReceivablePayment.findMany({ where: { receivedAt: { gte: start, lt: end } }, include: { employee: { select: { name: true, email: true } }, createdBy: { select: { name: true } } } }),
+    ]);
+    const methodLabel = method => method === "CASH" ? "Tunai" : method === "BANK_TRANSFER" ? "Transfer bank" : "Lainnya";
+    const vouchers = [
+      ...customerPayments.map(payment => ({ type: "IN", number: payment.number, date: payment.receivedAt, party: payment.invoice.customerName, amount: payment.amount, purpose: `Pembayaran invoice ${payment.invoice.number}`, method: methodLabel(payment.method), notes: [payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [payment.invoice.customerName, payment.createdBy?.name, payment.createdBy?.name, ""] })),
+      ...employeePayments.map(payment => { const name = payment.employee.name || payment.employee.email; return { type: "IN", number: payment.number, date: payment.receivedAt, party: name, amount: payment.amount, purpose: "Pembayaran piutang karyawan", method: methodLabel(payment.method), notes: [payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [name, payment.createdBy?.name, payment.createdBy?.name, ""] }; }),
+    ].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const period = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", month: "long", year: "numeric" }).format(start);
+    res.type("html").send(cashVoucherBatchHtml(vouchers, `Bukti Penerimaan Kas ${period}`));
+  } catch (error) {
+    res.status(400).send(error.message || "Gagal membuat bukti penerimaan kas");
+  }
 });
 
 router.get("/report", async (req, res) => {

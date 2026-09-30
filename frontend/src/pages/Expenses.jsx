@@ -1,11 +1,11 @@
 // src/pages/Expenses.jsx - Corporate Minimalist Design
 import { useEffect, useMemo, useState } from "react";
-import { api, getAccessToken } from "../api";
+import { api, getAccessToken, openPrintDocument } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { ProtectedFilePreview } from "../components/ProtectedFile";
 import LoadingState from "../components/LoadingState";
-import { FiArrowLeft, FiArrowRight, FiCalendar, FiCheckCircle, FiClock, FiCreditCard, FiDownload, FiFileText, FiPlus, FiSearch, FiTruck, FiX } from "react-icons/fi";
+import { FiArrowLeft, FiArrowRight, FiCalendar, FiCheckCircle, FiClock, FiCreditCard, FiDownload, FiFileText, FiPlus, FiPrinter, FiSearch, FiTruck, FiX } from "react-icons/fi";
 import "./Expenses.css";
 
 // Corporate Green Color Palette (matching Landing/Dashboard)
@@ -799,6 +799,17 @@ export default function Expenses() {
                           {actionBusy[x.id] === "approve" ? "Menyetujui…" : "Setujui"}
                         </button>
                       )}
+                      <button
+                        type="button"
+                        style={s.linkBtn}
+                        className="expense-action-button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openPrintDocument(`/expenses/${x.id}/voucher-print`).catch((error) => setErr(error.message || "Gagal membuka bukti kas keluar"));
+                        }}
+                      >
+                        <FiPrinter /> Cetak Kas
+                      </button>
                       {x.status === "SUBMITTED" && <button
                         style={s.deleteBtn}
                         onClick={(e) => {

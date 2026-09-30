@@ -3,6 +3,7 @@ const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { SYSTEM_ACCOUNTS, cashCode, postJournal } = require("../services/accounting");
 const { esc, money, date: fmtDate, documentHtml } = require("../utils/printDocument");
+const { cashVoucherHtml } = require("../utils/cashVoucher");
 
 const router = express.Router();
 
@@ -235,6 +236,39 @@ router.get("/report", authRequired, async (req, res) => {
     meta: `Periode: 1–${new Date(year, mon, 0).getDate()} ${esc(monthLabel)}<br>Jumlah data: ${items.length}`,
     landscape: true,
     body: `<div class="summary"><div class="box">Total pengeluaran<b>${money(total)}</b><span>Seluruh transaksi periode ini</span></div><div class="box">Jumlah transaksi<b>${items.length}</b><span>Catatan pengeluaran</span></div><div class="box">Disetujui / dibayar<b>${approved}</b><span>Dari ${items.length} transaksi</span></div></div><table><thead><tr><th class="center">No</th><th>Tanggal</th><th>Kategori</th><th>Keterangan / Trip</th><th>Armada / Pengemudi</th><th>Metode</th><th>Dibuat oleh</th><th>Status</th><th class="right">Nominal</th></tr></thead><tbody>${rows || `<tr><td colspan="9" class="center">Belum ada pengeluaran pada periode ini.</td></tr>`}</tbody><tfoot><tr><td colspan="8" class="right"><b>TOTAL PENGELUARAN</b></td><td class="right"><b>${money(total)}</b></td></tr></tfoot></table><div class="signatures"><div>Dibuat oleh</div><div>Diperiksa oleh</div><div>Disetujui oleh</div></div>`,
+  }));
+});
+
+// Dot-matrix cash-out voucher, sized for 9.5 x 5.5 inch continuous forms.
+router.get("/:id/voucher-print", authRequired, async (req, res) => {
+  if (!ensureRole(req, res)) return;
+  const expense = await prisma.expense.findUnique({
+    where: { id: req.params.id },
+    include: {
+      employee: { select: { name: true, email: true } },
+      truck: { select: { plateNumber: true, driverUser: { select: { name: true } } } },
+      trip: { include: { truck: { select: { plateNumber: true } }, driverUser: { select: { name: true } }, order: { select: { orderNo: true } } } },
+      createdBy: { select: { name: true } },
+      proofUploadedBy: { select: { name: true } },
+      approvedBy: { select: { name: true } },
+    },
+  });
+  if (!expense) return res.status(404).send("Pengeluaran tidak ditemukan");
+  const dateKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(expense.expenseDate).replaceAll("-", "");
+  const party = expense.clientName || expense.accountName || expense.employee?.name || expense.trip?.driverUser?.name || expense.truck?.driverUser?.name || "-";
+  const allocation = expense.trip?.order?.orderNo || expense.trip?.truck?.plateNumber || expense.truck?.plateNumber;
+  const purpose = [expense.reason, allocation].filter(Boolean).join(" · ");
+  const method = expense.paymentMethod === "CASH" ? "Tunai" : expense.paymentMethod === "BANK_TRANSFER" ? `Transfer${expense.bankName ? ` - ${expense.bankName}` : ""}` : "Lainnya";
+  res.type("html").send(cashVoucherHtml({
+    type: "OUT",
+    number: `BKK-${dateKey}-${expense.id.slice(-6).toUpperCase()}`,
+    date: expense.expenseDate,
+    party,
+    amount: expense.amount,
+    purpose,
+    method,
+    notes: expense.notes,
+    signatures: [expense.proofUploadedBy?.name || expense.createdBy?.name, expense.approvedBy?.name, expense.createdBy?.name, party],
   }));
 });
 
