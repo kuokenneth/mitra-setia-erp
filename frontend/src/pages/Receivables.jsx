@@ -215,9 +215,15 @@ export default function Receivables() {
   const total = (selectedSource?.type === "SINGLE_TRIP_GROUP" ? singleTripSubtotal : billableSubtotal + materialSubtotal) + Number(invoiceForm.tax || 0) - Number(invoiceForm.discount || 0);
   const invoiceBlockReason = !invoiceForm.billingCustomerKey ? "Pilih customer tagihan terlebih dahulu" : !selectedSource ? "Pilih sumber tagihan customer ini" : selectedSource.type === "MATERIAL" && !invoiceForm.materialInvoiceIds.length ? "Pilih minimal satu Faktur Muatan" : selectedSource.type === "SINGLE_TRIP_GROUP" && !invoiceForm.singleTripIds.length ? "Pilih minimal satu Trip Tunggal" : "";
   const canSaveInvoice = !busy && !invoiceBlockReason;
-  const employeeReceivableStats = (data.employeeReceivables || []).reduce((totals, row) => ({ employees: totals.employees + 1, transactions: totals.transactions + (row.expenses?.length || 0), total: totals.total + Number(row.total || 0), paid: totals.paid + Number(row.paid || 0), balance: totals.balance + Number(row.balance || 0) }), { employees: 0, transactions: 0, total: 0, paid: 0, balance: 0 });
+  const safeEmployeeReceivables = (data.employeeReceivables || []).map((row, index) => ({
+    ...row,
+    employee: row?.employee || { id: `unknown-${index}`, name: "Data orang tidak tersedia", email: "", phone: "", kind: "UNKNOWN" },
+    expenses: Array.isArray(row?.expenses) ? row.expenses : [],
+    payments: Array.isArray(row?.payments) ? row.payments : [],
+  }));
+  const employeeReceivableStats = safeEmployeeReceivables.reduce((totals, row) => ({ employees: totals.employees + 1, transactions: totals.transactions + row.expenses.length, total: totals.total + Number(row.total || 0), paid: totals.paid + Number(row.paid || 0), balance: totals.balance + Number(row.balance || 0) }), { employees: 0, transactions: 0, total: 0, paid: 0, balance: 0 });
   const employeeQuery = query.trim().toLocaleLowerCase("id-ID");
-  const filteredEmployeeReceivables = (data.employeeReceivables || []).filter(row => !employeeQuery || [row.employee?.name, row.employee?.email, row.employee?.phone, row.expenses?.map(expense => expense.reason)].flat(Infinity).filter(Boolean).join(" ").toLocaleLowerCase("id-ID").includes(employeeQuery));
+  const filteredEmployeeReceivables = safeEmployeeReceivables.filter(row => !employeeQuery || [row.employee.name, row.employee.email, row.employee.phone, row.expenses.map(expense => expense?.reason)].flat(Infinity).filter(Boolean).join(" ").toLocaleLowerCase("id-ID").includes(employeeQuery));
   return <div className="ar-page">
     <header className="ar-head"><div className="ar-head-copy"><span className="ar-eyebrow">KEUANGAN · PIUTANG</span><h1>{employeeView ? "Piutang Karyawan" : "Piutang Pelanggan"}</h1><p>{employeeView ? "Daftar karyawan yang masih memiliki utang beserta saldo dan pembayarannya." : "Pantau invoice pelanggan, pembayaran, dan sisa tagihan."}</p></div><div className="ar-head-side">{!employeeView && <><span><small>Sumber siap ditagih</small><strong>{data.eligibleSources?.length || 0}</strong></span><button className="ar-primary ar-create-invoice ar-manual-button" onClick={openManualInvoice}><FiPlus/> Tagihan Tunggal</button><button className="ar-primary ar-create-invoice" onClick={openInvoice}><FiPlus/> Buat Draft Invoice</button></>}<button className="ar-primary ar-create-invoice ar-manual-button ar-employee-switch" onClick={() => setEmployeeView(value => !value)}><FiCreditCard/> {employeeView ? "Piutang Pelanggan" : "Piutang Karyawan"}</button></div></header>
     {!employeeView ? <>
