@@ -40,7 +40,7 @@ function serializeExpense(expense) {
 
 function cashOutVoucherData(expense) {
   const dateKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(expense.expenseDate).replaceAll("-", "");
-  const party = expense.clientName || expense.accountName || expense.employee?.name || expense.trip?.driverUser?.name || expense.truck?.driverUser?.name || "-";
+  const party = expense.clientName || expense.accountName || expense.employee?.name || expense.employeeParty?.name || expense.trip?.driverUser?.name || expense.truck?.driverUser?.name || "-";
   const allocation = expense.trip?.order?.orderNo || expense.trip?.truck?.plateNumber || expense.truck?.plateNumber;
   const purpose = [expense.reason, allocation].filter(Boolean).join(" · ");
   const method = expense.paymentMethod === "CASH" ? "Tunai" : expense.paymentMethod === "BANK_TRANSFER" ? `Transfer${expense.bankName ? ` - ${expense.bankName}` : ""}` : "Lainnya";
@@ -89,6 +89,7 @@ function expenseFilterWhere({ q, paymentMethod, status } = {}) {
         { accountName: { contains: q, mode: "insensitive" } },
         { accountNumber: { contains: q, mode: "insensitive" } },
         { employee: { name: { contains: q, mode: "insensitive" } } },
+        { employeeParty: { name: { contains: q, mode: "insensitive" } } },
       ] }] : []),
     ],
   };
@@ -122,6 +123,7 @@ router.get("/", authRequired, async (req, res) => {
           },
         },
         employee: { select: { id: true, name: true, email: true } },
+        employeeParty: { select: { id: true, name: true, phone: true } },
         financeDebt: { include: { truck: { select: { id: true, plateNumber: true, brand: true, model: true } } } },
         trip: {
           include: {
@@ -290,6 +292,7 @@ router.get("/vouchers-print", authRequired, async (req, res) => {
     orderBy: [{ expenseDate: "asc" }, { createdAt: "asc" }],
     include: {
       employee: { select: { name: true } },
+      employeeParty: { select: { name: true } },
       truck: { select: { plateNumber: true, driverUser: { select: { name: true } } } },
       trip: { include: { truck: { select: { plateNumber: true } }, driverUser: { select: { name: true } }, order: { select: { orderNo: true } } } },
       createdBy: { select: { name: true } },
@@ -308,6 +311,7 @@ router.get("/:id/voucher-print", authRequired, async (req, res) => {
     where: { id: req.params.id },
     include: {
       employee: { select: { name: true, email: true } },
+      employeeParty: { select: { name: true, phone: true } },
       truck: { select: { plateNumber: true, driverUser: { select: { name: true } } } },
       trip: { include: { truck: { select: { plateNumber: true } }, driverUser: { select: { name: true } }, order: { select: { orderNo: true } } } },
       createdBy: { select: { name: true } },
@@ -321,8 +325,11 @@ router.get("/:id/voucher-print", authRequired, async (req, res) => {
 
 router.get("/employees", authRequired, async (req, res) => {
   if (!ensureRole(req, res)) return;
-  const employees = await prisma.user.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, email: true, role: true } });
-  res.json({ employees });
+  const [employees, employeeParties] = await Promise.all([
+    prisma.user.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, email: true, role: true } }),
+    prisma.employeeReceivableParty.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, phone: true } }),
+  ]);
+  res.json({ employees, employeeParties });
 });
 
 router.get("/finance-debts", authRequired, async (req, res) => {
@@ -384,6 +391,9 @@ router.post("/", authRequired, async (req, res) => {
   const tripId = cleanStr(req.body.tripId);
   const truckId = cleanStr(req.body.truckId);
   const employeeId = cleanStr(req.body.employeeId);
+  const employeePartyId = cleanStr(req.body.employeePartyId);
+  const employeeName = cleanStr(req.body.employeeName);
+  const employeePhone = cleanStr(req.body.employeePhone);
   const financeDebtId = cleanStr(req.body.financeDebtId);
   const expenseDateInput = cleanStr(req.body.expenseDate);
   const expenseDate = parseExpenseDate(expenseDateInput);
@@ -416,10 +426,18 @@ router.post("/", authRequired, async (req, res) => {
     return res.status(400).json({ error: "Nama bank, nama pemilik rekening, dan nomor rekening wajib diisi untuk transfer bank" });
   }
   let employee = null;
+  let employeeParty = null;
   if (category === "EMPLOYEE_RECEIVABLE") {
-    if (!employeeId) return res.status(400).json({ error: "Pilih nama karyawan yang akan ditagih" });
-    employee = await prisma.user.findFirst({ where: { id: employeeId, isActive: true }, select: { id: true, name: true, email: true } });
-    if (!employee) return res.status(400).json({ error: "Karyawan tidak ditemukan atau sudah tidak aktif" });
+    if (![employeeId, employeePartyId, employeeName].filter(Boolean).length) return res.status(400).json({ error: "Pilih karyawan atau isi nama orang baru yang akan ditagih" });
+    if ([employeeId, employeePartyId, employeeName].filter(Boolean).length > 1) return res.status(400).json({ error: "Pilih satu penanggung piutang saja" });
+    if (employeeId) {
+      employee = await prisma.user.findFirst({ where: { id: employeeId, isActive: true }, select: { id: true, name: true, email: true } });
+      if (!employee) return res.status(400).json({ error: "Karyawan tidak ditemukan atau sudah tidak aktif" });
+    }
+    if (employeePartyId) {
+      employeeParty = await prisma.employeeReceivableParty.findFirst({ where: { id: employeePartyId, isActive: true }, select: { id: true, name: true, phone: true } });
+      if (!employeeParty) return res.status(400).json({ error: "Nama orang tidak ditemukan atau sudah tidak aktif" });
+    }
   }
   let financeDebt = null;
   if (category === "FINANCE_DEBT_PAYMENT") {
@@ -450,6 +468,9 @@ router.post("/", authRequired, async (req, res) => {
   }
 
   const created = await prisma.$transaction(async tx => {
+    const createdParty = category === "EMPLOYEE_RECEIVABLE" && employeeName
+      ? await tx.employeeReceivableParty.create({ data: { name: employeeName, phone: employeePhone || null, createdById: req.user?.id || null } })
+      : null;
     const expense = await tx.expense.create({ data: {
       status: "SUBMITTED",
       paymentMethod,
@@ -465,12 +486,14 @@ router.post("/", authRequired, async (req, res) => {
       expenseDate,
       tripId: tripId || null,
       truckId: truckId || null,
-      employeeId: category === "EMPLOYEE_RECEIVABLE" ? employee.id : null,
+      employeeId: category === "EMPLOYEE_RECEIVABLE" ? (employee?.id || null) : null,
+      employeePartyId: category === "EMPLOYEE_RECEIVABLE" ? (employeeParty?.id || createdParty?.id || null) : null,
       financeDebtId: category === "FINANCE_DEBT_PAYMENT" ? financeDebt.id : null,
       createdById: req.user?.id,
     }, include: {
       truck: { select: { id: true, plateNumber: true, brand: true, model: true } },
       employee: { select: { id: true, name: true, email: true } },
+      employeeParty: { select: { id: true, name: true, phone: true } },
       financeDebt: { include: { truck: { select: { id: true, plateNumber: true, brand: true, model: true } } } },
       trip: {
         include: {

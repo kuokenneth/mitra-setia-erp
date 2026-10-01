@@ -153,8 +153,8 @@ router.get("/overview", async (_req, res) => {
       }),
       prisma.materialInvoice.findMany({ where: { billedInvoiceId: null, destinationCompletedAt: { not: null } }, include: { lines: { include: { stockAllocations: { include: { receipt: { include: { customer: true, location: true } } } } } }, trip: { include: { truck: true } }, destinationLocation: true }, orderBy: { issuedAt: "asc" } }),
       prisma.trip.findMany({ where: { purpose: "SINGLE_TRIP", status: "COMPLETED", cargoCategorySnap: { in: ["FERTILIZER", "CANGKANG"] }, billingCustomerName: { not: null }, invoiceLines: { none: {} }, singleInvoice: null }, include: { truck: true, billingCustomer: true }, orderBy: { completedAt: "asc" } }),
-      prisma.expense.findMany({ where: { category: "EMPLOYEE_RECEIVABLE", employeeId: { not: null } }, include: { employee: { select: { id: true, name: true, email: true } } }, orderBy: { expenseDate: "desc" } }),
-      prisma.employeeReceivablePayment.findMany({ include: { employee: { select: { id: true, name: true, email: true } }, createdBy: { select: { name: true } } }, orderBy: { receivedAt: "desc" } }),
+      prisma.expense.findMany({ where: { category: "EMPLOYEE_RECEIVABLE", OR: [{ employeeId: { not: null } }, { employeePartyId: { not: null } }] }, include: { employee: { select: { id: true, name: true, email: true } }, employeeParty: { select: { id: true, name: true, phone: true } } }, orderBy: { expenseDate: "desc" } }),
+      prisma.employeeReceivablePayment.findMany({ include: { employee: { select: { id: true, name: true, email: true } }, employeeParty: { select: { id: true, name: true, phone: true } }, createdBy: { select: { name: true } } }, orderBy: { receivedAt: "desc" } }),
     ]);
     const rows = invoices.map(summarize);
     const stats = rows.reduce((acc, invoice) => {
@@ -187,11 +187,17 @@ router.get("/overview", async (_req, res) => {
     const singleSources = [...singleGroups.values()].map(group => ({ type: "SINGLE_TRIP_GROUP", id: group.key, customerId: group.customerId, label: `Trip Tunggal — ${group.customerName} · ${cargoLabel(group.cargoCategory)} (${group.trips.length} trip)`, customerName: group.customerName, customerPhone: group.customerPhone, billingAddress: group.billingAddress, cargoCategory: group.cargoCategory, singleTripIds: group.trips.map(trip => trip.id), totalWeightKg: group.totalWeightKg, trips: group.trips }));
     const employeeGroups = new Map();
     for (const expense of employeeExpenses) {
-      const group = employeeGroups.get(expense.employeeId) || { employee: expense.employee, total: 0, paid: 0, balance: 0, expenses: [], payments: [] };
-      group.total += Number(expense.amount || 0); group.expenses.push(expense); employeeGroups.set(expense.employeeId, group);
+      const employee = expense.employee
+        ? { ...expense.employee, kind: "USER" }
+        : expense.employeeParty ? { ...expense.employeeParty, email: null, kind: "PARTY" } : null;
+      if (!employee) continue;
+      const key = `${employee.kind}:${employee.id}`;
+      const group = employeeGroups.get(key) || { employee, total: 0, paid: 0, balance: 0, expenses: [], payments: [] };
+      group.total += Number(expense.amount || 0); group.expenses.push(expense); employeeGroups.set(key, group);
     }
     for (const payment of employeePayments) {
-      const group = employeeGroups.get(payment.employeeId);
+      const key = payment.employeeId ? `USER:${payment.employeeId}` : payment.employeePartyId ? `PARTY:${payment.employeePartyId}` : "";
+      const group = employeeGroups.get(key);
       if (!group) continue;
       group.paid += Number(payment.amount || 0); group.payments.push(payment);
     }
@@ -202,7 +208,7 @@ router.get("/overview", async (_req, res) => {
   }
 });
 
-router.post("/employees/:employeeId/payments", async (req, res) => {
+async function saveEmployeeReceivablePayment(req, res, kind, debtorId) {
   try {
     const paymentAmount = amount(req.body.amount, "Pembayaran");
     if (paymentAmount <= 0) throw new Error("Pembayaran harus lebih dari nol");
@@ -211,22 +217,35 @@ router.post("/employees/:employeeId/payments", async (req, res) => {
     const receivedAt = req.body.receivedAt ? new Date(req.body.receivedAt) : new Date();
     if (Number.isNaN(receivedAt.getTime())) throw new Error("Tanggal pembayaran tidak valid");
     const result = await prisma.$transaction(async tx => {
-      const employee = await tx.user.findUnique({ where: { id: req.params.employeeId }, select: { id: true, name: true, email: true } });
+      const employee = kind === "PARTY"
+        ? await tx.employeeReceivableParty.findFirst({ where: { id: debtorId, isActive: true }, select: { id: true, name: true, phone: true } })
+        : await tx.user.findUnique({ where: { id: debtorId }, select: { id: true, name: true, email: true } });
       if (!employee) throw new Error("Karyawan tidak ditemukan");
+      const debtWhere = kind === "PARTY" ? { employeePartyId: employee.id } : { employeeId: employee.id };
       const [debt, paid] = await Promise.all([
-        tx.expense.aggregate({ where: { employeeId: employee.id, category: "EMPLOYEE_RECEIVABLE" }, _sum: { amount: true } }),
-        tx.employeeReceivablePayment.aggregate({ where: { employeeId: employee.id }, _sum: { amount: true } }),
+        tx.expense.aggregate({ where: { ...debtWhere, category: "EMPLOYEE_RECEIVABLE" }, _sum: { amount: true } }),
+        tx.employeeReceivablePayment.aggregate({ where: debtWhere, _sum: { amount: true } }),
       ]);
       const balance = Number(debt._sum.amount || 0) - Number(paid._sum.amount || 0);
       if (balance <= 0) throw new Error("Karyawan ini tidak memiliki sisa piutang");
       if (paymentAmount > balance) throw new Error("Pembayaran melebihi sisa piutang karyawan");
       const number = await nextNumber(tx, "employeeReceivablePayment", "RCV-KRY");
-      const payment = await tx.employeeReceivablePayment.create({ data: { number, employeeId: employee.id, amount: paymentAmount, method, reference: req.body.reference?.trim() || null, notes: req.body.notes?.trim() || null, receivedAt, createdById: req.user.id } });
+      const payment = await tx.employeeReceivablePayment.create({ data: { number, employeeId: kind === "USER" ? employee.id : null, employeePartyId: kind === "PARTY" ? employee.id : null, amount: paymentAmount, method, reference: req.body.reference?.trim() || null, notes: req.body.notes?.trim() || null, receivedAt, createdById: req.user.id } });
       await postJournal(tx, { date: payment.receivedAt, description: `Pembayaran piutang karyawan ${employee.name || employee.email}`, sourceType: "EMPLOYEE_RECEIVABLE_PAYMENT", sourceId: payment.id, createdById: req.user.id, lines: [{ code: cashCode(payment.method), debit: payment.amount }, { code: SYSTEM_ACCOUNTS.AR, credit: payment.amount }] });
       return payment;
     });
     res.status(201).json({ ok: true, payment: result });
   } catch (error) { res.status(400).json({ error: error.message || "Gagal mencatat pembayaran piutang karyawan" }); }
+}
+
+router.post("/employee-debtors/:kind/:id/payments", async (req, res) => {
+  const kind = String(req.params.kind || "").toUpperCase();
+  if (!['USER', 'PARTY'].includes(kind)) return res.status(400).json({ error: "Jenis penanggung piutang tidak valid" });
+  return saveEmployeeReceivablePayment(req, res, kind, req.params.id);
+});
+
+router.post("/employees/:employeeId/payments", async (req, res) => {
+  return saveEmployeeReceivablePayment(req, res, "USER", req.params.employeeId);
 });
 
 router.get("/payments/:id/voucher-print", async (req, res) => {
@@ -242,10 +261,10 @@ router.get("/payments/:id/voucher-print", async (req, res) => {
 router.get("/employee-payments/:id/voucher-print", async (req, res) => {
   const payment = await prisma.employeeReceivablePayment.findUnique({
     where: { id: req.params.id },
-    include: { employee: { select: { name: true, email: true } }, createdBy: { select: { name: true } } },
+    include: { employee: { select: { name: true, email: true } }, employeeParty: { select: { name: true, phone: true } }, createdBy: { select: { name: true } } },
   });
   if (!payment) return res.status(404).send("Penerimaan kas tidak ditemukan");
-  const employeeName = payment.employee.name || payment.employee.email;
+  const employeeName = payment.employee?.name || payment.employee?.email || payment.employeeParty?.name || "-";
   const method = payment.method === "CASH" ? "Tunai" : payment.method === "BANK_TRANSFER" ? "Transfer bank" : "Lainnya";
   res.type("html").send(cashVoucherHtml({ type: "IN", number: payment.number, date: payment.receivedAt, party: employeeName, amount: payment.amount, purpose: "Pembayaran piutang karyawan", method, notes: [payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [employeeName, payment.createdBy?.name, payment.createdBy?.name, ""] }));
 });
@@ -263,12 +282,12 @@ router.get("/cash-receipts/vouchers-print", async (req, res) => {
     const end = new Date(`${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00+07:00`);
     const [customerPayments, employeePayments] = await Promise.all([
       prisma.receivablePayment.findMany({ where: { receivedAt: { gte: start, lt: end } }, include: { invoice: { select: { number: true, customerName: true } }, createdBy: { select: { name: true } } } }),
-      prisma.employeeReceivablePayment.findMany({ where: { receivedAt: { gte: start, lt: end } }, include: { employee: { select: { name: true, email: true } }, createdBy: { select: { name: true } } } }),
+      prisma.employeeReceivablePayment.findMany({ where: { receivedAt: { gte: start, lt: end } }, include: { employee: { select: { name: true, email: true } }, employeeParty: { select: { name: true, phone: true } }, createdBy: { select: { name: true } } } }),
     ]);
     const methodLabel = method => method === "CASH" ? "Tunai" : method === "BANK_TRANSFER" ? "Transfer bank" : "Lainnya";
     const vouchers = [
       ...customerPayments.map(payment => ({ type: "IN", number: payment.number, date: payment.receivedAt, party: payment.invoice.customerName, amount: payment.amount, purpose: `Pembayaran invoice ${payment.invoice.number}`, method: methodLabel(payment.method), notes: [payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [payment.invoice.customerName, payment.createdBy?.name, payment.createdBy?.name, ""] })),
-      ...employeePayments.map(payment => { const name = payment.employee.name || payment.employee.email; return { type: "IN", number: payment.number, date: payment.receivedAt, party: name, amount: payment.amount, purpose: "Pembayaran piutang karyawan", method: methodLabel(payment.method), notes: [payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [name, payment.createdBy?.name, payment.createdBy?.name, ""] }; }),
+      ...employeePayments.map(payment => { const name = payment.employee?.name || payment.employee?.email || payment.employeeParty?.name || "-"; return { type: "IN", number: payment.number, date: payment.receivedAt, party: name, amount: payment.amount, purpose: "Pembayaran piutang karyawan", method: methodLabel(payment.method), notes: [payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [name, payment.createdBy?.name, payment.createdBy?.name, ""] }; }),
     ].sort((a, b) => new Date(a.date) - new Date(b.date));
     const period = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", month: "long", year: "numeric" }).format(start);
     res.type("html").send(cashVoucherBatchHtml(vouchers, `Bukti Penerimaan Kas ${period}`));

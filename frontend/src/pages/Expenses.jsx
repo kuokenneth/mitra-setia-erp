@@ -89,6 +89,7 @@ export default function Expenses() {
   const [trips, setTrips] = useState([]);
   const [expenseTrucks, setExpenseTrucks] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [employeeParties, setEmployeeParties] = useState([]);
   const [financeDebts, setFinanceDebts] = useState([]);
   const [financeDebtOpen, setFinanceDebtOpen] = useState(false);
   const [financeDebtSaving, setFinanceDebtSaving] = useState(false);
@@ -140,6 +141,10 @@ export default function Expenses() {
     clientName: "",
     notes: "",
     employeeId: "",
+    employeePartyId: "",
+    employeeIsNew: false,
+    employeeName: "",
+    employeePhone: "",
     financeDebtId: "",
   });
 
@@ -209,6 +214,10 @@ export default function Expenses() {
       clientName: "",
       notes: "",
       employeeId: "",
+      employeePartyId: "",
+      employeeIsNew: false,
+      employeeName: "",
+      employeePhone: "",
       financeDebtId: "",
     });
   }
@@ -284,6 +293,7 @@ export default function Expenses() {
     try {
       const data = await api("/expenses/employees");
       setEmployees(data.employees || []);
+      setEmployeeParties(data.employeeParties || []);
     } catch (e) {
       setErr(e.message || "Gagal memuat daftar karyawan");
     }
@@ -408,6 +418,9 @@ export default function Expenses() {
           clientName: form.clientName,
           notes: form.notes,
           employeeId: form.category === "EMPLOYEE_RECEIVABLE" ? form.employeeId : undefined,
+          employeePartyId: form.category === "EMPLOYEE_RECEIVABLE" ? form.employeePartyId : undefined,
+          employeeName: form.category === "EMPLOYEE_RECEIVABLE" && form.employeeIsNew ? form.employeeName : undefined,
+          employeePhone: form.category === "EMPLOYEE_RECEIVABLE" && form.employeeIsNew ? form.employeePhone : undefined,
           financeDebtId: form.category === "FINANCE_DEBT_PAYMENT" ? form.financeDebtId : undefined,
         }),
       });
@@ -721,7 +734,7 @@ export default function Expenses() {
               {items.map((x) => (
                 <tr key={x.id} style={s.rowClickable} onClick={() => openDetail(x)}>
                   <td style={s.td}><div className="expense-date"><FiCalendar />{(x.expenseDate || x.createdAt) ? new Date(x.expenseDate || x.createdAt).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short", year: "numeric" }) : "-"}</div></td>
-                  <td style={s.td}><div className="expense-row-title">{x.reason || "Tanpa keterangan"}</div><div className="expense-row-meta">{EXPENSE_CATEGORIES[x.category] || "Lainnya"}{x.employee?.name ? ` · ${x.employee.name}` : x.financeDebt ? ` · ${x.financeDebt.leasingName}` : x.clientName ? ` · ${x.clientName}` : ""}</div></td>
+                  <td style={s.td}><div className="expense-row-title">{x.reason || "Tanpa keterangan"}</div><div className="expense-row-meta">{EXPENSE_CATEGORIES[x.category] || "Lainnya"}{x.employee?.name ? ` · ${x.employee.name}` : x.employeeParty?.name ? ` · ${x.employeeParty.name}` : x.financeDebt ? ` · ${x.financeDebt.leasingName}` : x.clientName ? ` · ${x.clientName}` : ""}</div></td>
                   <td style={s.td}><div className="expense-allocation"><span><FiTruck /></span><div><strong>{x.trip?.truck?.plateNumber || x.truck?.plateNumber || "Umum"}</strong><small>{x.trip?.driverUser?.name || x.trip?.driverNameSnap || x.truck?.driverUser?.name || (x.trip ? "Tanpa nama pengemudi" : x.truck ? "Tanpa nama pengemudi" : "Operasional umum")}</small>{x.trip ? <small>{x.trip.order?.orderNo || "Perjalanan"}</small> : x.truck ? <small>Biaya armada</small> : null}</div></div></td>
                   <td style={s.td}><div className="expense-row-title">{x.paymentMethod === "BANK_TRANSFER" ? "Transfer bank" : x.paymentMethod === "CASH" ? "Tunai" : "Lainnya"}</div><div className="expense-row-meta">{x.bankName || "—"}</div>{x.paymentMethod === "BANK_TRANSFER" ? <div className="expense-row-meta">a.n. {x.accountName || "Nama rekening belum diisi"}</div> : null}</td>
                   <td style={s.tdStrong}>{new Intl.NumberFormat("id-ID", { style: "currency", currency: x.currency || "IDR", maximumFractionDigits: 0 }).format(x.amount || 0)}</td>
@@ -1073,13 +1086,22 @@ export default function Expenses() {
                     {EXPENSE_CATEGORY_GROUPS.map((group) => <optgroup key={group.label} label={group.label}>{group.values.map((value) => <option key={value} value={value}>{EXPENSE_CATEGORIES[value]}</option>)}</optgroup>)}
                   </select>
                 </div>
-                {form.category === "EMPLOYEE_RECEIVABLE" && <div>
-                  <label style={s.label}>Nama Karyawan</label>
-                  <select required style={s.select} value={form.employeeId} onChange={(e) => onChangeForm("employeeId", e.target.value)}>
-                    <option value="">Pilih karyawan yang akan ditagih</option>
-                    {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name || employee.email} · {employee.role}</option>)}
+                {form.category === "EMPLOYEE_RECEIVABLE" && <div style={{ display: "grid", gap: 8 }}>
+                  <label style={s.label}>Nama Karyawan / Orang</label>
+                  <select required style={s.select} value={form.employeeIsNew ? "NEW" : form.employeePartyId ? `PARTY:${form.employeePartyId}` : form.employeeId ? `USER:${form.employeeId}` : ""} onChange={(e) => {
+                    const value = e.target.value;
+                    setForm(current => ({ ...current, employeeId: value.startsWith("USER:") ? value.slice(5) : "", employeePartyId: value.startsWith("PARTY:") ? value.slice(6) : "", employeeIsNew: value === "NEW", employeeName: "", employeePhone: "" }));
+                  }}>
+                    <option value="">Pilih orang yang akan ditagih</option>
+                    <optgroup label="Pengguna ERP">{employees.map((employee) => <option key={employee.id} value={`USER:${employee.id}`}>{employee.name || employee.email} · {employee.role}</option>)}</optgroup>
+                    {!!employeeParties.length && <optgroup label="Kontak tanpa akun">{employeeParties.map((person) => <option key={person.id} value={`PARTY:${person.id}`}>{person.name}{person.phone ? ` · ${person.phone}` : ""}</option>)}</optgroup>}
+                    <option value="NEW">+ Tambah orang baru tanpa akun</option>
                   </select>
-                  <small style={{ color: BRAND.textMuted }}>Saldo akan muncul di menu Piutang Karyawan dan dapat dibayar sekaligus atau dicicil.</small>
+                  {form.employeeIsNew && <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }}>
+                    <input required autoFocus style={s.input} value={form.employeeName} onChange={(e) => setForm(current => ({ ...current, employeeName: e.target.value }))} placeholder="Nama lengkap" />
+                    <input style={s.input} value={form.employeePhone} onChange={(e) => setForm(current => ({ ...current, employeePhone: e.target.value }))} placeholder="Nomor HP (opsional)" />
+                  </div>}
+                  <small style={{ color: BRAND.textMuted }}>Orang baru hanya dibuat sebagai kontak piutang dan tidak memiliki akses login.</small>
                 </div>}
                 {form.category === "FINANCE_DEBT_PAYMENT" && <div>
                   <label style={s.label}>Kontrak Leasing</label>
