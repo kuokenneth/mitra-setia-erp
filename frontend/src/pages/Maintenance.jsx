@@ -13,6 +13,11 @@ import "./Maintenance.css";
 const OIL_CHANGE_INTERVAL_KM = 8500;
 const EMPTY_PURCHASE_REQUEST = { itemId: "", qty: 1, urgency: "URGENT", reason: "", notes: "", newItem: false, sku: "", name: "", unit: "PCS", isSerialized: false };
 const newPurchaseRequestLine = () => ({ key: `${Date.now()}-${Math.random()}`, itemId: "", qty: 1 });
+const retreadTarget = (sourceItem, items) => {
+  const sku = String(sourceItem?.sku || "").trim().toUpperCase();
+  const expectedSku = sku.startsWith("BAN_") && !sku.startsWith("BAN_MASAK_") ? `BAN_MASAK_${sku.slice(4)}` : "";
+  return items.find((item) => String(item.sku || "").trim().toUpperCase() === expectedSku);
+};
 
 //////////////////////
 // THEME - CORPORATE MINIMALIST
@@ -953,9 +958,9 @@ export default function Maintenance() {
       const data = await api("/inventory/retread-options");
       const options = { items: data.items || [], suppliers: data.suppliers || [], locations: data.locations || [] };
       setRetreadOptions(options);
-      const oldItemId = selectedReturnAssignment?.stockUnit?.itemId;
+      const oldItem = selectedReturnAssignment?.stockUnit?.item;
       setRetreadForm({
-        toItemId: value === "RETREADING" ? options.items.find((item) => item.id !== oldItemId && /masak|retread/i.test(`${item.sku || ""} ${item.name || ""}`))?.id || "" : "",
+        toItemId: value === "RETREADING" ? retreadTarget(oldItem, options.items)?.id || "" : "",
         locationId: value === "SECOND" ? options.locations[0]?.id || "" : "",
         supplierId: "",
         cost: "",

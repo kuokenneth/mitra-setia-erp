@@ -30,6 +30,12 @@ function localDateTimeValue(date = new Date()) {
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 }
 
+function retreadTarget(sourceItem, items) {
+  const sku = String(sourceItem?.sku || "").trim().toUpperCase();
+  const expectedSku = sku.startsWith("BAN_") && !sku.startsWith("BAN_MASAK_") ? `BAN_MASAK_${sku.slice(4)}` : "";
+  return items.find((item) => String(item.sku || "").trim().toUpperCase() === expectedSku);
+}
+
 //////////////////////
 // STYLES
 //////////////////////
@@ -695,7 +701,7 @@ export default function Inventory() {
       setRetreadForm({
         unitId: unit.id,
         serialNumber: unit.serialNumber || "",
-        toItemId: options.items.find((item) => item.id !== unit.itemId && /masak|retread/i.test(item.name || ""))?.id || "",
+        toItemId: retreadTarget(unit.item, options.items)?.id || "",
         supplierId: "",
         cost: "",
         sentAt: "",

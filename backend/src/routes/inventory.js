@@ -5,6 +5,7 @@ const { authRequired } = require("../middleware/authRequired");
 const { requireRole } = require("../middleware/requireRole");
 const { esc, num: fmtNum, date: fmtDate, documentHtml } = require("../utils/printDocument");
 const { SYSTEM_ACCOUNTS, postJournal } = require("../services/accounting");
+const { assertRetreadTarget } = require("../utils/tireRetread");
 
 const router = express.Router();
 
@@ -1055,6 +1056,7 @@ router.post(
 
         const targetItem = await tx.item.findUnique({ where: { id: toItemId } });
         if (!targetItem?.isSerialized || targetItem.category !== "TIRE") throw new Error("Item tujuan harus merupakan item Ban berserial");
+        assertRetreadTarget(unit.item, targetItem);
         if (supplierId) {
           const supplier = await tx.supplier.findUnique({ where: { id: supplierId } });
           if (!supplier) throw new Error("Vendor tidak ditemukan");

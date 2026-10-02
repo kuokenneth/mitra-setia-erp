@@ -4,6 +4,7 @@ const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { nextDailyNumber } = require("../utils/documentNumber");
 const { SYSTEM_ACCOUNTS, postJournal } = require("../services/accounting");
+const { assertRetreadTarget } = require("../utils/tireRetread");
 
 const router = express.Router();
 const OIL_CHANGE_INTERVAL_KM = 8500;
@@ -960,7 +961,7 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
           // use select (lighter than include)
           const oldUnit = await tx.stockUnit.findUnique({
             where: { id: oldUnitId },
-            select: { id: true, itemId: true, serialNumber: true, barcode: true, inventoryBatchId: true, purchasePrice: true, item: { select: { category: true, isSerialized: true } } },
+            select: { id: true, itemId: true, serialNumber: true, barcode: true, inventoryBatchId: true, purchasePrice: true, item: { select: { sku: true, name: true, category: true, isSerialized: true } } },
           });
           if (!oldUnit) throw new Error("Replace unit not found");
 
@@ -996,8 +997,9 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
             if (!toItemId) throw new Error("Pilih item tujuan Ban Masak");
             if (toItemId === oldUnit.itemId) throw new Error("Item Ban Masak harus berbeda dari item ban asal");
             if (Number.isNaN(sentAt.getTime())) throw new Error("Tanggal kirim masak tidak valid");
-            const targetItem = await tx.item.findUnique({ where: { id: toItemId }, select: { category: true, isSerialized: true } });
+            const targetItem = await tx.item.findUnique({ where: { id: toItemId }, select: { sku: true, name: true, category: true, isSerialized: true } });
             if (!targetItem?.isSerialized || targetItem.category !== "TIRE") throw new Error("Item tujuan harus merupakan Ban berserial");
+            assertRetreadTarget(oldUnit.item, targetItem);
             if (supplierId && !(await tx.supplier.findUnique({ where: { id: supplierId }, select: { id: true } }))) throw new Error("Vendor masak ban tidak ditemukan");
             const openRetread = await tx.tireRetread.findFirst({ where: { stockUnitId: oldUnitId, status: "SENT" }, select: { id: true } });
             if (openRetread) throw new Error("Ban ini masih dalam proses masak");

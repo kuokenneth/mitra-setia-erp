@@ -381,7 +381,17 @@ async function evaluateArrival(truck, event) {
     const arrived = await prisma.$transaction(async (tx) => {
       const updated = await tx.tripOrderAllocation.updateMany({ where: { id: activeOrderStop.id, destinationArrivedAt: null }, data: { destinationArrivedAt: observedAt } });
       if (updated.count) {
-        await tx.trip.update({ where: { id: trip.id }, data: { gpsArrivalCandidateAt: null } });
+        const [remainingOrders, remainingMaterials] = await Promise.all([
+          tx.tripOrderAllocation.count({ where: { tripId: trip.id, id: { not: activeOrderStop.id }, destinationCompletedAt: null } }),
+          tx.materialInvoice.count({ where: { tripId: trip.id, destinationLocationId: { not: null }, destinationCompletedAt: null } }),
+        ]);
+        const finalDestination = remainingOrders === 0 && remainingMaterials === 0;
+        await tx.trip.update({
+          where: { id: trip.id },
+          data: finalDestination
+            ? { status: "ARRIVED", phase: "AT_DESTINATION", arrivedAt: observedAt, gpsArrivalCandidateAt: null }
+            : { gpsArrivalCandidateAt: null },
+        });
         await tx.truck.update({ where: { id: truck.id }, data: { currentLocation: orderDestination?.name || activeOrderStop.order?.toText || truck.currentLocation, locationUpdatedAt: observedAt } });
       }
       return Boolean(updated.count);
@@ -393,7 +403,17 @@ async function evaluateArrival(truck, event) {
     const arrived = await prisma.$transaction(async (tx) => {
       const updated = await tx.materialInvoice.updateMany({ where: { id: activeMaterialStop.id, destinationArrivedAt: null }, data: { destinationArrivedAt: observedAt } });
       if (updated.count) {
-        await tx.trip.update({ where: { id: trip.id }, data: { gpsArrivalCandidateAt: null } });
+        const [remainingOrders, remainingMaterials] = await Promise.all([
+          tx.tripOrderAllocation.count({ where: { tripId: trip.id, destinationCompletedAt: null } }),
+          tx.materialInvoice.count({ where: { tripId: trip.id, id: { not: activeMaterialStop.id }, destinationLocationId: { not: null }, destinationCompletedAt: null } }),
+        ]);
+        const finalDestination = remainingOrders === 0 && remainingMaterials === 0;
+        await tx.trip.update({
+          where: { id: trip.id },
+          data: finalDestination
+            ? { status: "ARRIVED", phase: "AT_DESTINATION", arrivedAt: observedAt, gpsArrivalCandidateAt: null }
+            : { gpsArrivalCandidateAt: null },
+        });
         await tx.truck.update({ where: { id: truck.id }, data: { currentLocation: activeMaterialStop.destinationLocation?.name || truck.currentLocation, locationUpdatedAt: observedAt } });
       }
       return Boolean(updated.count);
