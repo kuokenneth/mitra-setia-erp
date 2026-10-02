@@ -102,6 +102,8 @@ router.get("/", authRequired, async (req, res) => {
           { cargoName: { contains: q, mode: "insensitive" } },
           { fromText: { contains: q, mode: "insensitive" } },
           { toText: { contains: q, mode: "insensitive" } },
+          { pickupLocation: { is: { name: { contains: q, mode: "insensitive" } } } },
+          { destinationLocation: { is: { name: { contains: q, mode: "insensitive" } } } },
           { description: { contains: q, mode: "insensitive" } },
           { customer: { is: { name: { contains: q, mode: "insensitive" } } } },
         ],
@@ -168,6 +170,8 @@ router.get("/", authRequired, async (req, res) => {
 
       return {
         ...rest,
+        fromText: o.pickupLocation?.name || o.fromText,
+        toText: o.destinationLocation?.name || o.toText,
         _count: { ...rest._count, trips: new Set((tripAllocations || []).map((allocation) => allocation.trip.id)).size || rest._count.trips },
         qtyTripped: tripped,
         qtyRemaining: remaining,

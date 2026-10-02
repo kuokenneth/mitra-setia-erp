@@ -630,7 +630,7 @@ export default function OrderDetail() {
 
   const customerName = order.customer?.name || order.customerName || "-";
   const cargo = `${order.cargoName || "-"}${hasPlannedQty ? ` • ${order.qty} ${order.unit || ""}` : ""}`;
-  const route = `${order.fromText || "-"} → ${order.toText || "-"}`;
+  const route = `${order.pickupLocation?.name || order.fromText || "-"} → ${order.destinationLocation?.name || order.toText || "-"}`;
   const completedQty = trips
     .filter((t) => String(t.status || "").toUpperCase() === "COMPLETED")
     .reduce((sum, t) => sum + Number(t.qtyActual ?? t.qtyPlanned ?? 0), 0);

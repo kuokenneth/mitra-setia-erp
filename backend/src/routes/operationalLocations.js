@@ -39,7 +39,15 @@ router.post("/", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   try {
-    const item = await prisma.operationalLocation.update({ where: { id: req.params.id }, data: payload(req.body) });
+    const data = payload(req.body);
+    const item = await prisma.$transaction(async (tx) => {
+      const updated = await tx.operationalLocation.update({ where: { id: req.params.id }, data });
+      await Promise.all([
+        tx.order.updateMany({ where: { pickupLocationId: updated.id }, data: { fromText: updated.name } }),
+        tx.order.updateMany({ where: { destinationLocationId: updated.id }, data: { toText: updated.name } }),
+      ]);
+      return updated;
+    });
     res.json(item);
   } catch (error) {
     res.status(error.code === "P2025" ? 404 : error.code === "P2002" ? 409 : 400).json({ error: error.code === "P2025" ? "Lokasi tidak ditemukan" : error.code === "P2002" ? "Nama lokasi sudah digunakan" : error.message });
