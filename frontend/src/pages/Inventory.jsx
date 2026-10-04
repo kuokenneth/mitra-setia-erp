@@ -1,5 +1,6 @@
 // src/pages/Inventory.jsx - Corporate Minimalist Design
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api, openPrintDocument, uploadFiles } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
@@ -168,6 +169,8 @@ function TruckSearchSelect({ trucks, value, onChange, placeholder = "Cari nomor 
 function ItemSearchSelect({ items, value, onChange }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [menuStyle, setMenuStyle] = useState(null);
+  const controlRef = useRef(null);
   const selected = useMemo(() => (items || []).find((item) => item.id === value) || null, [items, value]);
 
   useEffect(() => {
@@ -184,25 +187,64 @@ function ItemSearchSelect({ items, value, onChange }) {
     return list.filter((item) => `${item.sku || ""} ${item.name || ""} ${item.unit || ""}`.toLowerCase().includes(keyword)).slice(0, 50);
   }, [items, query, selected]);
 
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const positionMenu = () => {
+      const rect = controlRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const gap = 4;
+      const viewportPadding = 12;
+      const roomBelow = window.innerHeight - rect.bottom - viewportPadding;
+      const roomAbove = rect.top - viewportPadding;
+      const openAbove = roomBelow < 220 && roomAbove > roomBelow;
+      const available = Math.max(120, Math.min(300, (openAbove ? roomAbove : roomBelow) - gap));
+      setMenuStyle({
+        position: "fixed",
+        left: rect.left,
+        top: openAbove ? undefined : rect.bottom + gap,
+        bottom: openAbove ? window.innerHeight - rect.top + gap : undefined,
+        width: rect.width,
+        maxHeight: available,
+        overflowY: "auto",
+        background: BRAND.white,
+        border: `1px solid ${BRAND.border}`,
+        boxShadow: "0 14px 34px rgba(12, 42, 25, 0.18)",
+        borderRadius: 8,
+        zIndex: 1200,
+      });
+    };
+
+    const animationFrame = window.requestAnimationFrame(positionMenu);
+    window.addEventListener("resize", positionMenu);
+    window.addEventListener("scroll", positionMenu, true);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("resize", positionMenu);
+      window.removeEventListener("scroll", positionMenu, true);
+    };
+  }, [open]);
+
   return (
-    <div style={{ position: "relative", minWidth: 280, flex: "1 1 280px" }}>
+    <div ref={controlRef} style={{ position: "relative", minWidth: 280, flex: "1 1 280px" }}>
       <input
         style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
         value={query}
         placeholder="Cari SKU atau nama item..."
-        onChange={(e) => { setQuery(e.target.value); setOpen(true); if (value) onChange(""); }}
-        onFocus={(e) => { setOpen(true); e.target.select(); }}
+        onChange={(e) => { setQuery(e.target.value); if (!open) setMenuStyle(null); setOpen(true); if (value) onChange(""); }}
+        onFocus={(e) => { if (!open) setMenuStyle(null); setOpen(true); e.target.select(); }}
         onBlur={() => setTimeout(() => setOpen(false), 140)}
       />
-      {open && (
-        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, maxHeight: 300, overflowY: "auto", background: BRAND.white, border: `1px solid ${BRAND.border}`, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", borderRadius: 8, zIndex: 50 }}>
+      {open && menuStyle && createPortal(
+        <div style={menuStyle}>
           <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { onChange(""); setQuery(""); setOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "10px 12px", border: "none", borderBottom: `1px solid ${BRAND.border}`, background: BRAND.white, color: BRAND.textMuted, cursor: "pointer" }}>Semua item</button>
           {filtered.length ? filtered.map((item) => (
             <button key={item.id} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { onChange(item.id); setQuery(`${item.sku || ""} — ${item.name || ""}`); setOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "10px 12px", border: "none", borderBottom: `1px solid ${BRAND.border}`, background: item.id === value ? BRAND.secondary : BRAND.white, cursor: "pointer" }}>
               <strong>{item.sku || "-"}</strong> — {item.name || "-"} <span style={{ color: BRAND.textMuted }}>({item.unit || "PCS"})</span>
             </button>
           )) : <div style={{ padding: 12, color: BRAND.textMuted }}>Item tidak ditemukan.</div>}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
@@ -974,15 +1016,19 @@ export default function Inventory() {
         if (unitsPayload.some((unit) => !unit.serialNumber)) throw new Error("Nomor seri tidak boleh kosong.");
         const normalizedSerials = unitsPayload.map((unit) => unit.serialNumber.toLocaleLowerCase("id-ID"));
         if (new Set(normalizedSerials).size !== normalizedSerials.length) throw new Error("Nomor seri tidak boleh duplikat.");
-        if (unitsPayload.some((unit) => unit.purchasePrice != null && (!Number.isFinite(unit.purchasePrice) || unit.purchasePrice <= 0))) throw new Error("Harga unit harus berupa angka lebih dari nol.");
+        if (unitsPayload.some((unit) => unit.purchasePrice != null && (!Number.isFinite(unit.purchasePrice) || unit.purchasePrice < 0))) throw new Error("Harga unit harus berupa angka nol atau lebih.");
 
         const hasAnyUnitPrice = unitsPayload.some(
-          (u) => u.purchasePrice != null && Number(u.purchasePrice) > 0
+          (u) => u.purchasePrice != null
         );
 
         const totalRaw = receiveForm.totalPurchasePrice;
         const hasTotalPrice =
-          totalRaw != null && String(totalRaw).trim() !== "" && Number(totalRaw) > 0;
+          totalRaw != null && String(totalRaw).trim() !== "";
+
+        if (hasTotalPrice && (!Number.isFinite(Number(totalRaw)) || Number(totalRaw) < 0)) {
+          throw new Error("Total harga pembelian harus berupa angka nol atau lebih.");
+        }
 
         if (!hasAnyUnitPrice && !hasTotalPrice) {
           throw new Error("Provide per-unit price OR Total Purchase Price.");
@@ -991,7 +1037,7 @@ export default function Inventory() {
         if (hasAnyUnitPrice && hasTotalPrice) {
           throw new Error("Use either per-unit price OR Total Purchase Price, not both.");
         }
-        if (hasAnyUnitPrice && unitsPayload.some((unit) => !(unit.purchasePrice > 0))) throw new Error("Isi harga pada seluruh unit, atau kosongkan semuanya dan gunakan Total Harga Pembelian.");
+        if (hasAnyUnitPrice && unitsPayload.some((unit) => unit.purchasePrice == null)) throw new Error("Isi harga pada seluruh unit, atau kosongkan semuanya dan gunakan Total Harga Pembelian.");
 
         payload.units = unitsPayload.map((u) => ({
           serialNumber: u.serialNumber,
@@ -1004,7 +1050,7 @@ export default function Inventory() {
         payload.qty = Number(receiveForm.qty || 0);
         const unitPrice = Number(receiveForm.unitPurchasePrice || 0);
         if (!Number.isFinite(payload.qty) || payload.qty <= 0) throw new Error("Jumlah harus lebih dari nol.");
-        if (!Number.isFinite(unitPrice) || unitPrice <= 0) throw new Error("Harga per unit harus lebih dari nol.");
+        if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new Error("Harga per unit harus nol atau lebih.");
         payload.totalPurchasePrice = Math.round(payload.qty * unitPrice);
       }
 
@@ -1704,8 +1750,9 @@ export default function Inventory() {
                   <input
                     style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
                     type="number"
+                    min="0"
                     value={receiveForm.totalPurchasePrice || ""}
-                    disabled={Boolean(item.isSerialized && receiveUnitRows.some((row) => Number(row.purchasePrice) > 0))}
+                    disabled={Boolean(item.isSerialized && receiveUnitRows.some((row) => String(row.purchasePrice).trim() !== ""))}
                     onChange={(e) => setReceiveForm((p) => ({ ...p, totalPurchasePrice: e.target.value }))}
                     placeholder="e.g. 20000000"
                   />
@@ -1723,7 +1770,7 @@ export default function Inventory() {
               <div className="inventory-serial-help">Masukkan jumlah dan harga satuan. Sistem menghitung total pembelian secara otomatis.</div>
               <div className="inventory-nonserial-table">
                 <div className="inventory-nonserial-head"><span>No.</span><span>Jumlah</span><span>Harga/unit (Rp)</span><span>Total (Rp)</span></div>
-                <div className="inventory-nonserial-row"><b>1</b><label><input type="number" min="0.01" step="0.01" value={receiveForm.qty} onChange={(e) => setReceiveForm((form) => ({ ...form, qty: e.target.value }))}/><small>{selectedReceiveItem.unit || "unit"}</small></label><input type="number" min="1" value={receiveForm.unitPurchasePrice} onChange={(e) => setReceiveForm((form) => ({ ...form, unitPurchasePrice: e.target.value }))} placeholder="Contoh: 200000"/><strong>{Number(receiveForm.qty) > 0 && Number(receiveForm.unitPurchasePrice) > 0 ? new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(receiveForm.qty) * Number(receiveForm.unitPurchasePrice)) : "—"}</strong></div>
+                <div className="inventory-nonserial-row"><b>1</b><label><input type="number" min="0.01" step="0.01" value={receiveForm.qty} onChange={(e) => setReceiveForm((form) => ({ ...form, qty: e.target.value }))}/><small>{selectedReceiveItem.unit || "unit"}</small></label><input type="number" min="0" value={receiveForm.unitPurchasePrice} onChange={(e) => setReceiveForm((form) => ({ ...form, unitPurchasePrice: e.target.value }))} placeholder="Contoh: 200000"/><strong>{Number(receiveForm.qty) > 0 && String(receiveForm.unitPurchasePrice).trim() !== "" ? new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(receiveForm.qty) * Number(receiveForm.unitPurchasePrice)) : "—"}</strong></div>
               </div>
             </div> : null}
 
@@ -1735,7 +1782,7 @@ export default function Inventory() {
                 Daftar unit berseri (wajib)
               </div>
               <div className="inventory-serial-help">Masukkan satu unit pada setiap baris. Nomor seri diperiksa agar tidak kosong atau duplikat.</div>
-              <div className="inventory-serial-table"><div className="inventory-serial-head"><span>No.</span><span>Nomor seri</span><span>Harga/unit (Rp)</span><span/></div>{receiveUnitRows.map((row, index) => <div className="inventory-serial-row" key={index}><b>{index + 1}</b><input value={row.serialNumber} onChange={(e) => setReceiveUnitRows((rows) => rows.map((current, rowIndex) => rowIndex === index ? { ...current, serialNumber: e.target.value } : current))} placeholder="Contoh: SN001"/><input type="number" min="1" value={row.purchasePrice} disabled={String(receiveForm.totalPurchasePrice || "").trim() !== ""} onChange={(e) => setReceiveUnitRows((rows) => rows.map((current, rowIndex) => rowIndex === index ? { ...current, purchasePrice: e.target.value } : current))} placeholder={receiveForm.totalPurchasePrice ? "Pakai total harga" : "Contoh: 2000000"}/><button type="button" aria-label={`Hapus baris ${index + 1}`} disabled={receiveUnitRows.length === 1} onClick={() => { setReceiveUnitRows((rows) => rows.filter((_, rowIndex) => rowIndex !== index)); setReceiveForm((form) => ({ ...form, qty: Math.max(1, receiveUnitRows.length - 1) })); }}><FiX/></button></div>)}</div>
+              <div className="inventory-serial-table"><div className="inventory-serial-head"><span>No.</span><span>Nomor seri</span><span>Harga/unit (Rp)</span><span/></div>{receiveUnitRows.map((row, index) => <div className="inventory-serial-row" key={index}><b>{index + 1}</b><input value={row.serialNumber} onChange={(e) => setReceiveUnitRows((rows) => rows.map((current, rowIndex) => rowIndex === index ? { ...current, serialNumber: e.target.value } : current))} placeholder="Contoh: SN001"/><input type="number" min="0" value={row.purchasePrice} disabled={String(receiveForm.totalPurchasePrice || "").trim() !== ""} onChange={(e) => setReceiveUnitRows((rows) => rows.map((current, rowIndex) => rowIndex === index ? { ...current, purchasePrice: e.target.value } : current))} placeholder={receiveForm.totalPurchasePrice ? "Pakai total harga" : "Contoh: 2000000"}/><button type="button" aria-label={`Hapus baris ${index + 1}`} disabled={receiveUnitRows.length === 1} onClick={() => { setReceiveUnitRows((rows) => rows.filter((_, rowIndex) => rowIndex !== index)); setReceiveForm((form) => ({ ...form, qty: Math.max(1, receiveUnitRows.length - 1) })); }}><FiX/></button></div>)}</div>
               <button type="button" className="inventory-add-serial" onClick={() => { setReceiveUnitRows((rows) => [...rows, { serialNumber: "", purchasePrice: "" }]); setReceiveForm((form) => ({ ...form, qty: receiveUnitRows.length + 1 })); }}><FiPlus/> Tambah unit</button>
             </div>})()}
           </div>

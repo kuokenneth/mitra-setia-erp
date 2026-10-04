@@ -687,8 +687,12 @@ router.post(
         if (list.length === 0) throw new Error("Serialized item requires units[]");
 
         const hasUnitPrices = list.some((u) => u?.purchasePrice != null);
-        const hasTotalPrice =
-          totalRaw != null && Number.isFinite(parseInt(totalRaw, 10)) && parseInt(totalRaw, 10) > 0;
+        const hasTotalPrice = totalRaw != null && String(totalRaw).trim() !== "";
+        const parsedTotalPrice = hasTotalPrice ? Number(totalRaw) : null;
+
+        if (hasTotalPrice && (!Number.isFinite(parsedTotalPrice) || parsedTotalPrice < 0)) {
+          throw new Error("totalPurchasePrice must be zero or more");
+        }
 
         if (!hasUnitPrices && !hasTotalPrice) {
           throw new Error("Provide purchasePrice per unit OR totalPurchasePrice");
@@ -698,14 +702,14 @@ router.post(
         }
 
         const unitCount = list.length;
-        const dividedPrice = hasTotalPrice ? Math.floor(parseInt(totalRaw, 10) / unitCount) : null;
+        const dividedPrice = hasTotalPrice ? Math.floor(parsedTotalPrice / unitCount) : null;
 
         const data = list.map((u) => {
           const serial = u?.serialNumber ? String(u.serialNumber).trim() : "";
           if (!serial) throw new Error("Each serialized unit must have serialNumber");
 
           const price = hasUnitPrices ? parseInt(u.purchasePrice, 10) : dividedPrice;
-          if (!Number.isFinite(price) || price <= 0) throw new Error("Invalid purchase price calculation");
+          if (!Number.isFinite(price) || price < 0) throw new Error("Invalid purchase price calculation");
 
           return {
             itemId,
