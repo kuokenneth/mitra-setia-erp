@@ -152,11 +152,21 @@ async function receiveNonSerializedRepair(tx, { movementId, qty, unitPrice, loca
   const priorReceipts = await tx.stockMovement.aggregate({ where: { type: "IN", stockUnitId: null, note: { startsWith: `REPAIR_SECOND_OF:${repair.id}` } }, _sum: { qty: true } });
   const remainingQty = Number(repair.qty) - Number(priorReceipts._sum.qty || 0);
   if (qty > remainingQty + 0.000001) throw new Error(`Maksimal penerimaan ${repair.item.name}: ${remainingQty} ${repair.item.unit}`);
+  const totalCost = Math.round(qty * unitPrice);
+  const isManualRepairItem = String(repair.note || "").includes("MANUAL_REPAIR_ITEM:TRUE");
+  if (isManualRepairItem) {
+    return tx.stockMovement.create({
+      data: {
+        type: "IN", itemId: repair.itemId, qty, unitPrice, totalCost,
+        note: `REPAIR_SECOND_OF:${repair.id} · MANUAL_REPAIR_COMPLETED · Pekerjaan ${repair.item.name} selesai${notes ? ` · ${notes}` : ""}`,
+        createdById: userId, toLocationId: locationId, maintenanceId: repair.maintenanceId,
+      },
+    });
+  }
   const secondSku = repair.item.sku.endsWith("_SECOND") ? repair.item.sku : `${repair.item.sku}_SECOND`;
   let secondItem = await tx.item.findUnique({ where: { sku: secondSku } });
   if (!secondItem) secondItem = await tx.item.create({ data: { sku: secondSku, name: `${repair.item.name} (SECOND)`, unit: repair.item.unit, isSerialized: false, category: repair.item.category } });
   if (secondItem.isSerialized) throw new Error(`Item ${secondSku} harus berupa barang non-serial`);
-  const totalCost = Math.round(qty * unitPrice);
   await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: secondItem.id, locationId } }, create: { itemId: secondItem.id, locationId, qty }, update: { qty: { increment: qty } } });
   await tx.inventoryBatch.create({ data: { itemId: secondItem.id, locationId, receivedQty: qty, remainingQty: qty, unitPrice, receivedAt: new Date() } });
   return tx.stockMovement.create({ data: { type: "IN", itemId: secondItem.id, qty, unitPrice, totalCost, note: `REPAIR_SECOND_OF:${repair.id} · Hasil perbaikan ${repair.item.sku} menjadi ${secondSku}${notes ? ` · ${notes}` : ""}`, createdById: userId, toLocationId: locationId, maintenanceId: repair.maintenanceId } });
@@ -198,23 +208,9 @@ router.post("/repairs/non-serialized/:movementId/receive", async (req, res) => {
     if (!locationId) return res.status(400).json({ error: "Lokasi penerimaan wajib dipilih" });
 
     const receipt = await prisma.$transaction(async (tx) => {
-      const repair = await tx.stockMovement.findFirst({ where: { id: movementId, type: "ADJUST", stockUnitId: null, note: { startsWith: "NON_SERIAL_REPAIR_OF:" } }, include: { item: true, maintenance: true } });
-      if (!repair) throw new Error("Data perbaikan non-serial tidak ditemukan");
       const location = await tx.inventoryLocation.findUnique({ where: { id: locationId }, select: { id: true } });
       if (!location) throw new Error("Lokasi Inventory tidak ditemukan");
-      const priorReceipts = await tx.stockMovement.aggregate({ where: { type: "IN", stockUnitId: null, note: { startsWith: `REPAIR_SECOND_OF:${repair.id}` } }, _sum: { qty: true } });
-      const remainingQty = Number(repair.qty) - Number(priorReceipts._sum.qty || 0);
-      if (qty > remainingQty + 0.000001) throw new Error(`Maksimal penerimaan ${remainingQty} ${repair.item.unit}`);
-
-      const secondSku = repair.item.sku.endsWith("_SECOND") ? repair.item.sku : `${repair.item.sku}_SECOND`;
-      let secondItem = await tx.item.findUnique({ where: { sku: secondSku } });
-      if (!secondItem) secondItem = await tx.item.create({ data: { sku: secondSku, name: `${repair.item.name} (SECOND)`, unit: repair.item.unit, isSerialized: false, category: repair.item.category } });
-      if (secondItem.isSerialized) throw new Error(`Item ${secondSku} harus berupa barang non-serial`);
-
-      const totalCost = Math.round(qty * unitPrice);
-      await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: secondItem.id, locationId } }, create: { itemId: secondItem.id, locationId, qty }, update: { qty: { increment: qty } } });
-      await tx.inventoryBatch.create({ data: { itemId: secondItem.id, locationId, receivedQty: qty, remainingQty: qty, unitPrice, receivedAt: new Date() } });
-      return tx.stockMovement.create({ data: { type: "IN", itemId: secondItem.id, qty, unitPrice, totalCost, note: `REPAIR_SECOND_OF:${repair.id} · Hasil perbaikan ${repair.item.sku} menjadi ${secondSku}${notes ? ` · ${notes}` : ""}`, createdById: req.user.id, toLocationId: locationId, maintenanceId: repair.maintenanceId } });
+      return receiveNonSerializedRepair(tx, { movementId, qty, unitPrice, locationId, notes, userId: req.user.id });
     });
     res.status(201).json({ ok: true, receipt });
   } catch (error) {

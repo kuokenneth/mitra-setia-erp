@@ -590,7 +590,7 @@ export default function Maintenance() {
   const [detailTab, setDetailTab] = useState("PARTS");
   const [partMode, setPartMode] = useState("SERIALIZED");
   const [externalRepairType, setExternalRepairType] = useState("SERIALIZED");
-  const [externalRepairForm, setExternalRepairForm] = useState({ stockUnitId: "", itemId: "", qty: 1, supplierId: "", notes: "" });
+  const [externalRepairForm, setExternalRepairForm] = useState({ stockUnitId: "", itemId: "", manualItemName: "", qty: 1, supplierId: "", notes: "" });
   const [sendingExternalRepair, setSendingExternalRepair] = useState(false);
 
   // items/locations
@@ -1081,12 +1081,16 @@ export default function Maintenance() {
         if (!externalRepairForm.stockUnitId) throw new Error("Pilih unit berserial yang akan diperbaiki");
         if (!externalRepairForm.supplierId) throw new Error("Pilih tempat perbaikan");
         await api(`/maintenance/${activeJob.id}/repair-unit`, { method: "POST", body: JSON.stringify({ stockUnitId: externalRepairForm.stockUnitId, supplierId: externalRepairForm.supplierId, notes: externalRepairForm.notes }) });
-      } else {
+      } else if (externalRepairType === "NON_SERIAL") {
         if (!externalRepairForm.itemId) throw new Error("Pilih barang non-serial yang akan diperbaiki");
         if (!externalRepairForm.supplierId) throw new Error("Pilih supplier tempat perbaikan");
         await api(`/maintenance/${activeJob.id}/repair-non-serialized`, { method: "POST", body: JSON.stringify({ itemId: externalRepairForm.itemId, qty: Number(externalRepairForm.qty), supplierId: externalRepairForm.supplierId, notes: externalRepairForm.notes }) });
+      } else {
+        if (!externalRepairForm.manualItemName.trim()) throw new Error("Isi nama item atau pekerjaan perbaikan");
+        if (!externalRepairForm.supplierId) throw new Error("Pilih supplier tempat perbaikan");
+        await api(`/maintenance/${activeJob.id}/repair-manual-item`, { method: "POST", body: JSON.stringify({ name: externalRepairForm.manualItemName.trim(), supplierId: externalRepairForm.supplierId, notes: externalRepairForm.notes }) });
       }
-      setExternalRepairForm({ stockUnitId: "", itemId: "", qty: 1, supplierId: "", notes: "" });
+      setExternalRepairForm({ stockUnitId: "", itemId: "", manualItemName: "", qty: 1, supplierId: "", notes: "" });
       await refreshDetail(); await load();
     } catch (e) { setErr(e.message || "Gagal mengirim barang untuk perbaikan"); }
     finally { setSendingExternalRepair(false); }
@@ -2020,19 +2024,23 @@ export default function Maintenance() {
                 <div className={`maintenance-part-box external-repair ${detailTab !== "PARTS" || partMode !== "REPAIR" ? "maintenance-detail-section-hidden" : ""}`} style={{ padding: 16, borderRadius: 6, border: `1px solid ${BRAND.border}` }}>
                   <div className="maintenance-part-box-title"><span>C</span><div><strong>Kirim komponen ke tempat perbaikan</strong><small>Lepas barang dari mobil, kirim keluar, lalu terima kembali setelah selesai diperbaiki.</small></div></div>
                   <div className="maintenance-source-switch">
-                    <button type="button" className={externalRepairType === "SERIALIZED" ? "active" : ""} onClick={() => { setExternalRepairType("SERIALIZED"); setExternalRepairForm(form => ({ ...form, itemId: "", qty: 1 })); }}><span>01</span><div><strong>Unit berserial</strong><small>Kembali dengan serial yang sama</small></div></button>
-                    <button type="button" className={externalRepairType === "NON_SERIAL" ? "active" : ""} onClick={() => { setExternalRepairType("NON_SERIAL"); setExternalRepairForm(form => ({ ...form, stockUnitId: "", supplierId: "" })); }}><span>02</span><div><strong>Barang non-serial</strong><small>Kembali sebagai stok SECOND</small></div></button>
+                    <button type="button" className={externalRepairType === "SERIALIZED" ? "active" : ""} onClick={() => { setExternalRepairType("SERIALIZED"); setExternalRepairForm(form => ({ ...form, itemId: "", manualItemName: "", qty: 1 })); }}><span>01</span><div><strong>Unit berserial</strong><small>Kembali dengan serial yang sama</small></div></button>
+                    <button type="button" className={externalRepairType === "NON_SERIAL" ? "active" : ""} onClick={() => { setExternalRepairType("NON_SERIAL"); setExternalRepairForm(form => ({ ...form, stockUnitId: "", manualItemName: "" })); }}><span>02</span><div><strong>Barang non-serial</strong><small>Kembali sebagai stok SECOND</small></div></button>
+                    <button type="button" className={externalRepairType === "MANUAL_ITEM" ? "active" : ""} onClick={() => { setExternalRepairType("MANUAL_ITEM"); setExternalRepairForm(form => ({ ...form, stockUnitId: "", itemId: "", qty: 1 })); }}><span>03</span><div><strong>Item / pekerjaan lain</strong><small>Kabin, wiring, las, dan lainnya</small></div></button>
                   </div>
                   {externalRepairType === "SERIALIZED" ? <div className="maintenance-external-repair-fields">
                     <label>Unit yang dilepas<Select value={externalRepairForm.stockUnitId} onChange={event => setExternalRepairForm(form => ({ ...form, stockUnitId: event.target.value }))} disabled={!allowed || activeJob.status !== "OPEN"}><option value="">Pilih komponen terpasang</option>{(activeJob.repairCandidates?.serialized || []).map(assignment => <option key={assignment.stockUnitId} value={assignment.stockUnitId}>{assignment.stockUnit?.serialNumber || assignment.stockUnit?.barcode || assignment.stockUnitId} — {assignment.stockUnit?.item?.name}</option>)}</Select></label>
                     <label>Tempat perbaikan<Select value={externalRepairForm.supplierId} onChange={event => setExternalRepairForm(form => ({ ...form, supplierId: event.target.value }))}><option value="">Pilih bengkel / vendor</option>{retreadOptions.suppliers.map(supplier => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</Select></label>
-                  </div> : <div className="maintenance-external-repair-fields">
+                  </div> : externalRepairType === "NON_SERIAL" ? <div className="maintenance-external-repair-fields">
                     <label>Barang yang dilepas<Select value={externalRepairForm.itemId} onChange={event => setExternalRepairForm(form => ({ ...form, itemId: event.target.value }))} disabled={!allowed || activeJob.status !== "OPEN"}><option value="">Pilih barang di mobil</option>{(activeJob.repairCandidates?.nonSerialized || []).map(stock => <option key={stock.itemId} value={stock.itemId}>{stock.item?.name} — tersedia {Number(stock.qty).toLocaleString("id-ID")} {stock.item?.unit}</option>)}</Select></label>
                     <label>Jumlah<Input type="number" min="0.01" step="0.01" value={externalRepairForm.qty} onChange={event => setExternalRepairForm(form => ({ ...form, qty: event.target.value }))}/></label>
                     <label>Supplier tempat perbaikan<Select value={externalRepairForm.supplierId} onChange={event => setExternalRepairForm(form => ({ ...form, supplierId: event.target.value }))}><option value="">Pilih supplier / bengkel</option>{retreadOptions.suppliers.map(supplier => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</Select></label>
+                  </div> : <div className="maintenance-external-repair-fields">
+                    <label>Nama item / pekerjaan<Input value={externalRepairForm.manualItemName} onChange={event => setExternalRepairForm(form => ({ ...form, manualItemName: event.target.value }))} disabled={!allowed || activeJob.status !== "OPEN"} placeholder="Contoh: KABIN ketok atau perbaikan wiring"/></label>
+                    <label>Supplier tempat perbaikan<Select value={externalRepairForm.supplierId} onChange={event => setExternalRepairForm(form => ({ ...form, supplierId: event.target.value }))}><option value="">Pilih supplier / bengkel</option>{retreadOptions.suppliers.map(supplier => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</Select></label>
                   </div>}
                   <label className="maintenance-external-repair-note">Keluhan / catatan<Input value={externalRepairForm.notes} onChange={event => setExternalRepairForm(form => ({ ...form, notes: event.target.value }))} placeholder="Contoh: pump bocor dan tekanan lemah"/></label>
-                  <div className="maintenance-retread-notice"><strong>Barang akan keluar sementara dari mobil</strong><small>Setelah siap, terima kembali melalui Pembelian → Penerimaan Barang → Barang Perbaikan. Biaya perbaikan dicatat saat penerimaan.</small></div>
+                  <div className="maintenance-retread-notice"><strong>{externalRepairType === "MANUAL_ITEM" ? "Pekerjaan akan dikirim ke supplier" : "Barang akan keluar sementara dari mobil"}</strong><small>Setelah siap, terima kembali melalui Pembelian → Penerimaan Barang → Barang Perbaikan. Biaya perbaikan dicatat saat penerimaan.</small></div>
                   <div className="maintenance-external-repair-actions"><small>Supplier pilihan akan dibawa ke proses penerimaan dan pencatatan tagihan perbaikan di Pembelian.</small><Button variant="primary" onClick={sendExternalRepair} disabled={!allowed || activeJob.status !== "OPEN" || sendingExternalRepair}>{sendingExternalRepair ? "Mengirim..." : "Lepas & Kirim Perbaikan"}</Button></div>
                 </div>
               </div>

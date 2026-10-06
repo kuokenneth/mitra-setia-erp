@@ -902,6 +902,45 @@ router.post("/:id/repair-non-serialized", authRequired, async (req, res) => {
   } catch (e) { res.status(400).json({ error: e.message || "Gagal mengirim barang untuk perbaikan" }); }
 });
 
+// Register an outside repair job that is not represented by installed inventory,
+// such as cabin bodywork, wiring, welding, or upholstery. It uses the existing
+// purchasing repair queue but does not decrement truck stock.
+router.post("/:id/repair-manual-item", authRequired, async (req, res) => {
+  try {
+    if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
+    const name = String(req.body.name || "").trim().replace(/\s+/g, " ");
+    const supplierId = String(req.body.supplierId || "").trim();
+    const notes = String(req.body.notes || "").trim();
+    if (!name) return res.status(400).json({ error: "Nama item atau pekerjaan perbaikan wajib diisi" });
+    if (name.length > 120) return res.status(400).json({ error: "Nama item atau pekerjaan maksimal 120 karakter" });
+    if (!supplierId) return res.status(400).json({ error: "Supplier tempat perbaikan wajib dipilih" });
+
+    const movement = await prisma.$transaction(async tx => {
+      const job = await tx.truckMaintenance.findUnique({ where: { id: req.params.id }, include: { truck: true } });
+      if (!job || job.status !== "OPEN") throw new Error("Servis aktif tidak ditemukan");
+      const supplier = await tx.supplier.findUnique({ where: { id: supplierId }, select: { id: true, name: true } });
+      if (!supplier) throw new Error("Supplier tempat perbaikan tidak ditemukan");
+
+      let item = await tx.item.findUnique({ where: { name } });
+      if (item?.isSerialized) throw new Error("Nama tersebut sudah digunakan oleh barang berserial; gunakan nama pekerjaan yang lebih spesifik");
+      if (!item) {
+        const slug = name.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 36) || "PEKERJAAN";
+        const sku = `JASA_REPAIR_${slug}_${Date.now().toString(36).toUpperCase()}`;
+        item = await tx.item.create({ data: { sku, name, unit: "JASA", isSerialized: false, category: "OTHER" } });
+      }
+
+      return tx.stockMovement.create({
+        data: {
+          type: "ADJUST", itemId: item.id, qty: 1, unitPrice: null, totalCost: null,
+          note: `NON_SERIAL_REPAIR_OF:MANUAL-${job.id}-${Date.now()} · MANUAL_REPAIR_ITEM:TRUE · REPAIR_SUPPLIER_ID:${supplier.id} · REPAIR_VENDOR:${encodeURIComponent(supplier.name)} · Pekerjaan perbaikan untuk ${job.truck.plateNumber}${notes ? ` · Catatan: ${notes}` : ""}`,
+          createdById: req.user.id, fromTruckId: job.truckId, maintenanceId: job.id,
+        },
+      });
+    });
+    res.json({ ok: true, movement });
+  } catch (e) { res.status(400).json({ error: e.message || "Gagal mengirim pekerjaan untuk perbaikan" }); }
+});
+
 ////////////////////////////////////////////////////
 // ASSIGN SERIALIZED STOCK UNIT to maintenance
 // POST /maintenance/:id/assign-unit
