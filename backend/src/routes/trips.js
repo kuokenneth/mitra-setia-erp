@@ -924,6 +924,33 @@ router.post("/:id/arrival-proofs", authRequired, async (req, res) => {
 });
 
 /**
+ * POST /trips/:id/arrive-pickup
+ * Owner fallback when a trip is recorded after the truck has reached loading.
+ */
+router.post("/:id/arrive-pickup", authRequired, async (req, res) => {
+  try {
+    if (req.user?.role !== "OWNER") return res.status(403).json({ error: "Hanya Owner yang dapat mengubah tahap muat secara manual" });
+    const id = req.params.id;
+    const ts = toDate(req.body?.timestamp) || new Date();
+    const trip = await prisma.trip.findUnique({ where: { id } });
+    if (!trip) return res.status(404).json({ error: "Trip not found" });
+    if (trip.purpose !== "DELIVERY") return res.status(400).json({ error: "Tahap muat hanya tersedia untuk trip pengiriman" });
+    if (trip.status !== "DISPATCHED" || trip.phase !== "TO_PICKUP") {
+      return res.status(400).json({ error: "Trip harus sedang menuju lokasi muat" });
+    }
+    const saved = await prisma.trip.update({
+      where: { id },
+      data: { phase: "AT_PICKUP", pickupArrivedAt: ts, gpsArrivalCandidateAt: null },
+      include: { truck: true, driverUser: true, order: true, dispatchLetter: true },
+    });
+    res.json(normalizeTrip(saved));
+  } catch (e) {
+    console.error(e);
+    res.status(400).json({ error: e.message || "Gagal menandai tiba di lokasi muat" });
+  }
+});
+
+/**
  * POST /trips/:id/start-delivery
  * Close the empty positioning leg after loading and start the loaded leg.
  */
@@ -931,6 +958,7 @@ router.post("/:id/start-delivery", authRequired, async (req, res) => {
   try {
     const id = req.params.id;
     const ts = toDate(req.body?.timestamp) || new Date();
+    const ownerOverride = req.user?.role === "OWNER" && req.body?.ownerOverride === true;
     const trip = await prisma.trip.findUnique({
       where: { id },
       include: {
@@ -943,7 +971,8 @@ router.post("/:id/start-delivery", authRequired, async (req, res) => {
     if (!trip) return res.status(404).json({ error: "Trip not found" });
     if (!canWrite(req.user) && !(isDriver(req.user) && trip.driverUserId === req.user.id)) return res.status(403).json({ error: "Forbidden" });
     if (trip.purpose !== "DELIVERY") return res.status(400).json({ error: "Tahap muat hanya tersedia untuk trip pengiriman" });
-    if (trip.status !== "DISPATCHED" || trip.phase !== "AT_PICKUP") {
+    const mayStartFromCurrentPhase = trip.phase === "AT_PICKUP" || (ownerOverride && trip.phase === "TO_PICKUP");
+    if (trip.status !== "DISPATCHED" || !mayStartFromCurrentPhase) {
       return res.status(400).json({ error: "Mobil harus tiba di lokasi muat sebelum memulai pengiriman" });
     }
     if (trip.order?.cargoCategory !== "MATERIAL") {
@@ -955,7 +984,12 @@ router.post("/:id/start-delivery", authRequired, async (req, res) => {
 
     const saved = await prisma.trip.update({
       where: { id },
-      data: { phase: "TO_DESTINATION", loadedAt: ts, gpsArrivalCandidateAt: null },
+      data: {
+        phase: "TO_DESTINATION",
+        pickupArrivedAt: trip.pickupArrivedAt || ts,
+        loadedAt: ts,
+        gpsArrivalCandidateAt: null,
+      },
       include: { truck: true, driverUser: true, order: true, dispatchLetter: true },
     });
     res.json(normalizeTrip(saved));

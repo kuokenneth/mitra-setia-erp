@@ -389,6 +389,37 @@ export default function TripDetail() {
     }
   }
 
+  async function startDeliveryManually() {
+    if (!window.confirm("Langsung ubah tahap menjadi Mengantar muatan? Gunakan hanya jika mobil sudah selesai muat dan sedang berjalan ke tujuan.")) return;
+    try {
+      setSaveErr("");
+      setSaving(true);
+      await api(`/trips/${id}/start-delivery`, {
+        method: "POST",
+        body: JSON.stringify({ ownerOverride: true }),
+      });
+      await load();
+    } catch (e) {
+      setSaveErr(e?.message || "Gagal memulai pengiriman secara manual");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function arriveAtPickupManually() {
+    if (!window.confirm("Tandai kendaraan sudah tiba dan sedang proses muat?")) return;
+    try {
+      setSaveErr("");
+      setSaving(true);
+      await api(`/trips/${id}/arrive-pickup`, { method: "POST", body: JSON.stringify({}) });
+      await load();
+    } catch (e) {
+      setSaveErr(e?.message || "Gagal menandai tiba di lokasi muat");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function completeDirectlyForTest() {
     if (!window.confirm("Selesaikan trip ini langsung untuk pengujian? Seluruh tujuan yang belum selesai akan dianggap sudah tiba dan selesai bongkar.")) return;
     try {
@@ -659,7 +690,11 @@ export default function TripDetail() {
                 <div style={{ marginBottom: 16, padding: 14, borderRadius: 12, border: "1px solid #DDE9E1", background: "#FFFFFF" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
                     <div><strong style={{ display: "block", fontSize: 13 }}>Tahap perjalanan</strong><span style={{ color: "#7A8780", fontSize: 11 }}>Satu trip · perjalanan kosong dan pengiriman tercatat dalam satu rangkaian.</span></div>
-                    {currentPhase === "AT_PICKUP" && <span style={{ padding: "8px 11px", borderRadius: 8, background: "#EAF7EF", color: "#176C40", fontSize: 11, fontWeight: 700 }}>Menunggu GPS keluar radius lokasi muat</span>}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      {currentPhase === "AT_PICKUP" && <span style={{ padding: "8px 11px", borderRadius: 8, background: "#EAF7EF", color: "#176C40", fontSize: 11, fontWeight: 700 }}>Menunggu GPS keluar radius lokasi muat</span>}
+                      {role === "OWNER" && currentStatus === "DISPATCHED" && currentPhase === "TO_PICKUP" && <button type="button" style={{ ...btnGhost, height: 34, display: "inline-flex", alignItems: "center", gap: 7, borderColor: "#B7CDBF", background: "#FFFFFF", color: "#355C46", boxShadow: "none", fontSize: 11 }} onClick={arriveAtPickupManually} disabled={saving}><FiMapPin size={14}/> Tiba & proses muat</button>}
+                      {role === "OWNER" && currentStatus === "DISPATCHED" && ["TO_PICKUP", "AT_PICKUP"].includes(currentPhase) && <button type="button" style={{ ...btnGhost, height: 34, display: "inline-flex", alignItems: "center", gap: 7, borderColor: "#75B58C", background: "#EAF7EF", color: "#176C40", boxShadow: "none", fontSize: 11 }} onClick={startDeliveryManually} disabled={saving}><FiTruck size={14}/> Langsung mengantar muatan</button>}
+                    </div>
                   </div>
                   {currentPhase === "SERVICE_AT_BASE" && <div style={{ marginBottom: 12, padding: "11px 12px", borderRadius: 9, background: "#FFF4E8", border: "1px solid #F2D6B5", color: "#9A541B", fontSize: 12 }}><strong>Kendaraan kembali ke base dan memerlukan tindakan.</strong><span style={{ display: "block", marginTop: 3 }}>Periksa penyebabnya, misalnya servis darurat, menunggu uang jalan, dokumen, atau instruksi. Trip, muatan, dan tujuan tetap sama; perjalanan otomatis berlanjut ketika kendaraan keluar dari radius base.</span></div>}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(105px, 1fr))", gap: 7, overflowX: "auto", paddingBottom: 2 }}>
