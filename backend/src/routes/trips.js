@@ -656,7 +656,7 @@ router.post("/:id/actions", authRequired, async (req, res) => {
     const expenseCategory = str(req.body.expenseCategory) || "TRIP_ALLOWANCE";
     const amount = req.body.amount == null || req.body.amount === "" ? null : Math.round(Number(req.body.amount));
     const allowedActions = ["HANDLE", "SEND_FUNDS", "REPORT_ISSUE", "CONTACT_DRIVER", "RESOLVE"];
-    const allowedExpenseCategories = ["PANJAR", "TRIP_ALLOWANCE", "REMAINING_TRIP_ALLOWANCE", "UNLOADING_FEE", "FUEL_LOAN", "DRIVER_SALARY", "FUEL", "TOLL_PARKING", "LOADING_UNLOADING", "REPAIR_MAINTENANCE", "SPAREPART", "OTHER"];
+    const allowedExpenseCategories = ["PANJAR", "TRIP_ALLOWANCE", "REMAINING_TRIP_ALLOWANCE", "UNLOADING_FEE", "FUEL_LOAN", "LOADING_LOAN", "DRIVER_SALARY", "FUEL", "TOLL_PARKING", "LOADING_UNLOADING", "REPAIR_MAINTENANCE", "SPAREPART", "OTHER"];
     if (!allowedActions.includes(actionType)) return res.status(400).json({ error: "Tindakan tidak valid" });
     if (!note) return res.status(400).json({ error: "Catatan tindakan wajib diisi" });
     if (actionType === "SEND_FUNDS" && (!Number.isFinite(amount) || amount <= 0)) return res.status(400).json({ error: "Nominal dana wajib lebih besar dari 0" });
@@ -932,17 +932,39 @@ router.post("/:id/arrive-pickup", authRequired, async (req, res) => {
     if (req.user?.role !== "OWNER") return res.status(403).json({ error: "Hanya Owner yang dapat mengubah tahap muat secara manual" });
     const id = req.params.id;
     const ts = toDate(req.body?.timestamp) || new Date();
-    const trip = await prisma.trip.findUnique({ where: { id } });
-    if (!trip) return res.status(404).json({ error: "Trip not found" });
-    if (trip.purpose !== "DELIVERY") return res.status(400).json({ error: "Tahap muat hanya tersedia untuk trip pengiriman" });
-    if (trip.status !== "DISPATCHED" || trip.phase !== "TO_PICKUP") {
-      return res.status(400).json({ error: "Trip harus sedang menuju lokasi muat" });
-    }
-    const saved = await prisma.trip.update({
-      where: { id },
-      data: { phase: "AT_PICKUP", pickupArrivedAt: ts, gpsArrivalCandidateAt: null },
-      include: { truck: true, driverUser: true, order: true, dispatchLetter: true },
-    });
+    const saved = await prisma.$transaction(async (tx) => {
+      const trip = await tx.trip.findUnique({ where: { id }, include: { truck: true, driverUser: true } });
+      if (!trip) throw new Error("Trip not found");
+      if (trip.purpose !== "DELIVERY") throw new Error("Tahap muat hanya tersedia untuk trip pengiriman");
+      const fromPlanned = trip.status === "PLANNED" && trip.phase === "PLANNED";
+      const fromRoad = trip.status === "DISPATCHED" && trip.phase === "TO_PICKUP";
+      if (!fromPlanned && !fromRoad) throw new Error("Trip harus direncanakan atau sedang menuju lokasi muat");
+      if (fromPlanned) {
+        if (!trip.truckId || !trip.driverUserId) throw new Error("Trip harus memiliki armada dan pengemudi");
+        if (trip.truck?.status !== "READY") throw new Error("Armada harus berstatus READY");
+        if (trip.driverUser?.status !== "ACTIVE") throw new Error("Pengemudi harus berstatus ACTIVE");
+        const conflict = await tx.trip.findFirst({
+          where: { id: { not: trip.id }, status: { in: ACTIVE_TRIP_STATUSES }, OR: [{ truckId: trip.truckId }, { driverUserId: trip.driverUserId }] },
+          select: { id: true },
+        });
+        if (conflict) throw new Error("Armada atau pengemudi memiliki trip aktif lain");
+      }
+      const updated = await tx.trip.update({
+        where: { id },
+        data: {
+          status: "DISPATCHED",
+          phase: "AT_PICKUP",
+          dispatchedAt: trip.dispatchedAt || ts,
+          pickupArrivedAt: ts,
+          gpsArrivalCandidateAt: null,
+          plateNumberSnap: trip.plateNumberSnap || trip.truck?.plateNumber || undefined,
+          driverNameSnap: trip.driverNameSnap || trip.driverUser?.name || undefined,
+        },
+        include: { truck: true, driverUser: true, order: true, dispatchLetter: true },
+      });
+      if (fromPlanned) await updateTruckOperationalState(tx, trip, "DISPATCHED", ts);
+      return updated;
+    }, { timeout: 30000 });
     res.json(normalizeTrip(saved));
   } catch (e) {
     console.error(e);
