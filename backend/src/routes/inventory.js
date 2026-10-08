@@ -1204,6 +1204,85 @@ router.post(
   }
 );
 
+/** Receive several completed retreads directly, without Purchase Request / PO. */
+router.post(
+  "/retreads/complete-batch",
+  authRequired,
+  requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
+  async (req, res) => {
+    const createdById = req.user?.id || null;
+    const locationId = String(req.body?.locationId || "").trim();
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    const completedAt = req.body?.completedAt ? new Date(req.body.completedAt) : new Date();
+    if (!items.length) return res.status(400).json({ ok: false, error: "Pilih minimal satu ban masak" });
+    if (Number.isNaN(completedAt.getTime())) return res.status(400).json({ ok: false, error: "Tanggal selesai tidak valid" });
+    const unitIds = items.map(row => String(row?.unitId || "").trim());
+    if (unitIds.some(id => !id) || new Set(unitIds).size !== unitIds.length) return res.status(400).json({ ok: false, error: "Daftar ban masak tidak valid atau duplikat" });
+    const itemResults = new Map(items.map(row => {
+      const outcome = String(row?.outcome || "RECEIVED").toUpperCase();
+      return [String(row.unitId), { outcome, unitPrice: Number(row.unitPrice), scrapReason: String(row?.scrapReason || "").trim() }];
+    }));
+    if ([...itemResults.values()].some(row => !["RECEIVED", "SCRAPPED"].includes(row.outcome))) return res.status(400).json({ ok: false, error: "Hasil ban masak tidak valid" });
+    if ([...itemResults.values()].some(row => row.outcome === "RECEIVED" && (!Number.isInteger(row.unitPrice) || row.unitPrice < 0))) return res.status(400).json({ ok: false, error: "Harga masak setiap ban yang berhasil wajib berupa angka nol atau lebih" });
+    if ([...itemResults.values()].some(row => row.outcome === "SCRAPPED" && !row.scrapReason)) return res.status(400).json({ ok: false, error: "Alasan scrap wajib diisi untuk ban yang tidak dapat dimasak" });
+    if ([...itemResults.values()].some(row => row.outcome === "RECEIVED") && !locationId) return res.status(400).json({ ok: false, error: "Lokasi penerimaan wajib dipilih untuk ban yang berhasil dimasak" });
+
+    try {
+      const received = await prisma.$transaction(async tx => {
+        if (locationId) {
+          const location = await tx.inventoryLocation.findUnique({ where: { id: locationId } });
+          if (!location) throw new Error("Lokasi penerimaan tidak ditemukan");
+        }
+        const results = [];
+        for (const unitId of unitIds) {
+          const unit = await tx.stockUnit.findUnique({ where: { id: unitId } });
+          if (!unit || unit.status !== "RETREADING") throw new Error("Salah satu ban tidak lagi dalam proses masak");
+          const retread = await tx.tireRetread.findFirst({
+            where: { stockUnitId: unitId, status: "SENT" },
+            orderBy: { sentAt: "desc" },
+            include: { supplier: true, toItem: true, purchaseRequestItems: { where: { request: { status: { notIn: ["REJECTED", "CANCELLED"] } } }, select: { id: true } } },
+          });
+          if (!retread) throw new Error("Data proses masak aktif tidak ditemukan");
+          if (retread.purchaseRequestItems.length) throw new Error(`${unit.serialNumber || unit.id} sudah terhubung ke Permintaan Pembelian lama dan harus diselesaikan melalui alur tersebut`);
+          const result = itemResults.get(unitId);
+          if (result.outcome === "SCRAPPED") {
+            const note = `Tidak dapat dimasak / SCRAP: ${result.scrapReason}`;
+            const updatedUnit = await tx.stockUnit.update({
+              where: { id: unitId },
+              data: { status: "SCRAPPED", locationId: null, scrappedAt: completedAt },
+              include: { item: true, location: true },
+            });
+            await tx.tireRetread.update({
+              where: { id: retread.id },
+              data: { status: "COMPLETED", completedAt, cost: 0, notes: [retread.notes, note].filter(Boolean).join(" · ") },
+            });
+            await tx.stockMovement.create({
+              data: { type: "ADJUST", itemId: unit.itemId, qty: 1, note, createdById, stockUnitId: unitId },
+            });
+            results.push(updatedUnit);
+            continue;
+          }
+          const unitPrice = result.unitPrice;
+          await ensureStockRow(tx, retread.toItemId, locationId);
+          await tx.inventoryStock.update({ where: { itemId_locationId: { itemId: retread.toItemId, locationId } }, data: { qty: { increment: 1 } } });
+          const updatedUnit = await tx.stockUnit.update({
+            where: { id: unitId },
+            data: { itemId: retread.toItemId, locationId, status: "IN_STOCK", purchasePrice: unitPrice, retreadCount: { increment: 1 }, lastRetreadAt: completedAt, totalRetreadCost: { increment: unitPrice } },
+            include: { item: true, location: true },
+          });
+          await tx.tireRetread.update({ where: { id: retread.id }, data: { status: "COMPLETED", completedAt, cost: unitPrice } });
+          await tx.stockMovement.create({ data: { type: "IN", itemId: retread.toItemId, qty: 1, unitPrice, totalCost: unitPrice, note: `Ban selesai dimasak${retread.supplier?.name ? ` oleh ${retread.supplier.name}` : ""}`, createdById, toLocationId: locationId, stockUnitId: unitId } });
+          results.push(updatedUnit);
+        }
+        return results;
+      }, { timeout: 30000 });
+      res.json({ ok: true, units: received });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: String(e.message || e) });
+    }
+  }
+);
+
 /** Remove an installed tire and reclassify the same serialized unit as its SECOND item. */
 router.post(
   "/units/:unitId/second",

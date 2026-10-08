@@ -29,7 +29,7 @@ router.get("/trucks", authRequired, async (req, res) => {
     const q = String(req.query.q || "").trim();
 
     const where = {
-      status: { in: ["READY", "MAINTENANCE"] },
+      status: { in: ["READY", "MAINTENANCE", "DISPATCH"] },
       ...(q ? { plateNumber: { contains: q } } : {}),
     };
 
@@ -40,7 +40,7 @@ router.get("/trucks", authRequired, async (req, res) => {
     });
 
     const truckIds = trucks.map((truck) => truck.id);
-    const [previousOilChanges, previousServices, activeServices] = await Promise.all([
+    const [previousOilChanges, previousServices, activeServices, activeTrips] = await Promise.all([
       prisma.truckMaintenance.findMany({
         where: { truckId: { in: truckIds }, isOilChange: true, status: "DONE" },
         orderBy: [{ oilChangedAt: "desc" }, { createdAt: "desc" }],
@@ -56,6 +56,11 @@ router.get("/trucks", authRequired, async (req, res) => {
         orderBy: { createdAt: "desc" },
         select: { id: true, truckId: true, number: true, title: true, createdAt: true },
       }),
+      prisma.trip.findMany({
+        where: { truckId: { in: truckIds }, status: { in: ["PLANNED", "DISPATCHED", "ARRIVED"] } },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, truckId: true, status: true, phase: true, loadedAt: true, order: { select: { orderNo: true, fromText: true, toText: true } } },
+      }),
     ]);
     const previousByTruck = new Map();
     for (const change of previousOilChanges) {
@@ -69,8 +74,12 @@ router.get("/trucks", authRequired, async (req, res) => {
     for (const service of activeServices) {
       if (!activeServiceByTruck.has(service.truckId)) activeServiceByTruck.set(service.truckId, service);
     }
+    const activeTripByTruck = new Map();
+    for (const trip of activeTrips) {
+      if (!activeTripByTruck.has(trip.truckId)) activeTripByTruck.set(trip.truckId, trip);
+    }
 
-    res.json({ trucks: trucks.map((truck) => ({ ...truck, lastOilChange: previousByTruck.get(truck.id) || null, lastService: previousServiceByTruck.get(truck.id) || null, activeService: activeServiceByTruck.get(truck.id) || null })) });
+    res.json({ trucks: trucks.map((truck) => ({ ...truck, lastOilChange: previousByTruck.get(truck.id) || null, lastService: previousServiceByTruck.get(truck.id) || null, activeService: activeServiceByTruck.get(truck.id) || null, activeTrip: activeTripByTruck.get(truck.id) || null })) });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Failed to load trucks" });
@@ -146,9 +155,11 @@ router.post("/", authRequired, async (req, res) => {
     const activeService = await prisma.truckMaintenance.findFirst({ where: { truckId, status: "OPEN" }, select: { number: true, title: true } });
     if (activeService) return res.status(409).json({ error: `Mobil sedang menjalani servis ${activeService.number} · ${activeService.title}. Selesaikan atau batalkan servis tersebut terlebih dahulu.`, code: "TRUCK_ALREADY_IN_MAINTENANCE" });
 
-    if (truck.status === "DISPATCH") {
-      return res.status(400).json({ error: "Truck is DISPATCH (on trip). Cannot create maintenance." });
-    }
+    const activeTrip = await prisma.trip.findFirst({
+      where: { truckId, status: { in: ["PLANNED", "DISPATCHED", "ARRIVED"] } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, status: true, phase: true, loadedAt: true },
+    });
 
     const job = await prisma.$transaction(async (tx) => {
       const duplicate = await tx.truckMaintenance.findFirst({ where: { truckId, status: "OPEN" }, select: { number: true, title: true } });
@@ -173,6 +184,13 @@ router.post("/", authRequired, async (req, res) => {
         where: { id: truckId },
         data: { status: "MAINTENANCE" },
       });
+
+      if (activeTrip?.status === "DISPATCHED") {
+        await tx.trip.update({
+          where: { id: activeTrip.id },
+          data: { phase: "SERVICE_AT_BASE", serviceCandidateAt: null, serviceCandidateBaseId: null, gpsArrivalCandidateAt: null },
+        });
+      }
 
       return created;
     });
@@ -539,9 +557,20 @@ router.patch("/:id/status", authRequired, async (req, res) => {
       });
 
       if (status === "DONE" || status === "CANCELLED") {
+        const activeTrip = await tx.trip.findFirst({
+          where: { truckId: updated.truckId, status: { in: ["PLANNED", "DISPATCHED", "ARRIVED"] } },
+          orderBy: { createdAt: "desc" },
+          select: { id: true, status: true, phase: true, loadedAt: true },
+        });
+        if (activeTrip?.status === "DISPATCHED" && activeTrip.phase === "SERVICE_AT_BASE") {
+          await tx.trip.update({
+            where: { id: activeTrip.id },
+            data: { phase: activeTrip.loadedAt ? "TO_DESTINATION" : "TO_PICKUP", serviceCandidateAt: null, serviceCandidateBaseId: null, gpsArrivalCandidateAt: null },
+          });
+        }
         await tx.truck.update({
           where: { id: updated.truckId },
-          data: { status: "READY" },
+          data: { status: activeTrip?.status === "DISPATCHED" ? "DISPATCH" : activeTrip?.status === "PLANNED" ? "PLANNED" : "READY" },
         });
       }
 

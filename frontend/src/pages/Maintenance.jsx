@@ -1478,7 +1478,7 @@ export default function Maintenance() {
           {/* Truck Picker */}
           <Card style={{ overflow: "hidden", borderRadius: 12 }}>
             <div className="maintenance-create-section">
-              <div className="maintenance-create-title"><span>1</span><div><strong>Pilih kendaraan</strong><small>Armada READY atau yang sudah berada di bengkel.</small></div></div>
+              <div className="maintenance-create-title"><span>1</span><div><strong>Pilih kendaraan</strong><small>Armada READY, di bengkel, atau kembali ke base saat trip aktif.</small></div></div>
               <Input
                 value={truckSearch}
                 onChange={(e) => setTruckSearch(e.target.value)}
@@ -1503,7 +1503,7 @@ export default function Maintenance() {
                       className={`maintenance-truck-option ${selected ? "selected" : ""} ${unavailable ? "unavailable" : ""}`}
                       data-testid={`truck-option-${t.id}`}
                     >
-                      <i><FiTruck /></i><span><b>{t.plateNumber}</b><small>{unavailable ? `${t.activeService.number} · ${t.activeService.title}` : `${t.brand || "—"} ${t.model || ""}`}</small></span><em>{unavailable ? "SEDANG SERVIS" : selected ? "DIPILIH" : t.status}</em>
+                      <i><FiTruck /></i><span><b>{t.plateNumber}</b><small>{unavailable ? `${t.activeService.number} · ${t.activeService.title}` : t.activeTrip ? `Trip aktif ${t.activeTrip.order?.orderNo || ""} · ${t.activeTrip.loadedAt ? "sudah muat" : "belum muat"}` : `${t.brand || "—"} ${t.model || ""}`}</small></span><em>{unavailable ? "SEDANG SERVIS" : selected ? "DIPILIH" : t.activeTrip ? "TRIP AKTIF" : t.status}</em>
                     </button>
                   );
                 })}
@@ -1557,7 +1557,7 @@ export default function Maintenance() {
                   data-testid="job-note-input"
                 /></label>
 
-                {selectedTruck && <><div className="maintenance-selected-summary"><FiCheck /><span><small>ARMADA TERPILIH</small><strong>{selectedTruck.plateNumber}</strong><em>{selectedTruck.brand || ""} {selectedTruck.model || ""} · {createForm.odometerKm ? `${Number(createForm.odometerKm).toLocaleString("id-ID")} km` : "Odometer belum dicatat"}</em></span></div><div className={`maintenance-last-service ${selectedTruck.lastService ? "has-history" : "empty"}`}><FiClock /><span><small>RIWAYAT SERVIS TERAKHIR</small>{selectedTruck.lastService ? <><strong>Terakhir servis {installedDays(selectedTruck.lastService.doneAt || selectedTruck.lastService.createdAt) === 0 ? "hari ini" : `${installedDays(selectedTruck.lastService.doneAt || selectedTruck.lastService.createdAt)} hari lalu`}</strong><em>{selectedTruck.lastService.title} · {fmtDateTime(selectedTruck.lastService.doneAt || selectedTruck.lastService.createdAt)}{selectedTruck.lastService.odometerKm != null ? ` · ${Number(selectedTruck.lastService.odometerKm).toLocaleString("id-ID")} km` : ""}</em></> : <><strong>Belum ada riwayat servis</strong><em>Servis ini akan menjadi catatan pertama kendaraan.</em></>}</span></div></>}
+                {selectedTruck && <><div className="maintenance-selected-summary"><FiCheck /><span><small>ARMADA TERPILIH</small><strong>{selectedTruck.plateNumber}</strong><em>{selectedTruck.brand || ""} {selectedTruck.model || ""} · {createForm.odometerKm ? `${Number(createForm.odometerKm).toLocaleString("id-ID")} km` : "Odometer belum dicatat"}</em></span></div>{selectedTruck.activeTrip&&<div className="maintenance-trip-warning"><FiTruck/><span><strong>Trip aktif akan dipause selama servis</strong><small>{selectedTruck.activeTrip.order?.orderNo||"Trip aktif"} · {selectedTruck.activeTrip.loadedAt?"Muatan tetap tercatat dan perjalanan dilanjutkan setelah servis selesai.":"Perjalanan dilanjutkan setelah servis selesai."}</small></span></div>}<div className={`maintenance-last-service ${selectedTruck.lastService ? "has-history" : "empty"}`}><FiClock /><span><small>RIWAYAT SERVIS TERAKHIR</small>{selectedTruck.lastService ? <><strong>Terakhir servis {installedDays(selectedTruck.lastService.doneAt || selectedTruck.lastService.createdAt) === 0 ? "hari ini" : `${installedDays(selectedTruck.lastService.doneAt || selectedTruck.lastService.createdAt)} hari lalu`}</strong><em>{selectedTruck.lastService.title} · {fmtDateTime(selectedTruck.lastService.doneAt || selectedTruck.lastService.createdAt)}{selectedTruck.lastService.odometerKm != null ? ` · ${Number(selectedTruck.lastService.odometerKm).toLocaleString("id-ID")} km` : ""}</em></> : <><strong>Belum ada riwayat servis</strong><em>Servis ini akan menjadi catatan pertama kendaraan.</em></>}</span></div></>}
 
                 <div className="maintenance-create-actions">
                   <Button variant="secondary" onClick={() => setShowCreate(false)}>
