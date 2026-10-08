@@ -645,6 +645,7 @@ export default function Maintenance() {
   const [historyLoading, setHistoryLoading] = useState({ serialized: false, stock: false });
 
   const truckSearchTimer = useRef(null);
+  const truckLoadRequestRef = useRef(0);
   const purchaseDamageInputRef = useRef(null);
   const purchaseDraftsRef = useRef(new Map());
 
@@ -674,13 +675,16 @@ export default function Maintenance() {
   useLiveRefresh(load);
 
   async function loadTrucks(search = "") {
+    const requestId = ++truckLoadRequestRef.current;
     setTrucksLoading(true);
     try {
       const qs = search ? `?q=${encodeURIComponent(search)}` : "";
       const data = await api("/maintenance/trucks" + qs);
-      setTrucks(data.trucks || []);
+      if (requestId === truckLoadRequestRef.current) setTrucks(data.trucks || []);
+    } catch (error) {
+      if (requestId === truckLoadRequestRef.current) throw error;
     } finally {
-      setTrucksLoading(false);
+      if (requestId === truckLoadRequestRef.current) setTrucksLoading(false);
     }
   }
 

@@ -891,6 +891,7 @@
 .purchasing .request-redesign-modal .request-proof-list{grid-area:proof-list;grid-template-columns:1fr}
 .purchasing .request-redesign-modal .request-modal-body>.upload-progress{grid-area:progress}
 .purchasing .request-redesign-modal .request-modal-body>.form-error{grid-area:error}
+.purchasing .request-redesign-modal.retread-request-modal .request-modal-body{grid-template-columns:minmax(0,1fr);grid-template-areas:"source" "details" "error"}
 @media(max-width:920px){.purchasing .request-redesign-modal .request-modal-body{grid-template-columns:minmax(0,1fr);grid-template-areas:"source" "items" "details" "proof" "proof-list" "progress" "error";padding:12px}.purchasing .request-redesign-modal .request-modal-body>.request-form-section:nth-child(2){height:auto}}
 
 /* Penerimaan barang — tampilan dokumen ringkas. */
