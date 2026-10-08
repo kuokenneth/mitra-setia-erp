@@ -680,7 +680,20 @@ export default function Maintenance() {
     try {
       const qs = search ? `?q=${encodeURIComponent(search)}` : "";
       const data = await api("/maintenance/trucks" + qs);
-      if (requestId === truckLoadRequestRef.current) setTrucks(data.trucks || []);
+      let nextTrucks = data.trucks || [];
+
+      // Older backend deployments excluded DISPATCH trucks from the maintenance
+      // picker even though starting maintenance for an active trip is supported.
+      // Fall back to the fleet endpoint so a returned-to-base truck remains
+      // selectable while deployments roll over.
+      if (search && !nextTrucks.length) {
+        const fleetData = await api("/trucks" + qs);
+        nextTrucks = (fleetData.items || []).filter((truck) =>
+          ["READY", "MAINTENANCE", "DISPATCH"].includes(truck.status)
+        );
+      }
+
+      if (requestId === truckLoadRequestRef.current) setTrucks(nextTrucks);
     } catch (error) {
       if (requestId === truckLoadRequestRef.current) throw error;
     } finally {
