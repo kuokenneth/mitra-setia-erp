@@ -151,6 +151,13 @@ router.post("/", authRequired, async (req, res) => {
 
     const truck = await prisma.truck.findUnique({ where: { id: truckId } });
     if (!truck) return res.status(404).json({ error: "Truck not found" });
+    const serviceableStatuses = new Set(["READY", "MAINTENANCE", "DISPATCH"]);
+    if (!serviceableStatuses.has(truck.status)) {
+      return res.status(409).json({
+        error: `Kendaraan berstatus ${truck.status} belum dapat dimasukkan ke servis.`,
+        code: "TRUCK_NOT_SERVICEABLE",
+      });
+    }
 
     const activeService = await prisma.truckMaintenance.findFirst({ where: { truckId, status: "OPEN" }, select: { number: true, title: true } });
     if (activeService) return res.status(409).json({ error: `Mobil sedang menjalani servis ${activeService.number} · ${activeService.title}. Selesaikan atau batalkan servis tersebut terlebih dahulu.`, code: "TRUCK_ALREADY_IN_MAINTENANCE" });
