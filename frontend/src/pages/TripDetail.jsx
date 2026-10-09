@@ -363,6 +363,9 @@ export default function TripDetail() {
   const currentPhase = String(trip?.phase || "PLANNED").toUpperCase();
   const currentPhaseIndex = currentPhase === "SERVICE_AT_BASE" ? 2 : DELIVERY_PHASES.findIndex((phase) => phase.value === currentPhase);
   const currentStepIndex = Math.max(0, STATUS_STEPS.findIndex((step) => step.value === currentStatus));
+  const activeOrderStop = (trip?.orderAllocations || []).find((allocation) => !allocation.destinationCompletedAt);
+  const activeMaterialStop = (trip?.materialInvoices || []).find((invoice) => invoice.destinationLocationId && !invoice.destinationCompletedAt);
+  const activeDestinationArrived = Boolean(activeOrderStop?.destinationArrivedAt || activeMaterialStop?.destinationArrivedAt);
   const plannedWeight = trip?.purpose === "SINGLE_TRIP" && trip?.cargoCategorySnap === "MATERIAL" ? null : trip?.qtyPlanned == null ? null : Number(trip.qtyPlanned);
   const materialKg = (trip?.cargoCategorySnap === "MATERIAL" || order?.cargoCategory === "MATERIAL") ? materialWeightKg(trip?.materialInvoices) : null;
   const materialWeight = materialKg == null ? null : String(trip?.unitSnap || "TON").toUpperCase() === "KG" ? materialKg : materialKg / 1000;
@@ -416,6 +419,20 @@ export default function TripDetail() {
       await load();
     } catch (e) {
       setSaveErr(e?.message || "Gagal menandai tiba di lokasi muat");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function arriveAtDestinationManually() {
+    if (!window.confirm("Tandai kendaraan sudah tiba di tujuan aktif? Gunakan jika GPS belum mendeteksi kedatangan.")) return;
+    try {
+      setSaveErr("");
+      setSaving(true);
+      await api(`/trips/${id}/arrive-destination`, { method: "POST", body: JSON.stringify({}) });
+      await load();
+    } catch (e) {
+      setSaveErr(e?.message || "Gagal menandai tiba di tujuan");
     } finally {
       setSaving(false);
     }
@@ -695,6 +712,8 @@ export default function TripDetail() {
                       {currentPhase === "AT_PICKUP" && <span style={{ padding: "8px 11px", borderRadius: 8, background: "#EAF7EF", color: "#176C40", fontSize: 11, fontWeight: 700 }}>Menunggu GPS keluar radius lokasi muat</span>}
                       {role === "OWNER" && ((currentStatus === "PLANNED" && currentPhase === "PLANNED") || (currentStatus === "DISPATCHED" && currentPhase === "TO_PICKUP")) && <button type="button" style={{ ...btnGhost, height: 34, display: "inline-flex", alignItems: "center", gap: 7, borderColor: "#B7CDBF", background: "#FFFFFF", color: "#355C46", boxShadow: "none", fontSize: 11 }} onClick={arriveAtPickupManually} disabled={saving}><FiMapPin size={14}/> Tiba & proses muat</button>}
                       {role === "OWNER" && currentStatus === "DISPATCHED" && ["TO_PICKUP", "AT_PICKUP"].includes(currentPhase) && <button type="button" style={{ ...btnGhost, height: 34, display: "inline-flex", alignItems: "center", gap: 7, borderColor: "#75B58C", background: "#EAF7EF", color: "#176C40", boxShadow: "none", fontSize: 11 }} onClick={startDeliveryManually} disabled={saving}><FiTruck size={14}/> Langsung mengantar muatan</button>}
+                      {(canWrite || isDriver) && currentStatus === "DISPATCHED" && currentPhase === "TO_DESTINATION" && !activeDestinationArrived && <button type="button" style={{ ...btnGhost, height: 34, display: "inline-flex", alignItems: "center", gap: 7, borderColor: "#75B58C", background: "#EAF7EF", color: "#176C40", boxShadow: "none", fontSize: 11 }} onClick={arriveAtDestinationManually} disabled={saving}><FiMapPin size={14}/> Tiba di Tujuan</button>}
+                      {currentStatus === "DISPATCHED" && currentPhase === "TO_DESTINATION" && activeDestinationArrived && <span style={{ padding: "8px 11px", borderRadius: 8, background: "#EAF7EF", color: "#176C40", fontSize: 11, fontWeight: 700 }}>Tujuan aktif sudah tiba · menunggu selesai bongkar</span>}
                     </div>
                   </div>
                   {currentPhase === "SERVICE_AT_BASE" && <div style={{ marginBottom: 12, padding: "11px 12px", borderRadius: 9, background: "#FFF4E8", border: "1px solid #F2D6B5", color: "#9A541B", fontSize: 12 }}><strong>Kendaraan kembali ke base dan memerlukan tindakan.</strong><span style={{ display: "block", marginTop: 3 }}>Periksa penyebabnya, misalnya servis darurat, menunggu uang jalan, dokumen, atau instruksi. Trip, muatan, dan tujuan tetap sama; perjalanan otomatis berlanjut ketika kendaraan keluar dari radius base.</span></div>}
@@ -707,7 +726,7 @@ export default function TripDetail() {
                   </div>
                   {currentPhase === "TO_PICKUP" && <div style={{ marginTop: 10, color: "#6E7D74", fontSize: 11 }}>GPS akan otomatis menandai tiba ketika mobil masuk radius {trip.fromText || "lokasi muat"}.</div>}
                   {currentPhase === "AT_PICKUP" && <div style={{ marginTop: 10, color: "#6E7D74", fontSize: 11 }}>Setelah proses muat, sistem otomatis memulai pengiriman ketika mobil bergerak keluar dari radius lokasi muat.</div>}
-                  {currentPhase === "TO_DESTINATION" && <div style={{ marginTop: 10, color: "#6E7D74", fontSize: 11 }}>Muatan sedang dikirim. GPS akan otomatis menandai tiba di {trip.toText || "tujuan"}.</div>}
+                  {currentPhase === "TO_DESTINATION" && <div style={{ marginTop: 10, color: "#6E7D74", fontSize: 11 }}>Muatan sedang dikirim. GPS tetap otomatis menandai tiba di {trip.toText || "tujuan"}; tombol manual tersedia jika lokasi belum terdeteksi.</div>}
                 </div>
               )}
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>

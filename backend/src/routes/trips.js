@@ -1022,6 +1022,65 @@ router.post("/:id/start-delivery", authRequired, async (req, res) => {
 });
 
 /**
+ * POST /trips/:id/arrive-destination
+ * Manual fallback for destination arrival when GPS/geofence does not trigger.
+ * This mirrors automatic GPS arrival and does not complete unloading/the trip.
+ */
+router.post("/:id/arrive-destination", authRequired, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const ts = toDate(req.body?.timestamp) || new Date();
+    const trip = await prisma.trip.findUnique({
+      where: { id },
+      include: {
+        truck: true,
+        orderAllocations: {
+          where: { destinationCompletedAt: null },
+          orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+          include: { order: { include: { destinationLocation: true } } },
+        },
+        materialInvoices: {
+          where: { destinationLocationId: { not: null }, destinationCompletedAt: null },
+          orderBy: { stopSequence: "asc" },
+          include: { destinationLocation: true },
+        },
+      },
+    });
+    if (!trip) return res.status(404).json({ error: "Trip tidak ditemukan" });
+    if (!canWrite(req.user) && !(isDriver(req.user) && trip.driverUserId === req.user.id)) return res.status(403).json({ error: "Forbidden" });
+    if (trip.status !== "DISPATCHED" || trip.phase !== "TO_DESTINATION") throw new Error("Trip belum dalam perjalanan menuju tujuan");
+
+    const activeOrderStop = trip.orderAllocations[0] || null;
+    const activeMaterialStop = trip.materialInvoices[0] || null;
+    if (activeOrderStop?.destinationArrivedAt || activeMaterialStop?.destinationArrivedAt) throw new Error("Tujuan aktif sudah ditandai tiba. Selesaikan bongkar terlebih dahulu");
+
+    const destinationName = activeOrderStop?.order?.destinationLocation?.name || activeOrderStop?.order?.toText || activeMaterialStop?.destinationLocation?.name || trip.toText || "tujuan";
+    const saved = await prisma.$transaction(async (tx) => {
+      if (activeOrderStop) await tx.tripOrderAllocation.update({ where: { id: activeOrderStop.id }, data: { destinationArrivedAt: ts } });
+      else if (activeMaterialStop) await tx.materialInvoice.update({ where: { id: activeMaterialStop.id }, data: { destinationArrivedAt: ts } });
+
+      const [remainingOrders, remainingMaterials] = await Promise.all([
+        tx.tripOrderAllocation.count({ where: { tripId: trip.id, ...(activeOrderStop ? { id: { not: activeOrderStop.id } } : {}), destinationCompletedAt: null } }),
+        tx.materialInvoice.count({ where: { tripId: trip.id, destinationLocationId: { not: null }, ...(activeMaterialStop ? { id: { not: activeMaterialStop.id } } : {}), destinationCompletedAt: null } }),
+      ]);
+      const finalDestination = remainingOrders === 0 && remainingMaterials === 0;
+      const updated = await tx.trip.update({
+        where: { id: trip.id },
+        data: finalDestination
+          ? { status: "ARRIVED", phase: "AT_DESTINATION", arrivedAt: ts, gpsArrivalCandidateAt: null }
+          : { gpsArrivalCandidateAt: null },
+      });
+      if (trip.truckId) await tx.truck.update({ where: { id: trip.truckId }, data: { currentLocation: destinationName, locationUpdatedAt: ts } });
+      return updated;
+    });
+    res.json({ ...normalizeTrip(saved), arrivalMode: "MANUAL", destinationName });
+  } catch (e) {
+    console.error(e);
+    res.status(400).json({ error: e.message || "Gagal menandai tiba di tujuan" });
+  }
+});
+
+/**
  * PATCH /trips/:id/status
  */
 router.patch("/:id/status", authRequired, async (req, res) => {
