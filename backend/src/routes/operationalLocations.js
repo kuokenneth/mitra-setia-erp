@@ -19,7 +19,7 @@ function payload(body) {
   if (!TYPES.has(type)) throw new Error("Jenis lokasi tidak valid");
   if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) throw new Error("Latitude tidak valid");
   if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) throw new Error("Longitude tidak valid");
-  if (radiusM < 50 || radiusM > 5000) throw new Error("Radius harus antara 50 dan 5000 meter");
+  if (radiusM < 50 || radiusM > 10000) throw new Error("Radius harus antara 50 dan 10000 meter");
   return { name, address, type, latitude, longitude, radiusM, isActive: body?.isActive !== false };
 }
 

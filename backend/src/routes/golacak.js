@@ -588,7 +588,7 @@ router.put("/trips/:tripId/destination", authRequired, requireRole("OWNER", "ADM
     const destinationLng = number(req.body?.longitude);
     const arrivalRadiusM = Math.round(number(req.body?.radiusM) || 400);
     if (!validCoordinates(destinationLat, destinationLng)) return res.status(400).json({ error: "Valid latitude and longitude are required" });
-    if (arrivalRadiusM < 50 || arrivalRadiusM > 5000) return res.status(400).json({ error: "radiusM must be between 50 and 5000" });
+    if (arrivalRadiusM < 50 || arrivalRadiusM > 10000) return res.status(400).json({ error: "radiusM must be between 50 and 10000" });
     const trip = await prisma.trip.update({
       where: { id: req.params.tripId }, data: { destinationLat, destinationLng, arrivalRadiusM, gpsArrivalCandidateAt: null },
     });
