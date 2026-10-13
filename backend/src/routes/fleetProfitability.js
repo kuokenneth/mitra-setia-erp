@@ -101,7 +101,7 @@ router.get("/", async (req, res) => {
           where: { status: "COMPLETED", completedAt: dateRange },
           include: {
             expenses: {
-              where: { status: { in: ["PAID", "APPROVED"] }, expenseDate: dateRange },
+              where: { status: { in: ["PAID", "APPROVED"] }, expenseDate: dateRange, NOT: { notes: { startsWith: "AUTO_SUPPLIER_PAYMENT:" } } },
               orderBy: { expenseDate: "asc" },
             },
             order: { include: { invoices: true, trips: { select: { id: true, status: true, qtyActual: true, qtyPlanned: true } } } },
@@ -159,6 +159,7 @@ router.get("/", async (req, res) => {
           where: {
             status: { in: ["PAID", "APPROVED"] },
             expenseDate: dateRange,
+            NOT: { notes: { startsWith: "AUTO_SUPPLIER_PAYMENT:" } },
           },
           orderBy: { expenseDate: "asc" },
         },

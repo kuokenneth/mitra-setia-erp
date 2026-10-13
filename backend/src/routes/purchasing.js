@@ -78,6 +78,52 @@ async function refreshAllocatedMovementCosts(tx, batchId) {
 
 const includePO = { supplier: true, request: { include: { maintenance: { include: { truck: true } } } }, cancelledBy: { select: { id: true, name: true, email: true } }, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } }, partRepair: { include: { stockUnit: true } } } }, receipts: { include: { items: { include: { purchaseOrderItem: { include: { item: true } }, supplierBillItem: { include: { bill: true } } } }, location: true, createdBy: { select: { name: true } }, supplierBillLines: { include: { bill: true } } } }, payments: { include: { createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } } } };
 
+async function syncSupplierPaymentExpense(tx, paymentId, approvedById) {
+  const marker = `AUTO_SUPPLIER_PAYMENT:${paymentId}`;
+  const existing = await tx.expense.findFirst({ where: { notes: marker } });
+  if (existing) return existing;
+  const payment = await tx.purchasePayment.findUnique({
+    where: { id: paymentId },
+    include: {
+      supplierBill: {
+        include: {
+          supplier: true,
+          receipts: { include: { receipt: { include: { purchaseOrder: { include: { request: { include: { maintenance: true } } } } } } } },
+        },
+      },
+    },
+  });
+  if (!payment || payment.status !== "PAID" || !payment.supplierBill) return null;
+  const truckIds = [...new Set(payment.supplierBill.receipts.map(row => {
+    const request = row.receipt?.purchaseOrder?.request;
+    return request?.maintenance?.truckId || (request?.purpose === "TRUCK" ? request.truckId : null);
+  }).filter(Boolean))];
+  const bill = payment.supplierBill;
+  return tx.expense.create({
+    data: {
+      status: "APPROVED",
+      paymentMethod: ["BANK_TRANSFER", "CASH", "OTHER"].includes(payment.method) ? payment.method : "OTHER",
+      amount: payment.amount,
+      currency: "IDR",
+      category: "SPAREPART",
+      reason: `Pembayaran sparepart ${bill.supplier?.name || "supplier"} · ${bill.invoiceNumber}`,
+      clientName: bill.supplier?.name || null,
+      notes: marker,
+      truckId: truckIds.length === 1 ? truckIds[0] : null,
+      proofUrl: payment.proofUrl,
+      proofFileName: payment.proofFileName,
+      proofMimeType: payment.proofMimeType,
+      proofSize: payment.proofSize,
+      paidAt: payment.paidAt || payment.approvedAt || new Date(),
+      proofUploadedById: payment.createdById,
+      createdById: payment.createdById,
+      approvedById: approvedById || payment.approvedById,
+      approvedAt: payment.approvedAt || new Date(),
+      expenseDate: payment.paidAt || payment.approvedAt || new Date(),
+    },
+  });
+}
+
 router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"));
 router.get("/overview", async (_req, res) => {
   const [requests, orders, suppliers, locations, items, retreadingUnits, repairingUnits, bills, trucks, nonSerializedRepairs, nonSerializedRepairReceipts] = await Promise.all([
@@ -759,6 +805,9 @@ router.post("/payments", async (req, res) => {
 });
 router.patch("/payments/:id/approve", requireRole("OWNER", "ADMIN"), async (req, res) => {
   const payment = await prisma.$transaction(async tx => {
+    const current = await tx.purchasePayment.findUnique({ where: { id: req.params.id }, select: { id: true, status: true } });
+    if (!current) throw new Error("Pembayaran supplier tidak ditemukan");
+    if (current.status === "PAID") throw new Error("Pembayaran supplier sudah disetujui");
     const updated = await tx.purchasePayment.update({ where: { id: req.params.id }, data: { status: "PAID", paidAt: new Date(), approvedAt: new Date(), approvedById: req.user.id } });
     await postJournal(tx, { date: updated.paidAt, description: `Pembayaran supplier ${updated.number}`, sourceType: "SUPPLIER_PAYMENT", sourceId: updated.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.AP, debit: updated.amount }, { code: cashCode(updated.method), credit: updated.amount }] });
     if (updated.supplierBillId) {
@@ -766,6 +815,7 @@ router.patch("/payments/:id/approve", requireRole("OWNER", "ADMIN"), async (req,
       const paid = bill.payments.filter(row => row.status === "PAID").reduce((sum, row) => sum + row.amount, 0);
       await tx.supplierBill.update({ where: { id: bill.id }, data: { status: paid >= bill.amount ? "PAID" : "PARTIALLY_PAID" } });
     }
+    await syncSupplierPaymentExpense(tx, updated.id, req.user.id);
     return updated;
   });
   res.json({ ok: true, payment });
