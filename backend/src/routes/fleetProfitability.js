@@ -137,7 +137,7 @@ router.get("/", async (req, res) => {
               some: {
                 createdAt: dateRange,
                 stockUnitId: null,
-                OR: [{ type: "OUT" }, { type: "IN", note: { startsWith: "RETURN_OF:" } }],
+                OR: [{ type: "OUT" }, { type: "IN", note: { startsWith: "RETURN_OF:" } }, { type: "IN", note: { startsWith: "REPAIR_SECOND_OF:" } }],
               },
             },
           },
@@ -147,7 +147,7 @@ router.get("/", async (req, res) => {
               where: {
                 createdAt: dateRange,
                 stockUnitId: null,
-                OR: [{ type: "OUT" }, { type: "IN", note: { startsWith: "RETURN_OF:" } }],
+                OR: [{ type: "OUT" }, { type: "IN", note: { startsWith: "RETURN_OF:" } }, { type: "IN", note: { startsWith: "REPAIR_SECOND_OF:" } }],
               },
               include: { item: { select: { name: true, sku: true, unit: true } } },
               orderBy: { createdAt: "asc" },
@@ -183,7 +183,8 @@ router.get("/", async (req, res) => {
       const serializedSpareParts = truck.sparePartAssignments.reduce((sum, item) => sum + (item.installCost ?? item.stockUnit.purchasePrice ?? 0), 0);
       const nonSerializedSpareParts = nonSerializedPartMovements.reduce((sum, movement) => {
         const cost = Number(movement.totalCost || 0);
-        return movement.type === "IN" ? sum - cost : sum + cost;
+        const isRepairCost = movement.type === "IN" && String(movement.note || "").startsWith("REPAIR_SECOND_OF:");
+        return movement.type === "IN" && !isRepairCost ? sum - cost : sum + cost;
       }, 0);
       const directInventorySpareParts = truck.stockMovesTo.reduce((sum, movement) => sum + Number(movement.totalCost || 0), 0);
       const spareParts = serializedSpareParts + nonSerializedSpareParts + directInventorySpareParts;
@@ -263,9 +264,10 @@ router.get("/", async (req, res) => {
         unit: movement.item?.unit || null,
         quantity: movement.qty,
         installedAt: movement.createdAt,
-        cost: movement.type === "IN" ? -Number(movement.totalCost || 0) : Number(movement.totalCost || 0),
+        cost: movement.type === "IN" && !String(movement.note || "").startsWith("REPAIR_SECOND_OF:") ? -Number(movement.totalCost || 0) : Number(movement.totalCost || 0),
         maintenanceTitle: movement.maintenanceTitle,
-        isReturn: movement.type === "IN",
+        isReturn: movement.type === "IN" && !String(movement.note || "").startsWith("REPAIR_SECOND_OF:"),
+        isRepairCost: movement.type === "IN" && String(movement.note || "").startsWith("REPAIR_SECOND_OF:"),
       })));
       sparePartDetails.push(...truck.stockMovesTo.map(movement => ({
         id: `direct-movement:${movement.id}`,

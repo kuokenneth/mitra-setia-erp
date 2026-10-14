@@ -468,6 +468,7 @@ model SupplierBill {
   status        SupplierBillStatus       @default(OPEN)
   receipts      SupplierBillReceipt[]
   items         SupplierBillItem[]
+  repairItems   SupplierBillRepairItem[]
   attachments   SupplierBillAttachment[]
   payments      PurchasePayment[]
   createdById   String
@@ -477,6 +478,19 @@ model SupplierBill {
 
   @@unique([supplierId, invoiceNumber])
   @@index([supplierId, status])
+}
+
+model SupplierBillRepairItem {
+  id         String        @id @default(cuid())
+  billId     String
+  bill       SupplierBill  @relation(fields: [billId], references: [id], onDelete: Cascade)
+  movementId String        @unique
+  movement   StockMovement @relation(fields: [movementId], references: [id])
+  qty        Float
+  unitPrice  Int
+  amount     Int
+
+  @@index([billId])
 }
 
 model SupplierBillAttachment {
@@ -1549,6 +1563,7 @@ model StockMovement {
 
   item             Item                           @relation(fields: [itemId], references: [id])
   batchAllocations StockMovementBatchAllocation[]
+  supplierBillRepairItem SupplierBillRepairItem?
 
   @@index([stockUnitId])
   @@index([itemId])
