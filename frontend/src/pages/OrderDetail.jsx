@@ -110,7 +110,7 @@ function StatusBadge({ status, type = "order" }) {
   const tripMap = {
     COMPLETED: { bg: BRAND.successBg, fg: BRAND.success },
     ARRIVED: { bg: BRAND.infoBg, fg: BRAND.info },
-    DISPATCHED: { bg: BRAND.accent, fg: BRAND.primary },
+    DISPATCHED: { bg: "#FFF3D6", fg: "#B45309" },
     CANCELLED: { bg: "#F3F4F6", fg: BRAND.textMuted },
   };
   const map = type === "trip" ? tripMap : orderMap;

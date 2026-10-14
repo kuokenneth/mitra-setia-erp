@@ -27,8 +27,8 @@ const statusColor = {
     background: "#F1F5F9"
   },
   DISPATCHED: {
-    color: "#0D7C3D",
-    background: "#E8F6ED"
+    color: "#B45309",
+    background: "#FFF3D6"
   },
   ARRIVED: {
     color: "#1D4ED8",

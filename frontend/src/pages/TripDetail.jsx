@@ -124,7 +124,7 @@ function tripBadgeStyle(status) {
   const s = String(status || "").toUpperCase();
   if (s === "COMPLETED") return { ...badgeBase, background: "#DDFBEA", borderColor: "rgba(16,185,129,0.35)" };
   if (s === "ARRIVED") return { ...badgeBase, background: "#EAF7FF", borderColor: "rgba(59,130,246,0.25)" };
-  if (s === "DISPATCHED") return { ...badgeBase, background: "#E9FBF1", borderColor: "rgba(34,197,94,0.35)" };
+  if (s === "DISPATCHED") return { ...badgeBase, color: "#B45309", background: "#FFF3D6", borderColor: "#F4C76A" };
   if (s === "CANCELLED") return { ...badgeBase, background: "#FFF1F2", borderColor: "rgba(244,63,94,0.25)" };
   return { ...badgeBase, background: "#F1F5F9", borderColor: "rgba(15, 60, 45, 0.12)" };
 }
