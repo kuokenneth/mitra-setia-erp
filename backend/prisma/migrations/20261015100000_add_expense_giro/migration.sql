@@ -1,0 +1,5 @@
+ALTER TYPE "ExpensePaymentMethod" ADD VALUE IF NOT EXISTS 'GIRO';
+
+ALTER TABLE "Expense"
+ADD COLUMN "giroIssuedAt" TIMESTAMP(3),
+ADD COLUMN "giroDueAt" TIMESTAMP(3);

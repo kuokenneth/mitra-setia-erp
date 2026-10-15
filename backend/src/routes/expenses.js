@@ -43,7 +43,7 @@ function cashOutVoucherData(expense) {
   const party = expense.clientName || expense.accountName || expense.employee?.name || expense.employeeParty?.name || expense.trip?.driverUser?.name || expense.truck?.driverUser?.name || "-";
   const allocation = expense.trip?.order?.orderNo || expense.trip?.truck?.plateNumber || expense.truck?.plateNumber;
   const purpose = [expense.reason, allocation].filter(Boolean).join(" · ");
-  const method = expense.paymentMethod === "CASH" ? "Tunai" : expense.paymentMethod === "BANK_TRANSFER" ? `Transfer${expense.bankName ? ` - ${expense.bankName}` : ""}` : "Lainnya";
+  const method = expense.paymentMethod === "CASH" ? "Tunai" : expense.paymentMethod === "BANK_TRANSFER" ? `Transfer${expense.bankName ? ` - ${expense.bankName}` : ""}` : expense.paymentMethod === "GIRO" ? `Giro${expense.bankName ? ` - ${expense.bankName}` : ""}${expense.accountNumber ? ` · No. ${expense.accountNumber}` : ""}${expense.giroDueAt ? ` · Jatuh tempo ${fmtDate(expense.giroDueAt)}` : ""}` : "Lainnya";
   return {
     type: "OUT",
     number: `BKK-${dateKey}-${expense.id.slice(-6).toUpperCase()}`,
@@ -74,7 +74,7 @@ function xmlCell(value, type = "String") {
 }
 
 const categoryLabels = { PANJAR: "Panjar", TRIP_ALLOWANCE: "Uang jalan", REMAINING_TRIP_ALLOWANCE: "Sisa uang jalan", UNLOADING_FEE: "Uang bongkar", FUEL_LOAN: "Pinjaman minyak", LOADING_LOAN: "Pinjaman muat", DRIVER_SALARY: "Gaji pengemudi", FUEL: "Bahan bakar", TOLL_PARKING: "Tol & parkir", LOADING_UNLOADING: "Bongkar muat", REPAIR_MAINTENANCE: "Perbaikan & servis", SPAREPART: "Sparepart", OFFICE_OPERATIONAL: "Operasional kantor", EMPLOYEE_SALARY: "Gaji karyawan", OPERATIONAL_COST: "Biaya operasional", ELECTRICITY: "Listrik", WATER: "Air", TELECOMMUNICATION: "Telkom / komunikasi", OFFICE_EQUIPMENT: "Peralatan kantor", COMMISSION_FEE: "Komisi / fee", DOCUMENT_ADMINISTRATION: "Pengurusan surat", BPJS: "BPJS", TAX: "Pajak", EMPLOYEE_RECEIVABLE: "Piutang karyawan", FINANCE_DEBT_PAYMENT: "Pembayaran utang finance", OTHER: "Lainnya" };
-const methodLabels = { BANK_TRANSFER: "Transfer bank", CASH: "Tunai", OTHER: "Lainnya" };
+const methodLabels = { BANK_TRANSFER: "Transfer bank", CASH: "Tunai", GIRO: "Giro", OTHER: "Lainnya" };
 const statusLabels = { SUBMITTED: "Diajukan", APPROVED: "Disetujui", PAID: "Dibayar", REJECTED: "Ditolak" };
 
 function expenseFilterWhere({ q, paymentMethod, status } = {}) {
@@ -188,11 +188,11 @@ router.get("/export", authRequired, async (req, res) => {
     },
   });
   const dateText = value => new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "2-digit", year: "numeric" }).format(value);
-  const headers = ["No", "Tanggal", "Kategori", "Keperluan", "Klien / Referensi", "Trip", "Rute", "Armada", "Pengemudi", "Metode", "Bank", "Nama Rekening", "Nomor Rekening", "Mata Uang", "Nominal", "Status", "Catatan", "Dibuat Oleh", "Disetujui Oleh"];
+  const headers = ["No", "Tanggal", "Kategori", "Keperluan", "Klien / Referensi", "Trip", "Rute", "Armada", "Pengemudi", "Metode", "Bank", "Nama Rekening / Penerima", "Nomor Rekening / Giro", "Tanggal Terbit Giro", "Jatuh Tempo Giro", "Mata Uang", "Nominal", "Status", "Catatan", "Dibuat Oleh", "Disetujui Oleh"];
   const rows = items.map((item, index) => {
     const trip = item.trip;
-    const values = [index + 1, dateText(item.expenseDate), categoryLabels[item.category] || item.category, item.reason, item.clientName || "", trip?.order?.orderNo || "", trip?.order ? `${trip.order.fromText || "-"} → ${trip.order.toText || "-"}` : "", trip?.truck?.plateNumber || item.truck?.plateNumber || "", trip?.driverUser?.name || "", methodLabels[item.paymentMethod] || item.paymentMethod, item.bankName || "", item.accountName || "", item.accountNumber || "", item.currency, item.amount, statusLabels[item.status] || item.status, item.notes || "", item.createdBy?.name || item.createdBy?.email || "", item.approvedBy?.name || item.approvedBy?.email || ""];
-    return `<Row>${values.map((value, column) => xmlCell(value, column === 0 || column === 14 ? "Number" : "String")).join("")}</Row>`;
+    const values = [index + 1, dateText(item.expenseDate), categoryLabels[item.category] || item.category, item.reason, item.clientName || "", trip?.order?.orderNo || "", trip?.order ? `${trip.order.fromText || "-"} → ${trip.order.toText || "-"}` : "", trip?.truck?.plateNumber || item.truck?.plateNumber || "", trip?.driverUser?.name || "", methodLabels[item.paymentMethod] || item.paymentMethod, item.bankName || "", item.accountName || "", item.accountNumber || "", item.giroIssuedAt ? dateText(item.giroIssuedAt) : "", item.giroDueAt ? dateText(item.giroDueAt) : "", item.currency, item.amount, statusLabels[item.status] || item.status, item.notes || "", item.createdBy?.name || item.createdBy?.email || "", item.approvedBy?.name || item.approvedBy?.email || ""];
+    return `<Row>${values.map((value, column) => xmlCell(value, column === 0 || column === 16 ? "Number" : "String")).join("")}</Row>`;
   }).join("");
   const workbook = `<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="Semua Pengeluaran"><Table><Row>${headers.map(header => xmlCell(header)).join("")}</Row>${rows}</Table></Worksheet></Workbook>`;
   const filename = `semua-pengeluaran-${new Date().toISOString().slice(0, 10)}.xls`;
@@ -277,7 +277,7 @@ router.get("/vouchers-print", authRequired, async (req, res) => {
   const q = cleanStr(req.query.q || "");
   const paymentMethod = cleanStr(req.query.paymentMethod || "");
   const month = cleanStr(req.query.month || "");
-  if (paymentMethod && !["BANK_TRANSFER", "CASH", "OTHER"].includes(paymentMethod)) return res.status(400).send("Metode pembayaran tidak valid");
+  if (paymentMethod && !["BANK_TRANSFER", "CASH", "GIRO", "OTHER"].includes(paymentMethod)) return res.status(400).send("Metode pembayaran tidak valid");
   if (!month || !/^\d{4}-\d{2}$/.test(month)) return res.status(400).send("Pilih periode bulan yang valid");
   const [yearText, monthText] = month.split("-");
   const year = Number(yearText);
@@ -387,6 +387,8 @@ router.post("/", authRequired, async (req, res) => {
   const bankName = cleanStr(req.body.bankName);
   const accountName = cleanStr(req.body.accountName);
   const accountNumber = cleanStr(req.body.accountNumber);
+  const giroIssuedAt = parseExpenseDate(cleanStr(req.body.giroIssuedAt));
+  const giroDueAt = parseExpenseDate(cleanStr(req.body.giroDueAt));
   const notes = cleanStr(req.body.notes);
   const tripId = cleanStr(req.body.tripId);
   const truckId = cleanStr(req.body.truckId);
@@ -409,7 +411,7 @@ router.post("/", authRequired, async (req, res) => {
     return res.status(400).json({ error: "Pilih perjalanan atau armada langsung, bukan keduanya" });
   }
 
-  const allowedMethods = ["BANK_TRANSFER", "CASH", "OTHER"];
+  const allowedMethods = ["BANK_TRANSFER", "CASH", "GIRO", "OTHER"];
   if (!allowedMethods.includes(paymentMethod)) {
     return res.status(400).json({ error: "Invalid payment method" });
   }
@@ -425,6 +427,10 @@ router.post("/", authRequired, async (req, res) => {
   if (tripId && paymentMethod === "BANK_TRANSFER" && (!bankName || !accountName || !accountNumber)) {
     return res.status(400).json({ error: "Nama bank, nama pemilik rekening, dan nomor rekening wajib diisi untuk transfer bank" });
   }
+  if (paymentMethod === "GIRO" && (!bankName || !accountName || !accountNumber || !giroIssuedAt || !giroDueAt)) {
+    return res.status(400).json({ error: "Bank penerbit, nomor giro, nama penerima, tanggal terbit, dan tanggal jatuh tempo wajib diisi" });
+  }
+  if (paymentMethod === "GIRO" && giroDueAt < giroIssuedAt) return res.status(400).json({ error: "Tanggal jatuh tempo giro tidak boleh sebelum tanggal terbit" });
   let employee = null;
   let employeeParty = null;
   if (category === "EMPLOYEE_RECEIVABLE") {
@@ -477,6 +483,8 @@ router.post("/", authRequired, async (req, res) => {
       bankName,
       accountName,
       accountNumber,
+      giroIssuedAt: paymentMethod === "GIRO" ? giroIssuedAt : null,
+      giroDueAt: paymentMethod === "GIRO" ? giroDueAt : null,
       amount: Math.round(amount),
       currency,
       category,
@@ -538,7 +546,7 @@ router.patch("/:id", authRequired, async (req, res) => {
   const notes = cleanStr(req.body.notes);
 
   if (paymentMethod) {
-    const allowedMethods = ["BANK_TRANSFER", "CASH", "OTHER"];
+    const allowedMethods = ["BANK_TRANSFER", "CASH", "GIRO", "OTHER"];
     if (!allowedMethods.includes(paymentMethod)) {
       return res.status(400).json({ error: "Invalid payment method" });
     }
@@ -674,7 +682,7 @@ router.post("/approve-all", authRequired, async (req, res) => {
 
   const q = cleanStr(req.body?.q || "");
   const paymentMethod = cleanStr(req.body?.paymentMethod || "");
-  if (paymentMethod && !["BANK_TRANSFER", "CASH", "OTHER"].includes(paymentMethod)) return res.status(400).json({ error: "Metode pembayaran tidak valid" });
+  if (paymentMethod && !["BANK_TRANSFER", "CASH", "GIRO", "OTHER"].includes(paymentMethod)) return res.status(400).json({ error: "Metode pembayaran tidak valid" });
   const approvedAt = new Date();
   const result = await prisma.expense.updateMany({
     where: expenseFilterWhere({ q, paymentMethod, status: "PAID" }),

@@ -123,6 +123,7 @@ enum TripPhase {
 enum ExpensePaymentMethod {
   BANK_TRANSFER
   CASH
+  GIRO
   OTHER
 }
 
@@ -1630,6 +1631,8 @@ model Expense {
   bankName      String?
   accountName   String?
   accountNumber String?
+  giroIssuedAt  DateTime?
+  giroDueAt     DateTime?
 
   amount   Int
   currency String          @default("IDR")

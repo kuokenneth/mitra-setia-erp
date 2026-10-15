@@ -136,6 +136,8 @@ export default function Expenses() {
     bankName: "",
     accountName: "",
     accountNumber: "",
+    giroIssuedAt: "",
+    giroDueAt: "",
     amount: "",
     currency: "IDR",
     reason: "",
@@ -209,6 +211,8 @@ export default function Expenses() {
       bankName: "",
       accountName: "",
       accountNumber: "",
+      giroIssuedAt: "",
+      giroDueAt: "",
       amount: "",
       currency: "IDR",
       reason: "",
@@ -233,13 +237,15 @@ export default function Expenses() {
   }
 
   function onChangeForm(field, value) {
-    if (field === "paymentMethod" && value !== "BANK_TRANSFER") {
+    if (field === "paymentMethod") {
       setForm((f) => ({
         ...f,
         paymentMethod: value,
-        bankName: "",
-        accountName: "",
-        accountNumber: "",
+        bankName: value === "BANK_TRANSFER" || value === "GIRO" ? f.bankName : "",
+        accountName: value === "BANK_TRANSFER" || value === "GIRO" ? f.accountName : "",
+        accountNumber: value === "BANK_TRANSFER" || value === "GIRO" ? f.accountNumber : "",
+        giroIssuedAt: value === "GIRO" ? f.giroIssuedAt : "",
+        giroDueAt: value === "GIRO" ? f.giroDueAt : "",
       }));
       return;
     }
@@ -413,6 +419,8 @@ export default function Expenses() {
           bankName: form.bankName,
           accountName: form.accountName,
           accountNumber: form.accountNumber,
+          giroIssuedAt: form.giroIssuedAt,
+          giroDueAt: form.giroDueAt,
           amount: Number(form.amount || 0),
           currency: form.currency || "IDR",
           reason: form.reason,
@@ -613,6 +621,7 @@ export default function Expenses() {
 
   const pageCount = Math.max(1, Math.ceil(total / take));
   const showBankFields = form.paymentMethod === "BANK_TRANSFER";
+  const showGiroFields = form.paymentMethod === "GIRO";
   const filteredExpenseTrucks = expenseTrucks.filter((truck) => {
     const query = truckSearch.trim().toLocaleLowerCase("id-ID");
     if (!query) return true;
@@ -710,6 +719,7 @@ export default function Expenses() {
             <option value="">Semua metode</option>
             <option value="BANK_TRANSFER">Transfer Bank</option>
             <option value="CASH">Tunai</option>
+            <option value="GIRO">Giro</option>
             <option value="OTHER">Lainnya</option>
           </select>
         </div>
@@ -737,7 +747,7 @@ export default function Expenses() {
                   <td style={s.td}><div className="expense-date"><FiCalendar />{(x.expenseDate || x.createdAt) ? new Date(x.expenseDate || x.createdAt).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short", year: "numeric" }) : "-"}</div></td>
                   <td style={s.td}><div className="expense-row-title">{x.reason || "Tanpa keterangan"}</div><div className="expense-row-meta">{EXPENSE_CATEGORIES[x.category] || "Lainnya"}{x.employee?.name ? ` · ${x.employee.name}` : x.employeeParty?.name ? ` · ${x.employeeParty.name}` : x.financeDebt ? ` · ${x.financeDebt.leasingName}` : x.clientName ? ` · ${x.clientName}` : ""}</div></td>
                   <td style={s.td}><div className="expense-allocation"><span><FiTruck /></span><div><strong>{x.trip?.truck?.plateNumber || x.truck?.plateNumber || "Umum"}</strong><small>{x.trip?.driverUser?.name || x.trip?.driverNameSnap || x.truck?.driverUser?.name || (x.trip ? "Tanpa nama pengemudi" : x.truck ? "Tanpa nama pengemudi" : "Operasional umum")}</small>{x.trip ? <small>{x.trip.order?.orderNo || "Perjalanan"}</small> : x.truck ? <small>Biaya armada</small> : null}</div></div></td>
-                  <td style={s.td}><div className="expense-row-title">{x.paymentMethod === "BANK_TRANSFER" ? "Transfer bank" : x.paymentMethod === "CASH" ? "Tunai" : "Lainnya"}</div><div className="expense-row-meta">{x.bankName || "—"}</div>{x.paymentMethod === "BANK_TRANSFER" ? <div className="expense-row-meta">a.n. {x.accountName || "Nama rekening belum diisi"}</div> : null}</td>
+                  <td style={s.td}><div className="expense-row-title">{x.paymentMethod === "BANK_TRANSFER" ? "Transfer bank" : x.paymentMethod === "CASH" ? "Tunai" : x.paymentMethod === "GIRO" ? "Giro" : "Lainnya"}</div><div className="expense-row-meta">{x.bankName || "—"}</div>{["BANK_TRANSFER","GIRO"].includes(x.paymentMethod) ? <div className="expense-row-meta">{x.paymentMethod === "GIRO" ? `No. ${x.accountNumber || "-"} · ${x.accountName || "Penerima belum diisi"}` : `a.n. ${x.accountName || "Nama rekening belum diisi"}`}</div> : null}</td>
                   <td style={s.tdStrong}>{new Intl.NumberFormat("id-ID", { style: "currency", currency: x.currency || "IDR", maximumFractionDigits: 0 }).format(x.amount || 0)}</td>
                   <td style={s.td}>
                     <div style={s.statusStack}>
@@ -1032,6 +1042,7 @@ export default function Expenses() {
                   >
                     <option value="BANK_TRANSFER">Transfer Bank</option>
                     <option value="CASH">Tunai</option>
+                    <option value="GIRO">Giro</option>
                     <option value="OTHER">Lainnya</option>
                   </select>
                 </div>
@@ -1067,6 +1078,13 @@ export default function Expenses() {
                     </div>
                   </>
                 )}
+                {showGiroFields && <>
+                  <div><label style={s.label}>Bank Penerbit</label><input required style={s.input} value={form.bankName} onChange={(e)=>onChangeForm("bankName",e.target.value)} placeholder="Nama bank penerbit giro"/></div>
+                  <div><label style={s.label}>Nomor Giro</label><input required style={s.input} value={form.accountNumber} onChange={(e)=>onChangeForm("accountNumber",e.target.value)} placeholder="Nomor lembar giro"/></div>
+                  <div><label style={s.label}>Nama Penerima</label><input required style={s.input} value={form.accountName} onChange={(e)=>onChangeForm("accountName",e.target.value)} placeholder="Nama penerima giro"/></div>
+                  <div><label style={s.label}>Tanggal Terbit</label><input required type="date" style={s.input} value={form.giroIssuedAt} onChange={(e)=>onChangeForm("giroIssuedAt",e.target.value)}/></div>
+                  <div><label style={s.label}>Tanggal Jatuh Tempo</label><input required type="date" min={form.giroIssuedAt||undefined} style={s.input} value={form.giroDueAt} onChange={(e)=>onChangeForm("giroDueAt",e.target.value)}/></div>
+                </>}
 
                 <div>
                   <label style={s.label}>Jumlah</label>
@@ -1247,6 +1265,7 @@ export default function Expenses() {
                 <div style={s.detailLabel}>Nomor Rekening</div>
                 <div style={s.detailValue}>{detailItem.accountNumber || "-"}</div>
               </div>
+              {detailItem.paymentMethod === "GIRO" && <><div><div style={s.detailLabel}>Tanggal Terbit Giro</div><div style={s.detailValue}>{detailItem.giroIssuedAt ? new Date(detailItem.giroIssuedAt).toLocaleDateString("id-ID",{timeZone:"Asia/Jakarta"}) : "-"}</div></div><div><div style={s.detailLabel}>Jatuh Tempo Giro</div><div style={s.detailValue}>{detailItem.giroDueAt ? new Date(detailItem.giroDueAt).toLocaleDateString("id-ID",{timeZone:"Asia/Jakarta"}) : "-"}</div></div></>}
               <div>
                 <div style={s.detailLabel}>Klien</div>
                 <div style={s.detailValue}>{detailItem.clientName || "-"}</div>
