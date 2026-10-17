@@ -44,14 +44,17 @@
 .erp-content .orders-v3-customer-modal .orders-v3-modal-actions{
   position:sticky;
   bottom:0;
-  width:calc(100% + 48px);
+  width:auto!important;
+  max-width:none!important;
+  box-sizing:border-box;
+  align-self:stretch;
   margin:18px -24px 0!important;
   padding:14px 24px!important;
   border-top:1px solid #dfe7e2!important;
   background:rgba(255,255,255,.98)!important;
   box-shadow:0 -8px 20px rgba(25,57,38,.04);
 }
-@media(max-width:680px){.erp-content .orders-v3-customer-modal>.orders-v3-modal-body{padding:18px 18px 0!important}.erp-content .orders-v3-customer-modal .orders-v3-modal-actions{width:calc(100% + 36px);margin:16px -18px 0!important;padding:12px 18px max(12px,env(safe-area-inset-bottom))!important}}
+@media(max-width:680px){.erp-content .orders-v3-customer-modal>.orders-v3-modal-body{padding:18px 18px 0!important}.erp-content .orders-v3-customer-modal .orders-v3-modal-actions{width:auto!important;margin:16px -18px 0!important;padding:12px 18px max(12px,env(safe-area-inset-bottom))!important}}
 
 /* Keep the order form footer in normal document flow so it never covers fields or uploads. */
 .erp-content .orders-v3-create-modal{
@@ -70,7 +73,10 @@
 .erp-content .orders-v3-create-modal .orders-v3-modal-actions{
   position:static!important;
   bottom:auto!important;
-  width:calc(100% + 48px);
+  width:auto!important;
+  max-width:none!important;
+  box-sizing:border-box;
+  align-self:stretch;
   margin:24px -24px 0!important;
   padding:16px 24px!important;
   border-top:1px solid #dfe7e2!important;
@@ -81,7 +87,7 @@
   .erp-content .orders-v3-create-modal{max-height:calc(100dvh - 16px)!important}
   .erp-content .orders-v3-create-modal>.orders-v3-modal-body{padding:18px 18px 0!important}
   .erp-content .orders-v3-create-modal .orders-v3-modal-actions{
-    width:calc(100% + 36px);
+    width:auto!important;
     margin:20px -18px 0!important;
     padding:14px 18px max(14px,env(safe-area-inset-bottom))!important;
   }

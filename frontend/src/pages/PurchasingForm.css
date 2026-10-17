@@ -882,6 +882,49 @@
 .bill-receipt-picker label>span .bill-delivery-note{margin:3px 0 1px;color:#176f43;font-size:12px;font-weight:850;line-height:1.25}
 .bill-select-all{display:flex;align-items:center;gap:8px}.bill-select-all>b{padding:5px 8px;border-radius:99px;background:#e4f2e9;color:#267249;font-size:9px}.bill-select-all>button{min-height:29px;padding:0 10px;border:1px solid #9fc9af;border-radius:7px;background:#fff;color:#176f43;font-size:10px;font-weight:850;cursor:pointer}.bill-select-all>button:hover{border-color:#5da376;background:#edf8f1}.bill-select-all>button:disabled{cursor:not-allowed;opacity:.45}
 
+/* Supplier billing on phones uses one predictable scroll area. Nested scrolling can
+   make the receipt and item lists appear empty in mobile Safari. */
+@media(max-width:720px){
+  .purchasing .supplier-bill-modal{
+    display:flex;
+    width:calc(100vw - 16px)!important;
+    max-width:calc(100vw - 16px)!important;
+    max-height:calc(100dvh - 16px)!important;
+    flex-direction:column;
+    overflow:hidden!important;
+  }
+  .purchasing .supplier-bill-modal>.modal-heading,
+  .purchasing .supplier-bill-modal>.modal-actions{flex:0 0 auto}
+  .purchasing .supplier-bill-modal>.po-form-body{
+    min-height:0;
+    flex:1 1 auto;
+    overflow-x:hidden;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+  }
+  .purchasing .supplier-bill-modal .bill-receipt-picker{
+    min-height:0;
+    max-height:none;
+    overflow:visible;
+  }
+  .purchasing .supplier-bill-modal .bill-receipt-section>header{
+    align-items:flex-start;
+    flex-direction:column;
+  }
+  .purchasing .supplier-bill-modal .bill-select-all{
+    width:100%;
+    justify-content:space-between;
+  }
+  .purchasing .supplier-bill-modal .bill-receipt-picker>label{
+    grid-template-columns:24px minmax(0,1fr);
+  }
+  .purchasing .supplier-bill-modal .bill-receipt-picker>label>b{
+    grid-column:2;
+    justify-self:start;
+  }
+}
+
 /* Cohesive request flow: items first, then details and proof. */
 .purchasing .request-redesign-modal .request-modal-body{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"source source" "items items" "details proof" "details proof-list" "progress progress" "error error";gap:14px;padding:18px 22px 22px}
 .purchasing .request-redesign-modal .request-modal-body>.request-form-section:first-child{grid-area:source}

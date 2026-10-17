@@ -123,7 +123,7 @@
 .fleet-movement-type-tabs button:hover { color: #0d7c3d; }
 .fleet-movement-type-tabs button.active { border-bottom-color: #0d7c3d; color: #0d7c3d; }
 .fleet-movement-type-tabs b { min-width: 20px; padding: 2px 6px; border-radius: 999px; background: #edf3ef; color: inherit; font-size: 10px; text-align: center; }
-.fleet-movement-table-wrap { flex: 1 1 auto; min-height: 0; margin: 18px 20px 20px !important; overflow: auto !important; overscroll-behavior: contain; border-color: #dfe6e1 !important; border-radius: 11px !important; }
+.fleet-movement-table-wrap { width: calc(100% - 40px); max-width: calc(100% - 40px); box-sizing: border-box; flex: 1 1 auto; min-width: 0; min-height: 0; margin: 18px 20px 20px !important; overflow: auto !important; overscroll-behavior: contain; border-color: #dfe6e1 !important; border-radius: 11px !important; }
 .fleet-movement-table { width: 100% !important; min-width: 820px !important; table-layout: fixed; }
 .fleet-movement-table col.fleet-movement-col-date { width: 12%; }
 .fleet-movement-table col.fleet-movement-col-item { width: 16%; }
@@ -131,7 +131,8 @@
 .fleet-movement-table col.fleet-movement-col-serial { width: 15%; }
 .fleet-movement-table col.fleet-movement-col-status { width: 13%; }
 .fleet-movement-table col.fleet-movement-col-note { width: 24%; }
-.fleet-movement-table th { padding: 12px 11px !important; background: #f5f8f6 !important; color: #718078 !important; font-size: 10px !important; }
+.fleet-movement-table thead { position: sticky; z-index: 5; top: 0; }
+.fleet-movement-table th { position: sticky; z-index: 5; top: 0; padding: 12px 11px !important; border-bottom: 1px solid #dfe7e2; background: #f5f8f6 !important; color: #718078 !important; font-size: 10px !important; box-shadow: 0 1px 0 #dfe7e2; }
 .fleet-movement-table td { min-width: 0; padding: 14px 11px !important; border-color: #edf0ee !important; overflow-wrap: anywhere; word-break: normal; }
 .fleet-movement-table td:nth-child(4) { white-space: nowrap; }
 .fleet-movement-table td:nth-child(6) span { max-width: 100%; box-sizing: border-box; white-space: normal; overflow-wrap: normal; word-break: normal; text-align: center; }
