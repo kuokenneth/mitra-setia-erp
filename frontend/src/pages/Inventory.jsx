@@ -7,6 +7,7 @@ import { useLiveRefresh } from "../liveUpdates";
 import LoadingState from "../components/LoadingState";
 import { FiArrowDownCircle, FiArrowUpCircle, FiBox, FiFileText, FiMapPin, FiPlus, FiSearch, FiTruck, FiX } from "react-icons/fi";
 import "./Inventory.css";
+import useDialogLifecycle from "../components/useDialogLifecycle";
 
 // Corporate Green Color Palette (matching Landing/Dashboard)
 const BRAND = {
@@ -410,14 +411,15 @@ function Pill({ variant = "grey", children }) {
 }
 
 function Modal({ open, title, eyebrow = "INVENTORY", description, tone = "green", onClose, children }) {
+  const { dialogRef, titleId } = useDialogLifecycle(open, onClose);
   if (!open) return null;
   return (
     <div className="inventory-modal-overlay" onClick={onClose}>
-      <div className={`inventory-modal inventory-modal--${tone}`} onClick={(e) => e.stopPropagation()}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className={`inventory-modal inventory-modal--${tone}`} onClick={(e) => e.stopPropagation()}>
         <div className="inventory-modal-head">
           <div className="inventory-modal-heading">
             <span>{eyebrow}</span>
-            <h2>{title}</h2>
+            <h2 id={titleId}>{title}</h2>
             {description && <p>{description}</p>}
           </div>
           <button type="button" className="inventory-modal-close" onClick={onClose} aria-label="Tutup"><FiX /></button>
@@ -472,6 +474,8 @@ export default function Inventory() {
   const [q, setQ] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
+  const skipInitialTabRefresh = useRef(true);
+  const hasCompletedInitialLoad = useRef(false);
 
   const [items, setItems] = useState([]);
   const [receiveItems, setReceiveItems] = useState([]);
@@ -803,8 +807,10 @@ export default function Inventory() {
     }
   }
 
-  async function refresh() {
-    setLoading(true);
+  async function refresh(options = {}) {
+    const background = options?.background === true;
+    const showLoading = !background || !hasCompletedInitialLoad.current;
+    if (showLoading) setLoading(true);
     setErr("");
     try {
       if (tab === "ITEMS") await loadItems();
@@ -815,7 +821,7 @@ export default function Inventory() {
     } catch (e) {
       setErr(String(e?.message || e));
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }
 
@@ -866,6 +872,7 @@ export default function Inventory() {
       } catch (e) {
         setErr(String(e?.message || e));
       } finally {
+        hasCompletedInitialLoad.current = true;
         setLoading(false);
       }
     })();
@@ -875,6 +882,10 @@ export default function Inventory() {
 
   useEffect(() => {
     if (!allowed) return;
+    if (skipInitialTabRefresh.current) {
+      skipInitialTabRefresh.current = false;
+      return;
+    }
     refresh();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);

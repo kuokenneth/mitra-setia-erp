@@ -5,6 +5,7 @@ import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { ProtectedFilePreview } from "../components/ProtectedFile";
 import LoadingState from "../components/LoadingState";
+import PageHeader, { ActionGroup, ActionToolbar } from "../components/PageHeader";
 import { FiArrowLeft, FiArrowRight, FiCalendar, FiCheckCircle, FiClock, FiCreditCard, FiDownload, FiFileText, FiPlus, FiPrinter, FiSearch, FiTruck, FiX } from "react-icons/fi";
 import "./Expenses.css";
 
@@ -645,19 +646,19 @@ export default function Expenses() {
   return (
     <div style={s.page} className="expense-page">
       {/* Header */}
-      <div style={s.headerRow} className="expense-hero">
-        <div>
-          <div className="expense-eyebrow">KEUANGAN OPERASIONAL</div>
-          <h1 style={s.hTitle}>Pengeluaran</h1>
-          <div style={s.hSub}>Kelola biaya perjalanan, armada, dan operasional dalam satu tempat.</div>
-        </div>
-        <div style={s.headerActions}>
-          <div style={s.reportActions}>
+      <PageHeader
+        className="expense-hero"
+        eyebrow="KEUANGAN OPERASIONAL"
+        title="Pengeluaran"
+        description="Kelola biaya perjalanan, armada, dan operasional dalam satu tempat."
+      >
+        <ActionToolbar className="expense-header-toolbar" ariaLabel="Aksi pengeluaran">
+          <ActionGroup className="expense-report-group" purpose="reports">
             <input
               type="month"
+              aria-label="Bulan laporan pengeluaran"
               value={reportMonth}
               onChange={(e) => setReportMonth(e.target.value)}
-              style={s.monthInput}
             />
             <button type="button" className={`expense-report-button ${reportBusy ? "is-busy" : ""}`} style={s.secondaryBtn} disabled={reportBusy || exportBusy} onClick={() => openMonthlyReport(false)} title="Buka laporan bulanan untuk dicetak">
               <FiFileText /> {reportBusy ? "Menyiapkan…" : "Cetak laporan"}
@@ -666,13 +667,17 @@ export default function Expenses() {
               <FiDownload /> {exportBusy ? "Mengunduh…" : "Export Excel"}
             </button>
             <span className={`expense-report-feedback ${reportFeedback ? "visible" : ""}`} role="status" aria-live="polite">{reportFeedback}</span>
-          </div>
-          <button type="button" className="expense-finance-button" style={s.secondaryBtn} onClick={openFinanceDebts} aria-expanded={financeDebtOpen}><FiTruck /> Utang Finance</button>
-          <button className="expense-new-button" style={s.primaryBtn} onClick={() => setShowModal(true)}>
-            <FiPlus /> Pengeluaran baru
-          </button>
-        </div>
-      </div>
+          </ActionGroup>
+          <ActionGroup purpose="secondary">
+            <button type="button" className="expense-finance-button" style={s.secondaryBtn} onClick={openFinanceDebts} aria-expanded={financeDebtOpen}><FiTruck /> Utang Finance</button>
+          </ActionGroup>
+          <ActionGroup purpose="primary">
+            <button className="expense-new-button" style={s.primaryBtn} onClick={() => setShowModal(true)}>
+              <FiPlus /> Pengeluaran baru
+            </button>
+          </ActionGroup>
+        </ActionToolbar>
+      </PageHeader>
 
       {/* Stats */}
       <div style={s.statsRow}>
@@ -728,7 +733,7 @@ export default function Expenses() {
 
         {/* Table */}
         <div style={s.tableWrap} className="expense-table-wrap">
-          <table style={s.table}>
+          <table style={s.table} className="expense-table erp-data-table">
             <thead>
               <tr>
                 <th style={s.th}>Tanggal</th>
@@ -748,7 +753,7 @@ export default function Expenses() {
                   <td style={s.td}><div className="expense-row-title">{x.reason || "Tanpa keterangan"}</div><div className="expense-row-meta">{EXPENSE_CATEGORIES[x.category] || "Lainnya"}{x.employee?.name ? ` · ${x.employee.name}` : x.employeeParty?.name ? ` · ${x.employeeParty.name}` : x.financeDebt ? ` · ${x.financeDebt.leasingName}` : x.clientName ? ` · ${x.clientName}` : ""}</div></td>
                   <td style={s.td}><div className="expense-allocation"><span><FiTruck /></span><div><strong>{x.trip?.truck?.plateNumber || x.truck?.plateNumber || "Umum"}</strong><small>{x.trip?.driverUser?.name || x.trip?.driverNameSnap || x.truck?.driverUser?.name || (x.trip ? "Tanpa nama pengemudi" : x.truck ? "Tanpa nama pengemudi" : "Operasional umum")}</small>{x.trip ? <small>{x.trip.order?.orderNo || "Perjalanan"}</small> : x.truck ? <small>Biaya armada</small> : null}</div></div></td>
                   <td style={s.td}><div className="expense-row-title">{x.paymentMethod === "BANK_TRANSFER" ? "Transfer bank" : x.paymentMethod === "CASH" ? "Tunai" : x.paymentMethod === "GIRO" ? "Giro" : "Lainnya"}</div><div className="expense-row-meta">{x.bankName || "—"}</div>{["BANK_TRANSFER","GIRO"].includes(x.paymentMethod) ? <div className="expense-row-meta">{x.paymentMethod === "GIRO" ? `No. ${x.accountNumber || "-"} · ${x.accountName || "Penerima belum diisi"}` : `a.n. ${x.accountName || "Nama rekening belum diisi"}`}</div> : null}</td>
-                  <td style={s.tdStrong}>{new Intl.NumberFormat("id-ID", { style: "currency", currency: x.currency || "IDR", maximumFractionDigits: 0 }).format(x.amount || 0)}</td>
+                  <td style={s.tdStrong} className="expense-currency-cell">{new Intl.NumberFormat("id-ID", { style: "currency", currency: x.currency || "IDR", maximumFractionDigits: 0 }).format(x.amount || 0)}</td>
                   <td style={s.td}>
                     <div style={s.statusStack}>
                       <span style={{ ...s.statusPill, ...statusVariant(x.status) }}>

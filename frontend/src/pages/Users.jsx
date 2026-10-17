@@ -136,8 +136,8 @@ export default function Users() {
 
   if (!allowed) {
     return (
-      <div data-testid="users-page">
-        <div style={s.header}>
+      <div className="users-page" data-testid="users-page">
+        <div className="staff-page-header" style={s.header}>
           <h1 style={s.title}>Pengguna</h1>
           <p style={s.subtitle}>Anda tidak memiliki izin untuk melihat halaman ini.</p>
         </div>
@@ -151,9 +151,9 @@ export default function Users() {
   const pageCount = Math.max(1, Math.ceil(total / take));
 
   return (
-    <div data-testid="users-page">
+    <div className="users-page" data-testid="users-page">
       {/* Header */}
-      <div style={s.headerRow}>
+      <div className="staff-page-header" style={s.headerRow}>
         <div>
           <h1 style={s.title}>Pengguna</h1>
           <p style={s.subtitle}>Seluruh akun dalam sistem (kecuali pemilik)</p>
@@ -162,9 +162,9 @@ export default function Users() {
       </div>
 
       {/* Main Card */}
-      <div style={s.card}>
+      <div className="users-card" style={s.card}>
         {/* Toolbar */}
-        <div style={s.toolbar}>
+        <div className="users-toolbar" style={s.toolbar}>
           <div style={s.searchRow}>
             <div style={s.inputWrap}>
               <FiSearch size={16} color={BRAND.textMuted} style={{ marginRight: 8 }} />
@@ -172,7 +172,7 @@ export default function Users() {
                 style={s.input}
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Search name…"
+                placeholder="Cari nama atau email…"
                 data-testid="users-search-input"
               />
             </div>
@@ -192,14 +192,14 @@ export default function Users() {
           </div>
 
           <div style={s.rightNote}>
-            Showing {items.length} of {total}
+            Menampilkan {items.length} dari {total}
           </div>
         </div>
 
         {err && <div style={s.alertErr}>{err}</div>}
 
         {/* Table */}
-        <div style={s.tableWrap}>
+        <div className="users-table-wrap" style={s.tableWrap}>
           <table style={s.table}>
             <thead>
               <tr>
@@ -266,7 +266,7 @@ export default function Users() {
         </div>
 
         {/* Pagination */}
-        <div style={s.footer}>
+        <div className="users-pagination" style={s.footer}>
           <button
             style={{ ...s.paginationBtn, opacity: page <= 0 ? 0.5 : 1 }}
             disabled={loading || page <= 0}
@@ -274,7 +274,7 @@ export default function Users() {
             data-testid="users-prev-btn"
           >
             <FiChevronLeft size={16} />
-            Prev
+            Sebelumnya
           </button>
 
           <div style={s.pageInfo}>
@@ -287,7 +287,7 @@ export default function Users() {
             onClick={() => setPage((p) => p + 1)}
             data-testid="users-next-btn"
           >
-            Next
+            Berikutnya
             <FiChevronRight size={16} />
           </button>
         </div>

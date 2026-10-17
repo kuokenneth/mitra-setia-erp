@@ -1,0 +1,26 @@
+/* Authenticated ERP pages use the full workspace beside the sidebar.
+   Width limits remain local to forms, dialogs, and readable text blocks. */
+.erp-main{width:calc(100% - var(--sidebar-width));max-width:none;transition:width .2s ease,margin-left .2s ease}
+.erp-content{width:100%;max-width:none;min-width:0;box-sizing:border-box}
+.erp-content>*:not(.live-indicator){width:100%;max-width:none!important;min-width:0;margin-inline:0!important;box-sizing:border-box}
+.erp-content>.live-indicator{width:max-content!important;max-width:calc(100vw - 24px)!important;margin:0!important}
+
+/* Some pages contain a second website-style centered shell. */
+.erp-content :is(.inventory-shell,.trip-detail-v3-shell,.trip-detail-v3-container){width:100%;max-width:none!important;min-width:0;margin-inline:0!important}
+
+/* Operational page roots: fluid canvas, spacing supplied once by erp-content. */
+.erp-content :is(.d3-page,.orders-v3-page,.trips-v3-page,.trip-detail-v3-shell,.fleet-page-v2,.fleet-map-page,.google-map-page,.location-master-page,.material-stock-page,.inventory-page,.maintenance-page,.purchasing,.expense-page,.ar-page,.acct-page,.fp-page,.audit-page,.users-page){
+  width:100%;max-width:none!important;min-width:0;margin-inline:0!important;padding:0!important
+}
+
+/* Headers, workspaces, boards, and tables follow the fluid page width. */
+.erp-content :is(.d3-header,.orders-v3-head,.trips-v3-head,.fleet-v2-head,.fleet-v2-header,.fleet-map-head,.location-master-head,.material-stock-page>header,.inventory-hero,.maintenance-head,.p-head,.expense-hero,.ar-head,.acct-hero,.fp-head,.audit-hero,.inventory-workspace,.orders-v3-board,.fleet-v2-card,.fleet-map-card,.material-board,.expense-panel,.ar-panel,.acct-ledger,.fp-panel,.audit-workspace){
+  width:100%;max-width:none;min-width:0;box-sizing:border-box
+}
+
+/* Full-width data regions; form cards and modals deliberately keep their own limits. */
+.erp-content :is(.inventory-workspace,.orders-v3-board,.fleet-v2-card,.material-board,.expense-panel,.ar-panel,.acct-ledger,.fp-panel,.audit-workspace,.p-panel){align-self:stretch}
+
+@media(max-width:1199px){.erp-main{width:100%}}
+@media(max-width:767px){.erp-content{padding:12px}}
+@media(max-width:420px){.erp-content{padding:10px}}

@@ -9,6 +9,7 @@ import ImageAnnotationEditor from "../components/ImageAnnotationEditor";
 import UploadProgress from "../components/UploadProgress";
 import { FiActivity, FiCalendar, FiCamera, FiCheck, FiClock, FiPlus, FiRefreshCw, FiSearch, FiTool, FiTruck } from "react-icons/fi";
 import "./Maintenance.css";
+import useDialogLifecycle from "../components/useDialogLifecycle";
 
 const OIL_CHANGE_INTERVAL_KM = 8500;
 const EMPTY_PURCHASE_REQUEST = { itemId: "", qty: 1, urgency: "URGENT", reason: "", notes: "", newItem: false, sku: "", name: "", unit: "PCS", isSerialized: false };
@@ -485,6 +486,7 @@ function ServicePhoto({ photo, alt }) {
 }
 
 function Modal({ open, title, onClose, children, width = 900, className = "" }) {
+  const { dialogRef, titleId } = useDialogLifecycle(open, onClose);
   if (!open) return null;
   return (
     <div
@@ -503,7 +505,7 @@ function Modal({ open, title, onClose, children, width = 900, className = "" }) 
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className={`maintenance-modal ${className}`}
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className={`maintenance-modal ${className}`}
         style={{
           width: "100%",
           maxWidth: width,
@@ -524,8 +526,8 @@ function Modal({ open, title, onClose, children, width = 900, className = "" }) 
             alignItems: "center",
           }}
         >
-          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: BRAND.text }}>{title}</h3>
-          <Button variant="secondary" onClick={onClose}>
+          <h3 id={titleId} style={{ margin: 0, fontSize: 18, fontWeight: 600, color: BRAND.text }}>{title}</h3>
+          <Button className="maintenance-modal-close" variant="secondary" onClick={onClose}>
             Tutup
           </Button>
         </div>

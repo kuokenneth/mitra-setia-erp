@@ -232,7 +232,7 @@
   padding: 12px 14px;
 }
 .purchasing .transaction-modal:not(.payment-modal) .po-price-row strong { font-size: 13px; }
-.purchasing .transaction-modal:not(.payment-modal) .serial-entry { margin-top: -3px; }
+.purchasing .transaction-modal:not(.payment-modal) .serial-entry { margin-top: 0; }
 .purchasing .transaction-modal:not(.payment-modal) .serial-entry textarea {
   min-height: 72px;
   padding: 10px 12px;
@@ -466,7 +466,7 @@
 }
 .po-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; padding-top: 13px; border-top: 1px solid #edf1ee; }
 .po-actions button, .payment-side button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 6px 10px; border: 1px solid #c5dfcf; border-radius: 7px; background: #eef8f2; color: #0d7c3d; font-size: 11px; font-weight: 800; }
-.po-progress { height: 5px; overflow: hidden; margin: -8px 0 14px; border-radius: 99px; background: #edf1ee; }
+.po-progress { height: 5px; overflow: hidden; margin: 0 0 14px; border-radius: 99px; background: #edf1ee; }
 .po-progress span { display: block; height: 100%; border-radius: inherit; background: #0d7c3d; transition: width .25s ease; }
 .activity-list { display: grid; padding: 16px; gap: 10px; }
 .activity-list > article { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; gap: 14px; align-items: start; padding: 16px; border: 1px solid #e1e8e3; border-radius: 11px; background: #fff; }
