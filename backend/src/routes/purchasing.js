@@ -564,10 +564,50 @@ router.post("/orders", async (req, res) => {
     });
     const wrongSupplier = request.items.find(row => row.tireRetread?.supplierId && row.tireRetread.supplierId !== supplierId);
     if (wrongSupplier) throw new Error("Supplier PO harus sama dengan vendor yang dipilih saat Lepas & Masak");
-    const po = await prisma.$transaction(async tx => tx.purchaseOrder.create({ data: { number: await nextDailyNumber(tx, "purchaseOrder", "PO"), requestId, supplierId, tax: Number(tax), shippingCost: Number(shippingCost), discount: Number(discount), paymentTerms, deliveryAddress, estimatedArrival: estimatedArrival ? new Date(estimatedArrival) : null, createdById: req.user.id, items: { create: poItems } }, include: includePO }));
+    const po = await prisma.$transaction(async tx => tx.purchaseOrder.create({ data: { number: await nextDailyNumber(tx, "purchaseOrder", "PO"), requestId, supplierId, status: "SENT_TO_SUPPLIER", tax: Number(tax), shippingCost: Number(shippingCost), discount: Number(discount), paymentTerms, deliveryAddress, estimatedArrival: estimatedArrival ? new Date(estimatedArrival) : null, createdById: req.user.id, items: { create: poItems } }, include: includePO }));
     await prisma.partRepair.updateMany({ where: { id: { in: request.items.map(row => row.partRepairId).filter(Boolean) } }, data: { supplierId } });
     res.json({ ok: true, order: po });
   } catch (e) { res.status(500).json({ error: e.message || "Gagal membuat Purchase Order" }); }
+});
+router.post("/orders/bulk", async (req, res) => {
+  try {
+    const { supplierId, orders = [], tax = 0, shippingCost = 0, discount = 0, paymentTerms, deliveryAddress, estimatedArrival } = req.body || {};
+    if (!supplierId || !Array.isArray(orders) || !orders.length) return res.status(400).json({ error: "Supplier dan minimal satu permintaan wajib dipilih" });
+    const requestIds = orders.map(row => String(row.requestId || ""));
+    if (requestIds.some(id => !id) || new Set(requestIds).size !== requestIds.length) return res.status(400).json({ error: "Daftar permintaan tidak valid" });
+    const [supplier, requests, existingOrders] = await Promise.all([
+      prisma.supplier.findUnique({ where: { id: String(supplierId) } }),
+      prisma.purchaseRequest.findMany({ where: { id: { in: requestIds } }, include: { items: { include: { tireRetread: true, partRepair: true } } } }),
+      prisma.purchaseOrder.findMany({ where: { requestId: { in: requestIds }, status: { notIn: ["CANCELLED", "REJECTED"] } }, select: { requestId: true } }),
+    ]);
+    if (!supplier) return res.status(404).json({ error: "Supplier tidak ditemukan" });
+    if (requests.length !== requestIds.length) return res.status(404).json({ error: "Salah satu permintaan tidak ditemukan" });
+    if (existingOrders.length) return res.status(409).json({ error: "Salah satu permintaan sudah memiliki PO aktif" });
+    const requestById = new Map(requests.map(request => [request.id, request]));
+    const prepared = orders.map(orderInput => {
+      const request = requestById.get(String(orderInput.requestId));
+      if (request.status !== "APPROVED") throw new Error(`${request.number} belum disetujui`);
+      const suppliedItems = new Map((orderInput.items || []).map(item => [String(item.purchaseRequestItemId || ""), item]));
+      const items = request.items.map(requestItem => {
+        const input = suppliedItems.get(requestItem.id) || {};
+        const qty = requestItem.tireRetreadId || requestItem.partRepairId ? 1 : request.purpose === "STOCK" ? Number(input.qty) : Number(requestItem.approvedQty ?? requestItem.originalQty);
+        if (!Number.isFinite(qty) || qty <= 0) throw new Error(`Jumlah item pada ${request.number} wajib lebih dari 0`);
+        return { itemId: requestItem.itemId, qty, unitPrice: 0, tireRetreadId: requestItem.tireRetreadId, partRepairId: requestItem.partRepairId };
+      });
+      return { request, items };
+    });
+    const created = await prisma.$transaction(async tx => {
+      const rows = [];
+      for (const entry of prepared) {
+        rows.push(await tx.purchaseOrder.create({ data: { number: await nextDailyNumber(tx, "purchaseOrder", "PO"), requestId: entry.request.id, supplierId: supplier.id, status: "SENT_TO_SUPPLIER", tax: Number(tax), shippingCost: Number(shippingCost), discount: Number(discount), paymentTerms, deliveryAddress, estimatedArrival: estimatedArrival ? new Date(estimatedArrival) : null, createdById: req.user.id, items: { create: entry.items } }, include: includePO }));
+        await tx.partRepair.updateMany({ where: { id: { in: entry.request.items.map(item => item.partRepairId).filter(Boolean) } }, data: { supplierId: supplier.id } });
+      }
+      return rows;
+    });
+    res.json({ ok: true, orders: created });
+  } catch (error) {
+    res.status(400).json({ error: error.message || "Gagal membuat beberapa Purchase Order" });
+  }
 });
 router.patch("/orders/:id/status", requireRole("OWNER", "ADMIN"), async (req, res) => {
   const allowed = ["APPROVED", "SENT_TO_SUPPLIER"];
