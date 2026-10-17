@@ -71,6 +71,30 @@
 .erp-content .purchase-request-table .request-action-cell>button,
 .erp-content .purchase-request-table .request-decision-actions button{max-width:100%;white-space:nowrap}
 
+/* Approval actions must stay inside the sticky action column on tablets/phones. */
+@media(max-width:1200px){
+  .erp-content .purchase-request-table .request-action-cell{
+    box-sizing:border-box;
+    overflow:hidden;
+  }
+  .erp-content .purchase-request-table .request-decision-actions{
+    display:grid;
+    width:100%;
+    min-width:0;
+    grid-template-columns:minmax(0,1fr);
+    gap:7px;
+  }
+  .erp-content .purchase-request-table .request-decision-actions button{
+    display:inline-flex;
+    width:100%;
+    min-width:0;
+    max-width:100%;
+    align-items:center;
+    justify-content:center;
+    box-sizing:border-box;
+  }
+}
+
 /* Tables with a real last-column action keep that action reachable while their own
    scroll container moves. Tables without an action button are not made sticky. */
 @media(max-width:1440px){
