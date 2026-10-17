@@ -129,14 +129,14 @@
     right:4px;
     z-index:7;
     background:#eef5f0;
-    box-shadow:-1px 0 0 #dfe7e2,0 1px 0 #dfe7e2;
+    box-shadow:-1px 0 0 #dfe7e2,inset -1px 0 #dfe7e2,0 1px 0 #dfe7e2;
   }
   .ar-page .ar-invoice-table tbody .ar-action-cell{
     position:sticky;
     right:4px;
     z-index:3;
     background:#fff;
-    box-shadow:-1px 0 0 #e1e9e4,-10px 0 18px rgba(31,70,47,.035);
+    box-shadow:-1px 0 0 #e1e9e4,inset -1px 0 #dfe9e3,-10px 0 18px rgba(31,70,47,.035);
     border-right:1px solid #dfe9e3;
     border-radius:0 12px 12px 0;
   }

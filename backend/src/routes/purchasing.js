@@ -578,7 +578,7 @@ router.post("/orders/bulk", async (req, res) => {
     const [supplier, requests, existingOrders] = await Promise.all([
       prisma.supplier.findUnique({ where: { id: String(supplierId) } }),
       prisma.purchaseRequest.findMany({ where: { id: { in: requestIds } }, include: { items: { include: { tireRetread: true, partRepair: true } } } }),
-      prisma.purchaseOrder.findMany({ where: { requestId: { in: requestIds }, status: { notIn: ["CANCELLED", "REJECTED"] } }, select: { requestId: true } }),
+      prisma.purchaseOrder.findMany({ where: { requestId: { in: requestIds }, status: { not: "CANCELLED" } }, select: { requestId: true } }),
     ]);
     if (!supplier) return res.status(404).json({ error: "Supplier tidak ditemukan" });
     if (requests.length !== requestIds.length) return res.status(404).json({ error: "Salah satu permintaan tidak ditemukan" });
