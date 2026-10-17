@@ -2,7 +2,12 @@ import { useEffect, useId, useRef } from "react";
 
 export default function useDialogLifecycle(open, onClose) {
   const dialogRef = useRef(null);
+  const onCloseRef = useRef(onClose);
   const titleId = useId();
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -19,7 +24,7 @@ export default function useDialogLifecycle(open, onClose) {
     function onKeyDown(event) {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose?.();
+        onCloseRef.current?.();
         return;
       }
       if (event.key !== "Tab" || !dialogRef.current) return;
@@ -38,7 +43,7 @@ export default function useDialogLifecycle(open, onClose) {
       document.body.style.overflow = previousOverflow;
       previousFocus?.focus?.();
     };
-  }, [onClose, open]);
+  }, [open]);
 
   return { dialogRef, titleId };
 }

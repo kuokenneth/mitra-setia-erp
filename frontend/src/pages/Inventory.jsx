@@ -414,8 +414,8 @@ function Modal({ open, title, eyebrow = "INVENTORY", description, tone = "green"
   const { dialogRef, titleId } = useDialogLifecycle(open, onClose);
   if (!open) return null;
   return (
-    <div className="inventory-modal-overlay" onClick={onClose}>
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className={`inventory-modal inventory-modal--${tone}`} onClick={(e) => e.stopPropagation()}>
+    <div className="inventory-modal-overlay" onClick={(event) => { if (event.target === event.currentTarget) onClose?.(); }}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className={`inventory-modal inventory-modal--${tone}`}>
         <div className="inventory-modal-head">
           <div className="inventory-modal-heading">
             <span>{eyebrow}</span>
