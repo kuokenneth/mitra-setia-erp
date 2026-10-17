@@ -4,10 +4,11 @@ import { api, uploadFiles } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { useNavigate } from "react-router-dom";
-import { FiArrowRight, FiCalendar, FiChevronRight, FiFileText, FiMapPin, FiPackage, FiPlus, FiRefreshCw, FiSearch, FiTrash2, FiUploadCloud, FiX } from "react-icons/fi";
+import { FiArrowRight, FiCalendar, FiFileText, FiMapPin, FiPackage, FiPlus, FiRefreshCw, FiSearch, FiTrash2, FiUploadCloud, FiX } from "react-icons/fi";
 import { openProtectedFile, ProtectedImage } from "../components/ProtectedFile";
 import LoadingState, { LoadingMini } from "../components/LoadingState";
 import "./OrdersRedesign.css";
+import "./OrdersOverrides.css";
 import "./OrdersModalRedesign.css";
 import "./OrdersProgress.css";
 import useDialogLifecycle from "../components/useDialogLifecycle";
@@ -517,7 +518,6 @@ export default function Orders() {
                 <div><FiCalendar /><span><small>RENCANA</small><strong>{fmtDate(order.plannedAt)}</strong></span></div>
               </div>
               <div className="orders-v3-counts"><span><b>{order._count?.trips ?? 0}</b> Trip</span><span><b>{order._count?.proofs ?? 0}</b> Bukti</span></div>
-              <button type="button" onClick={(event) => { event.stopPropagation(); nav(`/orders/${order.id}`); }} aria-label={`Buka ${order.orderNo}`}><FiChevronRight /></button>
             </article>;
           })}
         </div>

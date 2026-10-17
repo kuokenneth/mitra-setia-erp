@@ -1,0 +1,26 @@
+/* The full order row opens its detail, so no separate trailing action column is needed. */
+.orders-v3-list > article {
+  grid-template-columns: minmax(200px, 1.05fr) minmax(280px, 1.35fr) minmax(230px, 1fr) auto;
+}
+
+@media (max-width: 1150px) {
+  .orders-v3-list > article {
+    grid-template-columns: 1fr 1.3fr auto;
+  }
+
+  .orders-v3-counts {
+    grid-column: 3;
+  }
+}
+
+@media (max-width: 760px) {
+  .orders-v3-list > article {
+    grid-template-columns: 1fr;
+  }
+
+  .orders-v3-route,
+  .orders-v3-meta,
+  .orders-v3-counts {
+    grid-column: 1;
+  }
+}
