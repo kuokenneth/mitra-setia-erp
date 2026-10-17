@@ -15,3 +15,26 @@
 @media(max-width:650px){.trips-view-tabs{align-items:stretch}.trips-view-tabs>button{padding:10px}.trips-view-tabs small{display:none}.trips-view-tabs strong{font-size:10px}}
 .empty-return-details label,.empty-return-details label>*{min-width:0;max-width:100%;box-sizing:border-box}.empty-return-details input[type="datetime-local"]{display:block;width:100%!important;min-width:0!important;max-width:100%!important;-webkit-appearance:none}.empty-return-builder form>footer{position:sticky;z-index:4;bottom:0}
 @media(min-width:761px) and (max-width:1180px){.empty-return-builder{width:min(980px,100%)}.empty-return-grid{grid-template-columns:minmax(0,1fr) minmax(0,.9fr)}.empty-return-details{overflow:hidden}.empty-return-details input,.empty-return-details select,.empty-return-details textarea{min-width:0!important;max-width:100%!important}.empty-return-builder form>footer{background:rgba(251,252,251,.98);box-shadow:0 -7px 18px rgba(28,60,39,.05)}}
+
+/* Vehicle options contain three metadata lines; size rows from their content. */
+.erp-content .empty-return-trucks{grid-auto-rows:max-content;padding:2px 3px 2px 0;scrollbar-gutter:stable}
+.erp-content .empty-return-trucks>button{min-height:72px;height:auto;align-items:center;overflow:hidden;padding:10px 12px;line-height:1.25}
+.erp-content .empty-return-trucks>button>i{align-self:center;flex:0 0 34px}
+.erp-content .empty-return-trucks>button>span{display:grid;align-content:center;gap:2px;overflow:hidden;min-height:48px}
+.erp-content .empty-return-trucks>button>span :is(strong,small,em){min-width:0;margin:0;line-height:1.3}
+.erp-content .empty-return-trucks>button>span strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.erp-content .empty-return-trucks>button>span em{display:flex;overflow:hidden;margin-top:2px;text-overflow:ellipsis;white-space:nowrap}
+.erp-content .empty-return-trucks>button>span em svg{flex:0 0 auto}
+.erp-content .empty-return-trucks>button>b{align-self:center;max-width:125px;overflow:hidden;text-align:right;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:520px){.erp-content .empty-return-trucks>button{grid-template-columns:auto minmax(0,1fr);min-height:76px}.erp-content .empty-return-trucks>button>b{grid-column:2;max-width:100%;margin-top:2px;text-align:left}}
+
+/* Full-bleed footer divider must align with the modal shell, like the header divider. */
+.erp-content .empty-return-builder>form>footer{
+  width:calc(100% + 46px);
+  margin:16px -23px 0!important;
+  padding:14px 23px!important;
+  border-top:1px solid #dfe7e2!important;
+  background:rgba(255,255,255,.98)!important;
+  box-shadow:0 -8px 20px rgba(25,57,38,.045);
+}
+@media(max-width:760px){.erp-content .empty-return-builder>form>footer{width:calc(100% + 30px);margin:14px -15px 0!important;padding:12px 15px max(12px,env(safe-area-inset-bottom))!important}}

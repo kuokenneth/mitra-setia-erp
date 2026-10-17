@@ -697,12 +697,20 @@ export default function Trucks() {
           {movErr && <div style={s.alertErr}>{movErr}</div>}
 
           <div style={{ ...s.tableWrap, margin: "0 22px 22px" }} className="fleet-movement-table-wrap">
-            <table style={{ ...s.table, minWidth: 900 }} className="fleet-movement-table">
+            <table className="fleet-movement-table">
+              <colgroup>
+                <col className="fleet-movement-col-date" />
+                <col className="fleet-movement-col-date" />
+                <col className="fleet-movement-col-item" />
+                <col className="fleet-movement-col-quantity" />
+                <col className="fleet-movement-col-serial" />
+                <col className="fleet-movement-col-status" />
+                <col className="fleet-movement-col-note" />
+              </colgroup>
               <thead>
                 <tr>
                   <th style={s.th}>Dipasang</th>
                   <th style={s.th}>Dilepas</th>
-                  <th style={s.th}>Jenis</th>
                   <th style={s.th}>Barang</th>
                   <th style={s.th}>Jumlah</th>
                   <th style={s.th}>Serial / Barcode</th>
@@ -712,15 +720,14 @@ export default function Trucks() {
               </thead>
               <tbody>
                 {asgLoading ? (
-                  <tr><td style={s.empty} colSpan={8}>Memuat suku cadang…</td></tr>
+                  <tr><td style={s.empty} colSpan={7}>Memuat suku cadang…</td></tr>
                 ) : filteredAssignments.length === 0 ? (
-                  <tr><td style={s.empty} colSpan={8}>{assignments.length ? `Belum ada riwayat suku cadang ${movType === "SERIALIZED" ? "serial" : "non-serial"}.` : "Belum ada riwayat suku cadang kendaraan ini."}</td></tr>
+                  <tr><td style={s.empty} colSpan={7}>{assignments.length ? `Belum ada riwayat suku cadang ${movType === "SERIALIZED" ? "serial" : "non-serial"}.` : "Belum ada riwayat suku cadang kendaraan ini."}</td></tr>
                 ) : (
                   pagedAssignments.map((a) => (
                     <tr key={a.id} style={s.tr}>
                       <td style={s.td}>{a.recordType === "NON_SERIALIZED" && a.type === "IN" ? "-" : fmtDateTime(a.installedAt || a.createdAt)}</td>
                       <td style={s.td}>{a.recordType === "NON_SERIALIZED" && a.type === "IN" ? fmtDateTime(a.createdAt) : a.removedAt ? fmtDateTime(a.removedAt) : "-"}</td>
-                      <td style={s.td}><span style={statusPill(a.recordType === "SERIALIZED" ? "READY" : "INACTIVE")}>{a.recordType === "SERIALIZED" ? "SERIAL" : "NON-SERIAL"}</span></td>
                       <td style={s.td}>
                         <div style={{ fontWeight: 600 }}>{(a.stockUnit?.item || a.item)?.name || "-"}</div>
                         <div style={s.smallMuted}>{(a.stockUnit?.item || a.item)?.sku ? `SKU: ${(a.stockUnit?.item || a.item).sku}` : "—"}</div>
