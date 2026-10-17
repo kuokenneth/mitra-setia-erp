@@ -1,0 +1,134 @@
+/* Shared page-header and action-toolbar geometry. Visual identity remains module-owned. */
+.erp-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(20px, 3vw, 40px);
+  min-width: 0;
+}
+
+.erp-page-header-copy {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 420px;
+  min-width: 240px;
+}
+
+.erp-page-header-eyebrow {
+  display: block;
+  margin-bottom: 7px;
+  color: #188149;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .17em;
+}
+
+.erp-page-header h1 { margin: 0; color: #1f3026; font-size: clamp(29px, 2.15vw, 36px); line-height: 1.08; letter-spacing: -.04em; }
+.erp-page-header p { max-width: 680px; margin: 7px 0 0; color: #748078; font-size: 14px; line-height: 1.5; }
+
+.erp-action-toolbar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+  width: auto;
+}
+
+.erp-action-group {
+  position: relative;
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.erp-action-group + .erp-action-group { padding-left: 2px; }
+.erp-action-group input,
+.erp-action-group select,
+.erp-action-group button { box-sizing: border-box; min-height: 42px; }
+.erp-action-group button { white-space: nowrap; }
+.erp-action-group input[type="month"] { width: 164px !important; min-width: 164px !important; max-width: 164px !important; padding: 0 12px; border: 1px solid #d7e2da; border-radius: 10px; background: #fff; color: #304238; font: inherit; }
+
+/* Normalize geometry of existing authenticated page headers without erasing module styling. */
+:is(.d3-header,.orders-v3-head,.trips-v3-head,.fleet-v2-header,.fleet-map-head,.location-master-head,.inventory-hero,.maintenance-head,.p-head,.ar-head,.acct-hero,.fp-head,.audit-hero,.staff-page-header) {
+  min-width: 0;
+  column-gap: clamp(18px, 2.5vw, 34px);
+}
+
+:is(.d3-header-side,.orders-v3-head-actions,.trip-create-actions,.fleet-v2-header-actions,.fleet-map-head-actions,.location-master-head-actions,.material-head-actions,.inventory-hero-actions,.maintenance-head-actions,.p-head-actions,.ar-head-side,.acct-hero-actions,.staff-page-header-actions) {
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+:is(.d3-header-side,.orders-v3-head-actions,.trip-create-actions,.inventory-hero-actions,.maintenance-head-actions,.p-head-actions,.ar-head-side,.acct-hero-actions) > :is(button,a,input,select) {
+  box-sizing: border-box;
+  min-height: 42px;
+}
+
+/* Date controls should communicate their content size instead of consuming the toolbar. */
+:is(.fp-period-card,.acct-period-card) input[type="month"] { width: 164px !important; min-width: 164px; max-width: 164px; }
+:is(.orders-v3-tools,.trips-v3-tools,.fleet-v2-toolbar,.fleet-map-toolbar,.inventory-toolbar,.p-toolbar,.acct-toolbar) input[type="date"] { min-width: 145px; max-width: 175px; }
+
+@media (max-width: 1180px) {
+  .erp-page-header { align-items: flex-start; flex-direction: column; }
+  .erp-action-toolbar { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+  .erp-action-group { flex-wrap: wrap; }
+
+  :is(.d3-header,.orders-v3-head,.trips-v3-head,.fleet-v2-header,.fleet-map-head,.location-master-head,.inventory-hero,.maintenance-head,.p-head,.ar-head,.acct-hero,.fp-head,.staff-page-header) {
+    align-items: flex-start;
+  }
+
+  :is(.d3-header-side,.orders-v3-head-actions,.trip-create-actions,.fleet-v2-header-actions,.location-master-head-actions,.material-head-actions,.inventory-hero-actions,.maintenance-head-actions,.p-head-actions,.ar-head-side,.acct-hero-actions,.staff-page-header-actions) {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 680px) {
+  .erp-page-header-copy { flex-basis: auto; min-width: 0; }
+  .erp-page-header h1 { font-size: 28px; }
+  .erp-action-toolbar { display: grid; grid-template-columns: 1fr; }
+  .erp-action-group { display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .erp-action-group--primary { grid-template-columns: 1fr; }
+  .erp-action-group input[type="month"] { width: 100% !important; min-width: 0 !important; max-width: none !important; }
+  .erp-action-group button { justify-content: center; min-width: 0; }
+
+  :is(.d3-header-side,.orders-v3-head-actions,.trip-create-actions,.fleet-v2-header-actions,.location-master-head-actions,.material-head-actions,.inventory-hero-actions,.maintenance-head-actions,.p-head-actions,.ar-head-side,.acct-hero-actions,.staff-page-header-actions) {
+    width: 100%;
+  }
+}
+
+/* Maintenance uses a labelled close action, so it must not inherit icon-only close geometry. */
+.erp-content .maintenance-modal-header > .maintenance-modal-close {
+  display: inline-flex;
+  width: auto;
+  min-width: 76px;
+  height: 40px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px !important;
+  border: 1px solid #d6e1da;
+  border-radius: 9px;
+  background: #fff;
+  color: #526159;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.erp-content .maintenance-modal-header > .maintenance-modal-close:hover {
+  border-color: #9fbdab;
+  background: #f3f8f5;
+  color: #176f43;
+}
+
+.erp-content .maintenance-modal-header > .maintenance-modal-close:focus-visible {
+  outline: 3px solid rgba(32, 132, 76, .2);
+  outline-offset: 2px;
+}

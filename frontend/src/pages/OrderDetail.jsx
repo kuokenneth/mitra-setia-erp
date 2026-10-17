@@ -31,6 +31,7 @@ import "./OrdersProgress.css";
 import "./OrderDetailHeader.css";
 import "./OrderTripModal.css";
 import "./MaterialInvoice.css";
+import useDialogLifecycle from "../components/useDialogLifecycle";
 
 //////////////////////
 // THEME - CORPORATE MINIMALIST
@@ -258,6 +259,7 @@ function Select({ children, style = {}, ...props }) {
 }
 
 function Modal({ open, title, subtitle, onClose, children, width = 1100 }) {
+  const { dialogRef, titleId } = useDialogLifecycle(open, onClose);
   if (!open) return null;
   return (
     <div className="order-trip-overlay"
@@ -273,7 +275,7 @@ function Modal({ open, title, subtitle, onClose, children, width = 1100 }) {
       }}
       onMouseDown={onClose}
     >
-      <div className="order-trip-modal"
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className="order-trip-modal"
         style={{
           width: "100%",
           maxWidth: width,
@@ -298,7 +300,7 @@ function Modal({ open, title, subtitle, onClose, children, width = 1100 }) {
         >
           <div>
             <span className="order-trip-modal-eyebrow">TRIP OPERASIONAL</span>
-            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: BRAND.text }}>{title}</h3>
+            <h3 id={titleId} style={{ margin: 0, fontSize: 18, fontWeight: 600, color: BRAND.text }}>{title}</h3>
             {subtitle && <p style={{ margin: "4px 0 0", fontSize: 13, color: BRAND.textMuted }}>{subtitle}</p>}
           </div>
           <button className="order-trip-modal-close" type="button" onClick={onClose} aria-label="Tutup"><FiX /></button>

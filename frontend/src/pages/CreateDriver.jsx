@@ -71,8 +71,8 @@ export default function CreateDriver() {
 
   if (!canManageDrivers) {
     return (
-      <div data-testid="create-driver-page">
-        <div style={s.header}>
+      <div className="staff-form-page" data-testid="create-driver-page">
+        <div className="staff-page-header" style={s.header}>
           <h1 style={s.title}>Tambah Pengemudi</h1>
           <p style={s.subtitle}>Anda tidak memiliki izin untuk mengakses halaman ini.</p>
         </div>
@@ -88,9 +88,9 @@ export default function CreateDriver() {
   }
 
   return (
-    <div data-testid="create-driver-page">
+    <div className="staff-form-page" data-testid="create-driver-page">
       {/* Header */}
-      <div style={s.headerRow}>
+      <div className="staff-page-header" style={s.headerRow}>
         <div>
           <h1 style={s.title}>Tambah Pengemudi</h1>
           <p style={s.subtitle}>Tambahkan akun pengemudi baru untuk kebutuhan operasional.</p>
@@ -98,9 +98,9 @@ export default function CreateDriver() {
         <span style={s.badge}>ALAT STAF</span>
       </div>
 
-      <div style={s.grid}>
+      <div className="staff-form-layout" style={s.grid}>
         {/* Form Card */}
-        <div style={s.card}>
+        <div className="staff-form-card" style={s.card}>
           <div style={s.cardHeader}>
             <h2 style={s.cardTitle}>Detail Pengemudi</h2>
             <p style={s.cardSubtitle}>Buat akun masuk untuk pengemudi agar dapat melihat halaman tugasnya.</p>
@@ -109,17 +109,17 @@ export default function CreateDriver() {
           {err && <div style={s.alertErr}>{err}</div>}
           {ok && <div style={s.alertOk}><FiCheck size={16} /> {ok}</div>}
 
-          <form onSubmit={onSubmit} style={s.form}>
+          <form className="staff-form" onSubmit={onSubmit} style={s.form}>
             <div style={s.fieldRow}>
               <label style={s.label}>
                 <FiUser size={14} color={BRAND.textMuted} />
-                Full Name
+                Nama lengkap
               </label>
               <input
                 style={s.input}
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. Andi Wijaya"
+                placeholder="Contoh: Andi Wijaya"
                 data-testid="driver-name-input"
               />
             </div>
@@ -142,14 +142,14 @@ export default function CreateDriver() {
             <div style={s.fieldRow}>
               <label style={s.label}>
                 <FiLock size={14} color={BRAND.textMuted} />
-                Temporary Password
+                Kata sandi sementara
               </label>
               <input
                 style={s.input}
                 type="password"
                 value={form.password}
                 onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                placeholder="Set an initial password"
+                placeholder="Tetapkan kata sandi awal"
                 data-testid="driver-password-input"
               />
               <p style={s.help}>Pengemudi sebaiknya menggantinya setelah masuk.</p>
@@ -169,14 +169,14 @@ export default function CreateDriver() {
               />
             </div>
 
-            <div style={s.actions}>
+            <div className="staff-form-actions" style={s.actions}>
               <button
                 type="submit"
                 disabled={loading}
                 style={{ ...s.primaryBtn, opacity: loading ? 0.7 : 1 }}
                 data-testid="create-driver-btn"
               >
-                {loading ? "Creating…" : "Tambah Pengemudi"}
+                {loading ? "Menyimpan…" : "Tambah Pengemudi"}
               </button>
 
               <button
@@ -187,24 +187,24 @@ export default function CreateDriver() {
                 data-testid="back-btn"
               >
                 <FiArrowLeft size={16} />
-                Back
+                Kembali
               </button>
             </div>
 
             <p style={s.tip}>
-              <FiInfo size={12} /> Tip: If you get "Email already in use", use a different email.
+              <FiInfo size={12} /> Gunakan alamat email kerja yang belum terdaftar di sistem.
             </p>
           </form>
         </div>
 
         {/* Side Panel */}
-        <div style={s.sideCol}>
-          <div style={s.sideCard}>
-            <h3 style={s.sideTitle}>What happens next?</h3>
+        <div className="staff-side-column" style={s.sideCol}>
+          <div className="staff-side-card" style={s.sideCard}>
+            <h3 style={s.sideTitle}>Setelah akun dibuat</h3>
             <ul style={s.sideList}>
-              <li>A new user is created with role <strong>Pengemudi</strong></li>
-              <li>Mereka dapat masuk dan mengakses <strong>Beranda Pengemudi</strong> + <strong>Tugas Saya</strong></li>
-              <li>Later we can add: SIM/license, assigned truck, password reset</li>
+              <li>Akun dibuat dengan peran <strong>Pengemudi</strong>.</li>
+              <li>Pengemudi dapat masuk dan mengakses <strong>Beranda Pengemudi</strong> serta <strong>Tugas Saya</strong>.</li>
+              <li>Kata sandi sementara sebaiknya segera diganti setelah masuk.</li>
             </ul>
 
             <div style={s.divider} />
@@ -219,10 +219,10 @@ export default function CreateDriver() {
             </div>
           </div>
 
-          <div style={s.sideCard}>
-            <h3 style={s.sideTitle}>Pengembangan Berikutnya</h3>
+          <div className="staff-side-card" style={s.sideCard}>
+            <h3 style={s.sideTitle}>Catatan data pengemudi</h3>
             <p style={s.sideText}>
-              Add driver profile fields: SIM number, expiry, address, assigned truck.
+              Informasi SIM, masa berlaku, alamat, dan penugasan armada dikelola melalui alur operasional yang tersedia.
             </p>
           </div>
         </div>

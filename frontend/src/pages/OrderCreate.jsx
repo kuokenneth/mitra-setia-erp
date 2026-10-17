@@ -76,9 +76,9 @@ function Button({ variant = "secondary", children, icon: Icon, ...props }) {
   );
 }
 
-function Card({ children, style = {} }) {
+function Card({ children, style = {}, className = "" }) {
   return (
-    <div
+    <div className={className}
       style={{
         background: BRAND.white,
         borderRadius: 8,
@@ -179,16 +179,16 @@ export default function OrderCreate() {
   }
 
   return (
-    <div data-testid="order-create-page">
+    <div className="order-create-page" data-testid="order-create-page">
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
+      <div className="staff-page-header" style={{ marginBottom: 24 }}>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: BRAND.text }}>Pesanan Baru</h1>
         <p style={{ margin: "8px 0 0", fontSize: 14, color: BRAND.textMuted }}>
           Buat pesanan transportasi sebelum menetapkan kendaraan dan pengemudi
         </p>
       </div>
 
-      <Card style={{ maxWidth: 900 }}>
+      <Card className="order-create-card" style={{ maxWidth: 900 }}>
         <div style={{ padding: 24 }}>
           {/* Error Alert */}
           {err && (
@@ -209,23 +209,23 @@ export default function OrderCreate() {
           )}
 
           {/* Form Grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div className="order-create-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <Input
-              label="Customer / Company name"
-              placeholder="Company name"
+              label="Customer / perusahaan"
+              placeholder="Nama perusahaan"
               value={form.customerName}
               onChange={(e) => update("customerName", e.target.value)}
             />
 
             <Input
-              label="Cargo name"
-              placeholder="Product name"
+              label="Nama muatan"
+              placeholder="Nama barang atau produk"
               value={form.cargoName}
               onChange={(e) => update("cargoName", e.target.value)}
             />
 
             <Input
-              label="Quantity"
+              label="Jumlah"
               type="number"
               placeholder="0"
               value={form.qty}
@@ -233,28 +233,28 @@ export default function OrderCreate() {
             />
 
             <Input
-              label="Unit"
-              placeholder="TON, BAG, etc"
+              label="Satuan"
+              placeholder="TON, SAK, dan lainnya"
               value={form.unit}
               onChange={(e) => update("unit", e.target.value)}
             />
 
             <Input
-              label="From location"
-              placeholder="Origin"
+              label="Lokasi asal"
+              placeholder="Titik asal"
               value={form.fromText}
               onChange={(e) => update("fromText", e.target.value)}
             />
 
             <Input
-              label="To destination"
-              placeholder="Destination"
+              label="Lokasi tujuan"
+              placeholder="Titik tujuan"
               value={form.toText}
               onChange={(e) => update("toText", e.target.value)}
             />
 
             <Input
-              label="Planned date"
+              label="Tanggal rencana"
               type="date"
               value={form.plannedAt}
               onChange={(e) => update("plannedAt", e.target.value)}

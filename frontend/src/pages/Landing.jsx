@@ -109,12 +109,13 @@ export default function Landing() {
             <p>Dari pengiriman satu kali hingga jadwal berulang, layanan disesuaikan dengan ritme operasional Anda.</p>
           </div>
           <div className="landing-service-grid" data-scroll-reveal>
-            {services.map(({ icon: Icon, title, text }, index) => (
-              <article key={title} data-testid={`service-card-${index}`}>
-                <span className="landing-service-icon"><Icon /></span><small>0{index + 1}</small>
-                <h3>{title}</h3><p>{text}</p>
-              </article>
-            ))}
+            {services.map((service, index) => {
+              const ServiceIcon = service.icon;
+              return <article key={service.title} data-testid={`service-card-${index}`}>
+                <span className="landing-service-icon"><ServiceIcon /></span><small>0{index + 1}</small>
+                <h3>{service.title}</h3><p>{service.text}</p>
+              </article>;
+            })}
           </div>
         </div>
       </section>

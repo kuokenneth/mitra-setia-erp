@@ -10,6 +10,7 @@ import LoadingState, { LoadingMini } from "../components/LoadingState";
 import "./OrdersRedesign.css";
 import "./OrdersModalRedesign.css";
 import "./OrdersProgress.css";
+import useDialogLifecycle from "../components/useDialogLifecycle";
 
 //////////////////////
 // THEME - CORPORATE MINIMALIST
@@ -227,6 +228,7 @@ function MasterLocationPicker({ label, locations, locationId, text, onChange, ex
 }
 
 function Modal({ open, title, subtitle, onClose, children, width = 860, className = "" }) {
+  const { dialogRef, titleId } = useDialogLifecycle(open, onClose);
   if (!open) return null;
   return (
     <div
@@ -244,6 +246,11 @@ function Modal({ open, title, subtitle, onClose, children, width = 860, classNam
       onMouseDown={onClose}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className={`orders-v3-modal ${className}`}
         style={{
           width: "100%",
@@ -266,7 +273,7 @@ function Modal({ open, title, subtitle, onClose, children, width = 860, classNam
           }}
         >
           <div>
-            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: BRAND.text }}>{title}</h3>
+            <h3 id={titleId} style={{ margin: 0, fontSize: 18, fontWeight: 600, color: BRAND.text }}>{title}</h3>
             {subtitle && <p style={{ margin: "4px 0 0", fontSize: 13, color: BRAND.textMuted }}>{subtitle}</p>}
           </div>
           <button className="orders-v3-modal-close" type="button" onClick={onClose} aria-label="Tutup"><FiX /></button>

@@ -1,0 +1,85 @@
+/* Geometry pass: one spacing rhythm, one control baseline, and explicit
+   separation between navigation, toolbars, content, and data regions. */
+.erp-content{padding:var(--page-padding)}
+.erp-content :where(button,input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),select){min-height:var(--control-md)}
+.erp-content :where(button){line-height:1.2}.erp-content :where(button>svg,a>svg){flex:0 0 auto}
+
+/* Page-level vertical rhythm */
+.erp-content :is(.d3-page,.orders-v3-page,.trips-v3-page,.trip-detail-v3-shell,.fleet-page-v2,.fleet-map-page,.location-master-page,.material-stock-page,.inventory-page,.maintenance-page,.purchasing,.expense-page,.ar-page,.acct-page,.fp-page,.audit-page,.staff-form-page,.profile-page,.users-page,.order-create-page){display:flex;min-width:0;flex-direction:column;gap:var(--space-4)}
+.erp-content :is(.d3-page,.orders-v3-page,.trips-v3-page,.trip-detail-v3-shell,.fleet-page-v2,.fleet-map-page,.location-master-page,.material-stock-page,.inventory-page,.maintenance-page,.purchasing,.expense-page,.ar-page,.acct-page,.fp-page,.audit-page,.staff-form-page,.profile-page,.users-page,.order-create-page)>:where(header,[class$="-head"],[class$="-header"]){margin-bottom:0}
+
+/* Pembelian: tabs and panel are siblings, never two halves of one border. */
+.erp-content .p-tabs{display:flex;min-height:var(--control-lg);align-items:center;gap:var(--space-1);margin:0;padding:var(--space-1);border:var(--border-width) solid var(--color-border);border-radius:var(--radius-md);background:var(--color-surface-soft)}
+.erp-content .p-tabs>button{display:inline-flex;height:var(--control-md);min-height:var(--control-md);align-items:center;justify-content:center;gap:var(--space-2);padding:0 var(--space-4);border:0;border-radius:var(--radius-sm);background:transparent;box-shadow:none}
+.erp-content .p-tabs>button.active{border:0;background:var(--color-surface);box-shadow:var(--shadow-sm)}
+.erp-content .p-tabs>button.refresh{width:var(--control-md);margin-left:auto;padding:0}
+.erp-content .p-panel{display:flex;min-width:0;min-height:0;flex-direction:column;gap:var(--space-3);padding:var(--space-4);border:var(--border-width) solid var(--color-border);border-radius:var(--radius-lg);overflow:visible}
+.erp-content .p-panel>.receipt-subtabs{align-self:flex-start;margin:0;padding:var(--space-1);border:var(--border-width) solid var(--color-border);border-radius:var(--radius-md);background:var(--color-surface-soft)}
+.erp-content .p-panel>.receipt-subtabs>button{height:var(--control-sm);min-height:var(--control-sm);padding:0 var(--space-3);border:0;border-radius:var(--radius-sm);background:transparent}
+.erp-content .p-panel>.receipt-subtabs>button.active{border:0;background:var(--color-surface);box-shadow:var(--shadow-sm)}
+.erp-content .p-status-filters{display:flex;min-height:var(--control-md);align-items:center;gap:var(--space-2);margin:0;padding:0;border:0;background:transparent;overflow-x:auto}
+.erp-content .p-status-filters>button{display:inline-flex;height:var(--control-sm);min-height:var(--control-sm);align-items:center;justify-content:center;gap:var(--space-2);padding:0 var(--space-3);border-radius:var(--radius-sm);box-shadow:none}
+.erp-content .p-list-tools{display:flex;min-height:var(--control-lg);align-items:center;gap:var(--space-3);margin:0;padding:0;border:0;background:transparent}
+.erp-content .p-list-tools>label{height:var(--control-md);min-height:var(--control-md);border-radius:var(--radius-md)}
+.erp-content .p-panel>:is(.table-wrap,.cards,.receipt-list,.repair-receiving-content,.supplier-billing){min-width:0;margin:0;padding:0;border-radius:var(--radius-md)}
+.erp-content .p-panel>.table-wrap{border:var(--border-width) solid var(--color-border);overflow:auto}
+.erp-content .p-panel>.table-wrap>table{border:0}.erp-content .p-panel>.table-wrap>table th:first-child,.erp-content .p-panel>.table-wrap>table td:first-child{padding-left:var(--space-4)}.erp-content .p-panel>.table-wrap>table th:last-child,.erp-content .p-panel>.table-wrap>table td:last-child{padding-right:var(--space-4)}
+.erp-content .request-table:has(thead th:nth-child(7):last-child){width:100%;min-width:1380px;table-layout:fixed}
+.erp-content .request-table:has(thead th:nth-child(7):last-child) :is(th,td):nth-child(1){width:170px}
+.erp-content .request-table:has(thead th:nth-child(7):last-child) :is(th,td):nth-child(2){width:245px}
+.erp-content .request-table:has(thead th:nth-child(7):last-child) :is(th,td):nth-child(3){width:210px}
+.erp-content .request-table:has(thead th:nth-child(7):last-child) :is(th,td):nth-child(4){width:300px}
+.erp-content .request-table:has(thead th:nth-child(7):last-child) :is(th,td):nth-child(5){width:105px}
+.erp-content .request-table:has(thead th:nth-child(7):last-child) :is(th,td):nth-child(6){width:245px}
+.erp-content .request-table:has(thead th:nth-child(7):last-child) :is(th,td):nth-child(7){width:105px;text-align:center}
+.erp-content .request-table:has(thead th:nth-child(7):last-child) thead th{box-sizing:border-box;vertical-align:middle;white-space:nowrap}
+.erp-content .request-table:has(thead th:nth-child(7):last-child) thead th:last-child:empty::after{content:"Aksi"}
+.erp-content .request-table:has(thead th:nth-child(7):last-child) tbody td{box-sizing:border-box;vertical-align:middle}
+.erp-content .p-panel>.table-wrap:has(>.empty)>table{display:none}
+.erp-content .p-list-pager{min-height:var(--control-lg);margin:0;padding:var(--space-3);border:var(--border-width) solid var(--color-border);border-radius:var(--radius-md);background:var(--color-surface-soft)}
+.erp-content .p-list-pager button{height:var(--control-sm);min-height:var(--control-sm)}
+.erp-content .p-panel .empty{min-height:180px;border:var(--border-width) solid var(--color-border);border-radius:var(--radius-md);background:var(--color-surface)}
+.erp-content .p-panel>.table-wrap>.empty{min-height:160px;border:0;border-radius:0;background:var(--color-surface-soft)}
+.erp-content .bill-upload-list{margin-top:0}
+
+/* Tabs: normalize centering without introducing a second border when nested. */
+.erp-content :is(.inventory-tabs,.acct-tabs,.ar-tabs,.maintenance-detail-tabs,.trip-detail-tabs,.fp-tabs,.trips-view-tabs,.fleet-movement-type-tabs,.order-detail-v3-tabs){min-height:var(--control-lg);align-items:center;gap:var(--space-1)}
+.erp-content :is(.inventory-tabs,.acct-tabs,.ar-tabs,.maintenance-detail-tabs,.trip-detail-tabs,.fp-tabs,.trips-view-tabs,.fleet-movement-type-tabs,.order-detail-v3-tabs)>button{display:inline-flex;height:var(--control-sm);min-height:var(--control-sm);align-items:center;justify-content:center;gap:var(--space-2);padding-block:0;line-height:1.2}
+.erp-content .inventory-toolbar{min-height:62px;align-items:center;gap:var(--space-4);padding:0 0 var(--space-4);border:0;border-bottom:var(--border-width) solid var(--color-border-soft);background:transparent}
+.erp-content .inventory-tabs{padding:var(--space-1);border:0;background:var(--color-surface-soft)}
+.erp-content .inventory-search{height:var(--control-md);min-height:var(--control-md)}
+.erp-content .maintenance-detail-tabs{padding:var(--space-2) var(--space-5);border:0;border-bottom:var(--border-width) solid var(--color-border-soft)}
+.erp-content .fleet-movement-type-tabs{padding:var(--space-2) var(--space-5);border:0;border-bottom:var(--border-width) solid var(--color-border-soft)}
+
+/* Search and filter rows share the same baseline and do not carry nested cards. */
+.erp-content :is(.orders-v3-tools,.trips-filter-grid,.maintenance-filter-grid,.audit-filters,.expense-filters,.fleet-v2-toolbar,.fleet-movement-filters,.inventory-movement-filters,.ar-tools){align-items:center;gap:var(--toolbar-gap)}
+.erp-content :is(.orders-v3-tools,.trips-filter-grid,.maintenance-filter-grid,.audit-filters,.fleet-v2-toolbar,.fleet-movement-filters,.inventory-movement-filters)>*{min-height:var(--control-md)}
+.erp-content :is(.orders-v3-search,.inventory-search,.expense-search-wrap,.fleet-v2-search,.audit-search,.ar-search,.location-list-search,.google-location-search,.order-trip-search,.unit-checklist-search){align-items:center}
+.erp-content :is(.orders-v3-search,.inventory-search,.fleet-v2-search,.audit-search,.ar-search,.location-list-search,.google-location-search,.order-trip-search) input{height:var(--control-md);min-height:var(--control-md)}
+.erp-content .ar-tools{margin:0 var(--space-4) var(--space-4);padding:var(--space-2);border:var(--border-width) solid var(--color-border);border-radius:var(--radius-md)}
+.erp-content .expense-filters{margin:0;padding:0 var(--space-5) var(--space-4)}
+
+/* Tables: enclosing wrapper owns the outline; internal tables own only row rules. */
+.erp-content :is(.table-wrap,.acct-table,.audit-table-wrap,.ar-table-wrap,.inventory-table-wrap,.maintenance-table-wrap,.fp-table-wrap,.users-table-wrap){border:var(--border-width) solid var(--color-border);border-radius:var(--radius-md);overflow:auto}
+.erp-content :is(.table-wrap,.acct-table,.audit-table-wrap,.ar-table-wrap,.inventory-table-wrap,.maintenance-table-wrap,.fp-table-wrap,.users-table-wrap)>table{border:0;border-radius:0}
+.erp-content table th{height:var(--control-md);padding-block:0}.erp-content table td{min-height:var(--table-row-height);padding-block:var(--space-3)}
+
+/* Modal geometry */
+.erp-content :is(.modal,.inventory-modal,.orders-v3-modal,.maintenance-modal,.ar-modal,.audit-detail,.fp-modal,.fp-detail-modal,.trip-action-modal,.trip-expense-modal,.trip-material-modal,.material-modal-shell,.fleet-add-modal,.fleet-movement-modal,.order-trip-modal){display:flex;min-width:0;flex-direction:column;overflow:hidden}
+.erp-content :is(.modal-heading,.inventory-modal-head,.orders-v3-modal-head,.maintenance-modal-header,.ar-modal-head,.audit-detail>header,.fp-modal>header,.fp-detail-modal>header,.trip-action-modal>header,.trip-expense-modal>header,.trip-material-modal>header,.material-modal-head,.fleet-add-header,.fleet-modal-hero,.order-trip-modal-head){display:flex;min-height:72px;align-items:center;justify-content:space-between;gap:var(--modal-gap);padding:var(--space-4) var(--space-5)}
+.erp-content :is(.po-form-body,.inventory-modal-body,.orders-v3-modal-body,.maintenance-modal-body,.ar-form,.trip-action-modal>form,.trip-expense-form,.material-entry-body,.order-trip-modal-body){min-width:0;padding:var(--space-5);overflow-y:auto}
+.erp-content :is(.modal-actions,.orders-v3-modal-actions,.maintenance-modal-actions,.ar-modal-actions,.trip-action-modal footer,.trip-expense-modal footer,.material-modal-actions){min-height:64px;align-items:center;gap:var(--space-2);padding:var(--space-3) var(--space-5)}
+
+/* Empty states are centered but deliberately compact. */
+.erp-content :is(.empty,.acct-empty,.orders-v3-empty,.d3-empty,.fleet-map-empty,.fleet-city-empty,.inventory-empty,.maintenance-empty,.ar-empty,.audit-empty,.serialized-repair-empty,.receipt-card-empty){display:flex;min-height:160px;align-items:center;justify-content:center;flex-direction:column;gap:var(--space-2);padding:var(--space-6);text-align:center}
+.erp-content :is(.empty,.acct-empty,.orders-v3-empty,.d3-empty,.fleet-map-empty,.fleet-city-empty,.inventory-empty,.maintenance-empty,.ar-empty,.audit-empty) :where(h3,strong,p){margin-block:0}
+
+/* Remove the full-bleed negative-margin technique from inline legacy pages. */
+.erp-content .users-toolbar{margin:0 0 var(--space-4)!important;padding:var(--space-3)!important;border:var(--border-width) solid var(--color-border);border-radius:var(--radius-md)}
+.erp-content .users-table-wrap{margin:0!important;border:var(--border-width) solid var(--color-border)}
+.erp-content .users-pagination{margin:var(--space-4) 0 0!important;padding:var(--space-4) 0 0}
+
+@media(max-width:767px){
+  .erp-content .p-tabs{width:100%;overflow-x:auto}.erp-content .p-tabs>button{flex:0 0 auto}.erp-content .p-panel{padding:var(--space-3)}.erp-content .p-list-tools{align-items:stretch;flex-direction:column}.erp-content .p-list-tools>label{width:100%}.erp-content .p-list-tools>span{display:none}.erp-content .p-status-filters{padding-bottom:var(--space-1)}
+  .erp-content .inventory-toolbar{align-items:stretch;flex-direction:column}.erp-content .inventory-tabs{width:100%;overflow-x:auto}.erp-content .inventory-search{width:100%}.erp-content :is(.modal-heading,.inventory-modal-head,.orders-v3-modal-head,.maintenance-modal-header,.ar-modal-head,.material-modal-head,.order-trip-modal-head){padding:var(--space-3) var(--space-4)}.erp-content :is(.po-form-body,.inventory-modal-body,.orders-v3-modal-body,.maintenance-modal-body,.ar-form,.trip-expense-form,.material-entry-body,.order-trip-modal-body){padding:var(--space-4)}.erp-content :is(.modal-actions,.orders-v3-modal-actions,.maintenance-modal-actions,.ar-modal-actions,.trip-expense-modal footer,.material-modal-actions){padding:var(--space-3) var(--space-4) max(var(--space-3),env(safe-area-inset-bottom))}
+}

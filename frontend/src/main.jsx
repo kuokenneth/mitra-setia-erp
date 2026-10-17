@@ -1,6 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import "./index.css";
+import "./designSystem.css";
 
 import { AuthProvider } from "./AuthContext";
 import ProtectedRoute from "./ProtectedRoute";
@@ -35,6 +37,11 @@ import OperationalLocations from "./pages/OperationalLocations";
 import AuditTrail from "./pages/AuditTrail";
 import MaterialStock from "./pages/MaterialStock";
 import PageErrorBoundary from "./components/PageErrorBoundary";
+import "./enterpriseOverrides.css";
+import "./geometryPolish.css";
+import "./tableResponsive.css";
+import "./workspaceFluid.css";
+import "./headerSystem.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

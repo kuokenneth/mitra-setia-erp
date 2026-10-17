@@ -1,0 +1,101 @@
+/* ERP data grids preserve readable columns and scroll inside their own region. */
+.erp-content :is(.table-wrap,.expense-table-wrap,.inventory-table-wrap,.maintenance-table-wrap,.fleet-v2-table-wrap,.fleet-movement-table-wrap,.ar-table-wrap,.acct-table,.fp-table-wrap,.fp-detail-table,.audit-table-wrap,.users-table-wrap){
+  width:100%;min-width:0;max-width:100%;box-sizing:border-box;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch
+}
+.erp-content :is(.table-wrap,.expense-table-wrap,.inventory-table-wrap,.maintenance-table-wrap,.fleet-v2-table-wrap,.fleet-movement-table-wrap,.ar-table-wrap,.acct-table,.fp-table-wrap,.fp-detail-table,.audit-table-wrap,.users-table-wrap)>table{width:100%;max-width:none}
+.erp-content table th{white-space:nowrap}
+.erp-content table :is(.status,.urg,.fp-badge,.audit-action,.audit-response,[class*="status-pill"],[class*="statusPill"]){white-space:nowrap}
+.erp-content table :is(.number,.ar-money-cell,.expense-currency-cell,.positive,.negative,.material-balance){font-variant-numeric:tabular-nums;white-space:nowrap}
+.erp-content table :is(.number,.ar-money-cell,.expense-currency-cell){text-align:right}
+.erp-content table :is(.actions,.ar-actions,.expense-actions){white-space:nowrap}
+
+/* Pengeluaran: content-aware minimums; horizontal scrolling wins over compression. */
+.erp-content .expense-table-wrap{overflow-x:auto!important;overflow-y:hidden!important}
+.erp-content .expense-table{min-width:1320px!important;table-layout:auto}
+.erp-content .expense-table :is(th,td):nth-child(1){min-width:145px;white-space:nowrap}
+.erp-content .expense-table :is(th,td):nth-child(2){min-width:245px}
+.erp-content .expense-table :is(th,td):nth-child(3){min-width:190px}
+.erp-content .expense-table :is(th,td):nth-child(4){min-width:220px}
+.erp-content .expense-table :is(th,td):nth-child(5){min-width:155px;text-align:right}
+.erp-content .expense-table :is(th,td):nth-child(6){min-width:140px}
+.erp-content .expense-table :is(th,td):nth-child(7){min-width:220px}
+.erp-content .expense-table .expense-row-title{max-width:340px;overflow-wrap:break-word;word-break:normal}
+.erp-content .expense-table .expense-row-meta{max-width:300px;overflow-wrap:break-word;word-break:normal}
+.erp-content .expense-table .expense-allocation{min-width:175px}
+.erp-content .expense-table .expense-currency-cell{font-weight:750;letter-spacing:-.01em}
+.erp-content .expense-table .expense-actions-cell{min-width:220px}
+
+/* Established module grids: keep references, dates, money, status, and actions usable. */
+.erp-content .acct-table table{min-width:1050px}.erp-content .acct-table .number{min-width:130px}
+.erp-content .fp-table-wrap table{min-width:1200px}.erp-content .fp-table-wrap :is(th,td):nth-child(3),.erp-content .fp-table-wrap :is(th,td):nth-child(4),.erp-content .fp-table-wrap :is(th,td):nth-child(5){min-width:145px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.erp-content .fp-detail-table table{min-width:900px}.erp-content .fp-detail-table :is(th,td):nth-last-child(-n+3){min-width:140px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.erp-content .audit-table{min-width:1040px}.erp-content .audit-table :is(th,td):first-child{min-width:155px}.erp-content .audit-table :is(th,td):last-child{min-width:90px}
+.erp-content .material-board{min-width:0;overflow-x:auto}.erp-content .material-board table{min-width:980px}.erp-content .material-board :is(th,td):nth-child(3),.erp-content .material-board :is(th,td):nth-child(4),.erp-content .material-board :is(th,td):nth-child(5){min-width:135px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.erp-content .ar-table-wrap{min-width:0}.erp-content .ar-invoice-table .ar-money-cell{min-width:125px}
+.erp-content .users-table-wrap table{min-width:900px}.erp-content .users-table-wrap td:last-child{min-width:170px}
+.erp-content .fleet-v2-table{min-width:1120px!important}.erp-content .fleet-movement-table{min-width:980px!important}
+.erp-content .inventory-workspace{min-width:0}.erp-content .inventory-workspace>div:last-child{min-width:0}.erp-content .inventory-workspace table{min-width:980px}
+.erp-content .maintenance-detail-history{min-width:0;overflow-x:auto}.erp-content .maintenance-detail-history table{min-width:820px}
+.erp-content .request-table{max-width:none}
+
+/* Pembelian: fit the seven useful columns before falling back to local scrolling. */
+.erp-content .purchase-request-table{
+  width:100%!important;
+  min-width:920px!important;
+  table-layout:fixed!important;
+}
+.erp-content .purchase-request-table col.request-number-col{width:13%}
+.erp-content .purchase-request-table col.request-needs-col{width:19%}
+.erp-content .purchase-request-table col.request-photo-col{width:9%}
+.erp-content .purchase-request-table col.request-target-col{width:19%}
+.erp-content .purchase-request-table col.request-urgency-col{width:8%}
+.erp-content .purchase-request-table col.request-status-col{width:21%}
+.erp-content .purchase-request-table col.request-action-col{width:11%}
+.erp-content .purchase-request-table :is(th,td):nth-child(1){width:13%!important}
+.erp-content .purchase-request-table :is(th,td):nth-child(2){width:19%!important}
+.erp-content .purchase-request-table :is(th,td):nth-child(3){width:9%!important}
+.erp-content .purchase-request-table :is(th,td):nth-child(4){width:19%!important}
+.erp-content .purchase-request-table :is(th,td):nth-child(5){width:8%!important}
+.erp-content .purchase-request-table :is(th,td):nth-child(6){width:21%!important}
+.erp-content .purchase-request-table :is(th,td):nth-child(7){width:11%!important}
+.erp-content .purchase-request-table :is(th,td){min-width:0!important;padding:12px 10px!important}
+.erp-content .purchase-request-table :is(th,td):first-child{padding-left:16px!important}
+.erp-content .purchase-request-table :is(th,td):last-child{padding-right:14px!important;text-align:right}
+.erp-content .purchase-request-table td:nth-child(2),
+.erp-content .purchase-request-table td:nth-child(4),
+.erp-content .purchase-request-table td:nth-child(6){overflow-wrap:anywhere;white-space:normal}
+.erp-content .purchase-request-table td:nth-child(3){text-align:left}
+.erp-content .purchase-request-table .request-row-proofs{min-width:0}
+.erp-content .purchase-request-table .request-row-proofs>div{display:flex;max-width:100%;gap:4px;overflow:hidden}
+.erp-content .purchase-request-table .request-row-proofs img{width:48px!important;height:38px!important}
+.erp-content .purchase-request-table .request-action-cell>button,
+.erp-content .purchase-request-table .request-decision-actions button{max-width:100%;white-space:nowrap}
+
+/* Tables with a real last-column action keep that action reachable while their own
+   scroll container moves. Tables without an action button are not made sticky. */
+@media(max-width:1440px){
+  .erp-content :is(.table-wrap,.expense-table-wrap,.inventory-table-wrap,.maintenance-table-wrap,.fleet-v2-table-wrap,.fleet-movement-table-wrap,.ar-table-wrap,.acct-table,.fp-table-wrap,.fp-detail-table,.users-table-wrap) > table:has(tbody td:last-child button) :is(th,td):last-child{
+    position:sticky;
+    right:0;
+    z-index:2;
+    background:#fff;
+    box-shadow:-1px 0 0 #dfe7e2,-10px 0 18px -18px rgba(25,55,36,.7);
+  }
+  .erp-content :is(.table-wrap,.expense-table-wrap,.inventory-table-wrap,.maintenance-table-wrap,.fleet-v2-table-wrap,.fleet-movement-table-wrap,.ar-table-wrap,.acct-table,.fp-table-wrap,.fp-detail-table,.users-table-wrap) > table:has(tbody td:last-child button) thead th:last-child{
+    z-index:4;
+    background:#f7faf8;
+  }
+  .erp-content :is(.table-wrap,.expense-table-wrap,.inventory-table-wrap,.maintenance-table-wrap,.fleet-v2-table-wrap,.fleet-movement-table-wrap,.ar-table-wrap,.acct-table,.fp-table-wrap,.fp-detail-table,.users-table-wrap) > table:has(tbody td:last-child button) tbody tr:hover td:last-child{
+    background:#f8fbf9;
+  }
+}
+
+@media(max-width:760px){
+  .erp-content .expense-table-wrap{width:calc(100% - 32px)!important;margin-inline:16px!important}
+  .erp-content .expense-table{min-width:1240px!important}
+  .erp-content table :is(th,td){padding-inline:12px}
+  .erp-content .purchase-request-table{min-width:820px!important}
+  .erp-content .purchase-request-table col.request-photo-col{width:8%}
+  .erp-content .purchase-request-table col.request-action-col{width:13%}
+  .erp-content .purchase-request-table .request-action-cell button{min-height:34px;padding:6px 8px;font-size:10px}
+}

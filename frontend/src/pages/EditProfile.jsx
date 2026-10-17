@@ -64,8 +64,8 @@ export default function EditProfile() {
   }
 
   return (
-    <div style={s.page}>
-      <div style={s.headerRow}>
+    <div className="profile-page" style={s.page}>
+      <div className="staff-page-header" style={s.headerRow}>
         <div>
           <div style={s.hTitle}>Akun Saya</div>
           <div style={s.hSub}>Perbarui informasi profil Anda</div>
@@ -77,25 +77,25 @@ export default function EditProfile() {
       {pageLoading ? (
         <LoadingState label="Memuat profil" note="Menyiapkan informasi akun dan akses Anda…" rows={4} />
       ) : (
-        <div style={s.grid}>
+        <div className="profile-layout" style={s.grid}>
           {/* LEFT: FORM */}
-          <div style={s.card}>
+          <div className="staff-form-card" style={s.card}>
             <div style={s.cardTitle}>Profil</div>
             <div style={s.cardSub}>
-              Keep your name and contact details up to date.
+              Pastikan nama dan informasi kontak selalu sesuai.
             </div>
 
             {err ? <div style={s.alertErr}>{err}</div> : null}
             {msg ? <div style={s.alertOk}>{msg}</div> : null}
 
-            <form onSubmit={onSave} style={{ marginTop: 14 }}>
+            <form className="staff-form" onSubmit={onSave} style={{ marginTop: 14 }}>
               <div style={s.fieldRow}>
                 <div style={s.label}>Nama</div>
                 <input
                   style={s.input}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Your name"
+                  placeholder="Nama lengkap"
                 />
               </div>
 
@@ -114,7 +114,7 @@ export default function EditProfile() {
                 />
               </div>
 
-              <div style={s.actions}>
+              <div className="staff-form-actions" style={s.actions}>
                 <button
                   disabled={loading}
                   style={{
@@ -123,7 +123,7 @@ export default function EditProfile() {
                     transform: loading ? "translateY(0)" : "translateY(0)",
                   }}
                 >
-                  {loading ? "Saving…" : "Save Changes"}
+                  {loading ? "Menyimpan…" : "Simpan perubahan"}
                 </button>
 
                 <button
@@ -135,7 +135,7 @@ export default function EditProfile() {
                     opacity: loading ? 0.7 : 1,
                   }}
                 >
-                  Reset
+                  Batalkan perubahan
                 </button>
               </div>
 
@@ -143,8 +143,8 @@ export default function EditProfile() {
           </div>
 
           {/* RIGHT: SUMMARY */}
-          <div style={s.sideCol}>
-            <div style={s.summaryCard}>
+          <div className="staff-side-column" style={s.sideCol}>
+            <div className="staff-side-card" style={s.summaryCard}>
               <div style={s.summaryTop}>
                 <div style={s.bigAvatar}>{initials}</div>
                 <div style={{ minWidth: 0 }}>

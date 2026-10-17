@@ -149,18 +149,6 @@ export default function PublicLayout() {
     padding: "8px 0",
   };
 
-  const contactBtn = {
-    padding: "10px 20px",
-    borderRadius: 6,
-    fontWeight: 600,
-    fontSize: 14,
-    textDecoration: "none",
-    background: "transparent",
-    border: `2px solid ${showTransparent ? BRAND.white : BRAND.primary}`,
-    color: showTransparent ? BRAND.white : BRAND.primary,
-    transition: "all 0.3s ease",
-  };
-
   const loginBtn = {
     padding: "10px 20px",
     borderRadius: 6,

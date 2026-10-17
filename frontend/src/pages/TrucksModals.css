@@ -100,7 +100,7 @@
 .fleet-add-form input:focus,
 .fleet-add-form select:focus { border-color: #6d907a !important; box-shadow: 0 0 0 3px rgba(89,126,102,.11); }
 .fleet-add-form button { min-height: 43px; border-radius: 9px !important; }
-.fleet-add-form > p { margin: -4px 0 0 !important; padding: 10px 12px; border-radius: 8px; background: #f5f8f6; color: #78857d !important; }
+.fleet-add-form > p { margin: 0 0 12px !important; padding: 10px 12px; border-radius: 8px; background: #f5f8f6; color: #78857d !important; }
 
 .fleet-movement-modal { display: flex !important; flex-direction: column; height: min(900px, calc(100dvh - 48px)); max-height: calc(100dvh - 48px) !important; overflow: hidden !important; background: #fff !important; }
 .fleet-modal-hero { align-items: center !important; }
