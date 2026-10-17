@@ -1,0 +1,109 @@
+.acct-ledger-head {
+  align-items: flex-end;
+}
+
+.acct-ledger-actions {
+  display: grid;
+  justify-items: end;
+  gap: 9px;
+}
+
+.acct-print-controls {
+  display: flex;
+  align-items: end;
+  gap: 7px;
+}
+
+.acct-print-controls label {
+  display: grid;
+  gap: 3px;
+}
+
+.acct-print-controls label small {
+  color: #7a887f;
+  font-size: 7px;
+  font-weight: 850;
+  letter-spacing: .1em;
+}
+
+.acct-print-controls input,
+.acct-print-controls button {
+  box-sizing: border-box;
+  height: 34px;
+  border: 1px solid #d8e4dc;
+  border-radius: 8px;
+  background: #fff;
+  color: #32483b;
+  font: inherit;
+  font-size: 9px;
+}
+
+.acct-print-controls input {
+  width: 122px;
+  padding: 0 8px;
+}
+
+.acct-print-controls input[type="number"] {
+  width: 76px;
+}
+
+.acct-print-controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  color: #176f43;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.acct-print-controls button:hover:not(:disabled) {
+  border-color: #9fc7ad;
+  background: #edf8f1;
+}
+
+.acct-print-controls button:disabled {
+  cursor: wait;
+  opacity: .55;
+}
+
+.acct-table {
+  max-height: min(62dvh, 680px);
+  overflow: auto;
+}
+
+.acct-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-shadow: 0 1px 0 #dce7e0;
+}
+
+@media (max-width: 1050px) {
+  .acct-ledger-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .acct-ledger-actions {
+    justify-items: stretch;
+  }
+
+  .acct-print-controls {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 600px) {
+  .acct-print-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .acct-print-controls input,
+  .acct-print-controls input[type="number"],
+  .acct-print-controls button {
+    width: 100%;
+  }
+}

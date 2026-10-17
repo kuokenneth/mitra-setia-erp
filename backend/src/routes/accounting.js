@@ -3,6 +3,7 @@ const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { requireRole } = require("../middleware/requireRole");
 const { SYSTEM_ACCOUNTS, cashCode, postJournal } = require("../services/accounting");
+const { documentHtml, esc, money, date } = require("../utils/printDocument");
 const router = express.Router();
 router.use(authRequired, requireRole("OWNER", "ADMIN"));
 
@@ -28,6 +29,41 @@ router.get("/overview", async (req, res) => {
     const serializedEntries = entries.map(entry => ({ ...entry, lines: entry.lines.map(line => ({ ...line, debit: Number(line.debit), credit: Number(line.credit) })) }));
     res.json({ ok:true, from, to, accounts: rows, entries: serializedEntries, summary: { revenue, expenses, profit: revenue-expenses, cash, receivables, payables, financePayables } });
   } catch (error) { res.status(400).json({ error: error.message || "Gagal memuat accounting" }); }
+});
+
+router.get("/report", async (req, res) => {
+  try {
+    const scope = req.query.scope === "year" ? "year" : "month";
+    const period = String(req.query.period || "").trim();
+    const match = scope === "year" ? /^(\d{4})$/.exec(period) : /^(\d{4})-(0[1-9]|1[0-2])$/.exec(period);
+    if (!match) return res.status(400).send(scope === "year" ? "Tahun harus dalam format YYYY" : "Bulan harus dalam format YYYY-MM");
+    const year = Number(match[1]);
+    const month = scope === "month" ? Number(match[2]) : 1;
+    const from = new Date(`${year}-${String(month).padStart(2, "0")}-01T00:00:00+07:00`);
+    const to = scope === "year"
+      ? new Date(`${year + 1}-01-01T00:00:00+07:00`)
+      : new Date(`${month === 12 ? year + 1 : year}-${String(month === 12 ? 1 : month + 1).padStart(2, "0")}-01T00:00:00+07:00`);
+    const entries = await prisma.journalEntry.findMany({
+      where: { status: "POSTED", date: { gte: from, lt: to } },
+      include: { lines: { include: { account: true } } },
+      orderBy: [{ date: "asc" }, { createdAt: "asc" }],
+    });
+    const totalDebit = entries.reduce((sum, entry) => sum + entry.lines.reduce((lineSum, line) => lineSum + Number(line.debit), 0), 0);
+    const totalCredit = entries.reduce((sum, entry) => sum + entry.lines.reduce((lineSum, line) => lineSum + Number(line.credit), 0), 0);
+    const rows = entries.flatMap((entry, entryIndex) => entry.lines.map((line, lineIndex) => `<tr><td class="center">${lineIndex === 0 ? entryIndex + 1 : ""}</td><td>${lineIndex === 0 ? esc(date(entry.date)) : ""}</td><td>${lineIndex === 0 ? `<b>${esc(entry.number)}</b><br><span class="muted">${esc((entry.sourceType || "MANUAL").replaceAll("_", " "))}</span>` : ""}</td><td>${lineIndex === 0 ? esc(entry.description) : ""}</td><td><b>${esc(line.account.code)}</b> ${esc(line.account.name)}</td><td class="right">${Number(line.debit) ? money(line.debit) : "—"}</td><td class="right">${Number(line.credit) ? money(line.credit) : "—"}</td></tr>`)).join("");
+    const periodLabel = scope === "year"
+      ? `Tahun ${year}`
+      : new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(from);
+    res.type("html").send(documentHtml({
+      title: "LAPORAN JURNAL UMUM",
+      subtitle: periodLabel,
+      landscape: true,
+      meta: `${entries.length} jurnal`,
+      body: `<div class="summary"><div class="box">Jumlah jurnal<b>${entries.length}</b></div><div class="box">Total debit<b>${money(totalDebit)}</b></div><div class="box">Total kredit<b>${money(totalCredit)}</b></div></div><table><thead><tr><th class="center">No.</th><th>Tanggal</th><th>Nomor & sumber</th><th>Keterangan</th><th>Akun</th><th class="right">Debit</th><th class="right">Kredit</th></tr></thead><tbody>${rows || `<tr><td colspan="7" class="center">Belum ada jurnal pada periode ini.</td></tr>`}</tbody><tfoot><tr><th colspan="5" class="right">TOTAL</th><th class="right">${money(totalDebit)}</th><th class="right">${money(totalCredit)}</th></tr></tfoot></table>`,
+    }));
+  } catch (error) {
+    res.status(400).send(error.message || "Gagal membuat laporan accounting");
+  }
 });
 
 router.post("/sync", async (req, res) => {
