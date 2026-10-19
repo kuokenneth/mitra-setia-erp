@@ -2083,8 +2083,8 @@ export default function Maintenance() {
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Unit</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Pergerakan</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Dari / Tujuan</th>
-                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Harga/Unit</th>
-                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Total Biaya</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600, whiteSpace: "nowrap" }}>Harga/Unit</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600, whiteSpace: "nowrap" }}>Total Biaya</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Catatan</th>
                       </tr>
                     </thead>
@@ -2098,8 +2098,8 @@ export default function Maintenance() {
                           <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{a.serial || "—"}</td>
                           <td style={{ padding: "12px 8px" }}><span style={{ display: "inline-flex", padding: "4px 8px", borderRadius: 999, background: a.historyType === "REMOVED" || a.removedAt ? BRAND.dangerBg : BRAND.successBg, color: a.historyType === "REMOVED" || a.removedAt ? BRAND.danger : BRAND.primary, fontSize: 11, fontWeight: 700 }}>{a.historyType === "REMOVED" ? "KELUAR / DILEPAS" : a.removedAt ? "DIPASANG, LALU DILEPAS" : "DIPASANG"}</span></td>
                           <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{a.source || "—"}</td>
-                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{a.historyUnitPrice == null ? "—" : fmtMoney(a.historyUnitPrice)}</td>
-                          <td style={{ padding: "12px 8px", fontWeight: 600, color: BRAND.primary }}>{a.historyTotalCost == null ? "—" : fmtMoney(a.historyTotalCost)}</td>
+                          <td style={{ padding: "12px 8px", color: BRAND.textLight, whiteSpace: "nowrap" }}>{a.historyUnitPrice == null ? "—" : fmtMoney(a.historyUnitPrice)}</td>
+                          <td style={{ padding: "12px 8px", fontWeight: 600, color: BRAND.primary, whiteSpace: "nowrap" }}>{a.historyTotalCost == null ? "—" : fmtMoney(a.historyTotalCost)}</td>
                           <td style={{ padding: "12px 8px", color: BRAND.textMuted }}>{a.note || "—"}</td>
                         </tr>
                       ))}
@@ -2126,8 +2126,8 @@ export default function Maintenance() {
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Jenis</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Barang</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Jumlah bersih</th>
-                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Harga/Unit</th>
-                        <th style={{ padding: "10px 8px", fontWeight: 600 }}>Total Biaya</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600, whiteSpace: "nowrap" }}>Harga/Unit</th>
+                        <th style={{ padding: "10px 8px", fontWeight: 600, whiteSpace: "nowrap" }}>Total Biaya</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Dari</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Catatan</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Tindakan</th>
@@ -2146,11 +2146,11 @@ export default function Maintenance() {
                           <td style={{ padding: "12px 8px", fontWeight: 600, color: BRAND.text }}>
                             {m.displayQty}{m.type === "OUT" && returnedQty > 0 ? <small style={{ display: "block", color: BRAND.textMuted, fontWeight: 400 }}>Awal {m.qty}, dikembalikan {returnedQty}</small> : null}
                           </td>
-                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{m.unitPrice == null ? "—" : fmtMoney(m.unitPrice)}</td>
-                          <td style={{ padding: "12px 8px", fontWeight: 600, color: BRAND.primary }}>{m.totalCost == null ? "—" : `${m.type === "IN" ? "−" : ""}${fmtMoney(m.totalCost)}`}</td>
+                          <td style={{ padding: "12px 8px", color: BRAND.textLight, whiteSpace: "nowrap" }}>{m.unitPrice == null ? "—" : fmtMoney(m.unitPrice)}</td>
+                          <td style={{ padding: "12px 8px", fontWeight: 600, color: BRAND.primary, whiteSpace: "nowrap" }}>{m.totalCost == null ? "—" : `${m.type === "IN" ? "−" : ""}${fmtMoney(m.totalCost)}`}</td>
                           <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{m.type === "IN" ? `${activeJob.truck?.plateNumber || "Armada"} → ${m.toLocation?.name || "Inventory"}` : m.fromTruck?.plateNumber ? `${m.fromTruck.plateNumber} → ${m.toTruck?.plateNumber || activeJob.truck?.plateNumber}` : m.fromLocation?.name || "—"}</td>
                           <td style={{ padding: "12px 8px", color: BRAND.textMuted }}>{m.displayNote || "—"}</td>
-                          <td style={{ padding: "12px 8px" }}>{returnableQty>0&&activeJob.status==="OPEN"?<div style={{display:"flex",gap:8,flexWrap:"wrap"}}><Button variant="secondary" onClick={()=>openReturnStock(m,"REPAIR_SECOND")} disabled={usingStock}>Perbaiki</Button><Button variant="secondary" onClick={()=>openReturnStock(m,"RETURN")} disabled={usingStock}>Kembalikan</Button></div>:<span style={{color:BRAND.textMuted}}>{returnedQty>0?`Sudah diproses ${returnedQty}`:"—"}</span>}</td>
+                          <td className="maintenance-history-action-cell" style={{ padding: "12px 8px" }}>{returnableQty>0&&activeJob.status==="OPEN"?<div className="maintenance-history-actions"><button type="button" className="maintenance-history-action-button repair" onClick={()=>openReturnStock(m,"REPAIR_SECOND")} disabled={usingStock} title="Kirim barang untuk diperbaiki" aria-label={`Perbaiki ${m.item?.name||"barang"}`}><FiTool/><span>Perbaiki</span></button><button type="button" className="maintenance-history-action-button return" onClick={()=>openReturnStock(m,"RETURN")} disabled={usingStock} title="Kembalikan barang ke gudang" aria-label={`Kembalikan ${m.item?.name||"barang"}`}><FiRefreshCw/><span>Kembalikan</span></button></div>:returnedQty>0?<span className="maintenance-history-action-status"><FiCheck/> Diproses {returnedQty}</span>:<span className="maintenance-history-action-empty">—</span>}</td>
                         </tr>})}
                       {nonSerializedHistoryRows.length === 0 && (
                         <tr>

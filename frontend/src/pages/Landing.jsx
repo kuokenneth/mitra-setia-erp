@@ -1,160 +1,29 @@
-import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { FiArrowUpRight, FiCheck, FiFileText, FiMapPin, FiPackage, FiPhone, FiShield, FiTruck } from "react-icons/fi";
+import { FiArrowRight, FiCheck, FiClipboard, FiLock, FiMapPin, FiPackage, FiPhone, FiTruck } from "react-icons/fi";
+import CorporateLogo from "../components/CorporateLogo";
 import "./Landing.css";
 
-const WA_NUMBER = "6285389191318";
-const waLink = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent("Halo CV. Mitra Setia, saya ingin berkonsultasi mengenai kebutuhan pengangkutan.")}`;
-
-const services = [
-  { icon: FiPackage, title: "Angkutan pupuk", text: "Distribusi ke kebun dan distributor, lengkap dengan pencatatan muatan dan bukti timbang." },
-  { icon: FiTruck, title: "Logistik operasional", text: "Pengiriman barang dan komponen perusahaan dengan armada yang sesuai kebutuhan lapangan." },
-  { icon: FiFileText, title: "Kontrak perusahaan", text: "Kapasitas angkut rutin dengan alur kerja, dokumentasi, dan pelaporan yang konsisten." },
+const WA_NUMBER="6285389191318";
+const waLink=`https://wa.me/${WA_NUMBER}?text=${encodeURIComponent("Halo CV. Mitra Setia, saya ingin berkonsultasi mengenai kebutuhan pengangkutan.")}`;
+const services=[
+  [<FiPackage/>,"Pengangkutan pupuk","Dukungan pengangkutan pupuk untuk kebutuhan perkebunan dan distribusi perusahaan."],
+  [<FiTruck/>,"Transportasi barang industri","Layanan angkutan darat untuk mendukung kebutuhan operasional dan distribusi bisnis."],
+  [<FiClipboard/>,"Kontrak pengangkutan perusahaan","Koordinasi pengangkutan rutin dengan alur kerja dan dokumentasi yang terstruktur."],
 ];
+const principles=["Koordinasi operasional yang terarah","Penanganan dokumen pengiriman yang tertib","Armada disesuaikan dengan kebutuhan angkutan","Komunikasi yang jelas untuk pelanggan bisnis"];
 
-const benefits = [
-  "Armada dialokasikan sesuai jenis muatan dan rute",
-  "Status perjalanan terkoordinasi dari awal hingga tiba",
-  "Dokumen pengiriman dan tagihan tersusun dengan jelas",
-];
+export default function Landing(){return <main className="landing">
+  <section className="landing-hero" id="home"><img className="hero-photo" src="/hero-3.jpg" alt="Armada truk Mitra Setia dalam perjalanan"/><div className="hero-shade"/><div className="landing-shell hero-content"><span className="landing-kicker light">TRANSPORTASI &amp; LOGISTIK DARAT</span><h1>Solusi transportasi darat untuk kebutuhan bisnis Anda.</h1><p>Mitra Setia menyediakan layanan pengangkutan darat untuk mendukung distribusi barang dan kelancaran operasional bisnis.</p><div className="landing-actions"><a className="landing-btn primary" href={waLink} target="_blank" rel="noreferrer">Hubungi Kami <FiArrowRight/></a><a className="landing-btn ghost" href="#services">Jelajahi Layanan</a></div></div><div className="hero-caption"><span><FiMapPin/> Sumatera Utara</span><span>Pengangkutan untuk kebutuhan perusahaan</span></div></section>
 
-export default function Landing() {
-  const [counts, setCounts] = useState([0, 0, 0]);
-  const statsRef = useRef(null);
+  <section className="landing-about" id="about"><div className="landing-shell about-grid"><div className="about-label"><span className="landing-kicker">TENTANG MITRA SETIA</span><span className="about-index">01</span></div><div><h2>Mitra operasional untuk kebutuhan angkutan perusahaan.</h2><div className="about-copy"><p>CV. Mitra Setia bergerak di bidang transportasi dan logistik darat, melayani kebutuhan pengangkutan barang untuk pelanggan bisnis, distributor, dan operasional perkebunan.</p><p>Kami mengutamakan koordinasi lapangan, kesiapan armada, dan dokumentasi yang tertib agar setiap pekerjaan dapat dikelola secara profesional.</p></div></div></div></section>
 
-  useEffect(() => {
-    const elements = document.querySelectorAll("[data-scroll-reveal]");
-    if (!("IntersectionObserver" in window)) {
-      elements.forEach((element) => element.classList.add("is-visible"));
-      return undefined;
-    }
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add("is-visible");
-          observer.unobserve(entry.target);
-        }
-      });
-    }, { threshold: 0.14 });
-    elements.forEach((element) => observer.observe(element));
-    return () => observer.disconnect();
-  }, []);
+  <section className="landing-services" id="services"><div className="landing-shell"><div className="section-heading"><div><span className="landing-kicker">LAYANAN KAMI</span><h2>Dukungan angkutan untuk ritme operasional bisnis.</h2></div><p>Layanan disesuaikan dengan jenis muatan, rute, dan kebutuhan pekerjaan—mulai dari pengiriman satu kali hingga pengangkutan rutin.</p></div><div className="service-grid">{services.map(([icon,title,text],index)=><article key={title}><div className="service-top"><span>{icon}</span><small>0{index+1}</small></div><h3>{title}</h3><p>{text}</p></article>)}</div></div></section>
 
-  useEffect(() => {
-    const element = statsRef.current;
-    if (!element) return undefined;
-    let frame;
-    const observer = new IntersectionObserver(([entry]) => {
-      if (!entry.isIntersecting) return;
-      const targets = [500, 30, 10];
-      const startedAt = performance.now();
-      const animate = (now) => {
-        const progress = Math.min(1, (now - startedAt) / 1200);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        setCounts(targets.map((target) => Math.round(target * eased)));
-        if (progress < 1) frame = requestAnimationFrame(animate);
-      };
-      frame = requestAnimationFrame(animate);
-      observer.disconnect();
-    }, { threshold: 0.45 });
-    observer.observe(element);
-    return () => { observer.disconnect(); cancelAnimationFrame(frame); };
-  }, []);
+  <section className="landing-fleet" id="fleet"><div className="landing-shell"><div className="fleet-heading"><span className="landing-kicker light">ARMADA KAMI</span><h2>Armada untuk pekerjaan nyata di lapangan.</h2><p>Kesiapan kendaraan dan koordinasi perjalanan menjadi bagian penting dari setiap layanan pengangkutan Mitra Setia.</p></div><div className="fleet-gallery"><figure className="fleet-main"><img src="/hero-1.jpg" alt="Jajaran armada truk Mitra Setia"/><figcaption><span>Operasional armada</span><strong>Kesiapan untuk kebutuhan pengangkutan</strong></figcaption></figure><figure><img src="/hero-2.jpg" alt="Truk operasional Mitra Setia"/><figcaption><span>Transportasi darat</span><strong>Dukungan distribusi bisnis</strong></figcaption></figure></div></div></section>
 
-  return (
-    <main className="landing">
-      <section className="landing-hero" data-testid="hero-section">
-        <div className="landing-shell landing-hero-grid">
-          <div className="landing-hero-copy">
-            <span className="landing-eyebrow">Mitra Transportasi Korporasi</span>
-            <h1>Keandalan logistik untuk operasional bisnis Anda.</h1>
-            <p>CV. Mitra Setia menyediakan layanan angkutan perusahaan dengan armada yang terkelola, koordinasi lapangan yang disiplin, dan dokumentasi yang akuntabel.</p>
-            <div className="landing-hero-actions">
-              <a className="landing-button landing-button-primary" href={waLink} target="_blank" rel="noreferrer" data-testid="hero-cta-primary">Konsultasikan kebutuhan <FiArrowUpRight /></a>
-              <a className="landing-button landing-button-secondary" href="#services" data-testid="hero-cta-secondary">Lihat layanan</a>
-            </div>
-            <div className="landing-hero-note"><FiShield /> Berbasis di Sumatera Utara · Melayani pengiriman rutin dan kontrak</div>
-          </div>
-          <div className="landing-hero-image">
-            <img src="/hero-3.jpg" alt="Armada Mitra Setia dalam perjalanan pengiriman" />
-            <div className="landing-image-badge"><span>Jangkauan operasional</span><strong><FiMapPin /> Sumatera Utara</strong></div>
-          </div>
-        </div>
-      </section>
+  <section className="landing-why" id="why"><div className="landing-shell why-grid"><div className="why-copy"><span className="landing-kicker">MENGAPA MITRA SETIA</span><h2>Operasional yang tertata, untuk kerja sama yang lebih jelas.</h2><p>Kami memahami bahwa kebutuhan transportasi perusahaan memerlukan koordinasi antara armada, pengemudi, jadwal, muatan, dan dokumen. Prinsip kerja kami berfokus pada keteraturan di setiap tahap.</p><a className="text-link" href={waLink} target="_blank" rel="noreferrer">Bicarakan kebutuhan Anda <FiArrowRight/></a></div><div className="principle-list">{principles.map((item,index)=><div key={item}><span>0{index+1}</span><p><FiCheck/>{item}</p></div>)}</div></div></section>
 
-      <section ref={statsRef} className="landing-proof" aria-label="Pengalaman Mitra Setia">
-        <div className="landing-shell landing-proof-grid" data-scroll-reveal>
-          <p>Pengalaman operasional yang dibangun melalui ketepatan, konsistensi, dan pertanggungjawaban.</p>
-          <div><strong>{counts[0]}+</strong><span>Perjalanan</span></div>
-          <div><strong>{counts[1]}+</strong><span>Armada</span></div>
-          <div><strong>{counts[2]}+</strong><span>Tahun pengalaman</span></div>
-        </div>
-      </section>
+  <section className="landing-contact" id="contact"><div className="landing-shell contact-card"><div><span className="landing-kicker light">HUBUNGI KAMI</span><h2>Mari bicarakan kebutuhan pengangkutan perusahaan Anda.</h2><p>Sampaikan rute, jenis muatan, dan kebutuhan operasional. Tim Mitra Setia siap membantu mendiskusikan layanan yang sesuai.</p></div><div className="contact-actions"><a className="landing-btn light-btn" href={waLink} target="_blank" rel="noreferrer"><FiPhone/> Hubungi via WhatsApp</a><span><FiMapPin/> Deli Serdang, Sumatera Utara</span></div></div></section>
 
-      <section className="landing-sectors" aria-label="Sektor yang dilayani" data-scroll-reveal>
-        <div className="landing-shell landing-sectors-grid">
-          <span>Sektor yang kami layani</span>
-          <strong>Perkebunan</strong><i />
-          <strong>Distributor</strong><i />
-          <strong>Operasional Industri</strong><i />
-          <strong>Kontrak Korporasi</strong>
-        </div>
-      </section>
-
-      <section className="landing-section landing-services" id="services" data-testid="services-section">
-        <div className="landing-shell">
-          <div className="landing-section-heading" data-scroll-reveal>
-            <span className="landing-eyebrow">Layanan kami</span>
-            <h2>Satu mitra untuk kebutuhan angkutan perusahaan.</h2>
-            <p>Dari pengiriman satu kali hingga jadwal berulang, layanan disesuaikan dengan ritme operasional Anda.</p>
-          </div>
-          <div className="landing-service-grid" data-scroll-reveal>
-            {services.map((service, index) => {
-              const ServiceIcon = service.icon;
-              return <article key={service.title} data-testid={`service-card-${index}`}>
-                <span className="landing-service-icon"><ServiceIcon /></span><small>0{index + 1}</small>
-                <h3>{service.title}</h3><p>{service.text}</p>
-              </article>;
-            })}
-          </div>
-        </div>
-      </section>
-
-      <section className="landing-section landing-why" id="why-us" data-testid="why-us-section">
-        <div className="landing-shell landing-why-grid" data-scroll-reveal>
-          <div className="landing-why-image"><img src="/hero-1.jpg" alt="Jajaran armada angkutan CV. Mitra Setia" /></div>
-          <div className="landing-why-copy">
-            <span className="landing-eyebrow">Mengapa Mitra Setia</span>
-            <h2>Kerja lapangan yang rapi, informasi yang tetap jelas.</h2>
-            <p>Kami menyatukan kesiapan armada, koordinasi perjalanan, dan penyelesaian dokumen dalam satu alur yang mudah diikuti.</p>
-            <ul>{benefits.map((benefit) => <li key={benefit}><FiCheck /><span>{benefit}</span></li>)}</ul>
-            <a className="landing-inline-link" href={waLink} target="_blank" rel="noreferrer">Bicarakan rute Anda <FiArrowUpRight /></a>
-          </div>
-        </div>
-      </section>
-
-      <section className="landing-contact" id="contact" data-testid="contact-section">
-        <div className="landing-shell landing-contact-card" data-scroll-reveal>
-          <div>
-            <span className="landing-eyebrow">Konsultasi Kebutuhan</span>
-            <h2>Siapkan operasional pengiriman yang lebih terarah.</h2>
-            <p>Bagikan rute, jenis muatan, dan jadwal. Tim kami akan membantu menyiapkan solusi yang sesuai.</p>
-          </div>
-          <div className="landing-contact-actions">
-            <a className="landing-button landing-button-light" href={waLink} target="_blank" rel="noreferrer" data-testid="contact-whatsapp"><FiPhone /> Hubungi via WhatsApp</a>
-            <span><FiMapPin /> Deli Serdang, Sumatera Utara</span>
-          </div>
-        </div>
-      </section>
-
-      <footer className="landing-footer" data-testid="footer">
-        <div className="landing-shell landing-footer-grid">
-          <div className="landing-footer-brand"><img src="/logo3.png" alt="Logo Mitra Setia" /><div><strong>CV. Mitra Setia</strong><span>Transportasi & Logistik</span></div></div>
-          <p>Pengangkutan perusahaan yang terarah dan terdokumentasi.</p>
-          <Link to="/login">Login tim internal</Link>
-          <span>© {new Date().getFullYear()} CV. Mitra Setia</span>
-        </div>
-      </footer>
-    </main>
-  );
-}
+  <footer className="landing-footer"><div className="landing-shell footer-grid"><CorporateLogo className="footer-brand"/><p>Solusi pengangkutan darat untuk mendukung operasional bisnis.</p><nav><a href="#about">Tentang Kami</a><a href="#services">Layanan</a><a href="#fleet">Armada</a><a href="#contact">Hubungi Kami</a></nav><Link className="footer-portal" to="/login"><FiLock/> Portal Karyawan</Link><span className="copyright">© {new Date().getFullYear()} CV. Mitra Setia</span></div></footer>
+</main>}

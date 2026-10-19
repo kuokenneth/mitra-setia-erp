@@ -1,6 +1,7 @@
 // src/layouts/PublicLayout.jsx - Corporate Green Design
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
+import CorporateLogo from "../components/CorporateLogo";
 import "./PublicLayout.css";
 
 export default function PublicLayout() {
@@ -55,7 +56,7 @@ export default function PublicLayout() {
 
   useEffect(() => {
     if (pathname !== "/") return undefined;
-    const ids = ["services", "why-us", "contact"];
+    const ids = ["about", "services", "fleet", "contact"];
     const observer = new IntersectionObserver(entries => {
       const visible = entries.filter(entry => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
       if (visible) setActiveSection(visible.target.id);
@@ -100,44 +101,12 @@ export default function PublicLayout() {
     transition: "height 0.3s ease",
   };
 
-  const brand = {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    textDecoration: "none",
-    transition: "transform 0.3s ease",
-  };
-
-  const logoImg = {
-    width: isMobile ? 48 : 56,
-    height: isMobile ? 48 : 56,
-    borderRadius: 8,
-    objectFit: "contain",
-    display: "block",
-    background: "transparent",
-  };
-
-  const brandTitle = {
-    fontWeight: 700,
-    fontSize: isMobile ? 16 : 18,
-    margin: 0,
-    color: showTransparent ? BRAND.white : BRAND.text,
-    transition: "color 0.3s ease",
-  };
-
-  const brandSub = {
-    margin: 0,
-    fontSize: 11,
-    fontWeight: 600,
-    letterSpacing: "0.5px",
-    color: showTransparent ? "rgba(255,255,255,0.8)" : BRAND.textMuted,
-    transition: "color 0.3s ease",
-  };
-
   const navLinks = [
+    { label: "Beranda", href: "/#home" },
+    { label: "Tentang Kami", href: "/#about" },
     { label: "Layanan", href: "/#services" },
-    { label: "Mengapa Kami", href: "/#why-us" },
-    { label: "Kontak", href: "/#contact" },
+    { label: "Armada", href: "/#fleet" },
+    { label: "Hubungi Kami", href: "/#contact" },
   ];
 
   const navLinkStyle = {
@@ -207,13 +176,7 @@ export default function PublicLayout() {
           <nav style={topbar} className={`public-nav ${scrolled ? "is-scrolled" : ""}`} data-testid="main-navigation">
             <div style={wrap} className="public-nav-inner">
               {/* Logo/Brand */}
-              <Link to="/" style={brand} className="public-brand" data-testid="logo">
-                <img src="/logo3.png" alt="CV. Mitra Setia" style={logoImg} />
-                <div>
-                  <p style={brandTitle}>CV. Mitra Setia</p>
-                  <p style={brandSub}>Transportasi & Logistik</p>
-                </div>
-              </Link>
+              <CorporateLogo className="public-brand" />
 
               {/* Desktop Navigation */}
               {!isMobile && (
@@ -244,7 +207,7 @@ export default function PublicLayout() {
                   onMouseEnter={(e) => (e.currentTarget.style.background = showTransparent ? "#CBEA66" : BRAND.primaryDark)}
                   onMouseLeave={(e) => (e.currentTarget.style.background = showTransparent ? "#B9DB4C" : BRAND.primary)}
                 >
-                  Login
+                  Portal Karyawan
                 </Link>
 
                 {/* Mobile Hamburger */}
@@ -307,25 +270,6 @@ export default function PublicLayout() {
                     {link.label}
                   </a>
                 ))}
-                <a
-                  href="https://wa.me/6285389191318"
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{
-                    marginTop: 24,
-                    padding: "16px",
-                    background: BRAND.primary,
-                    color: BRAND.white,
-                    fontSize: 16,
-                    fontWeight: 600,
-                    borderRadius: 6,
-                    textDecoration: "none",
-                    textAlign: "center",
-                  }}
-                  onClick={() => setMenuOpen(false)}
-                >
-                  Hubungi Kami
-                </a>
               </div>
             </div>
           )}

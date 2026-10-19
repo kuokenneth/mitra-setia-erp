@@ -314,7 +314,9 @@
 @media (max-width: 700px) {
   .purchasing .transaction-modal:not(.payment-modal) {
     width: 100%;
-    max-height: calc(100vh - 18px);
+    max-height: calc(100dvh - 18px);
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     border-radius: 16px 16px 8px 8px;
   }
   .purchasing .transaction-modal:not(.payment-modal) .modal-heading,
@@ -322,6 +324,14 @@
   .purchasing .transaction-modal:not(.payment-modal) .modal-actions { padding-left: 17px; padding-right: 17px; }
   .purchasing .transaction-modal:not(.payment-modal) .po-price-row { grid-template-columns: 1fr; gap: 8px; }
   .purchasing .transaction-modal:not(.payment-modal) .grid3 { grid-template-columns: 1fr; }
+
+  /* Avoid nested scrolling on mobile Safari. The modal is the single scroll
+     container, so swiping anywhere in the receipt list continues the form. */
+  .purchasing .supplier-bill-modal .bill-receipt-picker {
+    max-height: none;
+    overflow: visible;
+    touch-action: pan-y;
+  }
 }
 
 /* Purchase Order composer — compact document-style layout. */

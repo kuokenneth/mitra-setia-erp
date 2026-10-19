@@ -766,6 +766,7 @@ router.post("/bills", async (req, res) => {
     if (records.length !== ids.length) throw new Error("Sebagian penerimaan barang tidak ditemukan");
     if (records.some(row => row.purchaseOrder.supplierId !== supplierId)) throw new Error("Semua penerimaan harus berasal dari supplier yang sama");
     const lines = records.flatMap(receipt => receipt.items.filter(item => selectedItemIds.has(item.id)).map(item => {
+      if (item.condition === "RETURNED_TO_SUPPLIER") throw new Error(`${item.purchaseOrderItem.item.name} sudah diretur ke supplier dan tidak dapat ditagihkan`);
       if (item.supplierBillItem) throw new Error(`${item.purchaseOrderItem.item.name} sudah pernah ditagihkan`);
       if (!Object.prototype.hasOwnProperty.call(itemPrices, item.id) || itemPrices[item.id] === "") throw new Error(`Harga ${item.purchaseOrderItem.item.name} wajib diisi`);
       const unitPrice = Math.round(Number(itemPrices[item.id]));
