@@ -166,6 +166,7 @@
 
 .repair-receipt-toolbar{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:12px 14px;border-bottom:1px solid #e2ebe5;background:#f7fbf8;color:#597063;font-size:12px;font-weight:700}
 .repair-receipt-toolbar .receive:disabled{cursor:not-allowed;opacity:.45}
+.repair-receipt-table{min-width:1540px!important;table-layout:fixed}.repair-receipt-table col.repair-select-col{width:54px}.repair-receipt-table col.repair-place-col{width:200px}.repair-receipt-table col.repair-item-col{width:440px}.repair-receipt-table col.repair-service-col{width:230px}.repair-receipt-table col.repair-qty-col{width:140px}.repair-receipt-table col.repair-status-col{width:125px}.repair-receipt-table col.repair-result-col{width:260px}.repair-receipt-table col.repair-action-col{width:130px}.purchasing .repair-receipt-table :is(th,td){box-sizing:border-box;vertical-align:middle}.purchasing .repair-receipt-table :is(th,td):first-child{padding-inline:15px;text-align:center}.purchasing .repair-receipt-table :is(th,td):last-child{text-align:center}.purchasing .repair-receipt-table td:nth-child(3) small,.purchasing .repair-receipt-table td:nth-child(7) small{overflow-wrap:anywhere}
 .receipt-subtabs{display:flex;gap:8px;padding:14px 16px 0;background:#fff}
 .receipt-subtabs button{display:inline-flex;align-items:center;gap:8px;border:1px solid #dce8e0;background:#f7faf8;color:#536a5d;border-radius:10px;padding:10px 14px;font-weight:800;cursor:pointer}
 .receipt-subtabs button.active{border-color:#78b38d;background:#eaf6ee;color:#16713d}
