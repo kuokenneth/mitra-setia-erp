@@ -965,10 +965,10 @@
 }
 .purchasing .supplier-bill-modal>.supplier-bill-heading{display:flex;position:relative;align-items:center;justify-content:space-between;gap:24px;padding:20px 28px!important}
 .supplier-bill-heading>div{min-width:0}.supplier-bill-close{display:grid;flex:0 0 40px;width:40px;height:40px;padding:0;place-items:center;border:1px solid #d8e3dc;border-radius:10px;background:#fff;color:#53655a;font-size:25px;line-height:1;cursor:pointer}.supplier-bill-close:hover{border-color:#a8c9b4;background:#f2f8f4;color:#176f43}
-.purchasing .supplier-bill-modal>.po-form-body{display:grid;min-width:0;min-height:0;gap:22px;padding:24px 28px 32px!important;overflow-x:hidden!important;overflow-y:auto!important;overscroll-behavior:contain;scrollbar-gutter:stable}
-.purchasing .supplier-bill-modal .bill-receipt-section{width:100%;min-height:0;overflow:visible;border-radius:14px}
+.purchasing .supplier-bill-modal>.po-form-body{display:grid;grid-auto-rows:max-content;align-content:start;min-width:0;min-height:0;gap:22px;padding:24px 28px 32px!important;overflow-x:hidden!important;overflow-y:auto!important;overscroll-behavior:contain;scrollbar-gutter:stable}
+.purchasing .supplier-bill-modal .bill-receipt-section{display:block!important;position:relative;width:100%;height:auto!important;min-height:unset!important;overflow:visible;border-radius:14px}
 .purchasing .supplier-bill-modal .bill-receipt-section>header{padding:15px 18px}.purchasing .supplier-bill-modal .bill-receipt-section>header strong,.supplier-bill-flat-head strong{font-size:15px}
-.purchasing .supplier-bill-modal .bill-receipt-picker{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));min-height:0;max-height:none;gap:10px;padding:14px;overflow:visible;background:#fbfdfc}
+.purchasing .supplier-bill-modal .bill-receipt-picker{display:grid;position:relative;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));height:auto!important;min-height:96px;max-height:none;gap:10px;padding:14px;overflow:visible;background:#fbfdfc}
 .purchasing .supplier-bill-modal .bill-receipt-picker>label{grid-template-columns:26px minmax(190px,1fr) 96px auto;min-height:94px;padding:12px 14px}
 .purchasing .supplier-bill-modal .bill-receipt-picker>label>span:not(.bill-receipt-proof){align-content:center}.bill-receipt-proof{display:grid!important;width:96px;height:68px;place-items:center;overflow:hidden;border-radius:8px;background:#edf3ef;color:#75847b}.bill-receipt-proof>svg{font-size:24px}.bill-receipt-proof button{width:96px;height:68px}.bill-receipt-proof img{display:block}
 .purchasing .supplier-bill-modal .bill-proof-compare{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.purchasing .supplier-bill-modal .bill-proof-compare>div{padding:12px}
