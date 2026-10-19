@@ -947,6 +947,55 @@
   }
 }
 
+/* Supplier invoice reconciliation is one continuous, full-width workspace. */
+.purchasing .supplier-bill-overlay{padding:clamp(10px,2vw,24px)}
+.purchasing .supplier-bill-modal{
+  display:grid;
+  grid-template-rows:auto minmax(0,1fr) auto;
+  width:min(95vw,1560px)!important;
+  max-width:1560px!important;
+  height:min(94dvh,1040px);
+  max-height:94dvh!important;
+  overflow:hidden!important;
+  padding:0!important;
+  gap:0!important;
+  border:1px solid rgba(42,91,61,.18);
+  border-radius:18px!important;
+  background:#f6f9f7!important;
+}
+.purchasing .supplier-bill-modal>.supplier-bill-heading{display:flex;position:relative;align-items:center;justify-content:space-between;gap:24px;padding:20px 28px!important}
+.supplier-bill-heading>div{min-width:0}.supplier-bill-close{display:grid;flex:0 0 40px;width:40px;height:40px;padding:0;place-items:center;border:1px solid #d8e3dc;border-radius:10px;background:#fff;color:#53655a;font-size:25px;line-height:1;cursor:pointer}.supplier-bill-close:hover{border-color:#a8c9b4;background:#f2f8f4;color:#176f43}
+.purchasing .supplier-bill-modal>.po-form-body{display:grid;min-width:0;min-height:0;gap:22px;padding:24px 28px 32px!important;overflow-x:hidden!important;overflow-y:auto!important;overscroll-behavior:contain;scrollbar-gutter:stable}
+.purchasing .supplier-bill-modal .bill-receipt-section{width:100%;min-height:0;overflow:visible;border-radius:14px}
+.purchasing .supplier-bill-modal .bill-receipt-section>header{padding:15px 18px}.purchasing .supplier-bill-modal .bill-receipt-section>header strong,.supplier-bill-flat-head strong{font-size:15px}
+.purchasing .supplier-bill-modal .bill-receipt-picker{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));min-height:0;max-height:none;gap:10px;padding:14px;overflow:visible;background:#fbfdfc}
+.purchasing .supplier-bill-modal .bill-receipt-picker>label{grid-template-columns:26px minmax(190px,1fr) 96px auto;min-height:94px;padding:12px 14px}
+.purchasing .supplier-bill-modal .bill-receipt-picker>label>span:not(.bill-receipt-proof){align-content:center}.bill-receipt-proof{display:grid!important;width:96px;height:68px;place-items:center;overflow:hidden;border-radius:8px;background:#edf3ef;color:#75847b}.bill-receipt-proof>svg{font-size:24px}.bill-receipt-proof button{width:96px;height:68px}.bill-receipt-proof img{display:block}
+.purchasing .supplier-bill-modal .bill-proof-compare{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.purchasing .supplier-bill-modal .bill-proof-compare>div{padding:12px}
+.purchasing .supplier-bill-modal .supplier-bill-flat-details{width:100%;min-width:0;min-height:180px!important;border-radius:14px!important}
+.purchasing .supplier-bill-modal .supplier-bill-flat-head{min-height:58px!important;padding:13px 18px!important}
+.purchasing .supplier-bill-modal .supplier-bill-flat-scroll{max-height:none!important;overflow-x:auto!important;overflow-y:visible!important;overscroll-behavior:auto;scrollbar-gutter:auto}
+.purchasing .supplier-bill-modal .supplier-bill-flat-columns,.purchasing .supplier-bill-modal .supplier-bill-flat-row{grid-template-columns:minmax(420px,1.8fr) minmax(130px,.45fr) minmax(240px,.72fr) minmax(190px,.6fr)!important;min-width:1080px;gap:22px!important;padding-right:20px!important;padding-left:20px!important}
+.purchasing .supplier-bill-modal .supplier-bill-flat-columns{position:static;min-height:42px;font-size:10px!important}
+.purchasing .supplier-bill-modal .supplier-bill-flat-row{min-height:78px!important}.purchasing .supplier-bill-modal .supplier-bill-flat-row>span strong{overflow:visible;font-size:14px;line-height:1.35;text-overflow:clip;white-space:normal}.purchasing .supplier-bill-modal .supplier-bill-flat-row>span small{font-size:11px}.purchasing .supplier-bill-modal .supplier-bill-flat-row>b,.purchasing .supplier-bill-modal .supplier-bill-flat-row>strong{font-size:13px}.purchasing .supplier-bill-modal .supplier-bill-flat-row>input{min-width:220px!important;height:48px!important;font-size:15px!important;text-align:right}
+.bill-summary{overflow:hidden;border:1px solid #d7e3db;border-radius:14px;background:#fff}.bill-summary>header{display:grid;gap:3px;padding:14px 18px;border-bottom:1px solid #e4ebe6;background:#f4f8f5}.bill-summary>header small{color:#54806a;font-size:9px;font-weight:900;letter-spacing:.1em}.bill-summary>header strong{color:#263b2f;font-size:15px}.bill-summary>div{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:14px 18px;color:#5f7066;font-size:13px}.bill-summary>div b{color:#2a3e32;font-size:15px;white-space:nowrap}.bill-summary>.bill-summary-total{border-top:1px solid #e5ece7;background:#f9fcfa;color:#253a2e;font-weight:750}.bill-summary-total strong{color:#126f3c;font-size:22px;white-space:nowrap}
+.purchasing .supplier-bill-modal>.modal-actions{min-height:72px;padding:13px 28px!important}.purchasing .supplier-bill-modal>.modal-actions button{min-height:44px;padding:0 20px}.purchasing .supplier-bill-modal>.modal-actions .primary{min-width:220px;justify-content:center}
+
+@media(max-width:900px){
+  .purchasing .supplier-bill-overlay{padding:0!important}
+  .purchasing .supplier-bill-modal{width:100vw!important;max-width:100vw!important;height:100dvh;max-height:100dvh!important;border:0;border-radius:0!important}
+  .purchasing .supplier-bill-modal>.supplier-bill-heading,.purchasing .supplier-bill-modal>.po-form-body,.purchasing .supplier-bill-modal>.modal-actions{padding-right:18px!important;padding-left:18px!important}
+  .purchasing .supplier-bill-modal .bill-receipt-picker{grid-template-columns:1fr}
+}
+@media(max-width:620px){
+  .purchasing .supplier-bill-modal>.supplier-bill-heading{padding-top:14px!important;padding-bottom:14px!important}.supplier-bill-heading h2{font-size:18px!important}.supplier-bill-heading p{display:none}.supplier-bill-close{width:36px;height:36px;flex-basis:36px}
+  .purchasing .supplier-bill-modal>.po-form-body{gap:16px;padding-top:16px!important;padding-bottom:22px!important}
+  .purchasing .supplier-bill-modal .bill-receipt-section>header{align-items:flex-start;flex-direction:column}.purchasing .supplier-bill-modal .bill-select-all{width:100%;justify-content:space-between}
+  .purchasing .supplier-bill-modal .bill-receipt-picker{padding:10px}.purchasing .supplier-bill-modal .bill-receipt-picker>label{grid-template-columns:25px minmax(0,1fr) 80px;min-height:90px;padding:10px}.purchasing .supplier-bill-modal .bill-receipt-picker>label>b{grid-column:2;justify-self:start}.bill-receipt-proof,.bill-receipt-proof button{width:80px;height:62px}.bill-receipt-proof img{width:80px!important;height:62px!important}
+  .purchasing .supplier-bill-modal .supplier-bill-flat-columns,.purchasing .supplier-bill-modal .supplier-bill-flat-row{display:grid!important;grid-template-columns:minmax(300px,1.5fr) minmax(110px,.45fr) minmax(210px,.72fr) minmax(170px,.6fr)!important;min-width:880px}.purchasing .supplier-bill-modal .supplier-bill-flat-columns{display:grid!important}
+  .bill-summary>div{align-items:flex-end;flex-direction:column;gap:6px}.purchasing .supplier-bill-modal>.modal-actions{display:grid;grid-template-columns:1fr 1fr;padding-bottom:max(11px,env(safe-area-inset-bottom))!important}.purchasing .supplier-bill-modal>.modal-actions>*{width:100%;min-width:0!important}
+}
+
 /* Cohesive request flow: items first, then details and proof. */
 .purchasing .request-redesign-modal .request-modal-body{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"source source" "items items" "details proof" "details proof-list" "progress progress" "error error";gap:14px;padding:18px 22px 22px}
 .purchasing .request-redesign-modal .request-modal-body>.request-form-section:first-child{grid-area:source}
