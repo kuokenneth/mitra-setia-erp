@@ -614,7 +614,11 @@ export default function Expenses() {
         credentials: "include",
       });
       if (!res.ok) throw new Error(await res.text() || "Gagal mengekspor pengeluaran");
-      const blob = await res.blob();
+      const data = await res.arrayBuffer();
+      const signature = new Uint8Array(data, 0, Math.min(4, data.byteLength));
+      const isXlsx = signature.length === 4 && signature[0] === 0x50 && signature[1] === 0x4b && signature[2] === 0x03 && signature[3] === 0x04;
+      if (!isXlsx) throw new Error("Server belum menghasilkan file XLSX yang valid. Jalankan npm install di backend lalu restart atau deploy ulang backend.");
+      const blob = new Blob([data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const disposition = res.headers.get("content-disposition") || "";
       const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || "semua-pengeluaran.xlsx";
       const url = URL.createObjectURL(blob);
@@ -625,7 +629,6 @@ export default function Expenses() {
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(url);
-      setReportFeedback("File Excel berhasil diunduh");
     } catch (e) {
       setErr(e.message || "Gagal mengekspor pengeluaran");
     } finally {
