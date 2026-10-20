@@ -110,7 +110,13 @@ router.get("/", async (req, res) => {
           },
         },
         manualInvoiceLines: {
-          where: { invoice: { status: { in: ["SENT", "PARTIALLY_PAID", "PAID"] }, issuedAt: dateRange } },
+          // Manual invoices may be created after the actual transport date.
+          // Attribute each truck line to its recorded operational date instead
+          // of moving all revenue into the invoice issue month.
+          where: {
+            invoice: { status: { in: ["SENT", "PARTIALLY_PAID", "PAID"] } },
+            data: { path: ["date"], string_starts_with: month },
+          },
           include: { invoice: { select: { number: true, status: true, issuedAt: true, customerName: true, sourceType: true, manualData: true } } },
           orderBy: { createdAt: "asc" },
         },
