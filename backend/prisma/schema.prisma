@@ -269,6 +269,7 @@ model User {
   tripActionsCreated               TripOperationalAction[]     @relation("TripActionCreatedBy")
   tripActionsAssigned              TripOperationalAction[]     @relation("TripActionAssignedTo")
   truckManualRevenuesCreated       TruckManualRevenue[]        @relation("TruckManualRevenueCreatedBy")
+  expenseReturnsCreated            ExpenseReturn[]              @relation("ExpenseReturnCreatedBy")
 }
 
 model AuditLog {
@@ -1191,6 +1192,7 @@ model Truck {
   stockMovesTo         StockMovement[]            @relation("StockMovementToTruck")
   monthlyCosts         TruckMonthlyCost[]
   expenses             Expense[]
+  expenseReturns       ExpenseReturn[]
   gpsEvents            GpsEvent[]
   manualInvoiceLines   ManualInvoiceLine[]
   manualRevenues       TruckManualRevenue[]
@@ -1693,6 +1695,26 @@ model Expense {
   @@index([approvedById])
   @@index([expenseDate])
   @@index([createdAt])
+}
+
+model ExpenseReturn {
+  id            String               @id @default(cuid())
+  returnDate    DateTime
+  amount        Int
+  paymentMethod ExpensePaymentMethod @default(BANK_TRANSFER)
+  reason        String
+  notes         String?
+
+  truckId String
+  truck   Truck @relation(fields: [truckId], references: [id], onDelete: Restrict)
+
+  createdById String?
+  createdBy   User? @relation("ExpenseReturnCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([truckId])
+  @@index([returnDate])
 }
 
 ////////////////////////////////////////////////////

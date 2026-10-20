@@ -68,6 +68,50 @@ function parseExpenseDate(value) {
   return Number(parts.year) === year && Number(parts.month) === month && Number(parts.day) === day ? date : null;
 }
 
+// Cash returned by a driver reduces the previously recognized operating cost.
+router.get("/returns", authRequired, async (req, res) => {
+  if (!ensureRole(req, res)) return;
+  const items = await prisma.expenseReturn.findMany({
+    orderBy: [{ returnDate: "desc" }, { createdAt: "desc" }],
+    take: 100,
+    include: { truck: { select: { id: true, plateNumber: true, brand: true, model: true } }, createdBy: { select: { id: true, name: true } } },
+  });
+  res.json({ items, total: items.length, amount: items.reduce((sum, item) => sum + item.amount, 0) });
+});
+
+router.post("/returns", authRequired, async (req, res) => {
+  if (!ensureRole(req, res)) return;
+  const truckId = cleanStr(req.body.truckId);
+  const reason = cleanStr(req.body.reason);
+  const notes = cleanStr(req.body.notes);
+  const paymentMethod = cleanStr(req.body.paymentMethod) || "BANK_TRANSFER";
+  const amount = Math.round(Number(req.body.amount));
+  const returnDate = parseExpenseDate(cleanStr(req.body.returnDate));
+  if (!truckId) return res.status(400).json({ error: "Armada wajib dipilih" });
+  if (!returnDate) return res.status(400).json({ error: "Tanggal retur tidak valid" });
+  if (!Number.isSafeInteger(amount) || amount <= 0) return res.status(400).json({ error: "Jumlah retur harus lebih besar dari 0" });
+  if (!reason) return res.status(400).json({ error: "Alasan retur wajib diisi" });
+  if (!['BANK_TRANSFER', 'CASH', 'OTHER'].includes(paymentMethod)) return res.status(400).json({ error: "Metode penerimaan retur tidak valid" });
+  const truck = await prisma.truck.findUnique({ where: { id: truckId }, select: { id: true, plateNumber: true } });
+  if (!truck) return res.status(404).json({ error: "Armada tidak ditemukan" });
+
+  const eligibleCategories = ["PANJAR", "TRIP_ALLOWANCE", "REMAINING_TRIP_ALLOWANCE", "FUEL_LOAN", "LOADING_LOAN"];
+  const [direct, tripExpenses, priorReturns] = await Promise.all([
+    prisma.expense.aggregate({ where: { truckId, status: { in: ["PAID", "APPROVED"] }, category: { in: eligibleCategories } }, _sum: { amount: true } }),
+    prisma.expense.aggregate({ where: { trip: { is: { truckId } }, status: { in: ["PAID", "APPROVED"] }, category: { in: eligibleCategories } }, _sum: { amount: true } }),
+    prisma.expenseReturn.aggregate({ where: { truckId }, _sum: { amount: true } }),
+  ]);
+  const available = Number(direct._sum.amount || 0) + Number(tripExpenses._sum.amount || 0) - Number(priorReturns._sum.amount || 0);
+  if (amount > available) return res.status(400).json({ error: `Retur melebihi saldo panjar/uang jalan armada. Maksimal Rp${Math.max(0, available).toLocaleString("id-ID")}` });
+
+  const created = await prisma.$transaction(async tx => {
+    const item = await tx.expenseReturn.create({ data: { truckId, returnDate, amount, paymentMethod, reason, notes, createdById: req.user.id }, include: { truck: true, createdBy: { select: { id: true, name: true } } } });
+    await postJournal(tx, { date: returnDate, description: `Retur pengeluaran ${truck.plateNumber}: ${reason}`, sourceType: "EXPENSE_RETURN", sourceId: item.id, createdById: req.user.id, lines: [{ code: cashCode(paymentMethod), debit: amount }, { code: SYSTEM_ACCOUNTS.EXPENSE, credit: amount }] });
+    return item;
+  });
+  res.status(201).json({ item: created, availableAfter: available - amount });
+});
+
 function xmlCell(value, type = "String") {
   const escaped = String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   return `<Cell><Data ss:Type="${type}">${escaped}</Data></Cell>`;

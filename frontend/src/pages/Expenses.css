@@ -1,3 +1,5 @@
+@media(max-width:600px){.expense-return-grid{grid-template-columns:1fr}.expense-return-grid>label{grid-column:auto!important}.expense-return-button{flex:1 0 100%!important;width:100%}}
+
 .expense-new-button {
   transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease !important;
   will-change: transform;
@@ -19,6 +21,7 @@
   outline-offset: 3px;
 }
 .expense-finance-button{min-height:42px;white-space:nowrap;cursor:pointer;transition:transform .16s ease,border-color .16s ease,background-color .16s ease,box-shadow .16s ease!important}
+.expense-return-button{min-height:42px;white-space:nowrap;cursor:pointer;color:#166534!important;border-color:#bbd8c5!important;background:#f3faf5!important}.expense-return-button:hover{background:#e7f6ec!important;border-color:#70aa83!important}.expense-return-icon{background:#e6f5eb!important}.expense-return-form{padding:20px 22px 0}.expense-return-notice{display:flex;align-items:center;gap:11px;margin-bottom:16px;padding:12px 14px;border:1px solid #cfe2d5;border-radius:11px;background:#f3faf5;color:#287347}.expense-return-notice svg{flex:0 0 auto}.expense-return-notice strong,.expense-return-notice small{display:block}.expense-return-notice strong{font-size:12px}.expense-return-notice small{margin-top:2px;color:#668071;font-size:10px}.expense-return-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}.expense-return-actions{display:flex;justify-content:flex-end;gap:9px;padding:16px 0}.expense-return-actions button{display:inline-flex;align-items:center;gap:7px}.expense-return-history{padding:16px 22px 21px;border-top:1px solid #e5ebe7;background:#fafcfb}.expense-return-list{display:grid;margin-top:9px;border:1px solid #e1e8e3;border-radius:10px;background:#fff}.expense-return-list>div{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 12px;border-bottom:1px solid #edf1ee}.expense-return-list>div:last-child{border-bottom:0}.expense-return-list strong,.expense-return-list small{display:block}.expense-return-list strong{font-size:11px}.expense-return-list small{margin-top:2px;color:#7e8b83;font-size:9px}.expense-return-list b{color:#287347;font-size:11px;white-space:nowrap}.expense-return-empty{margin:10px 0 0;color:#7e8b83;font-size:11px}
 .expense-finance-button:hover{transform:translateY(-2px);border-color:#79ad8c!important;background:#edf8f1!important;color:#126b3b!important;box-shadow:0 7px 16px rgba(27,80,46,.11)!important}
 .expense-finance-button:active{transform:translateY(0) scale(.98);box-shadow:0 2px 5px rgba(27,80,46,.08)!important}
 .expense-finance-button:focus-visible{outline:3px solid rgba(13,124,61,.18);outline-offset:2px}

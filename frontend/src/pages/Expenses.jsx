@@ -6,7 +6,7 @@ import { useLiveRefresh } from "../liveUpdates";
 import { ProtectedFilePreview } from "../components/ProtectedFile";
 import LoadingState from "../components/LoadingState";
 import PageHeader, { ActionGroup, ActionToolbar } from "../components/PageHeader";
-import { FiArrowLeft, FiArrowRight, FiCalendar, FiCheckCircle, FiClock, FiCreditCard, FiDownload, FiFileText, FiPlus, FiPrinter, FiSearch, FiTruck, FiX } from "react-icons/fi";
+import { FiArrowLeft, FiArrowRight, FiCalendar, FiCheckCircle, FiClock, FiCornerUpLeft, FiCreditCard, FiDownload, FiFileText, FiPlus, FiPrinter, FiSearch, FiTruck, FiX } from "react-icons/fi";
 import "./Expenses.css";
 
 // Corporate Green Color Palette (matching Landing/Dashboard)
@@ -94,6 +94,10 @@ export default function Expenses() {
   const [employeeParties, setEmployeeParties] = useState([]);
   const [financeDebts, setFinanceDebts] = useState([]);
   const [financeDebtOpen, setFinanceDebtOpen] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [returnSaving, setReturnSaving] = useState(false);
+  const [expenseReturns, setExpenseReturns] = useState([]);
+  const [returnForm, setReturnForm] = useState({ returnDate: todayInJakarta(), truckId: "", amount: "", paymentMethod: "BANK_TRANSFER", reason: "", notes: "" });
   const [financeDebtSaving, setFinanceDebtSaving] = useState(false);
   const [financeDebtForm, setFinanceDebtForm] = useState({ leasingName: "", contractNumber: "", originalAmount: "", notes: "" });
   const [allocationMode, setAllocationMode] = useState("GENERAL");
@@ -297,6 +301,27 @@ export default function Expenses() {
     }
   }
 
+  async function loadReturns() {
+    try { const data = await api("/expenses/returns"); setExpenseReturns(data.items || []); }
+    catch (e) { setErr(e.message || "Gagal memuat retur pengeluaran"); }
+  }
+
+  function openReturn() {
+    setReturnForm({ returnDate: todayInJakarta(), truckId: expenseTrucks[0]?.id || "", amount: "", paymentMethod: "BANK_TRANSFER", reason: "", notes: "" });
+    setReturnOpen(true); void loadReturns();
+  }
+
+  async function createReturn(e) {
+    e.preventDefault(); setReturnSaving(true); setErr("");
+    try {
+      await api("/expenses/returns", { method: "POST", body: JSON.stringify({ ...returnForm, amount: Number(returnForm.amount || 0) }) });
+      await Promise.all([loadReturns(), load()]);
+      setReturnForm({ returnDate: todayInJakarta(), truckId: returnForm.truckId, amount: "", paymentMethod: "BANK_TRANSFER", reason: "", notes: "" });
+      setReportFeedback("Retur pengeluaran berhasil dicatat");
+    } catch (error) { setErr(error.message || "Gagal mencatat retur pengeluaran"); }
+    finally { setReturnSaving(false); }
+  }
+
   async function loadEmployees() {
     try {
       const data = await api("/expenses/employees");
@@ -382,6 +407,7 @@ export default function Expenses() {
   useEffect(() => {
     if (!allowed) return;
     loadExpenseTrucks();
+    loadReturns();
     loadEmployees();
     loadFinanceDebts();
   }, [allowed]);
@@ -670,6 +696,7 @@ export default function Expenses() {
           </ActionGroup>
           <ActionGroup purpose="secondary">
             <button type="button" className="expense-finance-button" style={s.secondaryBtn} onClick={openFinanceDebts} aria-expanded={financeDebtOpen}><FiTruck /> Utang Finance</button>
+            <button type="button" className="expense-return-button" style={s.secondaryBtn} onClick={openReturn} aria-expanded={returnOpen}><FiCornerUpLeft /> Retur Pengeluaran</button>
           </ActionGroup>
           <ActionGroup purpose="primary">
             <button className="expense-new-button" style={s.primaryBtn} onClick={() => setShowModal(true)}>
@@ -891,6 +918,27 @@ export default function Expenses() {
       </div>
 
       {/* Create Modal */}
+      {returnOpen && (
+        <div style={s.modalOverlay} onClick={() => setReturnOpen(false)}>
+          <div style={{ ...s.modalCard, width: "min(820px, calc(100vw - 28px))" }} className="expense-return-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={s.modalHeader}><div className="expense-modal-heading"><span className="expense-modal-icon expense-return-icon"><FiCornerUpLeft /></span><div><div className="expense-eyebrow">PENGEMBALIAN DANA</div><div style={s.modalTitle}>Retur Pengeluaran / Panjar</div><p>Catat uang panjar atau uang jalan yang dikembalikan supir.</p></div></div><button style={s.closeBtn} onClick={() => setReturnOpen(false)} aria-label="Tutup"><FiX /></button></div>
+            <form onSubmit={createReturn} className="expense-return-form">
+              <div className="expense-return-notice"><FiCheckCircle /><span><strong>Retur akan mengurangi biaya armada</strong><small>Kas atau bank bertambah dan pengeluaran operasional berkurang secara otomatis.</small></span></div>
+              <div className="expense-return-grid">
+                <label style={s.label}>Tanggal Retur<input required type="date" style={{ ...s.input, marginTop: 6 }} value={returnForm.returnDate} onChange={(e) => setReturnForm(f => ({ ...f, returnDate: e.target.value }))} /></label>
+                <label style={s.label}>Armada<select required style={{ ...s.select, marginTop: 6 }} value={returnForm.truckId} onChange={(e) => setReturnForm(f => ({ ...f, truckId: e.target.value }))}><option value="">Pilih mobil</option>{expenseTrucks.map(truck => <option key={truck.id} value={truck.id}>{truck.plateNumber} · {[truck.brand, truck.model].filter(Boolean).join(" ") || "Armada"}</option>)}</select></label>
+                <label style={s.label}>Jumlah Retur<input required min="1" type="number" style={{ ...s.input, marginTop: 6 }} value={returnForm.amount} onChange={(e) => setReturnForm(f => ({ ...f, amount: e.target.value }))} placeholder="Contoh: 500000" /></label>
+                <label style={s.label}>Dana Diterima Melalui<select style={{ ...s.select, marginTop: 6 }} value={returnForm.paymentMethod} onChange={(e) => setReturnForm(f => ({ ...f, paymentMethod: e.target.value }))}><option value="BANK_TRANSFER">Transfer Bank</option><option value="CASH">Tunai</option><option value="OTHER">Lainnya</option></select></label>
+                <label style={{ ...s.label, gridColumn: "1 / -1" }}>Alasan<input required style={{ ...s.input, marginTop: 6 }} value={returnForm.reason} onChange={(e) => setReturnForm(f => ({ ...f, reason: e.target.value }))} placeholder="Contoh: Sisa panjar perjalanan dikembalikan supir" /></label>
+                <label style={{ ...s.label, gridColumn: "1 / -1" }}>Catatan<textarea style={{ ...s.textarea, marginTop: 6 }} rows={2} value={returnForm.notes} onChange={(e) => setReturnForm(f => ({ ...f, notes: e.target.value }))} placeholder="Opsional" /></label>
+              </div>
+              <div className="expense-return-actions"><button type="button" style={s.secondaryBtn} onClick={() => setReturnOpen(false)}>Tutup</button><button style={s.primaryBtn} disabled={returnSaving}><FiCornerUpLeft /> {returnSaving ? "Menyimpan…" : "Simpan Retur"}</button></div>
+            </form>
+            <div className="expense-return-history"><div className="expense-eyebrow">RETUR TERAKHIR</div>{expenseReturns.length ? <div className="expense-return-list">{expenseReturns.slice(0, 6).map(item => <div key={item.id}><span><strong>{item.truck?.plateNumber}</strong><small>{new Date(item.returnDate).toLocaleDateString("id-ID")} · {item.reason}</small></span><b>{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(item.amount)}</b></div>)}</div> : <p className="expense-return-empty">Belum ada retur pengeluaran.</p>}</div>
+          </div>
+        </div>
+      )}
+
       {financeDebtOpen && (
         <div style={s.modalOverlay} onClick={() => setFinanceDebtOpen(false)}>
           <div style={{ ...s.modalCard, width: "min(920px, calc(100vw - 28px))" }} onClick={(e) => e.stopPropagation()}>

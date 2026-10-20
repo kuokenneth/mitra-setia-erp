@@ -169,6 +169,7 @@ router.get("/", async (req, res) => {
           },
           orderBy: { expenseDate: "asc" },
         },
+        expenseReturns: { where: { returnDate: dateRange }, orderBy: { returnDate: "asc" } },
       },
     });
 
@@ -182,7 +183,8 @@ router.get("/", async (req, res) => {
       const revenue = tripRevenue + manualRevenue;
       const cargoLoss = Math.round(operationalTrips.reduce((sum, item) => sum + cargoLossValue(item), 0));
       const tripExpenses = operationalTrips.reduce((sum, item) => sum + item.expenses.reduce((cost, expense) => cost + expense.amount, 0), 0);
-      const vehicleExpenses = truck.expenses.reduce((sum, expense) => sum + expense.amount, 0);
+      const expenseReturns = truck.expenseReturns.reduce((sum, item) => sum + item.amount, 0);
+      const vehicleExpenses = truck.expenses.reduce((sum, expense) => sum + expense.amount, 0) - expenseReturns;
       const nonSerializedPartMovements = truck.maintenances.flatMap(maintenance =>
         maintenance.movements.map(movement => ({ ...movement, maintenanceTitle: maintenance.title }))
       );
@@ -289,7 +291,7 @@ router.get("/", async (req, res) => {
       return {
         truck: { id: truck.id, plateNumber: truck.plateNumber, brand: truck.brand, model: truck.model, status: truck.status },
         trips: { total: operationalTrips.length, completed: completedTrips, cancelled: truck.trips.length - operationalTrips.length },
-        revenue, tripRevenue, manualRevenue, manualInvoiceRevenue, directManualRevenue, cargoLoss, tripExpenses, vehicleExpenses, spareParts, fixedCosts: Object.fromEntries(COST_FIELDS.map(field => [field, fixedCosts[field] || 0])),
+        revenue, tripRevenue, manualRevenue, manualInvoiceRevenue, directManualRevenue, cargoLoss, tripExpenses, vehicleExpenses, expenseReturns, spareParts, fixedCosts: Object.fromEntries(COST_FIELDS.map(field => [field, fixedCosts[field] || 0])),
         fixedTotal, totalCost, profit, margin,
         tripDetails, sparePartDetails,
         manualRevenueDetails: truck.manualRevenues.map(item => ({ id: item.id, revenueDate: item.revenueDate, amount: item.amount, description: item.description, notes: item.notes, createdAt: item.createdAt, createdBy: item.createdBy })),
