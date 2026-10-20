@@ -614,6 +614,35 @@ router.patch("/orders/:id/status", requireRole("OWNER", "ADMIN"), async (req, re
   if (!allowed.includes(req.body.status)) return res.status(400).json({ error: "Status PO tidak valid" });
   res.json({ ok: true, order: await prisma.purchaseOrder.update({ where: { id: req.params.id }, data: { status: req.body.status } }) });
 });
+router.patch("/orders/:id/supplier", requireRole("OWNER", "ADMIN"), async (req, res) => {
+  try {
+    const supplierId = String(req.body.supplierId || "").trim();
+    if (!supplierId) throw new Error("Supplier baru wajib dipilih");
+    const [order, supplier] = await Promise.all([
+      prisma.purchaseOrder.findUnique({
+        where: { id: req.params.id },
+        include: { receipts: { select: { id: true } }, payments: { select: { id: true } }, items: { select: { receivedQty: true, tireRetreadId: true, partRepairId: true } } },
+      }),
+      prisma.supplier.findUnique({ where: { id: supplierId } }),
+    ]);
+    if (!order) return res.status(404).json({ error: "Purchase Order tidak ditemukan" });
+    if (!supplier) throw new Error("Supplier baru tidak ditemukan");
+    if (!["DRAFT", "APPROVED", "SENT_TO_SUPPLIER"].includes(order.status)) throw new Error("Supplier PO dengan status ini tidak dapat diganti");
+    if (order.receipts.length || order.items.some(item => Number(item.receivedQty || 0) > 0)) throw new Error("Supplier tidak dapat diganti setelah barang diterima");
+    if (order.payments.length) throw new Error("Supplier tidak dapat diganti setelah pembayaran dibuat");
+    if (order.supplierId === supplierId) throw new Error("Supplier baru masih sama dengan supplier sebelumnya");
+    const updated = await prisma.$transaction(async tx => {
+      const tireRetreadIds = order.items.map(item => item.tireRetreadId).filter(Boolean);
+      const partRepairIds = order.items.map(item => item.partRepairId).filter(Boolean);
+      if (tireRetreadIds.length) await tx.tireRetread.updateMany({ where: { id: { in: tireRetreadIds } }, data: { supplierId } });
+      if (partRepairIds.length) await tx.partRepair.updateMany({ where: { id: { in: partRepairIds } }, data: { supplierId } });
+      return tx.purchaseOrder.update({ where: { id: order.id }, data: { supplierId }, include: includePO });
+    });
+    res.json({ ok: true, order: updated });
+  } catch (error) {
+    res.status(400).json({ error: error.message || "Gagal mengganti supplier Purchase Order" });
+  }
+});
 router.patch("/orders/:id/cancel", requireRole("OWNER", "ADMIN"), async (req, res) => {
   try {
     const reason = String(req.body.reason || "").trim();
