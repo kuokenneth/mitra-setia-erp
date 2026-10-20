@@ -616,7 +616,7 @@ export default function Expenses() {
       if (!res.ok) throw new Error(await res.text() || "Gagal mengekspor pengeluaran");
       const blob = await res.blob();
       const disposition = res.headers.get("content-disposition") || "";
-      const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || "semua-pengeluaran.xls";
+      const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || "semua-pengeluaran.xlsx";
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;

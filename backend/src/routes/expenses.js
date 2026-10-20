@@ -1,4 +1,5 @@
 const express = require("express");
+const ExcelJS = require("exceljs");
 const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { SYSTEM_ACCOUNTS, cashCode, postJournal } = require("../services/accounting");
@@ -112,11 +113,6 @@ router.post("/returns", authRequired, async (req, res) => {
   res.status(201).json({ item: created, availableAfter: available - amount });
 });
 
-function xmlCell(value, type = "String") {
-  const escaped = String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  return `<Cell><Data ss:Type="${type}">${escaped}</Data></Cell>`;
-}
-
 const categoryLabels = { PANJAR: "Panjar", TRIP_ALLOWANCE: "Uang jalan", REMAINING_TRIP_ALLOWANCE: "Sisa uang jalan", UNLOADING_FEE: "Uang bongkar", FUEL_LOAN: "Pinjaman minyak", LOADING_LOAN: "Pinjaman muat", DRIVER_SALARY: "Gaji pengemudi", FUEL: "Bahan bakar", TOLL_PARKING: "Tol & parkir", LOADING_UNLOADING: "Bongkar muat", REPAIR_MAINTENANCE: "Perbaikan & servis", SPAREPART: "Sparepart", OFFICE_OPERATIONAL: "Operasional kantor", EMPLOYEE_SALARY: "Gaji karyawan", OPERATIONAL_COST: "Biaya operasional", ELECTRICITY: "Listrik", WATER: "Air", TELECOMMUNICATION: "Telkom / komunikasi", OFFICE_EQUIPMENT: "Peralatan kantor", COMMISSION_FEE: "Komisi / fee", DOCUMENT_ADMINISTRATION: "Pengurusan surat", BPJS: "BPJS", TAX: "Pajak", EMPLOYEE_RECEIVABLE: "Piutang karyawan", FINANCE_DEBT_PAYMENT: "Pembayaran utang finance", OTHER: "Lainnya" };
 const methodLabels = { BANK_TRANSFER: "Transfer bank", CASH: "Tunai", GIRO: "Giro", OTHER: "Lainnya" };
 const statusLabels = { SUBMITTED: "Diajukan", APPROVED: "Disetujui", PAID: "Dibayar", REJECTED: "Ditolak" };
@@ -218,31 +214,125 @@ router.get("/", authRequired, async (req, res) => {
   res.json({ items: withDup, total, pendingApprovalTotal, skip, take });
 });
 
-// Export every expense as an Excel-compatible XML workbook.
+function excelDate(value) {
+  if (!value) return null;
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" })
+    .formatToParts(value)
+    .reduce((result, part) => ({ ...result, [part.type]: part.value }), {});
+  return new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)));
+}
+
+// Export every expense as a native Excel workbook.
 router.get("/export", authRequired, async (req, res) => {
   if (!ensureRole(req, res)) return;
 
   const items = await prisma.expense.findMany({
     orderBy: [{ expenseDate: "asc" }, { createdAt: "asc" }],
-    include: {
+    select: {
+      expenseDate: true,
+      category: true,
+      reason: true,
+      clientName: true,
+      paymentMethod: true,
+      bankName: true,
+      accountName: true,
+      accountNumber: true,
+      giroIssuedAt: true,
+      giroDueAt: true,
+      currency: true,
+      amount: true,
+      status: true,
+      notes: true,
       truck: { select: { plateNumber: true } },
-      trip: { include: { truck: { select: { plateNumber: true } }, driverUser: { select: { name: true } }, order: { select: { orderNo: true, fromText: true, toText: true } } } },
+      trip: { select: { truck: { select: { plateNumber: true } }, driverUser: { select: { name: true } }, order: { select: { orderNo: true, fromText: true, toText: true } } } },
       createdBy: { select: { name: true, email: true } },
       approvedBy: { select: { name: true, email: true } },
     },
   });
-  const dateText = value => new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "2-digit", year: "numeric" }).format(value);
-  const headers = ["No", "Tanggal", "Kategori", "Keperluan", "Klien / Referensi", "Trip", "Rute", "Armada", "Pengemudi", "Metode", "Bank", "Nama Rekening / Penerima", "Nomor Rekening / Giro", "Tanggal Terbit Giro", "Jatuh Tempo Giro", "Mata Uang", "Nominal", "Status", "Catatan", "Dibuat Oleh", "Disetujui Oleh"];
-  const rows = items.map((item, index) => {
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Mitra Setia ERP";
+  workbook.created = new Date();
+  const sheet = workbook.addWorksheet("Semua Pengeluaran", {
+    views: [{ state: "frozen", ySplit: 1 }],
+    pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+  });
+  sheet.columns = [
+    { header: "No", key: "number", width: 8 },
+    { header: "Tanggal", key: "expenseDate", width: 13 },
+    { header: "Kategori", key: "category", width: 24 },
+    { header: "Keperluan", key: "reason", width: 36 },
+    { header: "Klien / Referensi", key: "clientName", width: 24 },
+    { header: "Trip", key: "trip", width: 18 },
+    { header: "Rute", key: "route", width: 34 },
+    { header: "Armada", key: "truck", width: 16 },
+    { header: "Pengemudi", key: "driver", width: 22 },
+    { header: "Metode", key: "paymentMethod", width: 18 },
+    { header: "Bank", key: "bankName", width: 18 },
+    { header: "Nama Rekening / Penerima", key: "accountName", width: 28 },
+    { header: "Nomor Rekening / Giro", key: "accountNumber", width: 24 },
+    { header: "Tanggal Terbit Giro", key: "giroIssuedAt", width: 19 },
+    { header: "Jatuh Tempo Giro", key: "giroDueAt", width: 19 },
+    { header: "Mata Uang", key: "currency", width: 12 },
+    { header: "Nominal", key: "amount", width: 18 },
+    { header: "Status", key: "status", width: 15 },
+    { header: "Catatan", key: "notes", width: 34 },
+    { header: "Dibuat Oleh", key: "createdBy", width: 24 },
+    { header: "Disetujui Oleh", key: "approvedBy", width: 24 },
+  ];
+
+  items.forEach((item, index) => {
     const trip = item.trip;
-    const values = [index + 1, dateText(item.expenseDate), categoryLabels[item.category] || item.category, item.reason, item.clientName || "", trip?.order?.orderNo || "", trip?.order ? `${trip.order.fromText || "-"} → ${trip.order.toText || "-"}` : "", trip?.truck?.plateNumber || item.truck?.plateNumber || "", trip?.driverUser?.name || "", methodLabels[item.paymentMethod] || item.paymentMethod, item.bankName || "", item.accountName || "", item.accountNumber || "", item.giroIssuedAt ? dateText(item.giroIssuedAt) : "", item.giroDueAt ? dateText(item.giroDueAt) : "", item.currency, item.amount, statusLabels[item.status] || item.status, item.notes || "", item.createdBy?.name || item.createdBy?.email || "", item.approvedBy?.name || item.approvedBy?.email || ""];
-    return `<Row>${values.map((value, column) => xmlCell(value, column === 0 || column === 16 ? "Number" : "String")).join("")}</Row>`;
-  }).join("");
-  const workbook = `<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="Semua Pengeluaran"><Table><Row>${headers.map(header => xmlCell(header)).join("")}</Row>${rows}</Table></Worksheet></Workbook>`;
-  const filename = `semua-pengeluaran-${new Date().toISOString().slice(0, 10)}.xls`;
-  res.setHeader("Content-Type", "application/vnd.ms-excel; charset=utf-8");
+    sheet.addRow({
+      number: index + 1,
+      expenseDate: excelDate(item.expenseDate),
+      category: categoryLabels[item.category] || item.category,
+      reason: item.reason,
+      clientName: item.clientName || "",
+      trip: trip?.order?.orderNo || "",
+      route: trip?.order ? `${trip.order.fromText || "-"} → ${trip.order.toText || "-"}` : "",
+      truck: trip?.truck?.plateNumber || item.truck?.plateNumber || "",
+      driver: trip?.driverUser?.name || "",
+      paymentMethod: methodLabels[item.paymentMethod] || item.paymentMethod,
+      bankName: item.bankName || "",
+      accountName: item.accountName || "",
+      accountNumber: item.accountNumber || "",
+      giroIssuedAt: excelDate(item.giroIssuedAt),
+      giroDueAt: excelDate(item.giroDueAt),
+      currency: item.currency,
+      amount: item.amount,
+      status: statusLabels[item.status] || item.status,
+      notes: item.notes || "",
+      createdBy: item.createdBy?.name || item.createdBy?.email || "",
+      approvedBy: item.approvedBy?.name || item.approvedBy?.email || "",
+    });
+  });
+
+  const header = sheet.getRow(1);
+  header.height = 28;
+  header.font = { bold: true, color: { argb: "FFFFFFFF" } };
+  header.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E78" } };
+  header.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+  sheet.autoFilter = { from: "A1", to: "U1" };
+  sheet.getColumn("expenseDate").numFmt = "dd/mm/yyyy";
+  sheet.getColumn("giroIssuedAt").numFmt = "dd/mm/yyyy";
+  sheet.getColumn("giroDueAt").numFmt = "dd/mm/yyyy";
+  sheet.getColumn("amount").numFmt = "#,##0";
+  sheet.getColumn("amount").alignment = { horizontal: "right" };
+  sheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return;
+    row.alignment = { vertical: "top", wrapText: true };
+    row.getCell(1).alignment = { vertical: "top", horizontal: "center" };
+    row.getCell(17).alignment = { vertical: "top", horizontal: "right" };
+    if (rowNumber % 2 === 0) row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F6F9" } };
+  });
+
+  const output = await workbook.xlsx.writeBuffer();
+  const filename = `semua-pengeluaran-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-  res.send(workbook);
+  res.setHeader("Content-Length", output.length);
+  res.end(output);
 });
 
 // Monthly report (HTML)
