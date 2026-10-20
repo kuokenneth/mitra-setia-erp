@@ -52,22 +52,43 @@ function markerElement(truck) {
   marker.type = "button";
   marker.className = "google-fleet-marker";
   marker.style.setProperty("--marker-color", markerColor(truck));
-  marker.innerHTML = `<span>${truck.plateNumber || "TRUK"}</span><i></i>`;
+  marker.style.setProperty("--marker-heading", `${Number(truck.gpsTelemetry?.heading || 0)}deg`);
+  const vehicle = document.createElement("span");
+  vehicle.className = "google-fleet-vehicle";
+  vehicle.innerHTML = '<svg viewBox="0 0 28 44" aria-hidden="true"><path d="M8.5 3.5h11l4.5 9v22.5c0 3-2 5.5-5 5.5H9c-3 0-5-2.5-5-5.5V12.5l4.5-9Z"/><path class="glass" d="m9.5 7-2.4 7h13.8l-2.4-7h-9Z"/><path class="glass" d="M7.2 18h13.6v10H7.2z"/><circle cx="8" cy="34.5" r="2"/><circle cx="20" cy="34.5" r="2"/></svg>';
+  const plate = document.createElement("span");
+  plate.className = "google-fleet-plate";
+  plate.textContent = truck.plateNumber || "TRUK";
+  marker.append(vehicle, plate);
   return marker;
+}
+
+function statusLabel(status) {
+  return ({ READY: "Siap", DISPATCH: "Dalam perjalanan", PLANNED: "Terjadwal", MAINTENANCE: "Perawatan", INACTIVE: "Tidak aktif" })[status] || status || "-";
+}
+
+function directionLabel(heading) {
+  if (heading == null || !Number.isFinite(Number(heading))) return "Belum terbaca";
+  return ["Utara", "Timur Laut", "Timur", "Tenggara", "Selatan", "Barat Daya", "Barat", "Barat Laut"][Math.round(Number(heading) / 45) % 8];
 }
 
 function popupContent(truck) {
   const root = document.createElement("div");
   root.className = "fleet-map-popup google-popup";
+  const eyebrow = document.createElement("small");
+  eyebrow.className = "google-popup-eyebrow";
+  eyebrow.textContent = "DETAIL ARMADA";
   const title = document.createElement("strong");
   title.textContent = truck.plateNumber || "Kendaraan";
   const vehicle = document.createElement("span");
   vehicle.textContent = [truck.brand, truck.model].filter(Boolean).join(" ") || "Kendaraan";
   const details = document.createElement("dl");
   const detailRows = [
-    ["Status", truck.status || "-"],
+    ["Status", statusLabel(truck.status)],
     ["Lokasi", truck.gpsLocation?.name || "Dalam perjalanan"],
     ["Kecepatan", truck.lastGpsSpeed == null ? "-" : `${Number(truck.lastGpsSpeed).toFixed(0)} km/jam`],
+    ["Arah", directionLabel(truck.gpsTelemetry?.heading)],
+    ["Kontak mesin", truck.lastGpsIgnition == null ? "-" : truck.lastGpsIgnition ? "Menyala" : "Mati"],
     ["Pengemudi", truck.driverUser?.name || "Belum ditugaskan"],
     ["Update GPS", truck.lastGpsAt ? new Date(truck.lastGpsAt).toLocaleString("id-ID") : "-"],
   ];
@@ -85,7 +106,9 @@ function popupContent(truck) {
   link.target = "_blank";
   link.rel = "noreferrer";
   link.textContent = "Buka navigasi Google Maps";
-  root.append(title, vehicle, details, link);
+  const coordinates = document.createElement("code");
+  coordinates.textContent = `${truck.position.lat.toFixed(5)}, ${truck.position.lng.toFixed(5)}`;
+  root.append(eyebrow, title, vehicle, details, coordinates, link);
   return root;
 }
 

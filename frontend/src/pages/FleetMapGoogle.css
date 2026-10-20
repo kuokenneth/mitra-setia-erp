@@ -4,24 +4,35 @@
 
 .google-fleet-marker {
   position: relative;
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   place-items: center;
-  min-width: 46px;
-  padding: 5px 8px;
-  border: 2px solid #fff;
-  border-radius: 8px;
-  background: var(--marker-color);
-  color: #fff;
-  box-shadow: 0 5px 14px rgba(25, 38, 29, .28);
+  min-width: 38px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   cursor: pointer;
-  transform: translateY(-5px);
+  transform: translateY(-18px);
+  filter: drop-shadow(0 5px 5px rgba(25, 38, 29, .28));
 }
 
-.google-fleet-marker span { font: 800 10px/1.1 system-ui, sans-serif; white-space: nowrap; }
-.google-fleet-marker i { position: absolute; bottom: -6px; width: 9px; height: 9px; background: var(--marker-color); transform: rotate(45deg); border-right: 2px solid #fff; border-bottom: 2px solid #fff; }
-.google-fleet-marker:hover { filter: brightness(1.08); transform: translateY(-7px); }
+.google-fleet-vehicle { display:grid; width:31px; height:31px; place-items:center; border:2px solid #fff; border-radius:50%; background:var(--marker-color); transition:transform .35s ease; transform:rotate(var(--marker-heading)); }
+.google-fleet-vehicle svg { width:16px; height:24px; overflow:visible; fill:#fff; }
+.google-fleet-vehicle svg .glass { fill:rgba(20,55,36,.42); }
+.google-fleet-plate { margin-top:2px; padding:3px 5px; border:1px solid rgba(255,255,255,.9); border-radius:5px; background:#fff; color:#26372d; box-shadow:0 2px 7px rgba(25,38,29,.2); font:800 8px/1 system-ui,sans-serif; white-space:nowrap; }
+.google-fleet-marker:hover { filter:drop-shadow(0 7px 6px rgba(25,38,29,.34)); transform:translateY(-20px) scale(1.08); }
 .google-popup { min-width: 245px; padding: 4px 2px; }
 .google-popup dl div { padding: 7px 0; }
+.google-popup-eyebrow { display:block; margin-bottom:5px; color:#21804d; font-size:8px; font-weight:900; letter-spacing:.14em; }
+.google-popup > strong { display:block; color:#17281e; font-size:19px; letter-spacing:-.02em; }
+.google-popup > span { display:block; margin-top:2px; color:#78857d; font-size:10px; }
+.google-popup dl { margin:13px 0 10px; }
+.google-popup dl div { display:flex; justify-content:space-between; gap:24px; border-bottom:1px solid #edf1ee; }
+.google-popup dt { color:#849087; font-size:9px; }
+.google-popup dd { margin:0; color:#2f4135; font-size:9px; font-weight:750; text-align:right; }
+.google-popup code { display:block; margin:8px 0; color:#718078; font-size:9px; }
+.google-popup a { display:block; margin-top:10px; padding:8px 10px; border-radius:7px; background:#e9f5ed; color:#177241; font-size:9px; font-weight:800; text-align:center; text-decoration:none; }
 
 .fleet-google-map .gm-style-iw-c {
   padding: 0 !important;

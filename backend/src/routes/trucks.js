@@ -24,6 +24,16 @@ function positiveNumber(value, fallback, minimum = 0) {
   return Number.isFinite(parsed) ? Math.max(minimum, parsed) : fallback;
 }
 
+function bearingDegrees(fromLat, fromLng, toLat, toLng) {
+  if (![fromLat, fromLng, toLat, toLng].every(Number.isFinite)) return null;
+  const radians = (value) => value * Math.PI / 180;
+  const y = Math.sin(radians(toLng - fromLng)) * Math.cos(radians(toLat));
+  const x = Math.cos(radians(fromLat)) * Math.sin(radians(toLat))
+    - Math.sin(radians(fromLat)) * Math.cos(radians(toLat)) * Math.cos(radians(toLng - fromLng));
+  if (Math.abs(x) < Number.EPSILON && Math.abs(y) < Number.EPSILON) return null;
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
 /**
  * GET /trucks
  * List trucks + assigned driver (if any)
@@ -64,6 +74,12 @@ router.get(
         orderBy: { createdAt: "desc" },
         include: {
           driverUser: { select: { id: true, name: true, email: true } },
+          gpsEvents: {
+            where: { latitude: { not: null }, longitude: { not: null } },
+            orderBy: [{ eventAt: "desc" }, { receivedAt: "desc" }],
+            take: 2,
+            select: { latitude: true, longitude: true, eventAt: true, receivedAt: true },
+          },
           trips: {
             where: { purpose: "EMPTY_RETURN", status: { in: ["PLANNED", "DISPATCHED", "ARRIVED"] } },
             orderBy: { createdAt: "desc" },
@@ -90,7 +106,7 @@ router.get(
       const stopRadiusM = positiveNumber(process.env.GPS_STOP_AREA_RADIUS_METERS, 100, 25);
       const telemetryMaxAgeMinutes = positiveNumber(process.env.GPS_WARNING_TELEMETRY_MAX_MINUTES, 15, 1);
 
-      res.json({ items: items.map(({ trips, ...truck }) => {
+      res.json({ items: items.map(({ trips, gpsEvents, ...truck }) => {
         let nearest = null;
         if (Number.isFinite(truck.lastGpsLatitude) && Number.isFinite(truck.lastGpsLongitude)) {
           for (const location of gpsLocations) {
@@ -150,6 +166,18 @@ router.get(
           durationMinutes: serviceStop?.startedAt ? Math.max(0, Math.floor((now.getTime() - new Date(serviceStop.startedAt).getTime()) / 60000)) : 0,
           requiresAction: true,
         } : null;
+        const [latestGpsEvent, previousGpsEvent] = gpsEvents;
+        const headingDistanceM = latestGpsEvent && previousGpsEvent
+          ? distanceMeters(previousGpsEvent.latitude, previousGpsEvent.longitude, latestGpsEvent.latitude, latestGpsEvent.longitude)
+          : 0;
+        const gpsHeading = headingDistanceM >= 8
+          ? bearingDegrees(
+            previousGpsEvent.latitude,
+            previousGpsEvent.longitude,
+            latestGpsEvent.latitude,
+            latestGpsEvent.longitude,
+          )
+          : null;
         return {
           ...truck,
           currentLocation: nearest?.location.name || truck.currentLocation,
@@ -164,6 +192,8 @@ router.get(
           gpsTelemetry: {
             ageMinutes: gpsAgeMinutes,
             fresh: hasFreshGps,
+            heading: gpsHeading === null ? null : Math.round(gpsHeading),
+            headingDistanceM: Math.round(headingDistanceM),
           },
           gpsAreaWarning: isInWarningArea ? {
             location: nearest.location.name,
