@@ -195,3 +195,6 @@
 
 /* More than three detail rows scroll inside a fixed viewport through the final row. */
 .ar-invoice-view-modal .ar-view-lines.scrollable{display:block;height:min(330px,40vh);max-height:none;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;touch-action:pan-y;-webkit-overflow-scrolling:touch}.ar-invoice-view-modal .ar-view-lines.scrollable:focus{outline:2px solid rgba(24,132,81,.2);outline-offset:-2px}
+
+/* Prevent the modal grid from shrinking and clipping the detail scroller. */
+.ar-invoice-view-body{grid-auto-rows:max-content;align-content:start}.ar-view-lines-section.scrollable{min-height:calc(min(330px,40vh) + 70px)}.ar-view-lines-section .ar-view-lines:not(.scrollable){height:auto}
