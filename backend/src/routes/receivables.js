@@ -749,13 +749,16 @@ router.post("/payments/batch", async (req, res) => {
         const invoice = byId.get(String(input.invoiceId));
         if (!invoice || !["SENT", "PARTIALLY_PAID"].includes(invoice.status)) throw new Error(`${invoice?.number || "Invoice"} belum dikirim atau sudah ditutup`);
         const paid = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
-        const paymentAmount = invoice.total - paid;
+        const balance = invoice.total - paid;
+        const paymentAmount = amount(input.amount ?? balance, `Pembayaran ${invoice.number}`);
         if (paymentAmount <= 0) throw new Error(`${invoice.number} sudah lunas`);
+        if (paymentAmount > balance) throw new Error(`Pembayaran ${invoice.number} melebihi sisa piutang`);
         const claimAmount = amount(input.claimAmount || 0, `Klaim ${invoice.number}`);
         const adminFee = amount(input.adminFee || 0, `Biaya administrasi ${invoice.number}`);
         const recordedPph23 = invoice.payments.reduce((sum, payment) => sum + Number(payment.pph23Amount || 0), 0);
         const usedPph23 = Math.max(recordedPph23, Math.min(Number(invoice.discount || 0), Math.round(Number(invoice.discount || 0) * paid / Math.max(1, invoice.total))));
-        const pph23Amount = Math.max(0, Number(invoice.discount || 0) - usedPph23);
+        const remainingPph23 = Math.max(0, Number(invoice.discount || 0) - usedPph23);
+        const pph23Amount = paymentAmount === balance ? remainingPph23 : Math.min(remainingPph23, Math.round(Number(invoice.discount || 0) * paymentAmount / Math.max(1, invoice.total)));
         const netReceived = paymentAmount - pph23Amount - claimAmount - adminFee;
         if (netReceived < 0) throw new Error(`Total potongan ${invoice.number} melebihi nilai pembayaran`);
         const number = await nextNumber(tx, "receivablePayment", "RCV");
@@ -767,7 +770,8 @@ router.post("/payments/batch", async (req, res) => {
           ...(deductions ? [{ code: SYSTEM_ACCOUNTS.EXPENSE, debit: deductions, description: "Klaim dan biaya administrasi customer" }] : []),
           { code: SYSTEM_ACCOUNTS.AR, credit: payment.amount },
         ] });
-        await tx.invoice.update({ where: { id: invoice.id }, data: { status: "PAID", paidAt: new Date() } });
+        const fullyPaid = paymentAmount === balance;
+        await tx.invoice.update({ where: { id: invoice.id }, data: { status: fullyPaid ? "PAID" : "PARTIALLY_PAID", paidAt: fullyPaid ? new Date() : null } });
         created.push(payment);
       }
       return created;
