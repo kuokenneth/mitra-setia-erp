@@ -98,10 +98,18 @@ async function nextInvoiceNumber(tx, prefix) {
 
 function summarize(invoice) {
   const paid = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
-  const cashReceived = invoice.payments.reduce((sum, payment) => sum + payment.amount - Number(payment.pph23Amount || 0) - Number(payment.claimAmount || 0) - Number(payment.adminFee || 0), 0);
+  const recordedPph23 = invoice.payments.reduce((sum, payment) => sum + Number(payment.pph23Amount || 0), 0);
+  // Payments created before deduction fields existed have pph23Amount = 0.
+  // Infer the settled PPh 23 proportionally from the invoice so their cash
+  // value remains accurate without mutating historical payment records.
+  const inferredPph23 = Math.min(Number(invoice.discount || 0), Math.round(Number(invoice.discount || 0) * paid / Math.max(1, Number(invoice.total || 0))));
+  const pph23Paid = Math.max(recordedPph23, inferredPph23);
+  const claimPaid = invoice.payments.reduce((sum, payment) => sum + Number(payment.claimAmount || 0), 0);
+  const adminFeePaid = invoice.payments.reduce((sum, payment) => sum + Number(payment.adminFee || 0), 0);
+  const cashReceived = Math.max(0, paid - pph23Paid - claimPaid - adminFeePaid);
   const balance = Math.max(0, invoice.total - paid);
   const overdue = ["SENT", "PARTIALLY_PAID"].includes(invoice.status) && new Date(invoice.dueAt) < new Date();
-  return { ...invoice, order: invoice.order ? { ...invoice.order, shipment: shipmentSummary(invoice.order) } : null, paid, cashReceived, balance, displayStatus: overdue ? "OVERDUE" : invoice.status };
+  return { ...invoice, order: invoice.order ? { ...invoice.order, shipment: shipmentSummary(invoice.order) } : null, paid, pph23Paid, claimPaid, adminFeePaid, cashReceived, balance, displayStatus: overdue ? "OVERDUE" : invoice.status };
 }
 
 function shipmentSummary(order) {
@@ -261,12 +269,14 @@ router.post("/employees/:employeeId/payments", async (req, res) => {
 router.get("/payments/:id/voucher-print", async (req, res) => {
   const payment = await prisma.receivablePayment.findUnique({
     where: { id: req.params.id },
-    include: { invoice: { select: { number: true, customerName: true } }, createdBy: { select: { name: true } } },
+    include: { invoice: { select: { number: true, customerName: true, total: true, discount: true } }, createdBy: { select: { name: true } } },
   });
   if (!payment) return res.status(404).send("Penerimaan kas tidak ditemukan");
   const method = payment.method === "CASH" ? "Tunai" : payment.method === "BANK_TRANSFER" ? "Transfer bank" : "Lainnya";
-  const netReceived = payment.amount - payment.pph23Amount - payment.claimAmount - payment.adminFee;
-  const deductions = [`Dibayar: ${money(payment.amount)}`, payment.pph23Amount && `PPh 23: -${money(payment.pph23Amount)}`, payment.claimAmount && `Klaim: -${money(payment.claimAmount)}`, payment.adminFee && `Biaya admin: -${money(payment.adminFee)}`].filter(Boolean).join(" · ");
+  const inferredPph23 = Math.min(Number(payment.invoice.discount || 0), Math.round(Number(payment.invoice.discount || 0) * payment.amount / Math.max(1, payment.invoice.total)));
+  const pph23Amount = Math.max(Number(payment.pph23Amount || 0), inferredPph23);
+  const netReceived = Math.max(0, payment.amount - pph23Amount - payment.claimAmount - payment.adminFee);
+  const deductions = [`Dibayar: ${money(payment.amount)}`, pph23Amount && `PPh 23: -${money(pph23Amount)}`, payment.claimAmount && `Klaim: -${money(payment.claimAmount)}`, payment.adminFee && `Biaya admin: -${money(payment.adminFee)}`].filter(Boolean).join(" · ");
   res.type("html").send(cashVoucherHtml({ type: "IN", number: payment.number, date: payment.receivedAt, party: payment.invoice.customerName, amount: netReceived, purpose: `Pembayaran invoice ${payment.invoice.number}`, method, notes: [deductions, payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [payment.invoice.customerName, payment.createdBy?.name, payment.createdBy?.name, ""] }));
 });
 
@@ -293,12 +303,12 @@ router.get("/cash-receipts/vouchers-print", async (req, res) => {
     const nextMonth = monthNumber === 12 ? 1 : monthNumber + 1;
     const end = new Date(`${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00+07:00`);
     const [customerPayments, employeePayments] = await Promise.all([
-      prisma.receivablePayment.findMany({ where: { receivedAt: { gte: start, lt: end } }, include: { invoice: { select: { number: true, customerName: true } }, createdBy: { select: { name: true } } } }),
+      prisma.receivablePayment.findMany({ where: { receivedAt: { gte: start, lt: end } }, include: { invoice: { select: { number: true, customerName: true, total: true, discount: true } }, createdBy: { select: { name: true } } } }),
       prisma.employeeReceivablePayment.findMany({ where: { receivedAt: { gte: start, lt: end } }, include: { employee: { select: { name: true, email: true } }, employeeParty: { select: { name: true, phone: true } }, createdBy: { select: { name: true } } } }),
     ]);
     const methodLabel = method => method === "CASH" ? "Tunai" : method === "BANK_TRANSFER" ? "Transfer bank" : "Lainnya";
     const vouchers = [
-      ...customerPayments.map(payment => { const net = payment.amount - payment.pph23Amount - payment.claimAmount - payment.adminFee; const detail = [`Dibayar: ${money(payment.amount)}`, payment.pph23Amount && `PPh 23: -${money(payment.pph23Amount)}`, payment.claimAmount && `Klaim: -${money(payment.claimAmount)}`, payment.adminFee && `Biaya admin: -${money(payment.adminFee)}`].filter(Boolean).join(" · "); return { type: "IN", number: payment.number, date: payment.receivedAt, party: payment.invoice.customerName, amount: net, purpose: `Pembayaran invoice ${payment.invoice.number}`, method: methodLabel(payment.method), notes: [detail, payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [payment.invoice.customerName, payment.createdBy?.name, payment.createdBy?.name, ""] }; }),
+      ...customerPayments.map(payment => { const inferredPph = Math.min(Number(payment.invoice.discount || 0), Math.round(Number(payment.invoice.discount || 0) * payment.amount / Math.max(1, payment.invoice.total))); const pph = Math.max(Number(payment.pph23Amount || 0), inferredPph); const net = Math.max(0, payment.amount - pph - payment.claimAmount - payment.adminFee); const detail = [`Dibayar: ${money(payment.amount)}`, pph && `PPh 23: -${money(pph)}`, payment.claimAmount && `Klaim: -${money(payment.claimAmount)}`, payment.adminFee && `Biaya admin: -${money(payment.adminFee)}`].filter(Boolean).join(" · "); return { type: "IN", number: payment.number, date: payment.receivedAt, party: payment.invoice.customerName, amount: net, purpose: `Pembayaran invoice ${payment.invoice.number}`, method: methodLabel(payment.method), notes: [detail, payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [payment.invoice.customerName, payment.createdBy?.name, payment.createdBy?.name, ""] }; }),
       ...employeePayments.map(payment => { const name = payment.employee?.name || payment.employee?.email || payment.employeeParty?.name || "-"; return { type: "IN", number: payment.number, date: payment.receivedAt, party: name, amount: payment.amount, purpose: "Pembayaran piutang karyawan", method: methodLabel(payment.method), notes: [payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [name, payment.createdBy?.name, payment.createdBy?.name, ""] }; }),
     ].sort((a, b) => new Date(a.date) - new Date(b.date));
     const period = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", month: "long", year: "numeric" }).format(start);
@@ -371,9 +381,9 @@ router.get("/export", async (req, res) => {
       isPaid: item.status === "PAID",
       total: Number(item.total || 0),
       paid: Number(item.paid || 0),
-      pph23: item.payments.reduce((sum, payment) => sum + Number(payment.pph23Amount || 0), 0),
-      claim: item.payments.reduce((sum, payment) => sum + Number(payment.claimAmount || 0), 0),
-      adminFee: item.payments.reduce((sum, payment) => sum + Number(payment.adminFee || 0), 0),
+      pph23: Number(item.pph23Paid || 0),
+      claim: Number(item.claimPaid || 0),
+      adminFee: Number(item.adminFeePaid || 0),
       cashReceived: Number(item.cashReceived || 0),
       balance: Number(item.balance || 0),
     }));
@@ -743,7 +753,8 @@ router.post("/payments/batch", async (req, res) => {
         if (paymentAmount <= 0) throw new Error(`${invoice.number} sudah lunas`);
         const claimAmount = amount(input.claimAmount || 0, `Klaim ${invoice.number}`);
         const adminFee = amount(input.adminFee || 0, `Biaya administrasi ${invoice.number}`);
-        const usedPph23 = invoice.payments.reduce((sum, payment) => sum + Number(payment.pph23Amount || 0), 0);
+        const recordedPph23 = invoice.payments.reduce((sum, payment) => sum + Number(payment.pph23Amount || 0), 0);
+        const usedPph23 = Math.max(recordedPph23, Math.min(Number(invoice.discount || 0), Math.round(Number(invoice.discount || 0) * paid / Math.max(1, invoice.total))));
         const pph23Amount = Math.max(0, Number(invoice.discount || 0) - usedPph23);
         const netReceived = paymentAmount - pph23Amount - claimAmount - adminFee;
         if (netReceived < 0) throw new Error(`Total potongan ${invoice.number} melebihi nilai pembayaran`);
@@ -777,7 +788,8 @@ router.post("/invoices/:id/payments", async (req, res) => {
       const paid = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
       const balance = invoice.total - paid;
       if (paymentAmount > balance) throw new Error("Pembayaran melebihi sisa piutang");
-      const usedPph23 = invoice.payments.reduce((sum, payment) => sum + Number(payment.pph23Amount || 0), 0);
+      const recordedPph23 = invoice.payments.reduce((sum, payment) => sum + Number(payment.pph23Amount || 0), 0);
+      const usedPph23 = Math.max(recordedPph23, Math.min(Number(invoice.discount || 0), Math.round(Number(invoice.discount || 0) * paid / Math.max(1, invoice.total))));
       const remainingPph23 = Math.max(0, Number(invoice.discount || 0) - usedPph23);
       const pph23Amount = paymentAmount === balance ? remainingPph23 : Math.min(remainingPph23, Math.round(Number(invoice.discount || 0) * paymentAmount / Math.max(1, invoice.total)));
       const netReceived = paymentAmount - pph23Amount - claimAmount - adminFee;
