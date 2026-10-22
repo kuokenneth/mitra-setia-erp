@@ -410,12 +410,12 @@ function Pill({ variant = "grey", children }) {
   return <span style={style}>{children}</span>;
 }
 
-function Modal({ open, title, eyebrow = "INVENTORY", description, tone = "green", onClose, children }) {
+function Modal({ open, title, eyebrow = "INVENTORY", description, tone = "green", className = "", onClose, children }) {
   const { dialogRef, titleId } = useDialogLifecycle(open, onClose);
   if (!open) return null;
   return (
     <div className="inventory-modal-overlay" onClick={(event) => { if (event.target === event.currentTarget) onClose?.(); }}>
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className={`inventory-modal inventory-modal--${tone}`}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className={`inventory-modal inventory-modal--${tone} ${className}`.trim()}>
         <div className="inventory-modal-head">
           <div className="inventory-modal-heading">
             <span>{eyebrow}</span>
@@ -444,7 +444,7 @@ function EmergencySearchPicker({ label, placeholder, items, value, onChange, ite
 function fmtDate(d) {
   if (!d) return "—";
   try {
-    return new Date(d).toLocaleString();
+    return new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(d));
   } catch {
     return String(d);
   }
@@ -486,6 +486,7 @@ export default function Inventory() {
   const [batches, setBatches] = useState([]);
   const [itemFlowTarget, setItemFlowTarget] = useState(null);
   const [itemFlowMovements, setItemFlowMovements] = useState([]);
+  const [itemFlowStockUnits, setItemFlowStockUnits] = useState([]);
   const [itemFlowLoading, setItemFlowLoading] = useState(false);
   const [itemFlowPagination, setItemFlowPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
   const [emergencyDispatches, setEmergencyDispatches] = useState([]);
@@ -695,8 +696,14 @@ export default function Inventory() {
     setItemFlowLoading(true);
     setErr("");
     try {
-      const data = await api(`/inventory/movements${buildQuery({ itemId: item.id, page, limit: 20 })}`);
+      const [data, unitData] = await Promise.all([
+        api(`/inventory/movements${buildQuery({ itemId: item.id, page, limit: 20 })}`),
+        item.isSerialized
+          ? api(`/inventory/units${buildQuery({ itemId: item.id, status: "IN_STOCK", page: 1, limit: 100 })}`)
+          : Promise.resolve({ units: [] }),
+      ]);
       setItemFlowMovements(data.movements || []);
+      setItemFlowStockUnits(unitData.units || unitData.items || []);
       setItemFlowPagination(data.pagination || { page, limit: 20, total: (data.movements || []).length, totalPages: 1 });
     } catch (error) {
       setErr(error.message || "Gagal memuat riwayat barang");
@@ -708,6 +715,7 @@ export default function Inventory() {
   function openItemFlow(item) {
     setItemFlowTarget(item);
     setItemFlowMovements([]);
+    setItemFlowStockUnits([]);
     setItemFlowPagination({ page: 1, limit: 20, total: 0, totalPages: 1 });
     loadItemFlow(item, 1);
   }
@@ -1387,12 +1395,17 @@ export default function Inventory() {
         {/* MODALS */}
         <Modal
           open={Boolean(itemFlowTarget)}
+          className="inventory-modal--item-flow"
           eyebrow="RIWAYAT ALIRAN BARANG"
           title={itemFlowTarget?.name || "Detail Barang"}
           description={itemFlowTarget ? `${itemFlowTarget.sku} · seluruh pergerakan masuk, keluar, dan pemindahan barang` : ""}
           onClose={() => setItemFlowTarget(null)}
         >
-          {itemFlowLoading ? <LoadingState compact label="Memuat riwayat barang" note="Menelusuri tujuan pemakaian dan perpindahan stok…" rows={5} /> : itemFlowMovements.length ? <div className="inventory-item-flow"><div className="inventory-item-flow-summary"><span><small>TOTAL RIWAYAT</small><strong>{itemFlowPagination.total}</strong></span><span><small>STOK SAAT INI</small><strong>{sumStocks(itemFlowTarget?.stocks)} {itemFlowTarget?.unit || ""}</strong></span></div><div style={tableWrap}><table style={{ ...table, minWidth: 920 }}><thead><tr><th style={th}>Jenis</th><th style={th}>Jumlah</th><th style={th}>Dari</th><th style={th}>Ke / Tujuan</th><th style={th}>Servis / Unit</th><th style={th}>Petugas</th><th style={th}>Tanggal</th></tr></thead><tbody>{itemFlowMovements.map((movement) => { const assignmentTruck = movement.stockUnit?.assignments?.[0]?.truck; const destination = movement.toLocation?.name || movement.toTruck?.plateNumber || movement.maintenance?.truck?.plateNumber || assignmentTruck?.plateNumber || (movement.type === "OUT" ? "Pemakaian stok" : "—"); return <tr key={movement.id}><td style={td}><Pill variant={movement.type === "IN" ? "green" : movement.type === "OUT" ? "red" : "grey"}>{movement.type}</Pill></td><td style={td}>{movement.qty} {itemFlowTarget?.unit || ""}</td><td style={tdSoft}>{movement.fromLocation?.name || movement.fromTruck?.plateNumber || "—"}</td><td style={td}><strong>{destination}</strong>{movement.note && <small className="inventory-item-flow-note">{movement.note}</small>}</td><td style={tdSoft}>{movement.stockUnit?.serialNumber || movement.stockUnit?.barcode || movement.maintenance?.title || "—"}</td><td style={tdSoft}>{movement.createdBy?.name || movement.createdBy?.email || "—"}</td><td style={tdSoft}>{fmtDate(movement.createdAt)}</td></tr>; })}</tbody></table></div><Pagination pagination={itemFlowPagination} onChange={(page) => itemFlowTarget && loadItemFlow(itemFlowTarget, page)} /></div> : <div className="inventory-item-flow-empty">Belum ada riwayat pergerakan untuk barang ini.</div>}
+          {itemFlowLoading ? <LoadingState compact label="Memuat riwayat barang" note="Menelusuri tujuan pemakaian dan perpindahan stok…" rows={5} /> : <div className="inventory-item-flow">
+            <div className="inventory-item-flow-summary"><span><small>TOTAL RIWAYAT</small><strong>{itemFlowPagination.total}</strong></span><span><small>STOK SAAT INI</small><strong>{sumStocks(itemFlowTarget?.stocks)} {itemFlowTarget?.unit || ""}</strong></span></div>
+            {itemFlowTarget?.isSerialized && <section className="inventory-item-flow-units"><div className="inventory-item-flow-section-head"><span><small>UNIT TERSEDIA DI STOK</small><strong>{itemFlowStockUnits.length} nomor seri</strong></span><p>Hanya unit berstatus tersedia di gudang.</p></div>{itemFlowStockUnits.length ? <div className="inventory-item-flow-unit-grid">{itemFlowStockUnits.map((unit) => <article key={unit.id}><span>Nomor seri</span><strong>{unit.serialNumber || "Belum ada nomor seri"}</strong><small>{unit.location?.name || "Lokasi belum ditentukan"}{unit.barcode ? ` · Barcode ${unit.barcode}` : ""}</small></article>)}</div> : <div className="inventory-item-flow-unit-empty">Tidak ada unit serial yang tersedia di stok.</div>}</section>}
+            {itemFlowMovements.length ? <><div className="inventory-item-flow-table" style={tableWrap}><table style={table}><colgroup><col className="flow-type"/><col className="flow-qty"/><col className="flow-from"/><col className="flow-destination"/><col className="flow-unit"/><col className="flow-user"/><col className="flow-date"/></colgroup><thead><tr><th style={th}>Jenis</th><th style={th}>Jumlah</th><th style={th}>Dari</th><th style={th}>Ke / Tujuan</th><th style={th}>No. Seri / Servis</th><th style={th}>Petugas</th><th style={th}>Tanggal</th></tr></thead><tbody>{itemFlowMovements.map((movement) => { const assignmentTruck = movement.stockUnit?.assignments?.[0]?.truck; const destination = movement.toLocation?.name || movement.toTruck?.plateNumber || movement.maintenance?.truck?.plateNumber || assignmentTruck?.plateNumber || (movement.type === "OUT" ? "Pemakaian stok" : "—"); return <tr key={movement.id}><td style={td}><Pill variant={movement.type === "IN" ? "green" : movement.type === "OUT" ? "red" : "grey"}>{movement.type}</Pill></td><td style={td}>{movement.qty} {itemFlowTarget?.unit || ""}</td><td style={tdSoft}>{movement.fromLocation?.name || movement.fromTruck?.plateNumber || "—"}</td><td style={td}><strong>{destination}</strong>{movement.note && <small className="inventory-item-flow-note">{movement.note}</small>}</td><td style={tdSoft}><strong className="inventory-item-flow-serial">{movement.stockUnit?.serialNumber || movement.stockUnit?.barcode || "—"}</strong>{movement.maintenance?.title && <small className="inventory-item-flow-note">{movement.maintenance.title}</small>}</td><td style={tdSoft}>{movement.createdBy?.name || movement.createdBy?.email || "—"}</td><td style={tdSoft}>{fmtDate(movement.createdAt)}</td></tr>; })}</tbody></table></div><Pagination pagination={itemFlowPagination} onChange={(page) => itemFlowTarget && loadItemFlow(itemFlowTarget, page)} /></> : <div className="inventory-item-flow-empty">Belum ada riwayat pergerakan untuk barang ini.</div>}
+          </div>}
         </Modal>
 
         <Modal open={openLegacyTire} eyebrow="MIGRASI DATA LAMA" title="Alokasikan ban langsung ke mobil" description="Catat ban yang sudah terpasang sebelum sistem digunakan. Harga dan stok gudang tidak terpengaruh." onClose={() => !legacyTireBusy && setOpenLegacyTire(false)}>
