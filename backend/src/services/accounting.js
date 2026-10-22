@@ -1,5 +1,5 @@
 const SYSTEM_ACCOUNTS = {
-  CASH: "1001", BANK: "1002", AR: "1101", INVENTORY: "1201",
+  CASH: "1001", BANK: "1002", AR: "1101", WITHHOLDING_TAX: "1102", INVENTORY: "1201",
   AP: "2001", FINANCE_AP: "2101", EQUITY: "3001", REVENUE: "4001", EXPENSE: "5001",
 };
 const { nextDailyNumber } = require("../utils/documentNumber");

@@ -736,6 +736,9 @@ model ReceivablePayment {
   invoiceId   String
   invoice     Invoice                 @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   amount      Int
+  pph23Amount Int                     @default(0)
+  claimAmount Int                     @default(0)
+  adminFee    Int                     @default(0)
   method      ReceivablePaymentMethod @default(BANK_TRANSFER)
   reference   String?
   notes       String?

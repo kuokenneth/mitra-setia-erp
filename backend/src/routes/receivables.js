@@ -1,4 +1,5 @@
 const express = require("express");
+const ExcelJS = require("exceljs");
 const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { requireRole } = require("../middleware/requireRole");
@@ -64,11 +65,11 @@ router.post("/manual-invoices", async (req, res) => {
     const pph23Rate = Number(req.body.pph23Rate ?? 2);
     if (!Number.isFinite(pph23Rate) || pph23Rate < 0 || pph23Rate > 100) throw new Error("PPH23 harus antara 0 sampai 100 persen");
     const discount = Math.round(subtotal * pph23Rate / 100);
-    const claim = amount(req.body.claim || 0, "Klaim");
+    const claim = 0;
     // PPh 23 is withholding settled by the customer, not a reduction of the
     // customer's gross obligation. Keep it in `discount` for the net-transfer
     // breakdown, while `total` and the receivable balance stay gross.
-    const total = subtotal - tax - claim;
+    const total = subtotal - tax;
     if (total <= 0) throw new Error("Total tagihan harus lebih dari nol");
     const invoiceId = await prisma.$transaction(async tx => {
       const number = await nextInvoiceNumber(tx, "INV-TGL");
@@ -97,9 +98,10 @@ async function nextInvoiceNumber(tx, prefix) {
 
 function summarize(invoice) {
   const paid = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
+  const cashReceived = invoice.payments.reduce((sum, payment) => sum + payment.amount - Number(payment.pph23Amount || 0) - Number(payment.claimAmount || 0) - Number(payment.adminFee || 0), 0);
   const balance = Math.max(0, invoice.total - paid);
   const overdue = ["SENT", "PARTIALLY_PAID"].includes(invoice.status) && new Date(invoice.dueAt) < new Date();
-  return { ...invoice, order: invoice.order ? { ...invoice.order, shipment: shipmentSummary(invoice.order) } : null, paid, balance, displayStatus: overdue ? "OVERDUE" : invoice.status };
+  return { ...invoice, order: invoice.order ? { ...invoice.order, shipment: shipmentSummary(invoice.order) } : null, paid, cashReceived, balance, displayStatus: overdue ? "OVERDUE" : invoice.status };
 }
 
 function shipmentSummary(order) {
@@ -167,7 +169,7 @@ router.get("/overview", async (_req, res) => {
     const rows = invoices.map(summarize);
     const stats = rows.reduce((acc, invoice) => {
       if (invoice.status !== "VOID") acc.invoiced += invoice.total;
-      acc.received += invoice.paid;
+      acc.received += invoice.cashReceived;
       if (!['PAID', 'VOID'].includes(invoice.status)) acc.outstanding += invoice.balance;
       if (invoice.displayStatus === "OVERDUE") acc.overdue += invoice.balance;
       return acc;
@@ -263,7 +265,9 @@ router.get("/payments/:id/voucher-print", async (req, res) => {
   });
   if (!payment) return res.status(404).send("Penerimaan kas tidak ditemukan");
   const method = payment.method === "CASH" ? "Tunai" : payment.method === "BANK_TRANSFER" ? "Transfer bank" : "Lainnya";
-  res.type("html").send(cashVoucherHtml({ type: "IN", number: payment.number, date: payment.receivedAt, party: payment.invoice.customerName, amount: payment.amount, purpose: `Pembayaran invoice ${payment.invoice.number}`, method, notes: [payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [payment.invoice.customerName, payment.createdBy?.name, payment.createdBy?.name, ""] }));
+  const netReceived = payment.amount - payment.pph23Amount - payment.claimAmount - payment.adminFee;
+  const deductions = [`Dibayar: ${money(payment.amount)}`, payment.pph23Amount && `PPh 23: -${money(payment.pph23Amount)}`, payment.claimAmount && `Klaim: -${money(payment.claimAmount)}`, payment.adminFee && `Biaya admin: -${money(payment.adminFee)}`].filter(Boolean).join(" · ");
+  res.type("html").send(cashVoucherHtml({ type: "IN", number: payment.number, date: payment.receivedAt, party: payment.invoice.customerName, amount: netReceived, purpose: `Pembayaran invoice ${payment.invoice.number}`, method, notes: [deductions, payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [payment.invoice.customerName, payment.createdBy?.name, payment.createdBy?.name, ""] }));
 });
 
 router.get("/employee-payments/:id/voucher-print", async (req, res) => {
@@ -294,7 +298,7 @@ router.get("/cash-receipts/vouchers-print", async (req, res) => {
     ]);
     const methodLabel = method => method === "CASH" ? "Tunai" : method === "BANK_TRANSFER" ? "Transfer bank" : "Lainnya";
     const vouchers = [
-      ...customerPayments.map(payment => ({ type: "IN", number: payment.number, date: payment.receivedAt, party: payment.invoice.customerName, amount: payment.amount, purpose: `Pembayaran invoice ${payment.invoice.number}`, method: methodLabel(payment.method), notes: [payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [payment.invoice.customerName, payment.createdBy?.name, payment.createdBy?.name, ""] })),
+      ...customerPayments.map(payment => { const net = payment.amount - payment.pph23Amount - payment.claimAmount - payment.adminFee; const detail = [`Dibayar: ${money(payment.amount)}`, payment.pph23Amount && `PPh 23: -${money(payment.pph23Amount)}`, payment.claimAmount && `Klaim: -${money(payment.claimAmount)}`, payment.adminFee && `Biaya admin: -${money(payment.adminFee)}`].filter(Boolean).join(" · "); return { type: "IN", number: payment.number, date: payment.receivedAt, party: payment.invoice.customerName, amount: net, purpose: `Pembayaran invoice ${payment.invoice.number}`, method: methodLabel(payment.method), notes: [detail, payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [payment.invoice.customerName, payment.createdBy?.name, payment.createdBy?.name, ""] }; }),
       ...employeePayments.map(payment => { const name = payment.employee?.name || payment.employee?.email || payment.employeeParty?.name || "-"; return { type: "IN", number: payment.number, date: payment.receivedAt, party: name, amount: payment.amount, purpose: "Pembayaran piutang karyawan", method: methodLabel(payment.method), notes: [payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [name, payment.createdBy?.name, payment.createdBy?.name, ""] }; }),
     ].sort((a, b) => new Date(a.date) - new Date(b.date));
     const period = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", month: "long", year: "numeric" }).format(start);
@@ -334,6 +338,81 @@ router.get("/report", async (req, res) => {
   } catch (error) { res.status(400).send(error.message || "Gagal membuat laporan piutang"); }
 });
 
+function excelDate(value) {
+  if (!value) return null;
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" })
+    .formatToParts(value)
+    .reduce((result, part) => ({ ...result, [part.type]: part.value }), {});
+  return new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)));
+}
+
+router.get("/export", async (req, res) => {
+  try {
+    const month = String(req.query.month || "").trim();
+    const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month);
+    if (!match) return res.status(400).send("Periode harus dalam format YYYY-MM");
+    const year = Number(match[1]);
+    const monthNumber = Number(match[2]);
+    const nextYear = monthNumber === 12 ? year + 1 : year;
+    const nextMonth = monthNumber === 12 ? 1 : monthNumber + 1;
+    const start = new Date(`${month}-01T00:00:00+07:00`);
+    const end = new Date(`${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00+07:00`);
+    const invoices = await prisma.invoice.findMany({ where: { issuedAt: { gte: start, lt: end }, status: { not: "VOID" } }, include: invoiceInclude, orderBy: [{ issuedAt: "asc" }, { number: "asc" }] });
+    const items = invoices.map(summarize);
+    const labels = { DRAFT: "Belum lunas - Draft", SENT: "Belum lunas", PARTIALLY_PAID: "Belum lunas - Sebagian", PAID: "Lunas", OVERDUE: "Belum lunas - Jatuh tempo" };
+    const rows = items.map((item, index) => ({
+      no: index + 1,
+      receipt: item.manualData?.receipt || "",
+      invoice: item.number,
+      issuedAt: excelDate(item.issuedAt),
+      dueAt: excelDate(item.dueAt),
+      customer: item.customerName,
+      status: labels[item.displayStatus] || labels[item.status] || item.displayStatus,
+      isPaid: item.status === "PAID",
+      total: Number(item.total || 0),
+      paid: Number(item.paid || 0),
+      pph23: item.payments.reduce((sum, payment) => sum + Number(payment.pph23Amount || 0), 0),
+      claim: item.payments.reduce((sum, payment) => sum + Number(payment.claimAmount || 0), 0),
+      adminFee: item.payments.reduce((sum, payment) => sum + Number(payment.adminFee || 0), 0),
+      cashReceived: Number(item.cashReceived || 0),
+      balance: Number(item.balance || 0),
+    }));
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "Mitra Setia ERP";
+    workbook.created = new Date();
+    const addSheet = (name, sheetRows) => {
+      const sheet = workbook.addWorksheet(name, { views: [{ state: "frozen", ySplit: 1 }], pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+      sheet.columns = [
+        { header: "No", key: "no", width: 7 }, { header: "No. Kwitansi", key: "receipt", width: 28 }, { header: "No. Invoice", key: "invoice", width: 25 },
+        { header: "Tanggal Invoice", key: "issuedAt", width: 16 }, { header: "Jatuh Tempo", key: "dueAt", width: 16 }, { header: "Pelanggan", key: "customer", width: 30 },
+        { header: "Status", key: "status", width: 25 }, { header: "Total Tagihan", key: "total", width: 18 }, { header: "Dibayar", key: "paid", width: 18 },
+        { header: "PPh 23", key: "pph23", width: 16 }, { header: "Klaim", key: "claim", width: 16 }, { header: "Biaya Administrasi", key: "adminFee", width: 19 },
+        { header: "Kas Masuk", key: "cashReceived", width: 18 }, { header: "Sisa Piutang", key: "balance", width: 18 },
+      ];
+      sheetRows.forEach((row, index) => sheet.addRow({ ...row, no: index + 1 }));
+      const header = sheet.getRow(1);
+      header.height = 28; header.font = { bold: true, color: { argb: "FFFFFFFF" } }; header.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF176B40" } }; header.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+      sheet.autoFilter = { from: "A1", to: "N1" };
+      ["issuedAt", "dueAt"].forEach(key => { sheet.getColumn(key).numFmt = "dd/mm/yyyy"; });
+      ["total", "paid", "pph23", "claim", "adminFee", "cashReceived", "balance"].forEach(key => { sheet.getColumn(key).numFmt = "#,##0"; sheet.getColumn(key).alignment = { horizontal: "right" }; });
+      sheet.eachRow((row, rowNumber) => { if (rowNumber === 1) return; row.alignment = { vertical: "top", wrapText: true }; if (rowNumber % 2 === 0) row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F7F4" } }; });
+      if (sheetRows.length) {
+        const totalRow = sheet.addRow({ status: "TOTAL", total: sheetRows.reduce((sum, row) => sum + row.total, 0), paid: sheetRows.reduce((sum, row) => sum + row.paid, 0), pph23: sheetRows.reduce((sum, row) => sum + row.pph23, 0), claim: sheetRows.reduce((sum, row) => sum + row.claim, 0), adminFee: sheetRows.reduce((sum, row) => sum + row.adminFee, 0), cashReceived: sheetRows.reduce((sum, row) => sum + row.cashReceived, 0), balance: sheetRows.reduce((sum, row) => sum + row.balance, 0) });
+        totalRow.font = { bold: true }; totalRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDDEDE3" } };
+      }
+    };
+    addSheet("Semua Piutang", rows);
+    addSheet("Lunas", rows.filter(row => row.isPaid));
+    addSheet("Belum Lunas", rows.filter(row => !row.isPaid));
+    const output = await workbook.xlsx.writeBuffer();
+    const filename = `piutang-${month}.xlsx`;
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", output.length);
+    res.end(output);
+  } catch (error) { res.status(400).send(error.message || "Gagal mengekspor piutang"); }
+});
+
 router.post("/invoices", async (req, res) => {
   try {
     const { orderId, customerId, customerName, customerPhone, billingAddress, receipt, dueAt, notes, sourceType = "ORDER", materialInvoiceIds = [], materialLineAmounts = {}, singleTripId, singleTripIds = [] } = req.body;
@@ -342,9 +421,9 @@ router.post("/invoices", async (req, res) => {
     const pph23Rate = Number(req.body.pph23Rate ?? 2);
     if (!Number.isFinite(taxRate) || taxRate < 0 || taxRate > 100) throw new Error("Pajak harus antara 0 sampai 100 persen");
     if (!Number.isFinite(pph23Rate) || pph23Rate < 0 || pph23Rate > 100) throw new Error("PPH23 harus antara 0 sampai 100 persen");
-    const claim = amount(req.body.claim || 0, "Klaim");
+    const claim = 0;
     const adjustmentMeta = { receipt: String(receipt || "").trim(), taxRate, pph23Rate, claim };
-    const adjustments = subtotal => ({ tax: Math.round(subtotal * taxRate / 100), discount: Math.round(subtotal * pph23Rate / 100), total: subtotal - Math.round(subtotal * taxRate / 100) - claim });
+    const adjustments = subtotal => ({ tax: Math.round(subtotal * taxRate / 100), discount: Math.round(subtotal * pph23Rate / 100), total: subtotal - Math.round(subtotal * taxRate / 100) });
     const requestedTolerance = req.body.tolerancePercent === undefined || req.body.tolerancePercent === "" ? null : Number(req.body.tolerancePercent);
     const dueDate = new Date(dueAt);
     if (!customerName?.trim()) throw new Error("Nama pelanggan wajib diisi");
@@ -451,7 +530,7 @@ router.patch("/invoices/:id/draft", async (req, res) => {
     const pph23Rate = Number(req.body.pph23Rate ?? 2);
     if (!Number.isFinite(taxRate) || taxRate < 0 || taxRate > 100) throw new Error("Pajak harus antara 0 sampai 100 persen");
     if (!Number.isFinite(pph23Rate) || pph23Rate < 0 || pph23Rate > 100) throw new Error("PPH23 harus antara 0 sampai 100 persen");
-    const claim = amount(req.body.claim || 0, "Klaim");
+    const claim = 0;
     const dueAt = new Date(req.body.dueAt);
     if (Number.isNaN(dueAt.getTime())) throw new Error("Tanggal jatuh tempo tidak valid");
     const saved = await prisma.$transaction(async tx => {
@@ -500,7 +579,7 @@ router.patch("/invoices/:id/draft", async (req, res) => {
       if (invoice.customerId && invoice.sourceType !== "MATERIAL") await tx.customer.update({ where: { id: invoice.customerId }, data: { cargoLossTolerancePercent: requestedTolerance } });
       const tax = Math.round(subtotal * taxRate / 100);
       const discount = Math.round(subtotal * pph23Rate / 100);
-      const total = subtotal - tax - claim;
+      const total = subtotal - tax;
       if (total <= 0) throw new Error("Total invoice harus lebih dari nol");
       return tx.invoice.update({ where: { id: invoice.id }, data: { dueAt, contractSubtotal, materialSubtotal, subtotal, cargoLossAmount, tax, discount, total, notes: req.body.notes?.trim() || null, manualData: { ...(invoice.manualData && typeof invoice.manualData === "object" ? invoice.manualData : {}), receipt: String(req.body.receipt || "").trim(), taxRate, pph23Rate, claim } }, include: invoiceInclude });
     });
@@ -639,9 +718,58 @@ router.patch("/invoices/:id/send", async (req, res) => {
   } catch (error) { res.status(400).json({ error: error.message || "Gagal mengirim invoice" }); }
 });
 
+router.post("/payments/batch", async (req, res) => {
+  try {
+    const rows = Array.isArray(req.body.invoices) ? req.body.invoices : [];
+    if (!rows.length) throw new Error("Pilih minimal satu invoice yang dibayar");
+    const ids = [...new Set(rows.map(row => String(row.invoiceId || "")).filter(Boolean))];
+    if (ids.length !== rows.length) throw new Error("Daftar invoice pembayaran tidak valid");
+    const method = req.body.method || "BANK_TRANSFER";
+    if (!["BANK_TRANSFER", "CASH", "OTHER"].includes(method)) throw new Error("Metode pembayaran tidak valid");
+    const receivedAt = req.body.receivedAt ? new Date(req.body.receivedAt) : new Date();
+    if (Number.isNaN(receivedAt.getTime())) throw new Error("Tanggal diterima tidak valid");
+    const payments = await prisma.$transaction(async tx => {
+      const invoices = await tx.invoice.findMany({ where: { id: { in: ids } }, include: { payments: true } });
+      if (invoices.length !== ids.length) throw new Error("Sebagian invoice tidak ditemukan");
+      const customerKeys = new Set(invoices.map(invoice => invoice.customerId || `name:${String(invoice.customerName || "").trim().toLocaleLowerCase("id-ID")}`));
+      if (customerKeys.size !== 1) throw new Error("Pembayaran gabungan hanya dapat dibuat untuk satu pelanggan");
+      const byId = new Map(invoices.map(invoice => [invoice.id, invoice]));
+      const created = [];
+      for (const input of rows) {
+        const invoice = byId.get(String(input.invoiceId));
+        if (!invoice || !["SENT", "PARTIALLY_PAID"].includes(invoice.status)) throw new Error(`${invoice?.number || "Invoice"} belum dikirim atau sudah ditutup`);
+        const paid = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
+        const paymentAmount = invoice.total - paid;
+        if (paymentAmount <= 0) throw new Error(`${invoice.number} sudah lunas`);
+        const claimAmount = amount(input.claimAmount || 0, `Klaim ${invoice.number}`);
+        const adminFee = amount(input.adminFee || 0, `Biaya administrasi ${invoice.number}`);
+        const usedPph23 = invoice.payments.reduce((sum, payment) => sum + Number(payment.pph23Amount || 0), 0);
+        const pph23Amount = Math.max(0, Number(invoice.discount || 0) - usedPph23);
+        const netReceived = paymentAmount - pph23Amount - claimAmount - adminFee;
+        if (netReceived < 0) throw new Error(`Total potongan ${invoice.number} melebihi nilai pembayaran`);
+        const number = await nextNumber(tx, "receivablePayment", "RCV");
+        const payment = await tx.receivablePayment.create({ data: { number, invoiceId: invoice.id, amount: paymentAmount, pph23Amount, claimAmount, adminFee, method, reference: req.body.reference?.trim() || null, notes: req.body.notes?.trim() || null, receivedAt, createdById: req.user.id } });
+        const deductions = claimAmount + adminFee;
+        await postJournal(tx, { date: payment.receivedAt, description: `Penerimaan gabungan ${payment.number}`, sourceType: "CUSTOMER_PAYMENT", sourceId: payment.id, createdById: req.user.id, lines: [
+          { code: cashCode(payment.method), debit: netReceived },
+          ...(pph23Amount ? [{ code: SYSTEM_ACCOUNTS.WITHHOLDING_TAX, debit: pph23Amount, description: "PPh 23 dipotong customer" }] : []),
+          ...(deductions ? [{ code: SYSTEM_ACCOUNTS.EXPENSE, debit: deductions, description: "Klaim dan biaya administrasi customer" }] : []),
+          { code: SYSTEM_ACCOUNTS.AR, credit: payment.amount },
+        ] });
+        await tx.invoice.update({ where: { id: invoice.id }, data: { status: "PAID", paidAt: new Date() } });
+        created.push(payment);
+      }
+      return created;
+    });
+    res.status(201).json({ ok: true, payments });
+  } catch (error) { res.status(400).json({ error: error.message || "Gagal mencatat pembayaran gabungan" }); }
+});
+
 router.post("/invoices/:id/payments", async (req, res) => {
   try {
     const paymentAmount = amount(req.body.amount, "Pembayaran");
+    const claimAmount = amount(req.body.claimAmount || 0, "Klaim");
+    const adminFee = amount(req.body.adminFee || 0, "Biaya administrasi");
     if (paymentAmount <= 0) throw new Error("Pembayaran harus lebih dari nol");
     const result = await prisma.$transaction(async (tx) => {
       const invoice = await tx.invoice.findUnique({ where: { id: req.params.id }, include: { payments: true } });
@@ -649,13 +777,24 @@ router.post("/invoices/:id/payments", async (req, res) => {
       const paid = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
       const balance = invoice.total - paid;
       if (paymentAmount > balance) throw new Error("Pembayaran melebihi sisa piutang");
+      const usedPph23 = invoice.payments.reduce((sum, payment) => sum + Number(payment.pph23Amount || 0), 0);
+      const remainingPph23 = Math.max(0, Number(invoice.discount || 0) - usedPph23);
+      const pph23Amount = paymentAmount === balance ? remainingPph23 : Math.min(remainingPph23, Math.round(Number(invoice.discount || 0) * paymentAmount / Math.max(1, invoice.total)));
+      const netReceived = paymentAmount - pph23Amount - claimAmount - adminFee;
+      if (netReceived < 0) throw new Error("Total PPh 23, klaim, dan biaya administrasi tidak boleh melebihi pembayaran");
       const number = await nextNumber(tx, "receivablePayment", "RCV");
       const payment = await tx.receivablePayment.create({ data: {
-        number, invoiceId: invoice.id, amount: paymentAmount, method: req.body.method || "BANK_TRANSFER",
+        number, invoiceId: invoice.id, amount: paymentAmount, pph23Amount, claimAmount, adminFee, method: req.body.method || "BANK_TRANSFER",
         reference: req.body.reference?.trim() || null, notes: req.body.notes?.trim() || null,
         receivedAt: req.body.receivedAt ? new Date(req.body.receivedAt) : new Date(), createdById: req.user.id,
       } });
-      await postJournal(tx, { date: payment.receivedAt, description: `Penerimaan ${payment.number}`, sourceType: "CUSTOMER_PAYMENT", sourceId: payment.id, createdById: req.user.id, lines: [{ code: cashCode(payment.method), debit: payment.amount }, { code: SYSTEM_ACCOUNTS.AR, credit: payment.amount }] });
+      const deductions = claimAmount + adminFee;
+      await postJournal(tx, { date: payment.receivedAt, description: `Penerimaan ${payment.number}`, sourceType: "CUSTOMER_PAYMENT", sourceId: payment.id, createdById: req.user.id, lines: [
+        { code: cashCode(payment.method), debit: netReceived },
+        ...(pph23Amount ? [{ code: SYSTEM_ACCOUNTS.WITHHOLDING_TAX, debit: pph23Amount, description: "PPh 23 dipotong customer" }] : []),
+        ...(deductions ? [{ code: SYSTEM_ACCOUNTS.EXPENSE, debit: deductions, description: "Klaim dan biaya administrasi customer" }] : []),
+        { code: SYSTEM_ACCOUNTS.AR, credit: payment.amount },
+      ] });
       const fullyPaid = paymentAmount === balance;
       await tx.invoice.update({ where: { id: invoice.id }, data: { status: fullyPaid ? "PAID" : "PARTIALLY_PAID", paidAt: fullyPaid ? new Date() : null } });
       return payment;
