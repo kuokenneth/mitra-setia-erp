@@ -183,11 +183,10 @@ export default function Dashboard() {
     const purchaseOrders = purchasing.orders || [];
     const bills = purchasing.bills || [];
     const waitingApproval = requests.filter((request) => request.status === "WAITING_APPROVAL").length;
-    const urgent = requests.filter((request) => request.urgency === "URGENT" && !["REJECTED", "CANCELLED"].includes(request.status)).length;
     const inTransit = purchaseOrders.filter((order) => ["SENT_TO_SUPPLIER", "PARTIALLY_RECEIVED"].includes(order.status)).length;
     const unpaidBills = bills.filter((bill) => bill.status !== "PAID");
     const outstanding = unpaidBills.reduce((sum, bill) => sum + Math.max(0, number(bill.amount) - (bill.payments || []).filter((payment) => payment.status === "PAID").reduce((paid, payment) => paid + number(payment.amount), 0)), 0);
-    return { waitingApproval, urgent, inTransit, unpaidBills: unpaidBills.length, outstanding };
+    return { waitingApproval, inTransit, unpaidBills: unpaidBills.length, outstanding };
   }, [purchasing]);
 
   return <main className="d4-page" data-testid="dashboard-page">
@@ -256,7 +255,7 @@ export default function Dashboard() {
       <article className="d4-card d4-domain-card purchasing">
         <SectionTitle eyebrow="PROCUREMENT PULSE" title="Pembelian & supplier" meta={`${purchasePulse.inTransit} PO dikirim`} />
         <div className="d4-domain-hero"><i><FiShoppingCart /></i><div><strong>{purchasePulse.waitingApproval}</strong><span>permintaan menunggu approval</span></div><button onClick={() => navigate("/purchasing")}>Buka pembelian <FiArrowRight /></button></div>
-        <div className="d4-domain-metrics"><div><span>Permintaan urgent</span><b className={purchasePulse.urgent ? "attention" : ""}>{purchasePulse.urgent}</b><small>perlu prioritas</small></div><div><span>PO dalam proses</span><b>{purchasePulse.inTransit}</b><small>belum diterima penuh</small></div><div><span>Tagihan terbuka</span><b>{purchasePulse.unpaidBills}</b><small>{rupiah(purchasePulse.outstanding, true)}</small></div></div>
+        <div className="d4-domain-metrics"><div><span>Belum disetujui</span><b className={purchasePulse.waitingApproval ? "attention" : ""}>{purchasePulse.waitingApproval}</b><small>menunggu approval</small></div><div><span>PO dalam proses</span><b>{purchasePulse.inTransit}</b><small>belum diterima penuh</small></div><div><span>Tagihan terbuka</span><b>{purchasePulse.unpaidBills}</b><small>{rupiah(purchasePulse.outstanding, true)}</small></div></div>
       </article>
 
       <article className="d4-card d4-domain-card inventory-domain">
