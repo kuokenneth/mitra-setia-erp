@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   FiActivity, FiAlertTriangle, FiArrowRight, FiArrowUpRight, FiBox, FiCheck,
   FiClock, FiDollarSign, FiExternalLink, FiLayers, FiMapPin, FiRadio,
@@ -6,6 +6,7 @@ import {
 } from "react-icons/fi";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
+import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID, loadGoogleMaps } from "../googleMaps";
 import { useLiveRefresh } from "../liveUpdates";
 import LoadingState from "../components/LoadingState";
 import "./Dashboard.css";
@@ -32,6 +33,69 @@ const lastPushTime = (value) => {
   if (Number.isNaN(timestamp.getTime())) return "Waktu tidak tersedia";
   return timestamp.toLocaleString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false }).replace(" pukul", " ·") + " WIB";
 };
+
+const DEFAULT_MAP_CENTER = { lat: 2.4, lng: 99.3 };
+const truckPosition = (truck) => {
+  const lat = Number(truck.lastGpsLatitude);
+  const lng = Number(truck.lastGpsLongitude);
+  return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && (lat !== 0 || lng !== 0) ? { lat, lng } : null;
+};
+const markerTone = (truck) => truck.gpsAreaWarning || truck.gpsStopWarning ? "warning" : truck.status === "DISPATCH" ? "moving" : "ready";
+
+function DashboardFleetMap({ trucks, onError }) {
+  const containerRef = useRef(null);
+  const mapRef = useRef(null);
+  const markersRef = useRef([]);
+  const infoWindowRef = useRef(null);
+
+  useEffect(() => {
+    let active = true;
+    loadGoogleMaps().then(async (maps) => {
+      if (!active || !containerRef.current) return;
+      await maps.importLibrary("marker");
+      if (!mapRef.current) {
+        mapRef.current = new maps.Map(containerRef.current, {
+          center: DEFAULT_MAP_CENTER, zoom: 7, mapId: GOOGLE_MAPS_MAP_ID,
+          mapTypeControl: false, streetViewControl: false, fullscreenControl: true,
+          gestureHandling: "cooperative",
+        });
+        infoWindowRef.current = new maps.InfoWindow();
+      }
+      markersRef.current.forEach((marker) => { marker.map = null; });
+      markersRef.current = [];
+      const bounds = new maps.LatLngBounds();
+      trucks.forEach((truck) => {
+        const markerNode = document.createElement("button");
+        markerNode.type = "button";
+        markerNode.className = `d4-map-marker ${markerTone(truck)}`;
+        markerNode.textContent = truck.plateNumber || "TRUK";
+        const marker = new maps.marker.AdvancedMarkerElement({ map: mapRef.current, position: truck.position, title: truck.plateNumber, content: markerNode });
+        marker.addListener("click", () => {
+          const driver = truck.driverUser?.name || "Belum ada pengemudi";
+          const speed = truck.lastGpsSpeed == null ? "—" : `${Number(truck.lastGpsSpeed).toFixed(0)} km/jam`;
+          const content = document.createElement("div");
+          content.className = "d4-map-popup";
+          const title = document.createElement("strong");
+          title.textContent = truck.plateNumber || "Armada";
+          const detail = document.createElement("span");
+          detail.textContent = `${driver} · ${speed}`;
+          const location = document.createElement("small");
+          location.textContent = truck.gpsLocation?.name || "Posisi GPS terbaru";
+          content.append(title, detail, location);
+          infoWindowRef.current.setContent(content);
+          infoWindowRef.current.open({ map: mapRef.current, anchor: marker });
+        });
+        markersRef.current.push(marker);
+        bounds.extend(truck.position);
+      });
+      if (trucks.length === 1) { mapRef.current.setCenter(trucks[0].position); mapRef.current.setZoom(14); }
+      else if (trucks.length > 1) mapRef.current.fitBounds(bounds, 48);
+    }).catch((error) => { if (active) onError(error.message); });
+    return () => { active = false; };
+  }, [trucks, onError]);
+
+  return <div ref={containerRef} className="d4-map-canvas" />;
+}
 
 function SectionTitle({ eyebrow, title, meta, icon: Icon }) {
   return <div className="d4-section-title"><div><span>{eyebrow}</span><h2>{title}</h2></div>{meta ? <b>{meta}</b> : Icon ? <Icon /> : null}</div>;
@@ -81,6 +145,7 @@ export default function Dashboard() {
   const [orders, setOrders] = useState([]);
   const [finance, setFinance] = useState({ summary: {} });
   const [receivables, setReceivables] = useState({ stats: {} });
+  const [mapError, setMapError] = useState("");
   useLiveRefresh(() => setRevision((value) => value + 1));
 
   const month = useMemo(() => {
@@ -166,6 +231,7 @@ export default function Dashboard() {
   const receivableStats = receivables?.stats || {};
   const outstanding = number(receivableStats.outstanding);
   const overdue = number(receivableStats.overdue);
+  const mappedTrucks = useMemo(() => trucks.map((truck) => ({ ...truck, position: truckPosition(truck) })).filter((truck) => truck.position), [trucks]);
 
   return <main className="d4-page" data-testid="dashboard-page">
     <header className="d4-header">
@@ -228,6 +294,15 @@ export default function Dashboard() {
       <div className="d4-arrived-list">{data.arrivedTrips.slice(0, 8).map((trip) => <button key={trip.id} onClick={() => navigate(`/trips/${trip.id}`)}><i><FiMapPin /></i><span><strong>{trip.order?.orderNo || trip.tripNo || "Trip"}</strong><small>{trip.truck?.plateNumber || trip.plateNumberSnap || "Tanpa armada"} · {trip.driverUser?.name || trip.driverNameSnap || "Tanpa pengemudi"}</small></span><span><strong>{trip.order?.toText || trip.toText || "Tujuan belum dicatat"}</strong><small>{trip.cargoNameSnap || trip.order?.cargoName || "Muatan"}</small></span><em>Selesaikan <FiArrowRight /></em></button>)}</div>
     </section>}
 
+    <section className="d4-card d4-map-card">
+      <SectionTitle eyebrow="LIVE FLEET MAP" title="Posisi armada terkini" meta={`${mappedTrucks.length} terhubung`} />
+      <div className="d4-map-body">
+        {GOOGLE_MAPS_API_KEY && mappedTrucks.length ? <DashboardFleetMap trucks={mappedTrucks} onError={setMapError} /> : <div className="d4-map-empty"><FiMapPin /><strong>{GOOGLE_MAPS_API_KEY ? "Belum ada koordinat armada" : "Google Maps belum dikonfigurasi"}</strong><span>{GOOGLE_MAPS_API_KEY ? "Posisi akan tampil setelah perangkat GPS mengirim koordinat." : "Tambahkan API key Google Maps pada konfigurasi frontend."}</span></div>}
+        {mapError && <div className="d4-map-error"><FiAlertTriangle /> {mapError}</div>}
+        <div className="d4-map-summary"><span><i className="online" />{data.gpsOnline} online</span><span><i className="attention" />{data.warnings.length} warning</span><button onClick={() => navigate("/fleet-map")}>Buka peta penuh <FiArrowRight /></button></div>
+      </div>
+    </section>
+
     <section className="d4-monitor-grid">
       <article className="d4-card d4-alert-card">
         <SectionTitle eyebrow="REAL-TIME EXCEPTIONS" title="Warning armada" meta={`${data.warnings.length} aktif`} />
@@ -245,7 +320,7 @@ export default function Dashboard() {
         </article>
         <article className="d4-card d4-quick-card">
           <SectionTitle eyebrow="QUICK ACCESS" title="Kontrol operasional" />
-          <div><button onClick={() => navigate("/fleet-map")}><FiMapPin /><span>Live map<small>Pantau posisi armada</small></span><FiArrowRight /></button><button onClick={() => navigate("/maintenance")}><FiTool /><span>Maintenance<small>{data.openMaintenance} pekerjaan terbuka</small></span><FiArrowRight /></button><button onClick={() => navigate("/inventory")}><FiBox /><span>Persediaan<small>{data.lowStock} stok kritis</small></span><FiArrowRight /></button><button onClick={() => navigate("/trucks")}><FiTruck /><span>Dokumen armada<small>{data.expiringStnk} STNK hampir habis</small></span><FiArrowRight /></button></div>
+          <div className="d4-quick-actions"><button onClick={() => navigate("/fleet-map")}><FiMapPin /><span>Live map<small>Pantau posisi armada</small></span><FiArrowRight /></button><button onClick={() => navigate("/maintenance")}><FiTool /><span>Maintenance<small>{data.openMaintenance} pekerjaan terbuka</small></span><FiArrowRight /></button><button onClick={() => navigate("/inventory")}><FiBox /><span>Persediaan<small>{data.lowStock} stok kritis</small></span><FiArrowRight /></button><button onClick={() => navigate("/trucks")}><FiTruck /><span>Dokumen armada<small>{data.expiringStnk} STNK hampir habis</small></span><FiArrowRight /></button></div>
         </article>
       </aside>
     </section>
