@@ -1,17 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   FiActivity, FiAlertTriangle, FiArrowRight, FiArrowUpRight, FiBox, FiCheck,
   FiClock, FiDollarSign, FiExternalLink, FiLayers, FiMapPin, FiRadio,
-  FiRefreshCw, FiTarget, FiTool, FiTrendingUp, FiTruck, FiWifiOff,
+  FiPackage, FiRefreshCw, FiShoppingCart, FiTarget, FiTool, FiTrendingUp, FiTruck, FiWifiOff,
 } from "react-icons/fi";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
-import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID, loadGoogleMaps } from "../googleMaps";
 import { useLiveRefresh } from "../liveUpdates";
 import LoadingState from "../components/LoadingState";
 import "./Dashboard.css";
 
-const list = (value) => Array.isArray(value) ? value : value?.items || value?.data || value?.rows || [];
+const list = (value) => Array.isArray(value) ? value : value?.items || value?.jobs || value?.data || value?.rows || [];
 const number = (value) => Number(value || 0);
 const rupiah = (value, compact = false) => new Intl.NumberFormat("id-ID", {
   style: "currency", currency: "IDR", maximumFractionDigits: 0,
@@ -33,69 +32,6 @@ const lastPushTime = (value) => {
   if (Number.isNaN(timestamp.getTime())) return "Waktu tidak tersedia";
   return timestamp.toLocaleString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false }).replace(" pukul", " ·") + " WIB";
 };
-
-const DEFAULT_MAP_CENTER = { lat: 2.4, lng: 99.3 };
-const truckPosition = (truck) => {
-  const lat = Number(truck.lastGpsLatitude);
-  const lng = Number(truck.lastGpsLongitude);
-  return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && (lat !== 0 || lng !== 0) ? { lat, lng } : null;
-};
-const markerTone = (truck) => truck.gpsAreaWarning || truck.gpsStopWarning ? "warning" : truck.status === "DISPATCH" ? "moving" : "ready";
-
-function DashboardFleetMap({ trucks, onError }) {
-  const containerRef = useRef(null);
-  const mapRef = useRef(null);
-  const markersRef = useRef([]);
-  const infoWindowRef = useRef(null);
-
-  useEffect(() => {
-    let active = true;
-    loadGoogleMaps().then(async (maps) => {
-      if (!active || !containerRef.current) return;
-      await maps.importLibrary("marker");
-      if (!mapRef.current) {
-        mapRef.current = new maps.Map(containerRef.current, {
-          center: DEFAULT_MAP_CENTER, zoom: 7, mapId: GOOGLE_MAPS_MAP_ID,
-          mapTypeControl: false, streetViewControl: false, fullscreenControl: true,
-          gestureHandling: "cooperative",
-        });
-        infoWindowRef.current = new maps.InfoWindow();
-      }
-      markersRef.current.forEach((marker) => { marker.map = null; });
-      markersRef.current = [];
-      const bounds = new maps.LatLngBounds();
-      trucks.forEach((truck) => {
-        const markerNode = document.createElement("button");
-        markerNode.type = "button";
-        markerNode.className = `d4-map-marker ${markerTone(truck)}`;
-        markerNode.textContent = truck.plateNumber || "TRUK";
-        const marker = new maps.marker.AdvancedMarkerElement({ map: mapRef.current, position: truck.position, title: truck.plateNumber, content: markerNode });
-        marker.addListener("click", () => {
-          const driver = truck.driverUser?.name || "Belum ada pengemudi";
-          const speed = truck.lastGpsSpeed == null ? "—" : `${Number(truck.lastGpsSpeed).toFixed(0)} km/jam`;
-          const content = document.createElement("div");
-          content.className = "d4-map-popup";
-          const title = document.createElement("strong");
-          title.textContent = truck.plateNumber || "Armada";
-          const detail = document.createElement("span");
-          detail.textContent = `${driver} · ${speed}`;
-          const location = document.createElement("small");
-          location.textContent = truck.gpsLocation?.name || "Posisi GPS terbaru";
-          content.append(title, detail, location);
-          infoWindowRef.current.setContent(content);
-          infoWindowRef.current.open({ map: mapRef.current, anchor: marker });
-        });
-        markersRef.current.push(marker);
-        bounds.extend(truck.position);
-      });
-      if (trucks.length === 1) { mapRef.current.setCenter(trucks[0].position); mapRef.current.setZoom(14); }
-      else if (trucks.length > 1) mapRef.current.fitBounds(bounds, 48);
-    }).catch((error) => { if (active) onError(error.message); });
-    return () => { active = false; };
-  }, [trucks, onError]);
-
-  return <div ref={containerRef} className="d4-map-canvas" />;
-}
 
 function SectionTitle({ eyebrow, title, meta, icon: Icon }) {
   return <div className="d4-section-title"><div><span>{eyebrow}</span><h2>{title}</h2></div>{meta ? <b>{meta}</b> : Icon ? <Icon /> : null}</div>;
@@ -140,12 +76,13 @@ export default function Dashboard() {
   const [referenceTime, setReferenceTime] = useState(() => Date.now());
   const [trucks, setTrucks] = useState([]);
   const [maintenance, setMaintenance] = useState([]);
+  const [maintenanceSummary, setMaintenanceSummary] = useState({});
   const [inventory, setInventory] = useState([]);
+  const [purchasing, setPurchasing] = useState({ requests: [], orders: [], bills: [] });
   const [trips, setTrips] = useState([]);
   const [orders, setOrders] = useState([]);
   const [finance, setFinance] = useState({ summary: {} });
   const [receivables, setReceivables] = useState({ stats: {} });
-  const [mapError, setMapError] = useState("");
   useLiveRefresh(() => setRevision((value) => value + 1));
 
   const month = useMemo(() => {
@@ -161,6 +98,7 @@ export default function Dashboard() {
       ["trucks", api("/trucks")],
       ["maintenance", api("/maintenance")],
       ["inventory", api("/inventory/items")],
+      ["purchasing", api("/purchasing/overview")],
       ["trips", api(`/trips?dateFrom=${start.toISOString()}&dateTo=${end.toISOString()}`)],
       ["orders", api("/orders?statuses=DRAFT,CONFIRMED,IN_PROGRESS")],
       ["finance", canViewFinance ? api(`/fleet-profitability?month=${month}`) : Promise.resolve({ summary: {} })],
@@ -170,8 +108,9 @@ export default function Dashboard() {
       if (cancelled) return;
       const values = Object.fromEntries(results.map((result, index) => [requests[index][0], result.status === "fulfilled" ? result.value : null]));
       if (values.trucks) setTrucks(list(values.trucks));
-      if (values.maintenance) setMaintenance(list(values.maintenance));
+      if (values.maintenance) { setMaintenance(list(values.maintenance)); setMaintenanceSummary(values.maintenance.summary || {}); }
       if (values.inventory) setInventory(list(values.inventory));
+      if (values.purchasing) setPurchasing(values.purchasing);
       if (values.trips) setTrips(list(values.trips));
       if (values.orders) setOrders(list(values.orders));
       if (values.finance) setFinance(values.finance?.summary ? values.finance : { summary: {} });
@@ -191,7 +130,7 @@ export default function Dashboard() {
     const warnings = trucks.filter((truck) => truck.tripReturnWarning || truck.tripServiceWarning || truck.gpsStopWarning || truck.gpsAreaWarning).sort((a, b) => Number(Boolean(b.gpsAreaWarning)) - Number(Boolean(a.gpsAreaWarning)) || number(b.gpsStopWarning?.durationMinutes) - number(a.gpsStopWarning?.durationMinutes));
     const gpsMapped = trucks.filter((truck) => truck.gpsImei || truck.gpsDeviceId);
     const gpsOnline = gpsMapped.filter((truck) => truck.lastGpsAt && new Date(truck.lastGpsAt).getTime() >= now - 3600000).length;
-    const openMaintenance = maintenance.filter((job) => ["OPEN", "IN_PROGRESS"].includes(String(job.status || "").toUpperCase())).length;
+    const openMaintenance = number(maintenanceSummary.open) || maintenance.filter((job) => ["OPEN", "IN_PROGRESS"].includes(String(job.status || "").toUpperCase())).length;
     const lowStock = inventory.filter((item) => { const qty = number(item.qtyTotal ?? item.totalQty ?? item.qty); const minimum = number(item.reorderPoint ?? item.minQty); return minimum > 0 && qty <= minimum; }).length;
     const expiringStnk = trucks.filter((truck) => { const diff = new Date(truck.stnkExpiry).getTime() - now; return truck.stnkExpiry && diff >= 0 && diff <= 30 * 86400000; }).length;
     const tripStatus = trips.reduce((acc, trip) => { const key = String(trip.status || "OTHER").toUpperCase(); acc[key] = (acc[key] || 0) + 1; return acc; }, {});
@@ -217,21 +156,39 @@ export default function Dashboard() {
     const safetyHealth = trucks.length ? Math.max(0, Math.round(100 - warnings.length / trucks.length * 100)) : 100;
     const pulse = Math.round(utilization * .35 + gpsHealth * .25 + maintenanceHealth * .2 + safetyHealth * .2);
     return { status, active, warnings, gpsMapped: gpsMapped.length, gpsOnline, gpsStale: gpsMapped.length - gpsOnline, gpsMissing: trucks.length - gpsMapped.length, openMaintenance, lowStock, expiringStnk, completedTrips, movingTrips, arrivedTrips, orderStatus, fulfillment, trend, throughputChange, utilization, gpsHealth, pulse };
-  }, [trucks, maintenance, inventory, trips, orders, period, referenceTime]);
+  }, [trucks, maintenance, maintenanceSummary, inventory, trips, orders, period, referenceTime]);
 
   const priorities = useMemo(() => [
     data.warnings.length && { level: "critical", title: `${data.warnings.length} warning armada aktif`, detail: "Periksa posisi, durasi berhenti, dan instruksi pengemudi.", path: "/fleet-map", action: "Buka live map" },
     data.arrivedTrips.length && { level: "warning", title: `${data.arrivedTrips.length} trip tiba belum diselesaikan`, detail: "Penyelesaian trip membuka proses billing dan laporan muatan.", path: "/trips", action: "Selesaikan trip" },
+    (purchasing.requests || []).filter((request) => request.status === "WAITING_APPROVAL").length > 0 && { level: "warning", title: `${(purchasing.requests || []).filter((request) => request.status === "WAITING_APPROVAL").length} permintaan pembelian menunggu approval`, detail: "Approval diperlukan agar kebutuhan bengkel dan operasional dapat diproses.", path: "/purchasing", action: "Review pembelian" },
     data.lowStock && { level: "warning", title: `${data.lowStock} item mencapai reorder point`, detail: "Risiko menghambat servis dan kesiapan armada.", path: "/inventory", action: "Cek persediaan" },
     data.openMaintenance && { level: "neutral", title: `${data.openMaintenance} pekerjaan servis masih terbuka`, detail: "Pastikan target selesai dan kebutuhan sparepart terkonfirmasi.", path: "/maintenance", action: "Lihat maintenance" },
     !data.warnings.length && !data.arrivedTrips.length && !data.lowStock && { level: "safe", title: "Operasional dalam kondisi terkendali", detail: "Tidak ada exception kritis yang memerlukan eskalasi saat ini.", path: "/trips", action: "Lihat aktivitas" },
-  ].filter(Boolean).slice(0, 4), [data]);
+  ].filter(Boolean).slice(0, 4), [data, purchasing]);
 
   const profit = number(finance.summary?.profit);
   const receivableStats = receivables?.stats || {};
   const outstanding = number(receivableStats.outstanding);
   const overdue = number(receivableStats.overdue);
-  const mappedTrucks = useMemo(() => trucks.map((truck) => ({ ...truck, position: truckPosition(truck) })).filter((truck) => truck.position), [trucks]);
+  const workshop = useMemo(() => {
+    const openJobs = maintenance.filter((job) => String(job.status).toUpperCase() === "OPEN");
+    const agingJobs = openJobs.filter((job) => referenceTime - new Date(job.createdAt).getTime() >= 3 * 86400000).length;
+    const serviceRequests = (purchasing.requests || []).filter((request) => request.maintenance && !["REJECTED", "CANCELLED"].includes(request.status));
+    const waitingParts = serviceRequests.filter((request) => request.status === "WAITING_APPROVAL" || (request.status === "APPROVED" && !(purchasing.orders || []).some((order) => order.requestId === request.id && order.status !== "CANCELLED"))).length;
+    return { agingJobs, waitingParts, serviceRequests: serviceRequests.length };
+  }, [maintenance, purchasing, referenceTime]);
+  const purchasePulse = useMemo(() => {
+    const requests = purchasing.requests || [];
+    const purchaseOrders = purchasing.orders || [];
+    const bills = purchasing.bills || [];
+    const waitingApproval = requests.filter((request) => request.status === "WAITING_APPROVAL").length;
+    const urgent = requests.filter((request) => request.urgency === "URGENT" && !["REJECTED", "CANCELLED"].includes(request.status)).length;
+    const inTransit = purchaseOrders.filter((order) => ["SENT_TO_SUPPLIER", "PARTIALLY_RECEIVED"].includes(order.status)).length;
+    const unpaidBills = bills.filter((bill) => bill.status !== "PAID");
+    const outstanding = unpaidBills.reduce((sum, bill) => sum + Math.max(0, number(bill.amount) - (bill.payments || []).filter((payment) => payment.status === "PAID").reduce((paid, payment) => paid + number(payment.amount), 0)), 0);
+    return { waitingApproval, urgent, inTransit, unpaidBills: unpaidBills.length, outstanding };
+  }, [purchasing]);
 
   return <main className="d4-page" data-testid="dashboard-page">
     <header className="d4-header">
@@ -289,19 +246,30 @@ export default function Dashboard() {
       </article>
     </section>
 
+    <section className="d4-business-grid">
+      <article className="d4-card d4-domain-card workshop">
+        <SectionTitle eyebrow="WORKSHOP CONTROL" title="Bengkel & maintenance" meta={`${data.openMaintenance} terbuka`} />
+        <div className="d4-domain-hero"><i><FiTool /></i><div><strong>{data.status.MAINTENANCE}</strong><span>armada sedang di bengkel</span></div><button onClick={() => navigate("/maintenance")}>Buka bengkel <FiArrowRight /></button></div>
+        <div className="d4-domain-metrics"><div><span>Servis terbuka</span><b>{data.openMaintenance}</b><small>pekerjaan aktif</small></div><div><span>Menunggu parts</span><b className={workshop.waitingParts ? "attention" : ""}>{workshop.waitingParts}</b><small>dari pembelian</small></div><div><span>Lebih dari 3 hari</span><b className={workshop.agingJobs ? "attention" : ""}>{workshop.agingJobs}</b><small>butuh eskalasi</small></div></div>
+      </article>
+
+      <article className="d4-card d4-domain-card purchasing">
+        <SectionTitle eyebrow="PROCUREMENT PULSE" title="Pembelian & supplier" meta={`${purchasePulse.inTransit} PO dikirim`} />
+        <div className="d4-domain-hero"><i><FiShoppingCart /></i><div><strong>{purchasePulse.waitingApproval}</strong><span>permintaan menunggu approval</span></div><button onClick={() => navigate("/purchasing")}>Buka pembelian <FiArrowRight /></button></div>
+        <div className="d4-domain-metrics"><div><span>Permintaan urgent</span><b className={purchasePulse.urgent ? "attention" : ""}>{purchasePulse.urgent}</b><small>perlu prioritas</small></div><div><span>PO dalam proses</span><b>{purchasePulse.inTransit}</b><small>belum diterima penuh</small></div><div><span>Tagihan terbuka</span><b>{purchasePulse.unpaidBills}</b><small>{rupiah(purchasePulse.outstanding, true)}</small></div></div>
+      </article>
+
+      <article className="d4-card d4-domain-card inventory-domain">
+        <SectionTitle eyebrow="MATERIAL READINESS" title="Persediaan & kebutuhan" meta={`${data.lowStock} kritis`} />
+        <div className="d4-domain-hero"><i><FiPackage /></i><div><strong>{inventory.length}</strong><span>item persediaan terpantau</span></div><button onClick={() => navigate("/inventory")}>Buka stok <FiArrowRight /></button></div>
+        <div className="d4-domain-metrics"><div><span>Stok minimum</span><b className={data.lowStock ? "attention" : ""}>{data.lowStock}</b><small>perlu replenishment</small></div><div><span>Kebutuhan bengkel</span><b>{workshop.serviceRequests}</b><small>permintaan terkait servis</small></div><div><span>Kesiapan armada</span><b>{data.status.READY}</b><small>unit siap jalan</small></div></div>
+      </article>
+    </section>
+
     {data.arrivedTrips.length > 0 && <section className="d4-card d4-arrived-card">
       <SectionTitle eyebrow="BOTTLENECK" title="Trip tiba menunggu penyelesaian" meta={`${data.arrivedTrips.length} trip`} />
       <div className="d4-arrived-list">{data.arrivedTrips.slice(0, 8).map((trip) => <button key={trip.id} onClick={() => navigate(`/trips/${trip.id}`)}><i><FiMapPin /></i><span><strong>{trip.order?.orderNo || trip.tripNo || "Trip"}</strong><small>{trip.truck?.plateNumber || trip.plateNumberSnap || "Tanpa armada"} · {trip.driverUser?.name || trip.driverNameSnap || "Tanpa pengemudi"}</small></span><span><strong>{trip.order?.toText || trip.toText || "Tujuan belum dicatat"}</strong><small>{trip.cargoNameSnap || trip.order?.cargoName || "Muatan"}</small></span><em>Selesaikan <FiArrowRight /></em></button>)}</div>
     </section>}
-
-    <section className="d4-card d4-map-card">
-      <SectionTitle eyebrow="LIVE FLEET MAP" title="Posisi armada terkini" meta={`${mappedTrucks.length} terhubung`} />
-      <div className="d4-map-body">
-        {GOOGLE_MAPS_API_KEY && mappedTrucks.length ? <DashboardFleetMap trucks={mappedTrucks} onError={setMapError} /> : <div className="d4-map-empty"><FiMapPin /><strong>{GOOGLE_MAPS_API_KEY ? "Belum ada koordinat armada" : "Google Maps belum dikonfigurasi"}</strong><span>{GOOGLE_MAPS_API_KEY ? "Posisi akan tampil setelah perangkat GPS mengirim koordinat." : "Tambahkan API key Google Maps pada konfigurasi frontend."}</span></div>}
-        {mapError && <div className="d4-map-error"><FiAlertTriangle /> {mapError}</div>}
-        <div className="d4-map-summary"><span><i className="online" />{data.gpsOnline} online</span><span><i className="attention" />{data.warnings.length} warning</span><button onClick={() => navigate("/fleet-map")}>Buka peta penuh <FiArrowRight /></button></div>
-      </div>
-    </section>
 
     <section className="d4-monitor-grid">
       <article className="d4-card d4-alert-card">
