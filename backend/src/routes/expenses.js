@@ -168,7 +168,8 @@ router.get("/", authRequired, async (req, res) => {
   const [items, total, pendingApprovalTotal, groupedStatuses] = await Promise.all([
     prisma.expense.findMany({
       where,
-      orderBy: [{ expenseDate: "desc" }, { createdAt: "desc" }],
+      // Monthly expense ledger reads like a cash book: earliest date first.
+      orderBy: [{ expenseDate: "asc" }, { createdAt: "asc" }],
       skip,
       take,
       include: {

@@ -87,6 +87,17 @@ function normalizedExpenseMonth(value) {
   return month >= 1 && month <= 12 ? `${match[1]}-${String(month).padStart(2, "0")}` : "";
 }
 
+function expenseDateKey(item) {
+  const value = item?.expenseDate || item?.createdAt;
+  if (!value) return "unknown";
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(value));
+}
+
 export default function Expenses() {
   const { user } = useAuth();
   const role = user?.role || "UNKNOWN";
@@ -127,9 +138,12 @@ export default function Expenses() {
   const [q, setQ] = useState("");
   const [methodFilter, setMethodFilter] = useState("");
 
-  const take = 20;
+  const [take, setTake] = useState(() => {
+    const saved = Number(window.localStorage.getItem("expenses-page-size"));
+    return [20, 50, 100].includes(saved) ? saved : 20;
+  });
   const [page, setPage] = useState(0);
-  const skip = useMemo(() => page * take, [page]);
+  const skip = useMemo(() => page * take, [page, take]);
 
   const [isMobile, setIsMobile] = useState(() =>
     window.matchMedia("(max-width: 900px)").matches
@@ -667,6 +681,18 @@ export default function Expenses() {
   }
 
   const pageCount = Math.max(1, Math.ceil(total / take));
+  const visiblePages = (() => {
+    const current = page + 1;
+    const pages = new Set([1, pageCount, current - 1, current, current + 1]);
+    return [...pages].filter(value => value >= 1 && value <= pageCount).sort((a, b) => a - b);
+  })();
+  const changePageSize = (value) => {
+    const next = Number(value);
+    if (![20, 50, 100].includes(next)) return;
+    window.localStorage.setItem("expenses-page-size", String(next));
+    setTake(next);
+    setPage(0);
+  };
   const showBankFields = form.paymentMethod === "BANK_TRANSFER";
   const showGiroFields = form.paymentMethod === "GIRO";
   const filteredExpenseTrucks = expenseTrucks.filter((truck) => {
@@ -679,6 +705,14 @@ export default function Expenses() {
       .includes(query);
   });
   const selectedExpenseTruck = expenseTrucks.find((truck) => truck.id === form.truckId) || null;
+  const expenseDateGroups = items.reduce((groups, item, index) => {
+    const key = expenseDateKey(item);
+    const group = groups.get(key) || { firstIndex: index, count: 0, total: 0 };
+    group.count += 1;
+    group.total += Number(item.amount || 0);
+    groups.set(key, group);
+    return groups;
+  }, new Map());
 
   return (
     <div style={s.page} className="expense-page">
@@ -750,14 +784,14 @@ export default function Expenses() {
       <div style={s.panel} className="expense-panel">
         <div className="expense-panel-heading">
           <div><div className="expense-eyebrow">DAFTAR TRANSAKSI</div><h2>Riwayat pengeluaran</h2></div>
-          <div className="expense-panel-heading-actions">{canApprove && pendingApprovalTotal > 0 && <button type="button" className="expense-approve-all" disabled={approveAllBusy} onClick={onApproveAll} title={`Hanya menyetujui pengeluaran pada ${expenseMonthLabel(reportMonth)}`}><FiCheckCircle /> {approveAllBusy ? "Menyetujui…" : `Setujui ${expenseMonthLabel(reportMonth)} (${pendingApprovalTotal})`}</button>}<button type="button" className="expense-print-all" disabled={!total || !reportMonth} onClick={printAllCashVouchers} title="Cetak seluruh bukti kas pada bulan yang dipilih di atas"><FiPrinter /> Cetak Semua Kas per Bulan</button><span className="expense-result-count">{items.length} ditampilkan</span></div>
+          <div className="expense-panel-heading-actions">{canApprove && pendingApprovalTotal > 0 && <button type="button" className="expense-approve-all" disabled={approveAllBusy} onClick={onApproveAll} title={`Hanya menyetujui pengeluaran pada ${expenseMonthLabel(reportMonth)}`}><FiCheckCircle /> {approveAllBusy ? "Menyetujui…" : `Setujui ${expenseMonthLabel(reportMonth)} (${pendingApprovalTotal})`}</button>}<button type="button" className="expense-print-all" disabled={!total || !reportMonth} onClick={printAllCashVouchers} title="Cetak seluruh bukti kas pada bulan yang dipilih di atas"><FiPrinter /> Cetak Semua Kas per Bulan</button><span className="expense-result-count">{total ? `${skip + 1}–${Math.min(skip + items.length, total)} dari ${total}` : "0 transaksi"}</span></div>
         </div>
         {/* Filters */}
         <div style={s.filtersRow} className="expense-filters">
           <div className="expense-search-wrap"><FiSearch /><input style={s.searchInput} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari keperluan, referensi, atau bank..." /></div>
           <select
             value={methodFilter}
-            onChange={(e) => setMethodFilter(e.target.value)}
+            onChange={(e) => { setPage(0); setMethodFilter(e.target.value); }}
             style={s.selectPill}
           >
             <option value="">Semua metode</option>
@@ -786,9 +820,12 @@ export default function Expenses() {
             </thead>
             <tbody>
               {loading && items.length === 0 && <tr><td colSpan={7} style={{ padding: 14 }}><LoadingState compact label="Memuat pengeluaran" note="Mengambil transaksi dan status pembayaran…" rows={5} /></td></tr>}
-              {items.map((x) => (
-                <tr key={x.id} style={s.rowClickable} onClick={() => openDetail(x)}>
-                  <td style={s.td}><div className="expense-date"><FiCalendar />{(x.expenseDate || x.createdAt) ? new Date(x.expenseDate || x.createdAt).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short", year: "numeric" }) : "-"}</div></td>
+              {items.map((x, index) => {
+                const dateKey = expenseDateKey(x);
+                const dateGroup = expenseDateGroups.get(dateKey);
+                return (
+                <tr key={x.id} style={s.rowClickable} onClick={() => openDetail(x)} className={dateGroup?.firstIndex === index ? "expense-date-group-start" : ""}>
+                  {dateGroup?.firstIndex === index ? <td style={s.td} rowSpan={dateGroup.count} className="expense-date-group"><div className="expense-date"><FiCalendar /><strong>{(x.expenseDate || x.createdAt) ? new Date(x.expenseDate || x.createdAt).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "long", year: "numeric" }) : "-"}</strong></div><small>{dateGroup.count} transaksi</small><b>{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(dateGroup.total)}</b></td> : null}
                   <td style={s.td}><div className="expense-row-title">{x.reason || "Tanpa keterangan"}</div><div className="expense-row-meta">{EXPENSE_CATEGORIES[x.category] || "Lainnya"}{x.employee?.name ? ` · ${x.employee.name}` : x.employeeParty?.name ? ` · ${x.employeeParty.name}` : x.financeDebt ? ` · ${x.financeDebt.leasingName}` : x.clientName ? ` · ${x.clientName}` : ""}</div></td>
                   <td style={s.td}><div className="expense-allocation"><span><FiTruck /></span><div><strong>{x.allocationLabel || x.trip?.truck?.plateNumber || x.truck?.plateNumber || "Umum"}</strong><small>{x.allocationLabel ? "Pembayaran gabungan armada dan persediaan" : x.trip?.driverUser?.name || x.trip?.driverNameSnap || x.truck?.driverUser?.name || (x.trip ? "Tanpa nama pengemudi" : x.truck ? "Tanpa nama pengemudi" : "Operasional umum")}</small>{!x.allocationLabel && x.trip ? <small>{x.trip.order?.orderNo || "Perjalanan"}</small> : !x.allocationLabel && x.truck ? <small>Biaya armada</small> : null}</div></div></td>
                   <td style={s.td}><div className="expense-row-title">{x.paymentMethod === "BANK_TRANSFER" ? "Transfer bank" : x.paymentMethod === "CASH" ? "Tunai" : x.paymentMethod === "GIRO" ? "Giro" : "Lainnya"}</div><div className="expense-row-meta">{x.bankName || "—"}</div>{["BANK_TRANSFER","GIRO"].includes(x.paymentMethod) ? <div className="expense-row-meta">{x.paymentMethod === "GIRO" ? `No. ${x.accountNumber || "-"} · ${x.accountName || "Penerima belum diisi"}` : `a.n. ${x.accountName || "Nama rekening belum diisi"}`}</div> : null}</td>
@@ -892,7 +929,8 @@ export default function Expenses() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
 
               {!loading && items.length === 0 ? (
                 <tr>
@@ -907,25 +945,32 @@ export default function Expenses() {
 
         {/* Pagination */}
         <div style={s.footer} className="expense-pagination">
-          <button
-            style={s.secondaryBtn}
-            disabled={loading || page <= 0}
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-          >
-            <FiArrowLeft /> Sebelumnya
-          </button>
-
-          <div style={s.pageInfo}>
-            Halaman <strong>{page + 1}</strong> dari <strong>{pageCount}</strong>
+          <div className="expense-page-size">
+            <span>Tampilkan</span>
+            <select value={take} onChange={(event) => changePageSize(event.target.value)} aria-label="Jumlah transaksi per halaman">
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <span>transaksi</span>
           </div>
-
-          <button
-            style={s.secondaryBtn}
-            disabled={loading || page + 1 >= pageCount}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Berikutnya <FiArrowRight />
-          </button>
+          <nav className="expense-page-nav" aria-label="Navigasi halaman pengeluaran">
+            <button className="expense-page-arrow" disabled={loading || page <= 0} onClick={() => setPage((p) => Math.max(0, p - 1))} aria-label="Halaman sebelumnya"><FiArrowLeft /></button>
+            {visiblePages.map((pageNumber, index) => (
+              <span key={pageNumber} className="expense-page-number-wrap">
+                {index > 0 && pageNumber - visiblePages[index - 1] > 1 ? <i aria-hidden="true">…</i> : null}
+                <button className={pageNumber === page + 1 ? "active" : ""} disabled={loading} onClick={() => setPage(pageNumber - 1)} aria-current={pageNumber === page + 1 ? "page" : undefined}>{pageNumber}</button>
+              </span>
+            ))}
+            <button className="expense-page-arrow" disabled={loading || page + 1 >= pageCount} onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))} aria-label="Halaman berikutnya"><FiArrowRight /></button>
+          </nav>
+          <label className="expense-page-jump">
+            <span>Ke halaman</span>
+            <select value={page + 1} onChange={(event) => setPage(Number(event.target.value) - 1)} aria-label="Lompat ke halaman">
+              {Array.from({ length: pageCount }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}
+            </select>
+            <span>dari {pageCount}</span>
+          </label>
         </div>
       </div>
 
