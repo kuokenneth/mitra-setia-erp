@@ -6,7 +6,7 @@ import { useLiveRefresh } from "../liveUpdates";
 import { ProtectedFilePreview } from "../components/ProtectedFile";
 import LoadingState from "../components/LoadingState";
 import PageHeader, { ActionGroup, ActionToolbar } from "../components/PageHeader";
-import { FiArrowRight, FiCalendar, FiCheckCircle, FiClock, FiCornerUpLeft, FiCreditCard, FiDownload, FiFileText, FiPlus, FiPrinter, FiSearch, FiTruck, FiX } from "react-icons/fi";
+import { FiArrowRight, FiCalendar, FiCheckCircle, FiClipboard, FiClock, FiCornerUpLeft, FiCreditCard, FiDownload, FiFileText, FiPlus, FiPrinter, FiSearch, FiTruck, FiX } from "react-icons/fi";
 import "./Expenses.css";
 
 // Corporate Green Color Palette (matching Landing/Dashboard)
@@ -184,6 +184,9 @@ export default function Expenses() {
   const [showModal, setShowModal] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailItem, setDetailItem] = useState(null);
+  const [pasteTarget, setPasteTarget] = useState(null);
+  const [pasteBusy, setPasteBusy] = useState(false);
+  const [pasteError, setPasteError] = useState("");
   const [reportMonth, setReportMonth] = useState(() => {
     const d = new Date();
     const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -532,6 +535,34 @@ export default function Expenses() {
     return updated.expense || updated;
   }
 
+  async function onPasteProof(event) {
+    event.preventDefault();
+    if (!pasteTarget || pasteBusy) return;
+    const clipboardItems = Array.from(event.clipboardData?.items || []);
+    const imageItem = clipboardItems.find(item => item.kind === "file" && item.type.startsWith("image/"));
+    const blob = imageItem?.getAsFile();
+    if (!blob) {
+      setPasteError("Clipboard belum berisi gambar. Ambil screenshot/snipping lalu tekan Ctrl+V atau Cmd+V di sini.");
+      return;
+    }
+    const extension = blob.type === "image/png" ? "png" : blob.type === "image/webp" ? "webp" : "jpg";
+    const file = new File([blob], `bukti-${Date.now()}.${extension}`, { type: blob.type, lastModified: Date.now() });
+    setPasteBusy(true);
+    setPasteError("");
+    setRowBusy(pasteTarget.id, pasteTarget.status === "PAID" ? "replace" : "upload");
+    try {
+      const updated = await uploadProof(pasteTarget.id, file, pasteTarget.status === "PAID");
+      updateRow(pasteTarget.id, updated);
+      setReportFeedback("Bukti dari clipboard berhasil diunggah");
+      setPasteTarget(null);
+    } catch (error) {
+      setPasteError(error.message || "Gagal mengunggah gambar dari clipboard");
+    } finally {
+      setRowBusy(pasteTarget.id, "");
+      setPasteBusy(false);
+    }
+  }
+
   async function onApprove(id) {
     setRowBusy(id, "approve");
     try {
@@ -795,7 +826,7 @@ export default function Expenses() {
             </colgroup>
             <thead>
               <tr>
-                <th style={s.th}>Tanggal</th>
+                <th style={s.th} className="expense-date-spacer-heading" aria-label="Tanggal"></th>
                 <th style={s.th}>Pengeluaran</th>
                 <th style={s.th}>Alokasi</th>
                 <th style={s.th}>Pembayaran</th>
@@ -828,7 +859,7 @@ export default function Expenses() {
                       ) : null}
                       {x.duplicateFlag ? (
                         <span style={{ ...s.statusPill, ...s.dupPill }}>
-                          Duplicate{typeof x.duplicateCount === "number" ? ` (${x.duplicateCount})` : ""}
+                          Duplikat{typeof x.duplicateCount === "number" ? ` ×${x.duplicateCount}` : ""}
                         </span>
                       ) : null}
                     </div>
@@ -892,6 +923,13 @@ export default function Expenses() {
                           />
                         </label>
                       )}
+                      {canUploadProof && ["SUBMITTED", "PAID"].includes(x.status) && (
+                        <button type="button" className="expense-action-button expense-paste-button" disabled={Boolean(actionBusy[x.id])} onClick={(event) => {
+                          event.stopPropagation();
+                          setPasteError("");
+                          setPasteTarget(x);
+                        }}><FiClipboard /> Tempel Bukti</button>
+                      )}
                       {canApprove && x.status === "PAID" && (
                         <button
                           style={s.approveBtn}
@@ -933,6 +971,31 @@ export default function Expenses() {
         </div>
 
       </div>
+
+      {pasteTarget && (
+        <div style={s.modalOverlay} onClick={() => !pasteBusy && setPasteTarget(null)}>
+          <div
+            style={{ ...s.modalCard, width: "min(520px, calc(100vw - 28px))" }}
+            className="expense-paste-modal"
+            onClick={(event) => event.stopPropagation()}
+            onPaste={onPasteProof}
+            tabIndex={0}
+            autoFocus
+          >
+            <div style={s.modalHeader}>
+              <div className="expense-modal-heading"><span className="expense-modal-icon"><FiClipboard /></span><div><div className="expense-eyebrow">BUKTI DARI CLIPBOARD</div><div style={s.modalTitle}>{pasteTarget.status === "PAID" ? "Ganti bukti pembayaran" : "Tempel bukti pembayaran"}</div><p>{pasteTarget.reason}</p></div></div>
+              <button style={s.closeBtn} disabled={pasteBusy} onClick={() => setPasteTarget(null)} aria-label="Tutup"><FiX /></button>
+            </div>
+            <div className={`expense-paste-zone ${pasteBusy ? "is-busy" : ""}`}>
+              <FiClipboard />
+              <strong>{pasteBusy ? "Mengunggah gambar…" : "Tekan Ctrl+V atau Cmd+V"}</strong>
+              <span>Ambil screenshot dengan Snipping Tool, lalu tempel gambarnya di kotak ini.</span>
+              {pasteError ? <em>{pasteError}</em> : null}
+            </div>
+            <div className="expense-paste-footer"><span>Untuk memilih file biasa, tutup kotak ini lalu gunakan tombol {pasteTarget.status === "PAID" ? "Ganti Bukti" : "Unggah Bukti"}.</span><button type="button" style={s.secondaryBtn} disabled={pasteBusy} onClick={() => setPasteTarget(null)}>Batal</button></div>
+          </div>
+        </div>
+      )}
 
       {/* Create Modal */}
       {returnOpen && (
@@ -1578,15 +1641,17 @@ function makeStyles(isMobile) {
     },
     statusPill: {
       display: "inline-block",
-      padding: "4px 10px",
-      borderRadius: 4,
-      fontSize: 12,
-      fontWeight: 500,
+      padding: "3px 8px",
+      borderRadius: 999,
+      fontSize: 10,
+      fontWeight: 700,
+      lineHeight: 1.35,
+      whiteSpace: "nowrap",
     },
     statusStack: {
       display: "flex",
       alignItems: "center",
-      gap: 8,
+      gap: 5,
       flexWrap: "wrap",
     },
     dupPill: {
@@ -1601,36 +1666,36 @@ function makeStyles(isMobile) {
       alignItems: "center",
     },
     linkBtn: {
-      padding: "6px 10px",
-      borderRadius: 4,
+      padding: "6px 9px",
+      borderRadius: 8,
       border: `1px solid ${BRAND.border}`,
       background: BRAND.white,
       color: BRAND.text,
-      fontWeight: 500,
-      fontSize: 12,
+      fontWeight: 700,
+      fontSize: 10,
       cursor: "pointer",
       textDecoration: "none",
       display: "inline-flex",
       alignItems: "center",
     },
     approveBtn: {
-      padding: "6px 10px",
-      borderRadius: 4,
+      padding: "6px 9px",
+      borderRadius: 8,
       border: `1px solid ${BRAND.primary}30`,
       background: BRAND.accent,
       color: BRAND.primary,
-      fontWeight: 500,
-      fontSize: 12,
+      fontWeight: 700,
+      fontSize: 10,
       cursor: "pointer",
     },
     deleteBtn: {
-      padding: "6px 10px",
-      borderRadius: 4,
+      padding: "6px 9px",
+      borderRadius: 8,
       border: `1px solid ${BRAND.danger}30`,
       background: BRAND.dangerLight,
       color: BRAND.danger,
-      fontWeight: 500,
-      fontSize: 12,
+      fontWeight: 700,
+      fontSize: 10,
       cursor: "pointer",
     },
     footer: {
