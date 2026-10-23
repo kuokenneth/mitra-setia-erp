@@ -9,22 +9,18 @@
 .erp-content table :is(.number,.ar-money-cell,.expense-currency-cell){text-align:right}
 .erp-content table :is(.actions,.ar-actions,.expense-actions){white-space:nowrap}
 
-/* Pengeluaran: content-aware minimums; horizontal scrolling wins over compression. */
-.erp-content .expense-table-wrap{overflow-x:auto!important;overflow-y:hidden!important}
-.erp-content .expense-table{min-width:1420px!important;table-layout:fixed!important}
-.erp-content .expense-table col.expense-col-date{width:54px}.erp-content .expense-table col.expense-col-description{width:32%}.erp-content .expense-table col.expense-col-allocation{width:18%}.erp-content .expense-table col.expense-col-payment{width:20%}.erp-content .expense-table col.expense-col-amount{width:150px}.erp-content .expense-table col.expense-col-status{width:130px}.erp-content .expense-table col.expense-col-actions{width:210px}
-.erp-content .expense-table :is(th,td):nth-child(1){min-width:145px;white-space:nowrap}
-.erp-content .expense-table :is(th,td):nth-child(2){min-width:245px}
-.erp-content .expense-table :is(th,td):nth-child(3){min-width:190px}
-.erp-content .expense-table :is(th,td):nth-child(4){min-width:220px}
-.erp-content .expense-table :is(th,td):nth-child(5){min-width:155px;text-align:right}
-.erp-content .expense-table :is(th,td):nth-child(6){min-width:140px}
-.erp-content .expense-table :is(th,td):nth-child(7){min-width:220px}
+/* Pengeluaran: every column fits the available workspace without horizontal scrolling. */
+.erp-content .expense-table-wrap{overflow-x:hidden!important;overflow-y:hidden!important}
+.erp-content .expense-table{width:100%!important;min-width:0!important;table-layout:fixed!important}
+.erp-content .expense-table col.expense-col-date{width:42px}.erp-content .expense-table col.expense-col-description{width:30%}.erp-content .expense-table col.expense-col-allocation{width:17%}.erp-content .expense-table col.expense-col-payment{width:18%}.erp-content .expense-table col.expense-col-amount{width:128px}.erp-content .expense-table col.expense-col-status{width:105px}.erp-content .expense-table col.expense-col-actions{width:155px}
+.erp-content .expense-table :is(th,td){min-width:0!important;max-width:none;box-sizing:border-box}
+.erp-content .expense-table th{white-space:normal}
+.erp-content .expense-table :is(th,td):nth-child(5){text-align:right}
 .erp-content .expense-table .expense-row-title,.erp-content .expense-table .expense-row-meta{max-width:100%;overflow-wrap:anywhere;word-break:normal;white-space:normal}
-.erp-content .expense-table td{min-width:0!important;overflow:hidden}
-.erp-content .expense-table .expense-allocation{min-width:175px}
+.erp-content .expense-table td{overflow:hidden}
+.erp-content .expense-table .expense-allocation{min-width:0}
 .erp-content .expense-table .expense-currency-cell{font-weight:750;letter-spacing:-.01em}
-.erp-content .expense-table .expense-actions-cell{min-width:220px}
+.erp-content .expense-table .expense-actions-cell{min-width:0}
 
 /* Established module grids: keep references, dates, money, status, and actions usable. */
 .erp-content .acct-table table{min-width:1050px}.erp-content .acct-table .number{min-width:130px}

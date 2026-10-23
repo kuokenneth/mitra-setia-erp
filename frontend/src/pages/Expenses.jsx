@@ -837,7 +837,7 @@ export default function Expenses() {
                     <div style={s.actionsRow} className="expense-actions">
                       {x.proofUrl ? (
                         <div onClick={(e) => e.stopPropagation()}>
-                          <ProtectedFilePreview url={x.proofUrl} mimeType={x.proofMimeType} fileName={x.proofFileName || "Bukti expense"} imageStyle={{ width: 86, height: 58, objectFit: "cover", borderRadius: 7 }} onError={(e) => setErr(e.message)} />
+                          <ProtectedFilePreview url={x.proofUrl} mimeType={x.proofMimeType} fileName={x.proofFileName || "Bukti expense"} imageStyle={{ width: 68, height: 46, objectFit: "cover", borderRadius: 7 }} onError={(e) => setErr(e.message)} />
                         </div>
                       ) : null}
                       {canUploadProof && x.status === "SUBMITTED" && (
