@@ -535,9 +535,27 @@ export default function Expenses() {
     return updated.expense || updated;
   }
 
+  async function uploadProofForTarget(file) {
+    if (!pasteTarget || pasteBusy || !file) return;
+    const target = pasteTarget;
+    setPasteBusy(true);
+    setPasteError("");
+    setRowBusy(target.id, target.status === "PAID" ? "replace" : "upload");
+    try {
+      const updated = await uploadProof(target.id, file, target.status === "PAID");
+      updateRow(target.id, updated);
+      setReportFeedback("Bukti pembayaran berhasil diunggah");
+      setPasteTarget(null);
+    } catch (error) {
+      setPasteError(error.message || "Gagal mengunggah bukti pembayaran");
+    } finally {
+      setRowBusy(target.id, "");
+      setPasteBusy(false);
+    }
+  }
+
   async function onPasteProof(event) {
     event.preventDefault();
-    if (!pasteTarget || pasteBusy) return;
     const clipboardItems = Array.from(event.clipboardData?.items || []);
     const imageItem = clipboardItems.find(item => item.kind === "file" && item.type.startsWith("image/"));
     const blob = imageItem?.getAsFile();
@@ -546,21 +564,7 @@ export default function Expenses() {
       return;
     }
     const extension = blob.type === "image/png" ? "png" : blob.type === "image/webp" ? "webp" : "jpg";
-    const file = new File([blob], `bukti-${Date.now()}.${extension}`, { type: blob.type, lastModified: Date.now() });
-    setPasteBusy(true);
-    setPasteError("");
-    setRowBusy(pasteTarget.id, pasteTarget.status === "PAID" ? "replace" : "upload");
-    try {
-      const updated = await uploadProof(pasteTarget.id, file, pasteTarget.status === "PAID");
-      updateRow(pasteTarget.id, updated);
-      setReportFeedback("Bukti dari clipboard berhasil diunggah");
-      setPasteTarget(null);
-    } catch (error) {
-      setPasteError(error.message || "Gagal mengunggah gambar dari clipboard");
-    } finally {
-      setRowBusy(pasteTarget.id, "");
-      setPasteBusy(false);
-    }
+    await uploadProofForTarget(new File([blob], `bukti-${Date.now()}.${extension}`, { type: blob.type, lastModified: Date.now() }));
   }
 
   async function onApprove(id) {
@@ -871,64 +875,12 @@ export default function Expenses() {
                           <ProtectedFilePreview url={x.proofUrl} mimeType={x.proofMimeType} fileName={x.proofFileName || "Bukti expense"} imageStyle={{ width: 68, height: 46, objectFit: "cover", borderRadius: 7 }} onError={(e) => setErr(e.message)} />
                         </div>
                       ) : null}
-                      {canUploadProof && x.status === "SUBMITTED" && (
-                        <label style={s.linkBtn} className={`expense-action-button ${actionBusy[x.id] ? "is-busy" : ""}`} onClick={(e) => e.stopPropagation()}>
-                          {actionBusy[x.id] === "upload" ? "Mengunggah…" : "Unggah Bukti"}
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp,application/pdf"
-                            style={{ display: "none" }}
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              setRowBusy(x.id, "upload");
-                              try {
-                                const updated = await uploadProof(x.id, file);
-                                updateRow(x.id, updated);
-                              } catch (err) {
-                                setErr(err.message || "Gagal mengunggah proof");
-                              } finally {
-                                setRowBusy(x.id, "");
-                                e.target.value = "";
-                              }
-                            }}
-                          />
-                        </label>
-                      )}
-                      {canUploadProof && x.status === "PAID" && (
-                        <label style={s.linkBtn} className={`expense-action-button ${actionBusy[x.id] ? "is-busy" : ""}`} onClick={(e) => e.stopPropagation()}>
-                          {actionBusy[x.id] === "replace" ? "Mengganti…" : "Ganti Bukti"}
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp,application/pdf"
-                            style={{ display: "none" }}
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              if (!window.confirm("Ganti bukti pembayaran dengan file ini?")) {
-                                e.target.value = "";
-                                return;
-                              }
-                              setRowBusy(x.id, "replace");
-                              try {
-                                const updated = await uploadProof(x.id, file, true);
-                                updateRow(x.id, updated);
-                              } catch (err) {
-                                setErr(err.message || "Gagal mengganti bukti");
-                              } finally {
-                                setRowBusy(x.id, "");
-                                e.target.value = "";
-                              }
-                            }}
-                          />
-                        </label>
-                      )}
                       {canUploadProof && ["SUBMITTED", "PAID"].includes(x.status) && (
                         <button type="button" className="expense-action-button expense-paste-button" disabled={Boolean(actionBusy[x.id])} onClick={(event) => {
                           event.stopPropagation();
                           setPasteError("");
                           setPasteTarget(x);
-                        }}><FiClipboard /> Tempel Bukti</button>
+                        }}><FiClipboard /> {actionBusy[x.id] ? "Mengunggah…" : "Bukti Pembayaran"}</button>
                       )}
                       {canApprove && x.status === "PAID" && (
                         <button
@@ -983,16 +935,16 @@ export default function Expenses() {
             autoFocus
           >
             <div style={s.modalHeader}>
-              <div className="expense-modal-heading"><span className="expense-modal-icon"><FiClipboard /></span><div><div className="expense-eyebrow">BUKTI DARI CLIPBOARD</div><div style={s.modalTitle}>{pasteTarget.status === "PAID" ? "Ganti bukti pembayaran" : "Tempel bukti pembayaran"}</div><p>{pasteTarget.reason}</p></div></div>
+              <div className="expense-modal-heading"><span className="expense-modal-icon"><FiClipboard /></span><div><div className="expense-eyebrow">BUKTI PEMBAYARAN</div><div style={s.modalTitle}>{pasteTarget.proofUrl ? "Ganti bukti pembayaran" : "Tambahkan bukti pembayaran"}</div><p>{pasteTarget.reason}</p></div></div>
               <button style={s.closeBtn} disabled={pasteBusy} onClick={() => setPasteTarget(null)} aria-label="Tutup"><FiX /></button>
             </div>
             <div className={`expense-paste-zone ${pasteBusy ? "is-busy" : ""}`}>
               <FiClipboard />
               <strong>{pasteBusy ? "Mengunggah gambar…" : "Tekan Ctrl+V atau Cmd+V"}</strong>
-              <span>Ambil screenshot dengan Snipping Tool, lalu tempel gambarnya di kotak ini.</span>
+              <span>Ambil screenshot dengan Snipping Tool dan tempel di sini, atau pilih file dari perangkat.</span>
               {pasteError ? <em>{pasteError}</em> : null}
             </div>
-            <div className="expense-paste-footer"><span>Untuk memilih file biasa, tutup kotak ini lalu gunakan tombol {pasteTarget.status === "PAID" ? "Ganti Bukti" : "Unggah Bukti"}.</span><button type="button" style={s.secondaryBtn} disabled={pasteBusy} onClick={() => setPasteTarget(null)}>Batal</button></div>
+            <div className="expense-paste-footer"><span>Format file: JPG, PNG, WebP, atau PDF.</span><div><button type="button" style={s.secondaryBtn} disabled={pasteBusy} onClick={() => setPasteTarget(null)}>Batal</button><label className="expense-proof-file-button"><FiFileText /> Pilih File<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" disabled={pasteBusy} onChange={async (event) => { const file = event.target.files?.[0]; if (file) await uploadProofForTarget(file); event.target.value = ""; }} /></label></div></div>
           </div>
         </div>
       )}
