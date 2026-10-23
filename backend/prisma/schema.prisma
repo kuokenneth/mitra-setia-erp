@@ -269,7 +269,7 @@ model User {
   tripActionsCreated               TripOperationalAction[]     @relation("TripActionCreatedBy")
   tripActionsAssigned              TripOperationalAction[]     @relation("TripActionAssignedTo")
   truckManualRevenuesCreated       TruckManualRevenue[]        @relation("TruckManualRevenueCreatedBy")
-  expenseReturnsCreated            ExpenseReturn[]              @relation("ExpenseReturnCreatedBy")
+  expenseReturnsCreated            ExpenseReturn[]             @relation("ExpenseReturnCreatedBy")
 }
 
 model AuditLog {
@@ -337,6 +337,7 @@ model PurchaseRequest {
   items                  PurchaseRequestItem[]
   damageProofs           PurchaseRequestDamageProof[]
   purchaseOrders         PurchaseOrder[]
+  purchaseOrderLinks     PurchaseOrderRequest[]
   createdAt              DateTime                     @default(now())
   updatedAt              DateTime                     @updatedAt
 
@@ -358,71 +359,87 @@ model PurchaseRequestDamageProof {
 }
 
 model PurchaseRequestItem {
-  id            String          @id @default(cuid())
-  requestId     String
-  request       PurchaseRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  itemId        String
-  item          Item            @relation(fields: [itemId], references: [id])
-  originalQty   Float
-  approvedQty   Float?
-  notes         String?
-  tireRetreadId String?
-  tireRetread   TireRetread?    @relation("PurchaseRequestItemRetread", fields: [tireRetreadId], references: [id], onDelete: SetNull)
-  partRepairId  String?
-  partRepair    PartRepair?     @relation("PurchaseRequestItemRepair", fields: [partRepairId], references: [id], onDelete: SetNull)
+  id                 String              @id @default(cuid())
+  requestId          String
+  request            PurchaseRequest     @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  itemId             String
+  item               Item                @relation(fields: [itemId], references: [id])
+  originalQty        Float
+  approvedQty        Float?
+  notes              String?
+  tireRetreadId      String?
+  tireRetread        TireRetread?        @relation("PurchaseRequestItemRetread", fields: [tireRetreadId], references: [id], onDelete: SetNull)
+  partRepairId       String?
+  partRepair         PartRepair?         @relation("PurchaseRequestItemRepair", fields: [partRepairId], references: [id], onDelete: SetNull)
+  purchaseOrderItems PurchaseOrderItem[]
 
   @@index([tireRetreadId])
   @@index([partRepairId])
 }
 
 model PurchaseOrder {
-  id                 String              @id @default(cuid())
-  number             String              @unique
+  id                 String                 @id @default(cuid())
+  number             String                 @unique
   requestId          String
-  request            PurchaseRequest     @relation(fields: [requestId], references: [id])
+  request            PurchaseRequest        @relation(fields: [requestId], references: [id])
   supplierId         String
-  supplier           Supplier            @relation(fields: [supplierId], references: [id])
-  status             PurchaseOrderStatus @default(DRAFT)
-  tax                Int                 @default(0)
-  shippingCost       Int                 @default(0)
-  discount           Int                 @default(0)
+  supplier           Supplier               @relation(fields: [supplierId], references: [id])
+  status             PurchaseOrderStatus    @default(DRAFT)
+  tax                Int                    @default(0)
+  shippingCost       Int                    @default(0)
+  discount           Int                    @default(0)
   paymentTerms       String?
   deliveryAddress    String?
   estimatedArrival   DateTime?
   createdById        String
-  createdBy          User                @relation("PurchaseOrderCreatedBy", fields: [createdById], references: [id])
+  createdBy          User                   @relation("PurchaseOrderCreatedBy", fields: [createdById], references: [id])
   cancelledAt        DateTime?
   cancellationReason String?
   cancelledById      String?
-  cancelledBy        User?               @relation("PurchaseOrderCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  cancelledBy        User?                  @relation("PurchaseOrderCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
   items              PurchaseOrderItem[]
+  requestLinks       PurchaseOrderRequest[]
   receipts           GoodsReceipt[]
   payments           PurchasePayment[]
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
 
   @@index([status])
   @@index([cancelledById])
 }
 
+model PurchaseOrderRequest {
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder   @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  requestId       String
+  request         PurchaseRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  createdAt       DateTime        @default(now())
+
+  @@id([purchaseOrderId, requestId])
+  @@index([requestId])
+}
+
 model PurchaseOrderItem {
-  id               String             @id @default(cuid())
-  purchaseOrderId  String
-  purchaseOrder    PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  itemId           String
-  item             Item               @relation(fields: [itemId], references: [id])
-  qty              Float
-  unitPrice        Int
-  receivedQty      Float              @default(0)
-  tireRetreadId    String?
-  tireRetread      TireRetread?       @relation("PurchaseOrderItemRetread", fields: [tireRetreadId], references: [id], onDelete: SetNull)
-  partRepairId     String?
-  partRepair       PartRepair?        @relation("PurchaseOrderItemRepair", fields: [partRepairId], references: [id], onDelete: SetNull)
-  receiptItems     GoodsReceiptItem[]
-  inventoryBatches InventoryBatch[]
+  id                    String               @id @default(cuid())
+  purchaseOrderId       String
+  purchaseOrder         PurchaseOrder        @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  itemId                String
+  item                  Item                 @relation(fields: [itemId], references: [id])
+  purchaseRequestItemId String?
+  purchaseRequestItem   PurchaseRequestItem? @relation(fields: [purchaseRequestItemId], references: [id], onDelete: SetNull)
+  qty                   Float
+  unitPrice             Int
+  receivedQty           Float                @default(0)
+  tireRetreadId         String?
+  tireRetread           TireRetread?         @relation("PurchaseOrderItemRetread", fields: [tireRetreadId], references: [id], onDelete: SetNull)
+  partRepairId          String?
+  partRepair            PartRepair?          @relation("PurchaseOrderItemRepair", fields: [partRepairId], references: [id], onDelete: SetNull)
+  receiptItems          GoodsReceiptItem[]
+  inventoryBatches      InventoryBatch[]
 
   @@index([tireRetreadId])
   @@index([partRepairId])
+  @@index([purchaseRequestItemId])
 }
 
 model GoodsReceipt {
@@ -1567,8 +1584,8 @@ model StockMovement {
   stockUnitId String?
   stockUnit   StockUnit? @relation(fields: [stockUnitId], references: [id])
 
-  item             Item                           @relation(fields: [itemId], references: [id])
-  batchAllocations StockMovementBatchAllocation[]
+  item                   Item                           @relation(fields: [itemId], references: [id])
+  batchAllocations       StockMovementBatchAllocation[]
   supplierBillRepairItem SupplierBillRepairItem?
 
   @@index([stockUnitId])
@@ -1709,10 +1726,10 @@ model ExpenseReturn {
   notes         String?
 
   truckId String
-  truck   Truck @relation(fields: [truckId], references: [id], onDelete: Restrict)
+  truck   Truck  @relation(fields: [truckId], references: [id], onDelete: Restrict)
 
   createdById String?
-  createdBy   User? @relation("ExpenseReturnCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy   User?   @relation("ExpenseReturnCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 

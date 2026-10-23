@@ -74,6 +74,12 @@ function todayInJakarta() {
   }).format(new Date());
 }
 
+function expenseMonthLabel(value) {
+  if (!/^\d{4}-\d{2}$/.test(value || "")) return "bulan ini";
+  const [year, month] = value.split("-").map(Number);
+  return new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" }).format(new Date(year, month - 1, 1));
+}
+
 export default function Expenses() {
   const { user } = useAuth();
   const role = user?.role || "UNKNOWN";
@@ -84,6 +90,7 @@ export default function Expenses() {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [pendingApprovalTotal, setPendingApprovalTotal] = useState(0);
+  const [statusCounts, setStatusCounts] = useState({ SUBMITTED: 0, PAID: 0, APPROVED: 0 });
   const [approveAllBusy, setApproveAllBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [actionBusy, setActionBusy] = useState({});
@@ -264,6 +271,7 @@ export default function Expenses() {
       const params = new URLSearchParams();
       if (q.trim()) params.set("q", q.trim());
       if (methodFilter) params.set("paymentMethod", methodFilter);
+      if (reportMonth) params.set("month", reportMonth);
       params.set("skip", String(skip));
       params.set("take", String(take));
 
@@ -271,6 +279,7 @@ export default function Expenses() {
       setItems(data.items || []);
       setTotal(data.total || 0);
       setPendingApprovalTotal(data.pendingApprovalTotal || 0);
+      setStatusCounts({ SUBMITTED: 0, PAID: 0, APPROVED: 0, ...(data.statusCounts || {}) });
     } catch (e) {
       setErr(e.message || "Gagal memuat expenses");
     } finally {
@@ -402,7 +411,7 @@ export default function Expenses() {
     load();
   // load is intentionally retriggered only by pagination/filter state.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [skip, methodFilter]);
+  }, [skip, methodFilter, reportMonth]);
 
   useEffect(() => {
     if (!allowed) return;
@@ -525,13 +534,14 @@ export default function Expenses() {
 
   async function onApproveAll() {
     if (!pendingApprovalTotal || approveAllBusy) return;
-    if (!window.confirm(`Setujui ${pendingApprovalTotal} pengeluaran yang sudah dibayar${q.trim() || methodFilter ? " sesuai filter saat ini" : ""}?`)) return;
+    const selectedMonthLabel = expenseMonthLabel(reportMonth);
+    if (!window.confirm(`Setujui ${pendingApprovalTotal} pengeluaran yang sudah dibayar pada ${selectedMonthLabel}? Pengeluaran bulan lain tidak akan ikut disetujui.`)) return;
     setApproveAllBusy(true);
     setErr("");
     try {
       const result = await api("/expenses/approve-all", {
         method: "POST",
-        body: JSON.stringify({ q: q.trim(), paymentMethod: methodFilter }),
+        body: JSON.stringify({ q: q.trim(), paymentMethod: methodFilter, month: reportMonth }),
       });
       setReportFeedback(`${result.approvedCount || 0} pengeluaran berhasil disetujui`);
       await load();
@@ -594,7 +604,6 @@ export default function Expenses() {
       reportWindow.document.write(html);
       reportWindow.document.close();
       reportWindow.focus();
-      setReportFeedback("Laporan berhasil dibuka");
     } catch (e) {
       reportWindow?.close();
       setErr(e.message || "Failed to open report");
@@ -663,15 +672,6 @@ export default function Expenses() {
   });
   const selectedExpenseTruck = expenseTrucks.find((truck) => truck.id === form.truckId) || null;
 
-  const statusCounts = items.reduce(
-    (acc, x) => {
-      const st = x.status || "SUBMITTED";
-      acc[st] = (acc[st] || 0) + 1;
-      return acc;
-    },
-    { SUBMITTED: 0, PAID: 0, APPROVED: 0 }
-  );
-
   return (
     <div style={s.page} className="expense-page">
       {/* Header */}
@@ -685,9 +685,10 @@ export default function Expenses() {
           <ActionGroup className="expense-report-group" purpose="reports">
             <input
               type="month"
-              aria-label="Bulan laporan pengeluaran"
+              aria-label="Filter bulan pengeluaran"
+              title="Filter daftar pengeluaran berdasarkan bulan"
               value={reportMonth}
-              onChange={(e) => setReportMonth(e.target.value)}
+              onChange={(e) => { setPage(0); setReportMonth(e.target.value); }}
             />
             <button type="button" className={`expense-report-button ${reportBusy ? "is-busy" : ""}`} style={s.secondaryBtn} disabled={reportBusy || exportBusy} onClick={() => openMonthlyReport(false)} title="Buka laporan bulanan untuk dicetak">
               <FiFileText /> {reportBusy ? "Menyiapkan…" : "Cetak laporan"}
@@ -715,25 +716,25 @@ export default function Expenses() {
           <span className="expense-stat-icon"><FiClock /></span>
           <div style={s.statLabel}>Diajukan</div>
           <div style={s.statValue}>{statusCounts.SUBMITTED}</div>
-          <div className="expense-stat-note">Menunggu bukti pembayaran</div>
+          <div className="expense-stat-note">Periode bulan terpilih</div>
         </div>
         <div style={s.statCard} className="expense-stat-card expense-stat-paid">
           <span className="expense-stat-icon"><FiCreditCard /></span>
           <div style={s.statLabel}>Dibayar</div>
           <div style={s.statValue}>{statusCounts.PAID}</div>
-          <div className="expense-stat-note">Menunggu persetujuan owner</div>
+          <div className="expense-stat-note">Periode bulan terpilih</div>
         </div>
         <div style={s.statCard} className="expense-stat-card expense-stat-approved">
           <span className="expense-stat-icon"><FiCheckCircle /></span>
           <div style={s.statLabel}>Disetujui</div>
           <div style={s.statValue}>{statusCounts.APPROVED}</div>
-          <div className="expense-stat-note">Sudah terverifikasi</div>
+          <div className="expense-stat-note">Periode bulan terpilih</div>
         </div>
         <div style={s.statCard} className="expense-stat-card expense-stat-total">
           <span className="expense-stat-icon"><FiFileText /></span>
           <div style={s.statLabel}>Total transaksi</div>
           <div style={s.statValue}>{total}</div>
-          <div className="expense-stat-note">Seluruh catatan pengeluaran</div>
+          <div className="expense-stat-note">Periode bulan terpilih</div>
         </div>
       </div>
 
@@ -741,7 +742,7 @@ export default function Expenses() {
       <div style={s.panel} className="expense-panel">
         <div className="expense-panel-heading">
           <div><div className="expense-eyebrow">DAFTAR TRANSAKSI</div><h2>Riwayat pengeluaran</h2></div>
-          <div className="expense-panel-heading-actions">{canApprove && pendingApprovalTotal > 0 && <button type="button" className="expense-approve-all" disabled={approveAllBusy} onClick={onApproveAll}><FiCheckCircle /> {approveAllBusy ? "Menyetujui…" : `Setujui Semua (${pendingApprovalTotal})`}</button>}<button type="button" className="expense-print-all" disabled={!total || !reportMonth} onClick={printAllCashVouchers} title="Cetak seluruh bukti kas pada bulan yang dipilih di atas"><FiPrinter /> Cetak Semua Kas per Bulan</button><span className="expense-result-count">{items.length} ditampilkan</span></div>
+          <div className="expense-panel-heading-actions">{canApprove && pendingApprovalTotal > 0 && <button type="button" className="expense-approve-all" disabled={approveAllBusy} onClick={onApproveAll} title={`Hanya menyetujui pengeluaran pada ${expenseMonthLabel(reportMonth)}`}><FiCheckCircle /> {approveAllBusy ? "Menyetujui…" : `Setujui ${expenseMonthLabel(reportMonth)} (${pendingApprovalTotal})`}</button>}<button type="button" className="expense-print-all" disabled={!total || !reportMonth} onClick={printAllCashVouchers} title="Cetak seluruh bukti kas pada bulan yang dipilih di atas"><FiPrinter /> Cetak Semua Kas per Bulan</button><span className="expense-result-count">{items.length} ditampilkan</span></div>
         </div>
         {/* Filters */}
         <div style={s.filtersRow} className="expense-filters">

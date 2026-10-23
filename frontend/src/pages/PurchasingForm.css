@@ -477,6 +477,34 @@
 }
 .purchasing .po-modal .modal-actions button { min-width: 104px; }
 
+/* Independent touch-friendly scroll regions for bulk PO selection and items. */
+.purchasing .po-modal .bulk-po-scroll,
+.purchasing .po-modal .po-price-list {
+  min-height: 0;
+  max-height: min(220px, 28dvh);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #a9bbb0 transparent;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+.purchasing .po-modal .bulk-po-scroll { display: grid; padding: 8px; gap: 6px; }
+.purchasing .po-modal .po-price-list { max-height: min(250px, 30dvh); }
+.purchasing .po-modal .po-price-list .section-label {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom: 1px solid #dfe8e2;
+}
+.purchasing .po-modal .bulk-po-scroll:focus-visible,
+.purchasing .po-modal .po-price-list:focus-visible {
+  outline: 2px solid #64a87b;
+  outline-offset: -2px;
+}
+
 @media (max-width: 700px) {
   .purchasing .po-modal { width: 100%; max-height: calc(100vh - 18px); border-radius: 16px 16px 8px 8px; }
   .purchasing .po-modal .modal-heading, .purchasing .po-modal .po-form-body, .purchasing .po-modal .modal-actions { padding-left: 17px; padding-right: 17px; }

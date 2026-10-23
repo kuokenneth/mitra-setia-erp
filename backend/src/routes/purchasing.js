@@ -76,7 +76,7 @@ async function refreshAllocatedMovementCosts(tx, batchId) {
   }
 }
 
-const includePO = { supplier: true, request: { include: { maintenance: { include: { truck: true } } } }, cancelledBy: { select: { id: true, name: true, email: true } }, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } }, partRepair: { include: { stockUnit: true } } } }, receipts: { include: { items: { include: { purchaseOrderItem: { include: { item: true } }, supplierBillItem: { include: { bill: true } } } }, location: true, createdBy: { select: { name: true } }, supplierBillLines: { include: { bill: true } } } }, payments: { include: { createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } } } };
+const includePO = { supplier: true, request: { include: { maintenance: { include: { truck: true } } } }, requestLinks: { include: { request: { include: { maintenance: { include: { truck: true } } } } } }, cancelledBy: { select: { id: true, name: true, email: true } }, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } }, partRepair: { include: { stockUnit: true } } } }, receipts: { include: { items: { include: { purchaseOrderItem: { include: { item: true } }, supplierBillItem: { include: { bill: true } } } }, location: true, createdBy: { select: { name: true } }, supplierBillLines: { include: { bill: true } } } }, payments: { include: { createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } } } };
 
 async function syncSupplierPaymentExpense(tx, paymentId, approvedById) {
   const marker = `AUTO_SUPPLIER_PAYMENT:${paymentId}`;
@@ -283,7 +283,7 @@ router.get("/orders/:id/print", async (req, res) => {
     title: "PURCHASE ORDER",
     subtitle: po.number,
     meta: `Status: ${esc(po.status)}<br>Tanggal: ${fmtDate(po.createdAt)}${po.status === "CANCELLED" ? `<br>Dibatalkan: ${fmtDate(po.cancelledAt, true)}<br>Alasan: ${esc(po.cancellationReason || "-")}` : ""}`,
-    body: `<div class="summary"><div class="box">Supplier<b>${esc(po.supplier.name)}</b><span>${esc(po.supplier.address || "-")}</span></div><div class="box">Pengiriman<b>${esc(po.deliveryAddress || "-")}</b><span>Estimasi: ${fmtDate(po.estimatedArrival)}</span></div><div class="box">Termin<b>${esc(po.paymentTerms || "-")}</b><span>PR: ${esc(po.request?.number || "-")}</span></div></div><table><thead><tr><th>No</th><th>SKU</th><th>Barang</th><th class="right">Qty</th><th>Satuan</th><th class="right">Harga</th><th class="right">Jumlah</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="6" class="right">Subtotal</td><td class="right">${money(subtotal)}</td></tr><tr><td colspan="6" class="right">Ongkir + Pajak - Diskon</td><td class="right">${money(Number(po.shippingCost) + Number(po.tax) - Number(po.discount))}</td></tr><tr><td colspan="6" class="right"><b>TOTAL</b></td><td class="right"><b>${money(total)}</b></td></tr></tfoot></table><div class="signatures"><div>Dibuat oleh</div><div>Supplier</div><div>Disetujui oleh</div></div>`,
+    body: `<div class="summary"><div class="box">Supplier<b>${esc(po.supplier.name)}</b><span>${esc(po.supplier.address || "-")}</span></div><div class="box">Pengiriman<b>${esc(po.deliveryAddress || "-")}</b><span>Estimasi: ${fmtDate(po.estimatedArrival)}</span></div><div class="box">Termin<b>${esc(po.paymentTerms || "-")}</b><span>PR: ${esc((po.requestLinks?.length ? po.requestLinks.map(link => link.request.number) : [po.request?.number]).filter(Boolean).join(", ") || "-")}</span></div></div><table><thead><tr><th>No</th><th>SKU</th><th>Barang</th><th class="right">Qty</th><th>Satuan</th><th class="right">Harga</th><th class="right">Jumlah</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="6" class="right">Subtotal</td><td class="right">${money(subtotal)}</td></tr><tr><td colspan="6" class="right">Ongkir + Pajak - Diskon</td><td class="right">${money(Number(po.shippingCost) + Number(po.tax) - Number(po.discount))}</td></tr><tr><td colspan="6" class="right"><b>TOTAL</b></td><td class="right"><b>${money(total)}</b></td></tr></tfoot></table><div class="signatures"><div>Dibuat oleh</div><div>Supplier</div><div>Disetujui oleh</div></div>`,
   }));
 });
 router.get("/receipts/group/print", async (req, res) => {
@@ -560,7 +560,7 @@ router.post("/orders", async (req, res) => {
           ? Number(i.qty)
           : Number(requestItem.approvedQty ?? requestItem.originalQty);
       if (!Number.isFinite(qty) || qty <= 0) throw new Error(request.purpose === "STOCK" ? "Jumlah PO persediaan umum wajib lebih dari 0" : "Jumlah item tidak valid");
-      return { itemId: requestItem.itemId, qty, unitPrice: 0, tireRetreadId: requestItem.tireRetreadId, partRepairId: requestItem.partRepairId };
+      return { itemId: requestItem.itemId, purchaseRequestItemId: requestItem.id, qty, unitPrice: 0, tireRetreadId: requestItem.tireRetreadId, partRepairId: requestItem.partRepairId };
     });
     const wrongSupplier = request.items.find(row => row.tireRetread?.supplierId && row.tireRetread.supplierId !== supplierId);
     if (wrongSupplier) throw new Error("Supplier PO harus sama dengan vendor yang dipilih saat Lepas & Masak");
@@ -578,7 +578,7 @@ router.post("/orders/bulk", async (req, res) => {
     const [supplier, requests, existingOrders] = await Promise.all([
       prisma.supplier.findUnique({ where: { id: String(supplierId) } }),
       prisma.purchaseRequest.findMany({ where: { id: { in: requestIds } }, include: { items: { include: { tireRetread: true, partRepair: true } } } }),
-      prisma.purchaseOrder.findMany({ where: { requestId: { in: requestIds }, status: { not: "CANCELLED" } }, select: { requestId: true } }),
+      prisma.purchaseOrder.findMany({ where: { status: { not: "CANCELLED" }, OR: [{ requestId: { in: requestIds } }, { requestLinks: { some: { requestId: { in: requestIds } } } }] }, select: { requestId: true } }),
     ]);
     if (!supplier) return res.status(404).json({ error: "Supplier tidak ditemukan" });
     if (requests.length !== requestIds.length) return res.status(404).json({ error: "Salah satu permintaan tidak ditemukan" });
@@ -592,19 +592,28 @@ router.post("/orders/bulk", async (req, res) => {
         const input = suppliedItems.get(requestItem.id) || {};
         const qty = requestItem.tireRetreadId || requestItem.partRepairId ? 1 : request.purpose === "STOCK" ? Number(input.qty) : Number(requestItem.approvedQty ?? requestItem.originalQty);
         if (!Number.isFinite(qty) || qty <= 0) throw new Error(`Jumlah item pada ${request.number} wajib lebih dari 0`);
-        return { itemId: requestItem.itemId, qty, unitPrice: 0, tireRetreadId: requestItem.tireRetreadId, partRepairId: requestItem.partRepairId };
+        return { itemId: requestItem.itemId, purchaseRequestItemId: requestItem.id, qty, unitPrice: 0, tireRetreadId: requestItem.tireRetreadId, partRepairId: requestItem.partRepairId };
       });
       return { request, items };
     });
+    const routingKeys = new Set(prepared.map(({ request }) => request.directUse || request.purpose === "MAINTENANCE_STOCK_REQUEST" ? `MAINTENANCE:${request.maintenanceId || ""}` : request.purpose === "TRUCK" ? `TRUCK:${request.truckId || ""}` : "STOCK"));
+    if (routingKeys.size > 1) throw new Error("Permintaan dengan tujuan stok, mobil, atau pekerjaan bengkel yang berbeda tidak dapat digabung dalam satu PO");
     const created = await prisma.$transaction(async tx => {
-      const rows = [];
-      for (const entry of prepared) {
-        rows.push(await tx.purchaseOrder.create({ data: { number: await nextDailyNumber(tx, "purchaseOrder", "PO"), requestId: entry.request.id, supplierId: supplier.id, status: "SENT_TO_SUPPLIER", tax: Number(tax), shippingCost: Number(shippingCost), discount: Number(discount), paymentTerms, deliveryAddress, estimatedArrival: estimatedArrival ? new Date(estimatedArrival) : null, createdById: req.user.id, items: { create: entry.items } }, include: includePO }));
-        await tx.partRepair.updateMany({ where: { id: { in: entry.request.items.map(item => item.partRepairId).filter(Boolean) } }, data: { supplierId: supplier.id } });
-      }
-      return rows;
+      const order = await tx.purchaseOrder.create({
+        data: {
+          number: await nextDailyNumber(tx, "purchaseOrder", "PO"), requestId: prepared[0].request.id,
+          supplierId: supplier.id, status: "SENT_TO_SUPPLIER", tax: Number(tax), shippingCost: Number(shippingCost),
+          discount: Number(discount), paymentTerms, deliveryAddress,
+          estimatedArrival: estimatedArrival ? new Date(estimatedArrival) : null, createdById: req.user.id,
+          requestLinks: { create: prepared.map(entry => ({ requestId: entry.request.id })) },
+          items: { create: prepared.flatMap(entry => entry.items) },
+        },
+        include: includePO,
+      });
+      await tx.partRepair.updateMany({ where: { id: { in: prepared.flatMap(entry => entry.request.items.map(item => item.partRepairId).filter(Boolean)) } }, data: { supplierId: supplier.id } });
+      return order;
     });
-    res.json({ ok: true, orders: created });
+    res.json({ ok: true, order: created, orders: [created] });
   } catch (error) {
     res.status(400).json({ error: error.message || "Gagal membuat beberapa Purchase Order" });
   }
@@ -658,8 +667,9 @@ router.patch("/orders/:id/cancel", requireRole("OWNER", "ADMIN"), async (req, re
     if (order.payments.length) throw new Error("PO yang sudah memiliki pembayaran tidak dapat dibatalkan");
     const updated = await prisma.$transaction(async tx => {
       const cancelledAt = new Date();
-      await tx.purchaseRequest.update({
-        where: { id: order.requestId },
+      const linkedRequests = await tx.purchaseOrderRequest.findMany({ where: { purchaseOrderId: order.id }, select: { requestId: true } });
+      await tx.purchaseRequest.updateMany({
+        where: { id: { in: [...new Set([order.requestId, ...linkedRequests.map(link => link.requestId)])] } },
         data: { status: "CANCELLED", approvalNotes: reason, approvedById: req.user.id, approvedAt: cancelledAt },
       });
       return tx.purchaseOrder.update({ where: { id: order.id }, data: { status: "CANCELLED", cancelledAt, cancellationReason: reason, cancelledById: req.user.id }, include: includePO });

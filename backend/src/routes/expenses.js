@@ -117,11 +117,25 @@ const categoryLabels = { PANJAR: "Panjar", TRIP_ALLOWANCE: "Uang jalan", REMAINI
 const methodLabels = { BANK_TRANSFER: "Transfer bank", CASH: "Tunai", GIRO: "Giro", OTHER: "Lainnya" };
 const statusLabels = { SUBMITTED: "Diajukan", APPROVED: "Disetujui", PAID: "Dibayar", REJECTED: "Ditolak" };
 
-function expenseFilterWhere({ q, paymentMethod, status } = {}) {
+function expenseMonthRange(month) {
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) return null;
+  const [year, monthNumber] = month.split("-").map(Number);
+  if (!Number.isInteger(year) || !Number.isInteger(monthNumber) || monthNumber < 1 || monthNumber > 12) return null;
+  const nextYear = monthNumber === 12 ? year + 1 : year;
+  const nextMonth = monthNumber === 12 ? 1 : monthNumber + 1;
+  return {
+    gte: new Date(`${month}-01T00:00:00+07:00`),
+    lt: new Date(`${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00+07:00`),
+  };
+}
+
+function expenseFilterWhere({ q, paymentMethod, status, month } = {}) {
+  const monthRange = expenseMonthRange(month);
   return {
     AND: [
       ...(paymentMethod ? [{ paymentMethod }] : []),
       ...(status ? [{ status }] : []),
+      ...(monthRange ? [{ expenseDate: monthRange }] : []),
       ...(q ? [{ OR: [
         { reason: { contains: q, mode: "insensitive" } },
         { clientName: { contains: q, mode: "insensitive" } },
@@ -141,12 +155,14 @@ router.get("/", authRequired, async (req, res) => {
 
   const q = cleanStr(req.query.q || "");
   const paymentMethod = cleanStr(req.query.paymentMethod || "");
+  const month = cleanStr(req.query.month || "");
+  if (month && !expenseMonthRange(month)) return res.status(400).json({ error: "Periode bulan tidak valid" });
   const take = Math.min(parseInt(req.query.take || "50", 10), 200);
   const skip = Math.max(parseInt(req.query.skip || "0", 10), 0);
 
-  const where = expenseFilterWhere({ q, paymentMethod });
+  const where = expenseFilterWhere({ q, paymentMethod, month });
 
-  const [items, total, pendingApprovalTotal] = await Promise.all([
+  const [items, total, pendingApprovalTotal, groupedStatuses] = await Promise.all([
     prisma.expense.findMany({
       where,
       orderBy: [{ expenseDate: "desc" }, { createdAt: "desc" }],
@@ -187,7 +203,8 @@ router.get("/", authRequired, async (req, res) => {
       },
     }),
     prisma.expense.count({ where }),
-    prisma.expense.count({ where: expenseFilterWhere({ q, paymentMethod, status: "PAID" }) }),
+    prisma.expense.count({ where: expenseFilterWhere({ q, paymentMethod, status: "PAID", month }) }),
+    prisma.expense.groupBy({ by: ["status"], where, _count: { _all: true } }),
   ]);
 
   // Load duplicate candidates in one query instead of one query per visible row.
@@ -211,7 +228,8 @@ router.get("/", authRequired, async (req, res) => {
     return serializeExpense({ ...x, duplicateFlag: duplicates.length > 1, duplicateCount: duplicates.length, duplicates });
   });
 
-  res.json({ items: withDup, total, pendingApprovalTotal, skip, take });
+  const statusCounts = Object.fromEntries(groupedStatuses.map(row => [row.status, row._count._all]));
+  res.json({ items: withDup, total, pendingApprovalTotal, statusCounts, skip, take });
 });
 
 function excelDate(value) {
@@ -816,10 +834,12 @@ router.post("/approve-all", authRequired, async (req, res) => {
 
   const q = cleanStr(req.body?.q || "");
   const paymentMethod = cleanStr(req.body?.paymentMethod || "");
+  const month = cleanStr(req.body?.month || "");
   if (paymentMethod && !["BANK_TRANSFER", "CASH", "GIRO", "OTHER"].includes(paymentMethod)) return res.status(400).json({ error: "Metode pembayaran tidak valid" });
+  if (month && !expenseMonthRange(month)) return res.status(400).json({ error: "Periode bulan tidak valid" });
   const approvedAt = new Date();
   const result = await prisma.expense.updateMany({
-    where: expenseFilterWhere({ q, paymentMethod, status: "PAID" }),
+    where: expenseFilterWhere({ q, paymentMethod, status: "PAID", month }),
     data: { status: "APPROVED", approvedAt, approvedById: approver.id },
   });
   res.json({ ok: true, approvedCount: result.count, approvedAt });
