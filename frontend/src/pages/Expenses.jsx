@@ -80,6 +80,13 @@ function expenseMonthLabel(value) {
   return new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" }).format(new Date(year, month - 1, 1));
 }
 
+function normalizedExpenseMonth(value) {
+  const match = String(value || "").trim().match(/^(\d{4})-(\d{1,2})/);
+  if (!match) return "";
+  const month = Number(match[2]);
+  return month >= 1 && month <= 12 ? `${match[1]}-${String(month).padStart(2, "0")}` : "";
+}
+
 export default function Expenses() {
   const { user } = useAuth();
   const role = user?.role || "UNKNOWN";
@@ -271,7 +278,8 @@ export default function Expenses() {
       const params = new URLSearchParams();
       if (q.trim()) params.set("q", q.trim());
       if (methodFilter) params.set("paymentMethod", methodFilter);
-      if (reportMonth) params.set("month", reportMonth);
+      const selectedMonth = normalizedExpenseMonth(reportMonth);
+      if (selectedMonth) params.set("month", selectedMonth);
       params.set("skip", String(skip));
       params.set("take", String(take));
 
@@ -541,7 +549,7 @@ export default function Expenses() {
     try {
       const result = await api("/expenses/approve-all", {
         method: "POST",
-        body: JSON.stringify({ q: q.trim(), paymentMethod: methodFilter, month: reportMonth }),
+        body: JSON.stringify({ q: q.trim(), paymentMethod: methodFilter, month: normalizedExpenseMonth(reportMonth) }),
       });
       setReportFeedback(`${result.approvedCount || 0} pengeluaran berhasil disetujui`);
       await load();
@@ -782,7 +790,7 @@ export default function Expenses() {
                 <tr key={x.id} style={s.rowClickable} onClick={() => openDetail(x)}>
                   <td style={s.td}><div className="expense-date"><FiCalendar />{(x.expenseDate || x.createdAt) ? new Date(x.expenseDate || x.createdAt).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short", year: "numeric" }) : "-"}</div></td>
                   <td style={s.td}><div className="expense-row-title">{x.reason || "Tanpa keterangan"}</div><div className="expense-row-meta">{EXPENSE_CATEGORIES[x.category] || "Lainnya"}{x.employee?.name ? ` · ${x.employee.name}` : x.employeeParty?.name ? ` · ${x.employeeParty.name}` : x.financeDebt ? ` · ${x.financeDebt.leasingName}` : x.clientName ? ` · ${x.clientName}` : ""}</div></td>
-                  <td style={s.td}><div className="expense-allocation"><span><FiTruck /></span><div><strong>{x.trip?.truck?.plateNumber || x.truck?.plateNumber || "Umum"}</strong><small>{x.trip?.driverUser?.name || x.trip?.driverNameSnap || x.truck?.driverUser?.name || (x.trip ? "Tanpa nama pengemudi" : x.truck ? "Tanpa nama pengemudi" : "Operasional umum")}</small>{x.trip ? <small>{x.trip.order?.orderNo || "Perjalanan"}</small> : x.truck ? <small>Biaya armada</small> : null}</div></div></td>
+                  <td style={s.td}><div className="expense-allocation"><span><FiTruck /></span><div><strong>{x.allocationLabel || x.trip?.truck?.plateNumber || x.truck?.plateNumber || "Umum"}</strong><small>{x.allocationLabel ? "Pembayaran gabungan armada dan persediaan" : x.trip?.driverUser?.name || x.trip?.driverNameSnap || x.truck?.driverUser?.name || (x.trip ? "Tanpa nama pengemudi" : x.truck ? "Tanpa nama pengemudi" : "Operasional umum")}</small>{!x.allocationLabel && x.trip ? <small>{x.trip.order?.orderNo || "Perjalanan"}</small> : !x.allocationLabel && x.truck ? <small>Biaya armada</small> : null}</div></div></td>
                   <td style={s.td}><div className="expense-row-title">{x.paymentMethod === "BANK_TRANSFER" ? "Transfer bank" : x.paymentMethod === "CASH" ? "Tunai" : x.paymentMethod === "GIRO" ? "Giro" : "Lainnya"}</div><div className="expense-row-meta">{x.bankName || "—"}</div>{["BANK_TRANSFER","GIRO"].includes(x.paymentMethod) ? <div className="expense-row-meta">{x.paymentMethod === "GIRO" ? `No. ${x.accountNumber || "-"} · ${x.accountName || "Penerima belum diisi"}` : `a.n. ${x.accountName || "Nama rekening belum diisi"}`}</div> : null}</td>
                   <td style={s.tdStrong} className="expense-currency-cell">{new Intl.NumberFormat("id-ID", { style: "currency", currency: x.currency || "IDR", maximumFractionDigits: 0 }).format(x.amount || 0)}</td>
                   <td style={s.td}>

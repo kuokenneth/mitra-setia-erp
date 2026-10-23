@@ -118,13 +118,16 @@ const methodLabels = { BANK_TRANSFER: "Transfer bank", CASH: "Tunai", GIRO: "Gir
 const statusLabels = { SUBMITTED: "Diajukan", APPROVED: "Disetujui", PAID: "Dibayar", REJECTED: "Ditolak" };
 
 function expenseMonthRange(month) {
-  if (!month || !/^\d{4}-\d{2}$/.test(month)) return null;
-  const [year, monthNumber] = month.split("-").map(Number);
+  const match = String(month || "").trim().match(/^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const monthNumber = Number(match[2]);
   if (!Number.isInteger(year) || !Number.isInteger(monthNumber) || monthNumber < 1 || monthNumber > 12) return null;
+  const normalizedMonth = `${year}-${String(monthNumber).padStart(2, "0")}`;
   const nextYear = monthNumber === 12 ? year + 1 : year;
   const nextMonth = monthNumber === 12 ? 1 : monthNumber + 1;
   return {
-    gte: new Date(`${month}-01T00:00:00+07:00`),
+    gte: new Date(`${normalizedMonth}-01T00:00:00+07:00`),
     lt: new Date(`${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00+07:00`),
   };
 }
@@ -223,9 +226,32 @@ router.get("/", authRequired, async (req, res) => {
     map.get(row.tripId).push(row);
     return map;
   }, new Map());
+  const supplierPaymentIds = items.map(item => String(item.notes || "").match(/^AUTO_SUPPLIER_PAYMENT:(.+)$/)?.[1]).filter(Boolean);
+  const supplierPayments = supplierPaymentIds.length ? await prisma.purchasePayment.findMany({
+    where: { id: { in: supplierPaymentIds } },
+    select: {
+      id: true,
+      supplierBill: {
+        select: {
+          items: {
+            select: {
+              receiptItem: { select: { inventoryBatch: { select: { remainingQty: true } } } },
+            },
+          },
+        },
+      },
+    },
+  }) : [];
+  const supplierPaymentById = new Map(supplierPayments.map(payment => [payment.id, payment]));
   const withDup = items.map(x => {
     const duplicates = x.tripId ? (duplicatesByTrip.get(x.tripId) || []) : [];
-    return serializeExpense({ ...x, duplicateFlag: duplicates.length > 1, duplicateCount: duplicates.length, duplicates });
+    const paymentId = String(x.notes || "").match(/^AUTO_SUPPLIER_PAYMENT:(.+)$/)?.[1];
+    const payment = paymentId ? supplierPaymentById.get(paymentId) : null;
+    const includesInventory = payment?.supplierBill?.items?.some(line => Number(line.receiptItem?.inventoryBatch?.remainingQty || 0) > 0);
+    const allocationLabel = includesInventory
+      ? [x.truck?.plateNumber, "Inventory"].filter(Boolean).join(" + ")
+      : null;
+    return serializeExpense({ ...x, allocationLabel, duplicateFlag: duplicates.length > 1, duplicateCount: duplicates.length, duplicates });
   });
 
   const statusCounts = Object.fromEntries(groupedStatuses.map(row => [row.status, row._count._all]));
