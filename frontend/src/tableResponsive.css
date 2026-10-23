@@ -11,7 +11,8 @@
 
 /* Pengeluaran: content-aware minimums; horizontal scrolling wins over compression. */
 .erp-content .expense-table-wrap{overflow-x:auto!important;overflow-y:hidden!important}
-.erp-content .expense-table{min-width:1320px!important;table-layout:auto}
+.erp-content .expense-table{min-width:1420px!important;table-layout:fixed!important}
+.erp-content .expense-table col.expense-col-date{width:54px}.erp-content .expense-table col.expense-col-description{width:32%}.erp-content .expense-table col.expense-col-allocation{width:18%}.erp-content .expense-table col.expense-col-payment{width:20%}.erp-content .expense-table col.expense-col-amount{width:150px}.erp-content .expense-table col.expense-col-status{width:130px}.erp-content .expense-table col.expense-col-actions{width:210px}
 .erp-content .expense-table :is(th,td):nth-child(1){min-width:145px;white-space:nowrap}
 .erp-content .expense-table :is(th,td):nth-child(2){min-width:245px}
 .erp-content .expense-table :is(th,td):nth-child(3){min-width:190px}
@@ -19,8 +20,8 @@
 .erp-content .expense-table :is(th,td):nth-child(5){min-width:155px;text-align:right}
 .erp-content .expense-table :is(th,td):nth-child(6){min-width:140px}
 .erp-content .expense-table :is(th,td):nth-child(7){min-width:220px}
-.erp-content .expense-table .expense-row-title{max-width:340px;overflow-wrap:break-word;word-break:normal}
-.erp-content .expense-table .expense-row-meta{max-width:300px;overflow-wrap:break-word;word-break:normal}
+.erp-content .expense-table .expense-row-title,.erp-content .expense-table .expense-row-meta{max-width:100%;overflow-wrap:anywhere;word-break:normal;white-space:normal}
+.erp-content .expense-table td{min-width:0!important;overflow:hidden}
 .erp-content .expense-table .expense-allocation{min-width:175px}
 .erp-content .expense-table .expense-currency-cell{font-weight:750;letter-spacing:-.01em}
 .erp-content .expense-table .expense-actions-cell{min-width:220px}

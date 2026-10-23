@@ -160,7 +160,8 @@ router.get("/", authRequired, async (req, res) => {
   const paymentMethod = cleanStr(req.query.paymentMethod || "");
   const month = cleanStr(req.query.month || "");
   if (month && !expenseMonthRange(month)) return res.status(400).json({ error: "Periode bulan tidak valid" });
-  const take = Math.min(parseInt(req.query.take || "50", 10), 200);
+  const showAll = req.query.all === "true";
+  const take = showAll ? undefined : Math.min(parseInt(req.query.take || "50", 10), 200);
   const skip = Math.max(parseInt(req.query.skip || "0", 10), 0);
 
   const where = expenseFilterWhere({ q, paymentMethod, month });
@@ -168,10 +169,8 @@ router.get("/", authRequired, async (req, res) => {
   const [items, total, pendingApprovalTotal, groupedStatuses] = await Promise.all([
     prisma.expense.findMany({
       where,
-      // Monthly expense ledger reads like a cash book: earliest date first.
-      orderBy: [{ expenseDate: "asc" }, { createdAt: "asc" }],
-      skip,
-      take,
+      orderBy: [{ expenseDate: "desc" }, { createdAt: "desc" }],
+      ...(showAll ? {} : { skip, take }),
       include: {
         truck: {
           select: {
@@ -256,7 +255,7 @@ router.get("/", authRequired, async (req, res) => {
   });
 
   const statusCounts = Object.fromEntries(groupedStatuses.map(row => [row.status, row._count._all]));
-  res.json({ items: withDup, total, pendingApprovalTotal, statusCounts, skip, take });
+  res.json({ items: withDup, total, pendingApprovalTotal, statusCounts, skip: showAll ? 0 : skip, take: showAll ? total : take });
 });
 
 function excelDate(value) {
