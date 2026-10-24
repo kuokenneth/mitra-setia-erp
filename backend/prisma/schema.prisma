@@ -541,13 +541,14 @@ model SupplierBillItem {
   id            String           @id @default(cuid())
   billId        String
   bill          SupplierBill     @relation(fields: [billId], references: [id], onDelete: Cascade)
-  receiptItemId String           @unique
+  receiptItemId String
   receiptItem   GoodsReceiptItem @relation(fields: [receiptItemId], references: [id])
   qty           Float
   unitPrice     Int
   amount        Int
 
   @@index([billId])
+  @@index([receiptItemId])
 }
 
 model GoodsReceiptItem {
@@ -559,7 +560,7 @@ model GoodsReceiptItem {
   qty                 Float
   condition           String            @default("GOOD")
   inventoryBatch      InventoryBatch?
-  supplierBillItem    SupplierBillItem?
+  supplierBillItems   SupplierBillItem[]
 }
 
 model PurchasePayment {

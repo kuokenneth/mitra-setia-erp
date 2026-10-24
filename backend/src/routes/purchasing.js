@@ -76,7 +76,7 @@ async function refreshAllocatedMovementCosts(tx, batchId) {
   }
 }
 
-const includePO = { supplier: true, request: { include: { maintenance: { include: { truck: true } } } }, requestLinks: { include: { request: { include: { maintenance: { include: { truck: true } } } } } }, cancelledBy: { select: { id: true, name: true, email: true } }, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } }, partRepair: { include: { stockUnit: true } } } }, receipts: { include: { items: { include: { purchaseOrderItem: { include: { item: true } }, supplierBillItem: { include: { bill: true } } } }, location: true, createdBy: { select: { name: true } }, supplierBillLines: { include: { bill: true } } } }, payments: { include: { createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } } } };
+const includePO = { supplier: true, request: { include: { maintenance: { include: { truck: true } } } }, requestLinks: { include: { request: { include: { maintenance: { include: { truck: true } } } } } }, cancelledBy: { select: { id: true, name: true, email: true } }, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } }, partRepair: { include: { stockUnit: true } } } }, receipts: { include: { items: { include: { purchaseOrderItem: { include: { item: true } }, supplierBillItems: { include: { bill: true } } } }, location: true, createdBy: { select: { name: true } }, supplierBillLines: { include: { bill: true } } } }, payments: { include: { createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } } } };
 
 async function syncSupplierPaymentExpense(tx, paymentId, approvedById) {
   const marker = `AUTO_SUPPLIER_PAYMENT:${paymentId}`;
@@ -836,22 +836,25 @@ router.post("/receipts/batch", async (req, res) => {
 });
 router.post("/bills", async (req, res) => {
   try {
-    const { supplierId, invoiceNumber, invoiceDate, dueDate, notes, proofUrl, proofFileName, proofMimeType, proofSize, proofs = [], receiptIds = [], itemIds = [], itemPrices = {}, repairMovementIds = [] } = req.body;
+    const { supplierId, invoiceNumber, invoiceDate, dueDate, notes, proofUrl, proofFileName, proofMimeType, proofSize, proofs = [], receiptIds = [], itemIds = [], itemPrices = {}, itemQuantities = {}, repairMovementIds = [] } = req.body;
     const attachments = (Array.isArray(proofs) && proofs.length ? proofs : proofUrl ? [{ url: proofUrl, fileName: proofFileName, mimeType: proofMimeType, size: proofSize }] : []).filter(file => file?.url);
     if (!supplierId || !String(invoiceNumber || "").trim() || !invoiceDate || (!itemIds.length && !repairMovementIds.length) || !attachments.length) throw new Error("Supplier, nomor invoice, tanggal, barang/jasa penerimaan, dan minimal satu lampiran invoice wajib diisi");
     const ids = [...new Set(receiptIds.map(String))];
     const selectedItemIds = new Set(itemIds.map(String));
-    const records = await prisma.goodsReceipt.findMany({ where: { id: { in: ids } }, include: { purchaseOrder: true, items: { include: { purchaseOrderItem: { include: { item: true } }, inventoryBatch: { include: { stockUnits: true } }, supplierBillItem: true } } } });
+    const records = await prisma.goodsReceipt.findMany({ where: { id: { in: ids } }, include: { purchaseOrder: true, items: { include: { purchaseOrderItem: { include: { item: true } }, inventoryBatch: { include: { stockUnits: true } }, supplierBillItems: true } } } });
     if (records.length !== ids.length) throw new Error("Sebagian penerimaan barang tidak ditemukan");
     if (records.some(row => row.purchaseOrder.supplierId !== supplierId)) throw new Error("Semua penerimaan harus berasal dari supplier yang sama");
     const lines = records.flatMap(receipt => receipt.items.filter(item => selectedItemIds.has(item.id)).map(item => {
       if (item.condition === "RETURNED_TO_SUPPLIER") throw new Error(`${item.purchaseOrderItem.item.name} sudah diretur ke supplier dan tidak dapat ditagihkan`);
-      if (item.supplierBillItem) throw new Error(`${item.purchaseOrderItem.item.name} sudah pernah ditagihkan`);
+      const billedQty = item.supplierBillItems.reduce((sum, line) => sum + Number(line.qty || 0), 0);
+      const availableQty = Math.max(0, Number(item.qty || 0) - billedQty);
+      const requestedQty = Number(itemQuantities[item.id] ?? availableQty);
+      if (!Number.isFinite(requestedQty) || requestedQty <= 0 || requestedQty > availableQty) throw new Error(`Qty ditagih ${item.purchaseOrderItem.item.name} harus antara 0 dan ${availableQty}`);
       if (!Object.prototype.hasOwnProperty.call(itemPrices, item.id) || itemPrices[item.id] === "") throw new Error(`Harga ${item.purchaseOrderItem.item.name} wajib diisi`);
       const unitPrice = Math.round(Number(itemPrices[item.id]));
       const isRepair = Boolean(item.purchaseOrderItem.partRepairId);
       if (!Number.isFinite(unitPrice) || unitPrice < 0 || (!isRepair && unitPrice === 0)) throw new Error(isRepair ? `Harga perbaikan ${item.purchaseOrderItem.item.name} tidak valid` : `Harga ${item.purchaseOrderItem.item.name} harus lebih dari Rp0`);
-      return { receipt, item, unitPrice, amount: Math.round(Number(item.qty) * unitPrice) };
+      return { receipt, item, qty: requestedQty, unitPrice, amount: Math.round(requestedQty * unitPrice) };
     }));
     if (lines.length !== selectedItemIds.size) throw new Error("Sebagian barang penerimaan tidak ditemukan atau tidak sesuai supplier");
     const repairIds = [...new Set(repairMovementIds.map(String))];
@@ -872,11 +875,11 @@ router.post("/bills", async (req, res) => {
     const goodsTotal = lines.reduce((sum, line) => sum + line.amount, 0);
     const repairTotal = repairLines.reduce((sum, line) => sum + line.amount, 0);
     const total = goodsTotal + repairTotal;
-    const allocations = records.map(receipt => ({ receiptId: receipt.id, amount: lines.filter(line => line.receipt.id === receipt.id).reduce((sum, line) => sum + line.amount, 0) }));
-    const previousValue = lines.reduce((sum, line) => sum + Number(line.item.qty) * Number(line.item.purchaseOrderItem.unitPrice || 0), 0);
+    const allocations = records.map(receipt => ({ receiptId: receipt.id, amount: lines.filter(line => line.receipt.id === receipt.id).reduce((sum, line) => sum + line.amount, 0) })).filter(allocation => allocation.amount > 0);
+    const previousValue = lines.reduce((sum, line) => sum + line.qty * Number(line.item.purchaseOrderItem.unitPrice || 0), 0);
     const bill = await prisma.$transaction(async tx => {
       const primaryProof = attachments[0];
-      const created = await tx.supplierBill.create({ data: { number: await nextDailyNumber(tx, "supplierBill", "BILL"), supplierId, invoiceNumber: String(invoiceNumber).trim(), invoiceDate: new Date(invoiceDate), dueDate: dueDate ? new Date(dueDate) : null, amount: total, status: total === 0 ? "PAID" : "OPEN", notes: notes || null, proofUrl: primaryProof.url, proofFileName: primaryProof.fileName || null, proofMimeType: primaryProof.mimeType || null, proofSize: Number.isFinite(Number(primaryProof.size)) ? Number(primaryProof.size) : null, createdById: req.user.id, receipts: { create: allocations }, items: { create: lines.map(line => ({ receiptItemId: line.item.id, qty: line.item.qty, unitPrice: line.unitPrice, amount: line.amount })) }, repairItems: { create: repairLines.map(line => ({ movementId: line.movement.id, qty: line.qty, unitPrice: line.unitPrice, amount: line.amount })) }, attachments: { create: attachments.map(file => ({ url: file.url, fileName: file.fileName || null, mimeType: file.mimeType || null, size: Number.isFinite(Number(file.size)) ? Number(file.size) : null })) } } });
+      const created = await tx.supplierBill.create({ data: { number: await nextDailyNumber(tx, "supplierBill", "BILL"), supplierId, invoiceNumber: String(invoiceNumber).trim(), invoiceDate: new Date(invoiceDate), dueDate: dueDate ? new Date(dueDate) : null, amount: total, status: total === 0 ? "PAID" : "OPEN", notes: notes || null, proofUrl: primaryProof.url, proofFileName: primaryProof.fileName || null, proofMimeType: primaryProof.mimeType || null, proofSize: Number.isFinite(Number(primaryProof.size)) ? Number(primaryProof.size) : null, createdById: req.user.id, receipts: { create: allocations }, items: { create: lines.map(line => ({ receiptItemId: line.item.id, qty: line.qty, unitPrice: line.unitPrice, amount: line.amount })) }, repairItems: { create: repairLines.map(line => ({ movementId: line.movement.id, qty: line.qty, unitPrice: line.unitPrice, amount: line.amount })) }, attachments: { create: attachments.map(file => ({ url: file.url, fileName: file.fileName || null, mimeType: file.mimeType || null, size: Number.isFinite(Number(file.size)) ? Number(file.size) : null })) } } });
       for (const line of lines) {
         await tx.purchaseOrderItem.update({ where: { id: line.item.purchaseOrderItemId }, data: { unitPrice: line.unitPrice } });
         if (line.item.purchaseOrderItem.partRepairId) {
@@ -889,7 +892,7 @@ router.post("/bills", async (req, res) => {
           await tx.truckSparePartAssignment.updateMany({ where: { stockUnit: { inventoryBatchId: line.item.inventoryBatch.id } }, data: { installCost: line.unitPrice } });
           await refreshAllocatedMovementCosts(tx, line.item.inventoryBatch.id);
         }
-        await tx.stockMovement.updateMany({ where: { note: `Penerimaan ${line.receipt.number}`, itemId: line.item.purchaseOrderItem.itemId }, data: { unitPrice: line.unitPrice, totalCost: line.amount } });
+        await tx.stockMovement.updateMany({ where: { note: `Penerimaan ${line.receipt.number}`, itemId: line.item.purchaseOrderItem.itemId }, data: { unitPrice: line.unitPrice, totalCost: Math.round(Number(line.item.qty) * line.unitPrice) } });
       }
       const difference = goodsTotal - previousValue;
       if (difference !== 0) await postJournal(tx, { date: new Date(invoiceDate), description: `Tagihan supplier ${invoiceNumber}`, sourceType: "SUPPLIER_BILL", sourceId: created.id, createdById: req.user.id, lines: difference > 0 ? [{ code: SYSTEM_ACCOUNTS.INVENTORY, debit: difference }, { code: SYSTEM_ACCOUNTS.AP, credit: difference }] : [{ code: SYSTEM_ACCOUNTS.AP, debit: Math.abs(difference) }, { code: SYSTEM_ACCOUNTS.INVENTORY, credit: Math.abs(difference) }] });
