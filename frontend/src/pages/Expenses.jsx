@@ -1,5 +1,5 @@
 // src/pages/Expenses.jsx - Corporate Minimalist Design
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, getAccessToken, openPrintDocument } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
@@ -137,6 +137,7 @@ export default function Expenses() {
 
   const [q, setQ] = useState("");
   const [methodFilter, setMethodFilter] = useState("");
+  const loadSequenceRef = useRef(0);
 
   const [isMobile, setIsMobile] = useState(() =>
     window.matchMedia("(max-width: 900px)").matches
@@ -281,7 +282,8 @@ export default function Expenses() {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
-  async function load() {
+  const load = useCallback(async () => {
+    const requestId = ++loadSequenceRef.current;
     setLoading(true);
     setErr("");
     try {
@@ -293,16 +295,18 @@ export default function Expenses() {
       params.set("all", "true");
 
       const data = await api(`/expenses?${params.toString()}`);
+      if (requestId !== loadSequenceRef.current) return;
       setItems(data.items || []);
       setTotal(data.total || 0);
       setPendingApprovalTotal(data.pendingApprovalTotal || 0);
       setStatusCounts({ SUBMITTED: 0, PAID: 0, APPROVED: 0, ...(data.statusCounts || {}) });
     } catch (e) {
+      if (requestId !== loadSequenceRef.current) return;
       setErr(e.message || "Gagal memuat expenses");
     } finally {
-      setLoading(false);
+      if (requestId === loadSequenceRef.current) setLoading(false);
     }
-  }
+  }, [methodFilter, q, reportMonth]);
 
   async function loadTrips(search = "") {
     setTripLoading(true);
@@ -425,13 +429,6 @@ export default function Expenses() {
 
   useEffect(() => {
     if (!allowed) return;
-    load();
-  // load is intentionally retriggered only by filter state.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [methodFilter, reportMonth]);
-
-  useEffect(() => {
-    if (!allowed) return;
     loadExpenseTrucks();
     loadReturns();
     loadEmployees();
@@ -442,10 +439,9 @@ export default function Expenses() {
     if (!allowed) return;
     const t = setTimeout(() => {
       load();
-    }, 250);
+    }, q.trim() ? 250 : 0);
     return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q]);
+  }, [allowed, load, q]);
 
   useEffect(() => {
     if (!allowed) return;
