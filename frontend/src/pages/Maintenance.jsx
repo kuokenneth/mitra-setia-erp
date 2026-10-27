@@ -326,7 +326,7 @@ function SearchableItemPicker({ items, value, onChange, disabled, placeholder, t
   );
 }
 
-function SearchableStockUnitPicker({ units, value, onChange, disabled, placeholder, testId }) {
+function SearchableStockUnitPicker({ units, value, onChange, onQueryChange, disabled, placeholder, testId }) {
   const [query, setQuery] = useState("");
   const selected = units.find((unit) => unit.id === value) || null;
   const filtered = useMemo(() => {
@@ -338,7 +338,7 @@ function SearchableStockUnitPicker({ units, value, onChange, disabled, placehold
 
   return (
     <div>
-      <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={placeholder} disabled={disabled} data-testid={testId} />
+      <Input value={query} onChange={(event) => { setQuery(event.target.value); onQueryChange?.(event.target.value); }} placeholder={placeholder} disabled={disabled} data-testid={testId} />
       <div style={{ maxHeight: 190, overflowY: "auto", marginTop: 8, border: `1px solid ${BRAND.border}`, borderRadius: 6, background: BRAND.white }}>
         {!filtered.length ? <div style={{ padding: 12, fontSize: 13, color: BRAND.textMuted }}>Tidak ada unit stok yang cocok.</div> : filtered.map((unit) => (
           <button type="button" key={unit.id} disabled={disabled} onClick={() => { onChange(unit.id); setQuery(""); }} style={{ display: "block", width: "100%", padding: "10px 12px", border: "none", borderBottom: `1px solid ${BRAND.border}`, background: unit.id === value ? BRAND.successBg : BRAND.white, boxShadow: unit.id === value ? `inset 4px 0 0 ${BRAND.primary}` : "none", color: BRAND.text, textAlign: "left", cursor: disabled ? "not-allowed" : "pointer", fontSize: 13 }}>
@@ -656,6 +656,7 @@ export default function Maintenance() {
   const truckSearchTimer = useRef(null);
   const serialSearchTimer = useRef(null);
   const donorSearchTimer = useRef(null);
+  const donorReplacementSearchTimer = useRef(null);
   const truckLoadRequestRef = useRef(0);
   const purchaseDamageInputRef = useRef(null);
   const purchaseDraftsRef = useRef(new Map());
@@ -962,6 +963,21 @@ export default function Maintenance() {
     const data = await api(`/maintenance/${activeJob.id}/available-units?category=TIRE`);
     setAvailableUnits(data.units || []);
     setDonorReplacementUnitId("");
+  }
+
+  function searchAvailableTireUnits(value) {
+    if (donorReplacementSearchTimer.current) clearTimeout(donorReplacementSearchTimer.current);
+    const keyword = value.trim();
+    donorReplacementSearchTimer.current = setTimeout(async () => {
+      try {
+        const suffix = keyword ? `&q=${encodeURIComponent(keyword)}` : "";
+        const data = await api(`/maintenance/${activeJob.id}/available-units?category=TIRE${suffix}`);
+        setAvailableUnits(data.units || []);
+      } catch (error) {
+        setAvailableUnits([]);
+        setErr(error.message || "Gagal mencari ban pengganti di Inventory");
+      }
+    }, 250);
   }
 
   function searchAvailableSerial(value) {
@@ -2032,7 +2048,7 @@ export default function Maintenance() {
                         <option value="INVENTORY_REPLACE">Ambil & pasang pengganti dari Inventory ke mobil donor</option>
                       </Select></div>
                       {donorMode === "SWAP" && <div className="maintenance-part-field"><label>Unit dari mobil servis untuk ditukar</label><SearchableSwapUnitPicker assignments={returnAssignments.filter((a) => a.stockUnit?.itemId === assignItemId)} value={returnStockUnitId} onChange={setReturnStockUnitId} plateNumber={activeJob?.truck?.plateNumber} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId} testId="swap-unit-search" /></div>}
-                      {donorMode === "INVENTORY_REPLACE" && <div className="maintenance-part-field"><label>Ban pengganti dari Inventory untuk mobil donor</label><SearchableStockUnitPicker units={availableUnits} value={donorReplacementUnitId} onChange={setDonorReplacementUnitId} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId} placeholder="Cari serial ban apa saja di Inventory..." testId="donor-replacement-unit-search" /></div>}
+                      {donorMode === "INVENTORY_REPLACE" && <div className="maintenance-part-field"><label>Ban pengganti dari Inventory untuk mobil donor</label><SearchableStockUnitPicker units={availableUnits} value={donorReplacementUnitId} onChange={setDonorReplacementUnitId} onQueryChange={searchAvailableTireUnits} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId} placeholder="Cari nomor seri dari semua ban di Inventory..." testId="donor-replacement-unit-search" /></div>}
                     </div>}
                     {serializedSource === "INVENTORY" && <div className="maintenance-part-field"><label>Unit lama yang dilepas <em>Opsional</em></label><Select value={returnStockUnitId} onChange={(e) => { const nextId=e.target.value; const nextAssignment=returnAssignments.find((assignment)=>assignment.stockUnitId===nextId); setReturnStockUnitId(nextId); if(nextAssignment?.stockUnit?.item?.category==="TIRE") changeReplaceDisposition("SECOND"); else setReplaceDisposition("IN_STOCK"); }} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId}>
                       <option value="">Tidak mengganti unit lama</option>
