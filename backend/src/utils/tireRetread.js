@@ -1,5 +1,8 @@
 function expectedRetreadSku(sourceSku) {
-  const sku = String(sourceSku || "").trim().toUpperCase();
+  const sku = String(sourceSku || "")
+    .trim()
+    .toUpperCase()
+    .replace(/_SECOND$/, "");
   if (!sku.startsWith("BAN_") || sku.startsWith("BAN_MASAK_")) return null;
   return `BAN_MASAK_${sku.slice(4)}`;
 }
