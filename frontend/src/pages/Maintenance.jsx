@@ -15,7 +15,7 @@ const OIL_CHANGE_INTERVAL_KM = 8500;
 const EMPTY_PURCHASE_REQUEST = { itemId: "", qty: 1, urgency: "URGENT", reason: "", notes: "", newItem: false, sku: "", name: "", unit: "PCS", isSerialized: false };
 const newPurchaseRequestLine = () => ({ key: `${Date.now()}-${Math.random()}`, itemId: "", qty: 1 });
 const retreadTarget = (sourceItem, items) => {
-  const sku = String(sourceItem?.sku || "").trim().toUpperCase();
+  const sku = String(sourceItem?.sku || "").trim().toUpperCase().replace(/_SECOND$/, "");
   const expectedSku = sku.startsWith("BAN_") && !sku.startsWith("BAN_MASAK_") ? `BAN_MASAK_${sku.slice(4)}` : "";
   return items.find((item) => String(item.sku || "").trim().toUpperCase() === expectedSku);
 };
