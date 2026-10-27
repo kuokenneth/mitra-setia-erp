@@ -600,15 +600,23 @@ router.patch("/:id/status", authRequired, async (req, res) => {
 
 ////////////////////////////////////////////////////
 // AVAILABLE SERIALIZED UNITS for assigning
-// GET /maintenance/:id/available-units?itemId=...
+// GET /maintenance/:id/available-units?itemId=...&q=...
 ////////////////////////////////////////////////////
 router.get("/:id/available-units", authRequired, async (req, res) => {
   try {
     const { itemId } = req.query;
+    const q = String(req.query.q || "").trim();
+    if (!itemId && q.length < 4) {
+      return res.status(400).json({ error: "Masukkan minimal 4 karakter nomor seri atau barcode" });
+    }
     const units = await prisma.stockUnit.findMany({
       where: {
-        itemId: String(itemId),
+        ...(itemId ? { itemId: String(itemId) } : {}),
         status: "IN_STOCK",
+        ...(q ? { OR: [
+          { serialNumber: { contains: q, mode: "insensitive" } },
+          { barcode: { contains: q, mode: "insensitive" } },
+        ] } : {}),
       },
       orderBy: [{ purchasedAt: "asc" }, { createdAt: "asc" }],
       include: { item: true, location: true },

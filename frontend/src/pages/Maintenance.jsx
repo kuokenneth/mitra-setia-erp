@@ -603,6 +603,9 @@ export default function Maintenance() {
   const [assignItemId, setAssignItemId] = useState("");
   const [availableUnits, setAvailableUnits] = useState([]);
   const [unitPick, setUnitPick] = useState("");
+  const [serialQuickSearch, setSerialQuickSearch] = useState("");
+  const [serialQuickUnits, setSerialQuickUnits] = useState([]);
+  const [serialQuickLoading, setSerialQuickLoading] = useState(false);
   const [assignNote, setAssignNote] = useState("");
   const [assigning, setAssigning] = useState(false);
   const [serializedSource, setSerializedSource] = useState("INVENTORY");
@@ -647,6 +650,7 @@ export default function Maintenance() {
   const [historyLoading, setHistoryLoading] = useState({ serialized: false, stock: false });
 
   const truckSearchTimer = useRef(null);
+  const serialSearchTimer = useRef(null);
   const truckLoadRequestRef = useRef(0);
   const purchaseDamageInputRef = useRef(null);
   const purchaseDraftsRef = useRef(new Map());
@@ -725,6 +729,8 @@ export default function Maintenance() {
       setSerializedHistory(null);
       setAvailableUnits([]);
       setUnitPick("");
+      setSerialQuickSearch("");
+      setSerialQuickUnits([]);
       setAssignNote("");
       setSerializedSource("INVENTORY");
       setDonorUnits([]);
@@ -941,6 +947,47 @@ export default function Maintenance() {
     const units = data.units || [];
     setAvailableUnits(units);
     setUnitPick("");
+  }
+
+  function searchAvailableSerial(value) {
+    setSerialQuickSearch(value);
+    setSerialQuickUnits([]);
+    if (serialSearchTimer.current) clearTimeout(serialSearchTimer.current);
+    const keyword = value.trim();
+    if (keyword.length < 4 || !activeJob?.id) {
+      setSerialQuickLoading(false);
+      return;
+    }
+    setSerialQuickLoading(true);
+    serialSearchTimer.current = setTimeout(async () => {
+      try {
+        const data = await api(`/maintenance/${activeJob.id}/available-units?q=${encodeURIComponent(keyword)}`);
+        setSerialQuickUnits(data.units || []);
+      } catch (error) {
+        setSerialQuickUnits([]);
+        setErr(error.message || "Gagal mencari nomor seri");
+      } finally {
+        setSerialQuickLoading(false);
+      }
+    }, 250);
+  }
+
+  async function selectAvailableSerial(unit) {
+    const itemId = unit?.itemId || unit?.item?.id;
+    if (!itemId) return;
+    setAssignItemId(itemId);
+    setAvailableUnits([]);
+    setUnitPick("");
+    setDonorUnits([]);
+    setDonorAssignmentId("");
+    setDonorMode("TAKE_ONLY");
+    setReturnAssignments([]);
+    setReturnStockUnitId("");
+    setReplaceDisposition("IN_STOCK");
+    await Promise.all([loadAvailableUnits(itemId), loadDonorUnits(itemId), loadReturnAssignments(itemId), loadPartHistory(itemId, "serialized")]);
+    setUnitPick(unit.id);
+    setSerialQuickSearch(unit.serialNumber || unit.barcode || "");
+    setSerialQuickUnits([]);
   }
 
   async function loadDonorUnits(itemId) {
@@ -1849,6 +1896,24 @@ export default function Maintenance() {
                   </div>
 
                   <div className={`maintenance-serialized-grid source-${serializedSource.toLowerCase()}`}>
+                    {serializedSource === "INVENTORY" && <div className="maintenance-part-field item-field"><label>Cari cepat nomor seri</label>
+                      <Input
+                        value={serialQuickSearch}
+                        onChange={(event) => searchAvailableSerial(event.target.value)}
+                        placeholder="Ketik minimal 4 digit terakhir nomor seri..."
+                        disabled={!allowed || activeJob.status !== "OPEN"}
+                        data-testid="serial-quick-search"
+                      />
+                      {serialQuickSearch.trim().length > 0 && serialQuickSearch.trim().length < 4 && <div style={{ marginTop: 7, fontSize: 12, color: BRAND.textMuted }}>Ketik minimal 4 digit untuk mulai mencari.</div>}
+                      {serialQuickLoading && <div style={{ marginTop: 7, fontSize: 12, color: BRAND.textMuted }}>Mencari unit Inventory...</div>}
+                      {!serialQuickLoading && serialQuickSearch.trim().length >= 4 && serialQuickUnits.length === 0 && !unitPick && <div style={{ marginTop: 7, fontSize: 12, color: BRAND.textMuted }}>Tidak ada unit tersedia dengan nomor tersebut.</div>}
+                      {serialQuickUnits.length > 0 && <div style={{ maxHeight: 190, overflowY: "auto", marginTop: 8, border: `1px solid ${BRAND.border}`, borderRadius: 6, background: BRAND.white }}>
+                        {serialQuickUnits.map((unit) => <button type="button" key={unit.id} onClick={() => selectAvailableSerial(unit)} style={{ display: "block", width: "100%", padding: "10px 12px", border: "none", borderBottom: `1px solid ${BRAND.border}`, background: BRAND.white, color: BRAND.text, textAlign: "left", cursor: "pointer", fontSize: 13 }}>
+                          <strong>{unit.serialNumber || unit.barcode}</strong> — {unit.item?.name || unit.item?.sku} <span style={{ color: BRAND.textMuted }}>• {unit.location?.name || "Tanpa lokasi"}</span>
+                        </button>)}
+                      </div>}
+                      {unitPick && serialQuickSearch && <div style={{ marginTop: 8, padding: "9px 11px", borderRadius: 6, border: `1px solid ${BRAND.primary}`, background: BRAND.successBg, fontSize: 12, color: BRAND.primary, fontWeight: 700 }}>✓ Nomor seri dipilih; jenis sparepart terisi otomatis.</div>}
+                    </div>}
                     <div className="maintenance-part-field item-field"><label>Jenis sparepart</label><SearchableItemPicker
                       items={serializedItems}
                       value={assignItemId}
