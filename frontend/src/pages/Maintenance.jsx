@@ -334,7 +334,7 @@ function SearchableStockUnitPicker({ units, value, onChange, disabled, placehold
     if (!keyword) return units.slice(0, 100);
     return units.filter((unit) => `${unit.serialNumber || ""} ${unit.barcode || ""} ${unit.location?.name || ""}`.toLowerCase().includes(keyword)).slice(0, 100);
   }, [units, query]);
-  const label = (unit) => `${unit.serialNumber || unit.barcode || unit.id.slice(0, 8)} • ${unit.location?.name || "Tanpa lokasi"}`;
+  const label = (unit) => `${unit.serialNumber || unit.barcode || unit.id.slice(0, 8)} • ${unit.item?.name || unit.item?.sku || "Item tidak diketahui"} • ${unit.location?.name || "Tanpa lokasi"}`;
 
   return (
     <div>
@@ -955,6 +955,13 @@ export default function Maintenance() {
     const units = data.units || [];
     setAvailableUnits(units);
     setUnitPick("");
+  }
+
+  async function loadAvailableTireUnits() {
+    if (!activeJob?.id) return;
+    const data = await api(`/maintenance/${activeJob.id}/available-units?category=TIRE`);
+    setAvailableUnits(data.units || []);
+    setDonorReplacementUnitId("");
   }
 
   function searchAvailableSerial(value) {
@@ -2001,13 +2008,13 @@ export default function Maintenance() {
                       testId="stock-unit-search"
                     /></div> : <div className="maintenance-part-field"><label>Unit dan mobil donor</label><SearchableDonorUnitPicker assignments={donorUnits} value={donorAssignmentId} onChange={setDonorAssignmentId} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId} testId="donor-unit-search" /></div>}
                     {serializedSource === "DONOR" && <div className="maintenance-donor-transfer-column">
-                      <div className="maintenance-part-field"><label>Cara pemindahan</label><Select value={donorMode} onChange={(e) => { const mode = e.target.value; setDonorMode(mode); if (mode !== "SWAP") setReturnStockUnitId(""); if (mode !== "INVENTORY_REPLACE") setDonorReplacementUnitId(""); }} disabled={!allowed || activeJob.status !== "OPEN" || !donorAssignmentId}>
+                      <div className="maintenance-part-field"><label>Cara pemindahan</label><Select value={donorMode} onChange={async (e) => { const mode = e.target.value; setDonorMode(mode); if (mode !== "SWAP") setReturnStockUnitId(""); if (mode !== "INVENTORY_REPLACE") { setDonorReplacementUnitId(""); if (assignItemId) await loadAvailableUnits(assignItemId); } else { await loadAvailableTireUnits(); } }} disabled={!allowed || activeJob.status !== "OPEN" || !donorAssignmentId}>
                         <option value="TAKE_ONLY">Ambil saja — mobil donor dibiarkan tanpa unit</option>
                         <option value="SWAP">Tukar sparepart antar mobil</option>
                         <option value="INVENTORY_REPLACE">Ambil & pasang pengganti dari Inventory ke mobil donor</option>
                       </Select></div>
                       {donorMode === "SWAP" && <div className="maintenance-part-field"><label>Unit dari mobil servis untuk ditukar</label><SearchableSwapUnitPicker assignments={returnAssignments.filter((a) => a.stockUnit?.itemId === assignItemId)} value={returnStockUnitId} onChange={setReturnStockUnitId} plateNumber={activeJob?.truck?.plateNumber} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId} testId="swap-unit-search" /></div>}
-                      {donorMode === "INVENTORY_REPLACE" && <div className="maintenance-part-field"><label>Unit pengganti dari Inventory untuk mobil donor</label><SearchableStockUnitPicker units={availableUnits} value={donorReplacementUnitId} onChange={setDonorReplacementUnitId} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId} placeholder="Cari serial unit pengganti..." testId="donor-replacement-unit-search" /></div>}
+                      {donorMode === "INVENTORY_REPLACE" && <div className="maintenance-part-field"><label>Ban pengganti dari Inventory untuk mobil donor</label><SearchableStockUnitPicker units={availableUnits} value={donorReplacementUnitId} onChange={setDonorReplacementUnitId} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId} placeholder="Cari serial ban apa saja di Inventory..." testId="donor-replacement-unit-search" /></div>}
                     </div>}
                     {serializedSource === "INVENTORY" && <div className="maintenance-part-field"><label>Unit lama yang dilepas <em>Opsional</em></label><Select value={returnStockUnitId} onChange={(e) => { const nextId=e.target.value; const nextAssignment=returnAssignments.find((assignment)=>assignment.stockUnitId===nextId); setReturnStockUnitId(nextId); if(nextAssignment?.stockUnit?.item?.category==="TIRE") changeReplaceDisposition("SECOND"); else setReplaceDisposition("IN_STOCK"); }} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId}>
                       <option value="">Tidak mengganti unit lama</option>

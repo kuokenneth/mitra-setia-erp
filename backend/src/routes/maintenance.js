@@ -606,13 +606,15 @@ router.get("/:id/available-units", authRequired, async (req, res) => {
   try {
     const { itemId } = req.query;
     const q = String(req.query.q || "").trim();
-    if (!itemId && q.length < 4) {
+    const category = String(req.query.category || "").trim().toUpperCase();
+    if (!itemId && !category && q.length < 4) {
       return res.status(400).json({ error: "Masukkan minimal 4 karakter nomor seri atau barcode" });
     }
     const units = await prisma.stockUnit.findMany({
       where: {
         ...(itemId ? { itemId: String(itemId) } : {}),
         status: "IN_STOCK",
+        ...(category ? { item: { category, isSerialized: true } } : {}),
         ...(q ? { OR: [
           { serialNumber: { contains: q, mode: "insensitive" } },
           { barcode: { contains: q, mode: "insensitive" } },
@@ -874,7 +876,7 @@ router.post("/:id/transfer-donor-unit", authRequired, async (req, res) => {
     const result = await prisma.$transaction(async tx => {
       const job = await tx.truckMaintenance.findUnique({ where: { id: req.params.id }, include: { truck: true } });
       if (!job || job.status !== "OPEN") throw new Error("Servis aktif tidak ditemukan");
-      const donor = await tx.truckSparePartAssignment.findUnique({ where: { id: assignmentId }, include: { truck: true, stockUnit: true } });
+      const donor = await tx.truckSparePartAssignment.findUnique({ where: { id: assignmentId }, include: { truck: true, stockUnit: { include: { item: true } } } });
       if (!donor || donor.removedAt || donor.stockUnit.status !== "ASSIGNED") throw new Error("Sparepart donor sudah tidak tersedia");
       if (donor.truckId === job.truckId) throw new Error("Unit sudah terpasang pada mobil servis ini");
       // If the donor truck is also being serviced, mirror the removal into its
@@ -892,10 +894,11 @@ router.post("/:id/transfer-donor-unit", authRequired, async (req, res) => {
       if (returned && returned.stockUnit.itemId !== donor.stockUnit.itemId) throw new Error("Unit pengganti dan unit donor harus memiliki jenis barang yang sama");
       const inventoryReplacement = replacementStockUnitId ? await tx.stockUnit.findUnique({
         where: { id: replacementStockUnitId },
-        include: { location: true },
+        include: { location: true, item: true },
       }) : null;
       if (replacementStockUnitId && (!inventoryReplacement || inventoryReplacement.status !== "IN_STOCK")) throw new Error("Unit pengganti dari Inventory sudah tidak tersedia");
-      if (inventoryReplacement && inventoryReplacement.itemId !== donor.stockUnit.itemId) throw new Error("Unit pengganti Inventory dan unit donor harus memiliki jenis barang yang sama");
+      if (inventoryReplacement && donor.stockUnit.item?.category === "TIRE" && inventoryReplacement.item?.category !== "TIRE") throw new Error("Unit pengganti harus berupa ban berserial dari Inventory");
+      if (inventoryReplacement && donor.stockUnit.item?.category !== "TIRE" && inventoryReplacement.itemId !== donor.stockUnit.itemId) throw new Error("Untuk komponen selain ban, unit pengganti harus memiliki jenis barang yang sama");
       if (inventoryReplacement && !inventoryReplacement.locationId) throw new Error("Lokasi unit pengganti Inventory tidak ditemukan");
       const now = new Date();
       const donorInstallCost = donor.installCost ?? donor.stockUnit.purchasePrice ?? 0;
