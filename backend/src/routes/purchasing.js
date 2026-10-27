@@ -127,7 +127,7 @@ async function syncSupplierPaymentExpense(tx, paymentId, approvedById) {
 
 router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"));
 router.get("/overview", async (_req, res) => {
-  const [requests, orders, suppliers, locations, items, retreadingUnits, repairingUnits, bills, trucks, nonSerializedRepairs, nonSerializedRepairReceipts] = await Promise.all([
+  const [requests, orders, suppliers, locations, items, retreadingUnits, repairingUnits, bills, trucks, nonSerializedRepairs, nonSerializedRepairReceipts, directRetreadReceipts] = await Promise.all([
     prisma.purchaseRequest.findMany({ include: { maintenance: { include: { truck: true } }, damageProofs: true, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } }, partRepair: { include: { stockUnit: true } } } }, createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } }, orderBy: { createdAt: "desc" } }),
     prisma.purchaseOrder.findMany({ include: includePO, orderBy: { createdAt: "desc" } }),
     prisma.supplier.findMany({ orderBy: { name: "asc" } }), prisma.inventoryLocation.findMany({ orderBy: { name: "asc" } }), prisma.item.findMany({ orderBy: { name: "asc" } }),
@@ -171,6 +171,27 @@ router.get("/overview", async (_req, res) => {
       select: { id: true, qty: true, unitPrice: true, totalCost: true, note: true, createdAt: true, item: true, toLocation: true, createdBy: { select: { name: true } }, supplierBillRepairItem: { include: { bill: true } } },
       orderBy: { createdAt: "desc" },
     }),
+    prisma.stockMovement.findMany({
+      where: { type: "IN", stockUnitId: { not: null }, note: { startsWith: "Ban selesai dimasak" } },
+      include: {
+        item: true,
+        toLocation: true,
+        createdBy: { select: { name: true } },
+        supplierBillRepairItem: { include: { bill: true } },
+        stockUnit: {
+          select: {
+            serialNumber: true,
+            tireRetreads: {
+              where: { status: "COMPLETED" },
+              select: { supplierId: true, supplier: true, completedAt: true },
+              orderBy: { completedAt: "desc" },
+              take: 1,
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
   const repairReceiptsByMovement = nonSerializedRepairReceipts.reduce((map, receipt) => {
     const movementId = String(receipt.note || "").match(/^REPAIR_SECOND_OF:([^ ·]+)/)?.[1];
@@ -199,7 +220,19 @@ router.get("/overview", async (_req, res) => {
     repairVendor: repair.repairVendor,
     maintenance: repair.maintenance,
   }))).filter(receipt => receipt.repairSupplierId);
-  res.json({ ok: true, requests, orders, suppliers, locations, items, retreadingUnits, repairingUnits, bills, trucks, nonSerializedRepairQueue, repairBillCandidates });
+  const directRetreadReceiptRows = directRetreadReceipts.map(receipt => {
+    const retread = receipt.stockUnit?.tireRetreads?.[0];
+    return {
+      ...receipt,
+      repairSupplierId: retread?.supplierId || null,
+      repairSupplier: retread?.supplier || null,
+      repairVendor: retread?.supplier?.name || "Vendor masak ban",
+      retreadSerialNumber: receipt.stockUnit?.serialNumber || null,
+      isDirectRetread: true,
+    };
+  }).filter(receipt => receipt.repairSupplierId);
+  repairBillCandidates.push(...directRetreadReceiptRows);
+  res.json({ ok: true, requests, orders, suppliers, locations, items, retreadingUnits, repairingUnits, bills, trucks, nonSerializedRepairQueue, directRetreadReceipts: directRetreadReceiptRows, repairBillCandidates });
 });
 
 async function receiveNonSerializedRepair(tx, { movementId, qty, unitPrice, locationId, notes, userId }) {
@@ -859,12 +892,28 @@ router.post("/bills", async (req, res) => {
     if (lines.length !== selectedItemIds.size) throw new Error("Sebagian barang penerimaan tidak ditemukan atau tidak sesuai supplier");
     const repairIds = [...new Set(repairMovementIds.map(String))];
     const repairMovements = await prisma.stockMovement.findMany({
-      where: { id: { in: repairIds }, type: "IN", stockUnitId: null, note: { startsWith: "REPAIR_SECOND_OF:" } },
-      include: { item: true, supplierBillRepairItem: true },
+      where: {
+        id: { in: repairIds },
+        type: "IN",
+        OR: [
+          { stockUnitId: null, note: { startsWith: "REPAIR_SECOND_OF:" } },
+          { stockUnitId: { not: null }, note: { startsWith: "Ban selesai dimasak" } },
+        ],
+      },
+      include: {
+        item: true,
+        supplierBillRepairItem: true,
+        stockUnit: { include: { tireRetreads: { where: { status: "COMPLETED" }, orderBy: { completedAt: "desc" }, take: 1 } } },
+      },
     });
     if (repairMovements.length !== repairIds.length) throw new Error("Sebagian penerimaan jasa perbaikan tidak ditemukan");
     for (const movement of repairMovements) {
       if (movement.supplierBillRepairItem) throw new Error(`${movement.item.name} sudah pernah ditagihkan`);
+      if (movement.stockUnitId) {
+        const retreadSupplierId = movement.stockUnit?.tireRetreads?.[0]?.supplierId;
+        if (!retreadSupplierId || retreadSupplierId !== supplierId) throw new Error(`${movement.item.name} tidak berasal dari supplier masak ban yang dipilih`);
+        continue;
+      }
       const sourceId = String(movement.note || "").match(/^REPAIR_SECOND_OF:([^ ·]+)/)?.[1];
       const source = sourceId ? await prisma.stockMovement.findUnique({ where: { id: sourceId }, select: { note: true } }) : null;
       const sourceSupplierId = String(source?.note || "").match(/REPAIR_SUPPLIER_ID:([^ ·]+)/)?.[1];
