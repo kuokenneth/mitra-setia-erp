@@ -969,6 +969,14 @@ export default function Maintenance() {
     setSerialQuickUnits([]);
     if (serialSearchTimer.current) clearTimeout(serialSearchTimer.current);
     const keyword = value.trim();
+    if (!keyword) {
+      setAssignItemId("");
+      setAvailableUnits([]);
+      setUnitPick("");
+      setReturnAssignments([]);
+      setReturnStockUnitId("");
+      setReplaceDisposition("IN_STOCK");
+    }
     if (keyword.length < 4 || !activeJob?.id) {
       setSerialQuickLoading(false);
       return;
@@ -1017,6 +1025,16 @@ export default function Maintenance() {
     setDonorQuickUnits([]);
     if (donorSearchTimer.current) clearTimeout(donorSearchTimer.current);
     const keyword = value.trim();
+    if (!keyword) {
+      setAssignItemId("");
+      setDonorUnits([]);
+      setDonorAssignmentId("");
+      setDonorReplacementUnitId("");
+      setAvailableUnits([]);
+      setReturnAssignments([]);
+      setReturnStockUnitId("");
+      setDonorMode("TAKE_ONLY");
+    }
     if (keyword.length < 4 || !activeJob?.id) {
       setDonorQuickLoading(false);
       return;
