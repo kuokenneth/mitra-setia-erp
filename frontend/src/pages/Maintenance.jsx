@@ -303,7 +303,7 @@ function SearchableItemPicker({ items, value, onChange, disabled, placeholder, t
         disabled={disabled}
         data-testid={testId}
       />
-      <div style={{ maxHeight: 250, overflowY: "auto", marginTop: 8, border: `1px solid ${BRAND.border}`, borderRadius: 6, background: BRAND.white }}>
+      <div style={{ height: 250, overflowY: "auto", marginTop: 8, border: `1px solid ${BRAND.border}`, borderRadius: 6, background: BRAND.white }}>
         {!filtered.length ? (
           <div style={{ padding: 12, fontSize: 13, color: BRAND.textMuted }}>Tidak ada sparepart yang cocok.</div>
         ) : filtered.map((item) => (
