@@ -785,11 +785,19 @@ router.get("/:id/assigned-units", authRequired, async (req, res) => {
 router.get("/:id/donor-units", authRequired, async (req, res) => {
   try {
     const itemId = String(req.query.itemId || "");
+    const q = String(req.query.q || "").trim();
     const job = await prisma.truckMaintenance.findUnique({ where: { id: req.params.id }, select: { truckId: true, status: true } });
     if (!job || job.status !== "OPEN") return res.status(400).json({ error: "Servis aktif tidak ditemukan" });
-    if (!itemId) return res.status(400).json({ error: "Pilih jenis sparepart" });
+    if (!itemId && q.length < 4) return res.status(400).json({ error: "Masukkan minimal 4 karakter nomor seri atau barcode" });
     const assignments = await prisma.truckSparePartAssignment.findMany({
-      where: { removedAt: null, truckId: { not: job.truckId }, stockUnit: { itemId, status: "ASSIGNED" } },
+      where: { removedAt: null, truckId: { not: job.truckId }, stockUnit: {
+        ...(itemId ? { itemId } : {}),
+        status: "ASSIGNED",
+        ...(q ? { OR: [
+          { serialNumber: { contains: q, mode: "insensitive" } },
+          { barcode: { contains: q, mode: "insensitive" } },
+        ] } : {}),
+      } },
       include: { truck: true, stockUnit: { include: { item: true } } },
       orderBy: { installedAt: "asc" }, take: 100,
     });
@@ -861,6 +869,8 @@ router.post("/:id/transfer-donor-unit", authRequired, async (req, res) => {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
     const assignmentId = String(req.body.assignmentId || "");
     const returnStockUnitId = String(req.body.returnStockUnitId || "");
+    const replacementStockUnitId = String(req.body.replacementStockUnitId || "");
+    if (returnStockUnitId && replacementStockUnitId) return res.status(400).json({ error: "Pilih salah satu: tukar antar mobil atau ganti donor dari Inventory" });
     const result = await prisma.$transaction(async tx => {
       const job = await tx.truckMaintenance.findUnique({ where: { id: req.params.id }, include: { truck: true } });
       if (!job || job.status !== "OPEN") throw new Error("Servis aktif tidak ditemukan");
@@ -880,6 +890,13 @@ router.post("/:id/transfer-donor-unit", authRequired, async (req, res) => {
       }) : null;
       if (returnStockUnitId && (!returned || returned.stockUnit.status !== "ASSIGNED")) throw new Error("Unit lama yang akan dikembalikan tidak ditemukan");
       if (returned && returned.stockUnit.itemId !== donor.stockUnit.itemId) throw new Error("Unit pengganti dan unit donor harus memiliki jenis barang yang sama");
+      const inventoryReplacement = replacementStockUnitId ? await tx.stockUnit.findUnique({
+        where: { id: replacementStockUnitId },
+        include: { location: true },
+      }) : null;
+      if (replacementStockUnitId && (!inventoryReplacement || inventoryReplacement.status !== "IN_STOCK")) throw new Error("Unit pengganti dari Inventory sudah tidak tersedia");
+      if (inventoryReplacement && inventoryReplacement.itemId !== donor.stockUnit.itemId) throw new Error("Unit pengganti Inventory dan unit donor harus memiliki jenis barang yang sama");
+      if (inventoryReplacement && !inventoryReplacement.locationId) throw new Error("Lokasi unit pengganti Inventory tidak ditemukan");
       const now = new Date();
       const donorInstallCost = donor.installCost ?? donor.stockUnit.purchasePrice ?? 0;
       const returnedInstallCost = returned ? (returned.installCost ?? returned.stockUnit.purchasePrice ?? 0) : 0;
@@ -890,10 +907,19 @@ router.post("/:id/transfer-donor-unit", authRequired, async (req, res) => {
       if (returned) await tx.truckSparePartAssignment.update({ where: { id: returned.id }, data: { removedAt: now, installCost: 0, maintenanceId: job.id, note: [returned.note, `Dikembalikan ke ${donor.truck.plateNumber} (nilai Rp${returnedInstallCost} ikut unit)`].filter(Boolean).join(" · ") } });
       const installed = await tx.truckSparePartAssignment.create({ data: { truckId: job.truckId, stockUnitId: donor.stockUnitId, installedAt: now, installCost: donorInstallCost, currency: donor.currency || "IDR", note: String(req.body.note || `Donor dari ${donor.truck.plateNumber}`), maintenanceId: job.id, createdById: req.user.id } });
       const returnedInstallation = returned ? await tx.truckSparePartAssignment.create({ data: { truckId: donor.truckId, stockUnitId: returned.stockUnitId, installedAt: now, installCost: returnedInstallCost, currency: returned.currency || "IDR", note: `Pertukaran dari ${job.truck.plateNumber}`, maintenanceId: donorJob?.id || job.id, createdById: req.user.id } }) : null;
+      let inventoryReplacementInstallation = null;
+      if (inventoryReplacement) {
+        const replacementCost = inventoryReplacement.purchasePrice ?? 0;
+        const decremented = await tx.inventoryStock.updateMany({ where: { itemId: inventoryReplacement.itemId, locationId: inventoryReplacement.locationId, qty: { gte: 1 } }, data: { qty: { decrement: 1 } } });
+        if (!decremented.count) throw new Error("Stok unit pengganti pada lokasi Inventory sudah habis");
+        inventoryReplacementInstallation = await tx.truckSparePartAssignment.create({ data: { truckId: donor.truckId, stockUnitId: inventoryReplacement.id, installedAt: now, installCost: replacementCost, currency: inventoryReplacement.currency || "IDR", note: `Pengganti dari Inventory setelah unit dipindahkan ke ${job.truck.plateNumber}`, maintenanceId: donorJob?.id || job.id, createdById: req.user.id } });
+        await tx.stockUnit.update({ where: { id: inventoryReplacement.id }, data: { status: "ASSIGNED", locationId: null } });
+        await tx.stockMovement.create({ data: { type: "OUT", itemId: inventoryReplacement.itemId, qty: 1, unitPrice: replacementCost, totalCost: replacementCost, stockUnitId: inventoryReplacement.id, fromLocationId: inventoryReplacement.locationId, toTruckId: donor.truckId, maintenanceId: donorJob?.id || job.id, createdById: req.user.id, note: `Unit pengganti Inventory dipasang ke ${donor.truck.plateNumber}` } });
+      }
       await tx.stockMovement.create({ data: { type: "ADJUST", itemId: donor.stockUnit.itemId, qty: 0, stockUnitId: donor.stockUnitId, fromTruckId: donor.truckId, toTruckId: job.truckId, maintenanceId: job.id, createdById: req.user.id, note: `Transfer unit dari ${donor.truck.plateNumber} ke ${job.truck.plateNumber}` } });
       if (donorJob) await tx.stockMovement.create({ data: { type: "ADJUST", itemId: donor.stockUnit.itemId, qty: 0, stockUnitId: donor.stockUnitId, fromTruckId: donor.truckId, toTruckId: job.truckId, maintenanceId: donorJob.id, createdById: req.user.id, note: `Otomatis dilepas dari ${donor.truck.plateNumber} · dipindahkan ke ${job.truck.plateNumber} melalui servis ${job.number}` } });
       if (returned) await tx.stockMovement.create({ data: { type: "ADJUST", itemId: returned.stockUnit.itemId, qty: 0, stockUnitId: returned.stockUnitId, fromTruckId: job.truckId, toTruckId: donor.truckId, maintenanceId: job.id, createdById: req.user.id, note: `Unit lama dikembalikan dari ${job.truck.plateNumber} ke ${donor.truck.plateNumber}` } });
-      return { installed, returnedInstallation, donorMaintenance: donorJob || null };
+      return { installed, returnedInstallation, inventoryReplacementInstallation, donorMaintenance: donorJob || null };
     });
     res.json({ ok: true, ...result });
   } catch (e) { res.status(400).json({ error: e.message || "Gagal memindahkan sparepart" }); }

@@ -612,6 +612,10 @@ export default function Maintenance() {
   const [donorUnits, setDonorUnits] = useState([]);
   const [donorAssignmentId, setDonorAssignmentId] = useState("");
   const [donorMode, setDonorMode] = useState("TAKE_ONLY");
+  const [donorQuickSearch, setDonorQuickSearch] = useState("");
+  const [donorQuickUnits, setDonorQuickUnits] = useState([]);
+  const [donorQuickLoading, setDonorQuickLoading] = useState(false);
+  const [donorReplacementUnitId, setDonorReplacementUnitId] = useState("");
   const [returnAssignments, setReturnAssignments] = useState([]);
   const [returnStockUnitId, setReturnStockUnitId] = useState("");
   const [replaceDisposition, setReplaceDisposition] = useState("IN_STOCK");
@@ -651,6 +655,7 @@ export default function Maintenance() {
 
   const truckSearchTimer = useRef(null);
   const serialSearchTimer = useRef(null);
+  const donorSearchTimer = useRef(null);
   const truckLoadRequestRef = useRef(0);
   const purchaseDamageInputRef = useRef(null);
   const purchaseDraftsRef = useRef(new Map());
@@ -736,6 +741,9 @@ export default function Maintenance() {
       setDonorUnits([]);
       setDonorAssignmentId("");
       setDonorMode("TAKE_ONLY");
+      setDonorQuickSearch("");
+      setDonorQuickUnits([]);
+      setDonorReplacementUnitId("");
       setReturnAssignments([]);
       setReturnStockUnitId("");
       setReplaceDisposition("IN_STOCK");
@@ -997,6 +1005,42 @@ export default function Maintenance() {
     setDonorAssignmentId("");
   }
 
+  function searchInstalledDonorSerial(value) {
+    setDonorQuickSearch(value);
+    setDonorQuickUnits([]);
+    if (donorSearchTimer.current) clearTimeout(donorSearchTimer.current);
+    const keyword = value.trim();
+    if (keyword.length < 4 || !activeJob?.id) {
+      setDonorQuickLoading(false);
+      return;
+    }
+    setDonorQuickLoading(true);
+    donorSearchTimer.current = setTimeout(async () => {
+      try {
+        const data = await api(`/maintenance/${activeJob.id}/donor-units?q=${encodeURIComponent(keyword)}`);
+        setDonorQuickUnits(data.units || []);
+      } catch (error) {
+        setDonorQuickUnits([]);
+        setErr(error.message || "Gagal mencari unit yang terpasang");
+      } finally {
+        setDonorQuickLoading(false);
+      }
+    }, 250);
+  }
+
+  async function selectInstalledDonorSerial(assignment) {
+    const itemId = assignment?.stockUnit?.itemId || assignment?.stockUnit?.item?.id;
+    if (!itemId) return;
+    setAssignItemId(itemId);
+    setDonorAssignmentId("");
+    setDonorReplacementUnitId("");
+    setReturnStockUnitId("");
+    await Promise.all([loadDonorUnits(itemId), loadAvailableUnits(itemId), loadReturnAssignments(itemId), loadPartHistory(itemId, "serialized")]);
+    setDonorAssignmentId(assignment.id);
+    setDonorQuickSearch(assignment.stockUnit?.serialNumber || assignment.stockUnit?.barcode || "");
+    setDonorQuickUnits([]);
+  }
+
   async function loadDonorStocks(itemId) {
     if (!activeJob?.id || !itemId) return;
     const res = await api(`/maintenance/${activeJob.id}/donor-stock?itemId=${encodeURIComponent(itemId)}`);
@@ -1166,8 +1210,8 @@ export default function Maintenance() {
     if (!activeJob?.id || !donorAssignmentId) return;
     setAssigning(true); setErr("");
     try {
-      await api(`/maintenance/${activeJob.id}/transfer-donor-unit`, { method: "POST", body: JSON.stringify({ assignmentId: donorAssignmentId, returnStockUnitId, note: assignNote || undefined }) });
-      setDonorAssignmentId(""); setReturnStockUnitId(""); setAssignNote("");
+      await api(`/maintenance/${activeJob.id}/transfer-donor-unit`, { method: "POST", body: JSON.stringify({ assignmentId: donorAssignmentId, returnStockUnitId, replacementStockUnitId: donorMode === "INVENTORY_REPLACE" ? donorReplacementUnitId : undefined, note: assignNote || undefined }) });
+      setDonorAssignmentId(""); setReturnStockUnitId(""); setDonorReplacementUnitId(""); setAssignNote("");
       await refreshDetail(); await load();
       if (assignItemId) await Promise.all([loadDonorUnits(assignItemId), loadReturnAssignments(assignItemId)]);
     } catch (e) { setErr(e.message || "Gagal memindahkan sparepart donor"); }
@@ -1891,8 +1935,8 @@ export default function Maintenance() {
                   <div className="maintenance-part-box-title"><span>A</span><div><strong>Pasang unit berserial</strong><small>Ban, aki, atau komponen yang memiliki nomor seri.</small></div></div>
 
                   <div className="maintenance-source-switch">
-                    <button type="button" className={serializedSource === "INVENTORY" ? "active" : ""} onClick={() => { setSerializedSource("INVENTORY"); setDonorAssignmentId(""); setDonorMode("TAKE_ONLY"); setReturnStockUnitId(""); }}><span>01</span><div><strong>Dari Inventory</strong><small>Pasang baru atau ganti unit terpasang</small></div></button>
-                    <button type="button" className={serializedSource === "DONOR" ? "active" : ""} onClick={() => { setSerializedSource("DONOR"); setUnitPick(""); setReturnStockUnitId(""); setReplaceDisposition("IN_STOCK"); }}><span>02</span><div><strong>Dari mobil lain</strong><small>Ambil saja atau tukar antar armada</small></div></button>
+                    <button type="button" className={serializedSource === "INVENTORY" ? "active" : ""} onClick={() => { setSerializedSource("INVENTORY"); setDonorAssignmentId(""); setDonorReplacementUnitId(""); setDonorMode("TAKE_ONLY"); setReturnStockUnitId(""); }}><span>01</span><div><strong>Dari Inventory</strong><small>Pasang baru atau ganti unit terpasang</small></div></button>
+                    <button type="button" className={serializedSource === "DONOR" ? "active" : ""} onClick={() => { setSerializedSource("DONOR"); setUnitPick(""); setReturnStockUnitId(""); setReplaceDisposition("IN_STOCK"); }}><span>02</span><div><strong>Dari mobil lain</strong><small>Ambil, tukar, atau pasang pengganti dari Inventory</small></div></button>
                   </div>
 
                   <div className={`maintenance-serialized-grid source-${serializedSource.toLowerCase()}`}>
@@ -1914,6 +1958,18 @@ export default function Maintenance() {
                       </div>}
                       {unitPick && serialQuickSearch && <div style={{ marginTop: 8, padding: "9px 11px", borderRadius: 6, border: `1px solid ${BRAND.primary}`, background: BRAND.successBg, fontSize: 12, color: BRAND.primary, fontWeight: 700 }}>✓ Nomor seri dipilih; jenis sparepart terisi otomatis.</div>}
                     </div>}
+                    {serializedSource === "DONOR" && <div className="maintenance-part-field item-field"><label>Cari cepat ban yang sudah terpasang</label>
+                      <Input value={donorQuickSearch} onChange={(event) => searchInstalledDonorSerial(event.target.value)} placeholder="Ketik minimal 4 digit terakhir nomor seri..." disabled={!allowed || activeJob.status !== "OPEN"} data-testid="donor-serial-quick-search" />
+                      {donorQuickSearch.trim().length > 0 && donorQuickSearch.trim().length < 4 && <div style={{ marginTop: 7, fontSize: 12, color: BRAND.textMuted }}>Ketik minimal 4 digit untuk mulai mencari.</div>}
+                      {donorQuickLoading && <div style={{ marginTop: 7, fontSize: 12, color: BRAND.textMuted }}>Mencari ban yang terpasang...</div>}
+                      {!donorQuickLoading && donorQuickSearch.trim().length >= 4 && donorQuickUnits.length === 0 && !donorAssignmentId && <div style={{ marginTop: 7, fontSize: 12, color: BRAND.textMuted }}>Tidak ada unit terpasang dengan nomor tersebut.</div>}
+                      {donorQuickUnits.length > 0 && <div style={{ maxHeight: 190, overflowY: "auto", marginTop: 8, border: `1px solid ${BRAND.border}`, borderRadius: 6, background: BRAND.white }}>
+                        {donorQuickUnits.map((assignment) => <button type="button" key={assignment.id} onClick={() => selectInstalledDonorSerial(assignment)} style={{ display: "block", width: "100%", padding: "10px 12px", border: "none", borderBottom: `1px solid ${BRAND.border}`, background: BRAND.white, color: BRAND.text, textAlign: "left", cursor: "pointer", fontSize: 13 }}>
+                          <strong>{assignment.stockUnit?.serialNumber || assignment.stockUnit?.barcode}</strong> — {assignment.stockUnit?.item?.name || assignment.stockUnit?.item?.sku} <span style={{ color: BRAND.primary, fontWeight: 700 }}>• Terpasang di {assignment.truck?.plateNumber || "mobil tidak diketahui"}</span>
+                        </button>)}
+                      </div>}
+                      {donorAssignmentId && donorQuickSearch && <div style={{ marginTop: 8, padding: "9px 11px", borderRadius: 6, border: `1px solid ${BRAND.primary}`, background: BRAND.successBg, fontSize: 12, color: BRAND.primary, fontWeight: 700 }}>✓ Unit donor dan mobil tempat pemasangannya sudah dipilih otomatis.</div>}
+                    </div>}
                     <div className="maintenance-part-field item-field"><label>Jenis sparepart</label><SearchableItemPicker
                       items={serializedItems}
                       value={assignItemId}
@@ -1923,6 +1979,7 @@ export default function Maintenance() {
                         setAvailableUnits([]);
                         setDonorUnits([]);
                         setDonorAssignmentId("");
+                        setDonorReplacementUnitId("");
                         setDonorMode("TAKE_ONLY");
                         setReturnAssignments([]);
                         setReturnStockUnitId("");
@@ -1944,11 +2001,13 @@ export default function Maintenance() {
                       testId="stock-unit-search"
                     /></div> : <div className="maintenance-part-field"><label>Unit dan mobil donor</label><SearchableDonorUnitPicker assignments={donorUnits} value={donorAssignmentId} onChange={setDonorAssignmentId} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId} testId="donor-unit-search" /></div>}
                     {serializedSource === "DONOR" && <div className="maintenance-donor-transfer-column">
-                      <div className="maintenance-part-field"><label>Cara pemindahan</label><Select value={donorMode} onChange={(e) => { setDonorMode(e.target.value); if (e.target.value === "TAKE_ONLY") setReturnStockUnitId(""); }} disabled={!allowed || activeJob.status !== "OPEN" || !donorAssignmentId}>
+                      <div className="maintenance-part-field"><label>Cara pemindahan</label><Select value={donorMode} onChange={(e) => { const mode = e.target.value; setDonorMode(mode); if (mode !== "SWAP") setReturnStockUnitId(""); if (mode !== "INVENTORY_REPLACE") setDonorReplacementUnitId(""); }} disabled={!allowed || activeJob.status !== "OPEN" || !donorAssignmentId}>
                         <option value="TAKE_ONLY">Ambil saja — mobil donor dibiarkan tanpa unit</option>
                         <option value="SWAP">Tukar sparepart antar mobil</option>
+                        <option value="INVENTORY_REPLACE">Ambil & pasang pengganti dari Inventory ke mobil donor</option>
                       </Select></div>
                       {donorMode === "SWAP" && <div className="maintenance-part-field"><label>Unit dari mobil servis untuk ditukar</label><SearchableSwapUnitPicker assignments={returnAssignments.filter((a) => a.stockUnit?.itemId === assignItemId)} value={returnStockUnitId} onChange={setReturnStockUnitId} plateNumber={activeJob?.truck?.plateNumber} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId} testId="swap-unit-search" /></div>}
+                      {donorMode === "INVENTORY_REPLACE" && <div className="maintenance-part-field"><label>Unit pengganti dari Inventory untuk mobil donor</label><SearchableStockUnitPicker units={availableUnits} value={donorReplacementUnitId} onChange={setDonorReplacementUnitId} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId} placeholder="Cari serial unit pengganti..." testId="donor-replacement-unit-search" /></div>}
                     </div>}
                     {serializedSource === "INVENTORY" && <div className="maintenance-part-field"><label>Unit lama yang dilepas <em>Opsional</em></label><Select value={returnStockUnitId} onChange={(e) => { const nextId=e.target.value; const nextAssignment=returnAssignments.find((assignment)=>assignment.stockUnitId===nextId); setReturnStockUnitId(nextId); if(nextAssignment?.stockUnit?.item?.category==="TIRE") changeReplaceDisposition("SECOND"); else setReplaceDisposition("IN_STOCK"); }} disabled={!allowed || activeJob.status !== "OPEN" || !assignItemId}>
                       <option value="">Tidak mengganti unit lama</option>
@@ -1985,7 +2044,7 @@ export default function Maintenance() {
                     <Button
                       variant="primary"
                       onClick={serializedSource === "DONOR" ? installDonorUnit : assignUnit}
-                      disabled={!allowed || activeJob.status !== "OPEN" || assigning || (serializedSource === "DONOR" ? !donorAssignmentId || (donorMode === "SWAP" && !returnStockUnitId) : !unitPick)}
+                      disabled={!allowed || activeJob.status !== "OPEN" || assigning || (serializedSource === "DONOR" ? !donorAssignmentId || (donorMode === "SWAP" && !returnStockUnitId) || (donorMode === "INVENTORY_REPLACE" && !donorReplacementUnitId) : !unitPick)}
                       data-testid="assign-unit-btn"
                     >
                       {assigning ? "Memasang..." : serializedSource === "DONOR" ? "Pindahkan & Pasang" : "Pasang Unit"}
