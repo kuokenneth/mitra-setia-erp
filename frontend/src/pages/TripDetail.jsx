@@ -366,6 +366,7 @@ export default function TripDetail() {
   const activeOrderStop = (trip?.orderAllocations || []).find((allocation) => !allocation.destinationCompletedAt);
   const activeMaterialStop = (trip?.materialInvoices || []).find((invoice) => invoice.destinationLocationId && !invoice.destinationCompletedAt);
   const activeDestinationArrived = Boolean(activeOrderStop?.destinationArrivedAt || activeMaterialStop?.destinationArrivedAt);
+  const canMarkDestinationArrival = currentStatus === "DISPATCHED" && !activeDestinationArrived;
   const plannedWeight = trip?.purpose === "SINGLE_TRIP" && trip?.cargoCategorySnap === "MATERIAL" ? null : trip?.qtyPlanned == null ? null : Number(trip.qtyPlanned);
   const materialKg = (trip?.cargoCategorySnap === "MATERIAL" || order?.cargoCategory === "MATERIAL") ? materialWeightKg(trip?.materialInvoices) : null;
   const materialWeight = materialKg == null ? null : String(trip?.unitSnap || "TON").toUpperCase() === "KG" ? materialKg : materialKg / 1000;
@@ -425,7 +426,11 @@ export default function TripDetail() {
   }
 
   async function arriveAtDestinationManually() {
-    if (!window.confirm("Tandai kendaraan sudah tiba di tujuan aktif? Gunakan jika GPS belum mendeteksi kedatangan.")) return;
+    const skipsEarlierPhase = ["TO_PICKUP", "AT_PICKUP", "SERVICE_AT_BASE"].includes(currentPhase);
+    const message = skipsEarlierPhase
+      ? "Tahap perjalanan sebelumnya belum diperbarui. Tetap tandai kendaraan sudah tiba di tujuan aktif? Gunakan jika karyawan terlambat memperbarui trip."
+      : "Tandai kendaraan sudah tiba di tujuan aktif? Gunakan jika GPS belum mendeteksi kedatangan.";
+    if (!window.confirm(message)) return;
     try {
       setSaveErr("");
       setSaving(true);
@@ -433,20 +438,6 @@ export default function TripDetail() {
       await load();
     } catch (e) {
       setSaveErr(e?.message || "Gagal menandai tiba di tujuan");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function completeDirectlyForTest() {
-    if (!window.confirm("Selesaikan trip ini langsung untuk pengujian? Seluruh tujuan yang belum selesai akan dianggap sudah tiba dan selesai bongkar.")) return;
-    try {
-      setSaveErr("");
-      setSaving(true);
-      await api(`/trips/${id}/status`, { method: "PATCH", body: JSON.stringify({ status: "COMPLETED", forceComplete: true }) });
-      await load();
-    } catch (e) {
-      setSaveErr(e?.message || "Gagal menyelesaikan trip secara langsung");
     } finally {
       setSaving(false);
     }
@@ -693,7 +684,6 @@ export default function TripDetail() {
                 </div>
                 {canWrite ? (
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {role === "OWNER" && !["COMPLETED", "CANCELLED"].includes(currentStatus) && <button type="button" style={{ ...btnGhost, height: 36, display: "inline-flex", alignItems: "center", gap: 7, borderColor: "#E2B96B", background: "#FFF8E8", color: "#8A5A00", boxShadow: "none", fontSize: 12 }} onClick={completeDirectlyForTest} disabled={saving}><FiCheck size={14}/> Selesaikan langsung (uji)</button>}
                     <button
                       style={{ ...btnDanger, height: 36, display: "inline-flex", alignItems: "center", gap: 7, boxShadow: "none", fontSize: 12 }}
                       onClick={() => window.confirm("Batalkan trip ini?") && setStatus("CANCELLED")}
@@ -712,7 +702,7 @@ export default function TripDetail() {
                       {currentPhase === "AT_PICKUP" && <span style={{ padding: "8px 11px", borderRadius: 8, background: "#EAF7EF", color: "#176C40", fontSize: 11, fontWeight: 700 }}>Menunggu GPS keluar radius lokasi muat</span>}
                       {role === "OWNER" && ((currentStatus === "PLANNED" && currentPhase === "PLANNED") || (currentStatus === "DISPATCHED" && currentPhase === "TO_PICKUP")) && <button type="button" style={{ ...btnGhost, height: 34, display: "inline-flex", alignItems: "center", gap: 7, borderColor: "#B7CDBF", background: "#FFFFFF", color: "#355C46", boxShadow: "none", fontSize: 11 }} onClick={arriveAtPickupManually} disabled={saving}><FiMapPin size={14}/> Tiba & proses muat</button>}
                       {role === "OWNER" && currentStatus === "DISPATCHED" && ["TO_PICKUP", "AT_PICKUP"].includes(currentPhase) && <button type="button" style={{ ...btnGhost, height: 34, display: "inline-flex", alignItems: "center", gap: 7, borderColor: "#75B58C", background: "#EAF7EF", color: "#176C40", boxShadow: "none", fontSize: 11 }} onClick={startDeliveryManually} disabled={saving}><FiTruck size={14}/> Langsung mengantar muatan</button>}
-                      {(canWrite || isDriver) && currentStatus === "DISPATCHED" && currentPhase === "TO_DESTINATION" && !activeDestinationArrived && <button type="button" style={{ ...btnGhost, height: 34, display: "inline-flex", alignItems: "center", gap: 7, borderColor: "#75B58C", background: "#EAF7EF", color: "#176C40", boxShadow: "none", fontSize: 11 }} onClick={arriveAtDestinationManually} disabled={saving}><FiMapPin size={14}/> Tiba di Tujuan</button>}
+                      {(canWrite || isDriver) && canMarkDestinationArrival && <button type="button" style={{ ...btnGhost, height: 34, display: "inline-flex", alignItems: "center", gap: 7, borderColor: "#75B58C", background: "#EAF7EF", color: "#176C40", boxShadow: "none", fontSize: 11 }} onClick={arriveAtDestinationManually} disabled={saving}><FiMapPin size={14}/> Tiba di tujuan</button>}
                       {currentStatus === "DISPATCHED" && currentPhase === "TO_DESTINATION" && activeDestinationArrived && <span style={{ padding: "8px 11px", borderRadius: 8, background: "#EAF7EF", color: "#176C40", fontSize: 11, fontWeight: 700 }}>Tujuan aktif sudah tiba · menunggu selesai bongkar</span>}
                     </div>
                   </div>

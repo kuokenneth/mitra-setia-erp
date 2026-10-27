@@ -1048,7 +1048,7 @@ router.post("/:id/arrive-destination", authRequired, async (req, res) => {
     });
     if (!trip) return res.status(404).json({ error: "Trip tidak ditemukan" });
     if (!canWrite(req.user) && !(isDriver(req.user) && trip.driverUserId === req.user.id)) return res.status(403).json({ error: "Forbidden" });
-    if (trip.status !== "DISPATCHED" || trip.phase !== "TO_DESTINATION") throw new Error("Trip belum dalam perjalanan menuju tujuan");
+    if (trip.status !== "DISPATCHED") throw new Error("Trip harus sudah berangkat sebelum dapat ditandai tiba di tujuan");
 
     const activeOrderStop = trip.orderAllocations[0] || null;
     const activeMaterialStop = trip.materialInvoices[0] || null;
