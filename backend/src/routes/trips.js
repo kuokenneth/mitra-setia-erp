@@ -315,6 +315,8 @@ router.get("/", authRequired, async (req, res) => {
           { truck: { is: { plateNumber: { contains: q, mode: "insensitive" } } } },
           { driverUser: { is: { name: { contains: q, mode: "insensitive" } } } },
           { order: { is: { orderNo: { contains: q, mode: "insensitive" } } } },
+          { order: { is: { deliveryOrderNo: { contains: q, mode: "insensitive" } } } },
+          { dispatchLetter: { is: { number: { contains: q, mode: "insensitive" } } } },
           { order: { is: { toText: { contains: q, mode: "insensitive" } } } },
           { tripNo: { contains: q, mode: "insensitive" } },
         ],
@@ -333,14 +335,21 @@ router.get("/", authRequired, async (req, res) => {
         include: {
           truck: true,
           driverUser: true,
-          order: { select: { id: true, orderNo: true, customerName: true, cargoName: true, cargoCategory: true, unit: true, fromText: true, toText: true, status: true } },
+          order: { select: { id: true, orderNo: true, deliveryOrderNo: true, customerName: true, cargoName: true, cargoCategory: true, unit: true, fromText: true, toText: true, status: true, trips: { select: { id: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } },
           dispatchLetter: true,
           _count: { select: { arrivalProofs: true, expenses: true } },
         },
       }),
     ]);
 
-    res.json({ items: trips.map(normalizeTrip), pagination: { page, limit: limit || total || 1, total, totalPages: limit ? Math.max(1, Math.ceil(total / limit)) : 1 } });
+    const items = trips.map((trip) => {
+      const orderedTrips = trip.order?.trips || [];
+      const orderTripNumber = trip.orderId ? orderedTrips.findIndex((row) => row.id === trip.id) + 1 : null;
+      const order = trip.order ? { ...trip.order } : null;
+      if (order) delete order.trips;
+      return normalizeTrip({ ...trip, order, orderTripNumber: orderTripNumber > 0 ? orderTripNumber : null });
+    });
+    res.json({ items, pagination: { page, limit: limit || total || 1, total, totalPages: limit ? Math.max(1, Math.ceil(total / limit)) : 1 } });
   } catch (e) {
     console.error(e);
     res.status(400).json({ error: e.message || "Failed to load trips" });

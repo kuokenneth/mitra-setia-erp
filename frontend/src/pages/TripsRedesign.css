@@ -38,3 +38,8 @@
   box-shadow:0 -8px 20px rgba(25,57,38,.045);
 }
 @media(max-width:760px){.erp-content .empty-return-builder>form>footer{width:calc(100% + 30px);margin:14px -15px 0!important;padding:12px 15px max(12px,env(safe-area-inset-bottom))!important}}
+
+.trips-v3-order-ref{display:flex;align-items:center;gap:5px}
+.trips-v3-order-ref b{color:#4d6757;font-size:8px}
+.trips-v3-order-ref i{color:#a0aaa3;font-style:normal}
+.trips-v3-customer{display:block;margin-top:3px;color:#97a099;font-size:8px;font-style:normal}
