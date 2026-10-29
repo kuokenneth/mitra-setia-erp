@@ -1056,8 +1056,6 @@ router.post(
           throw new Error("Unit harus sedang terpasang di truk atau berada di stok");
         }
         if (unit.status === "IN_STOCK" && !unit.locationId) throw new Error("Lokasi unit tidak tercatat");
-        if (unit.itemId === toItemId) throw new Error("Pilih item Ban Masak yang berbeda dari item asal");
-
         const targetItem = await tx.item.findUnique({ where: { id: toItemId } });
         if (!targetItem?.isSerialized || targetItem.category !== "TIRE") throw new Error("Item tujuan harus merupakan item Ban berserial");
         assertRetreadTarget(unit.item, targetItem);

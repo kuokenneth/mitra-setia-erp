@@ -34,7 +34,7 @@ function localDateTimeValue(date = new Date()) {
 
 function retreadTarget(sourceItem, items) {
   const sku = String(sourceItem?.sku || "").trim().toUpperCase().replace(/_SECOND$/, "");
-  const expectedSku = sku.startsWith("BAN_") && !sku.startsWith("BAN_MASAK_") ? `BAN_MASAK_${sku.slice(4)}` : "";
+  const expectedSku = sku.startsWith("BAN_MASAK_") ? sku : sku.startsWith("BAN_") ? `BAN_MASAK_${sku.slice(4)}` : "";
   return items.find((item) => String(item.sku || "").trim().toUpperCase() === expectedSku);
 }
 

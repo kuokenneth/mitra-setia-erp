@@ -1107,7 +1107,6 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
             const supplierId = retread?.supplierId ? String(retread.supplierId) : null;
             const sentAt = retread?.sentAt ? new Date(retread.sentAt) : now;
             if (!toItemId) throw new Error("Pilih item tujuan Ban Masak");
-            if (toItemId === oldUnit.itemId) throw new Error("Item Ban Masak harus berbeda dari item ban asal");
             if (Number.isNaN(sentAt.getTime())) throw new Error("Tanggal kirim masak tidak valid");
             const targetItem = await tx.item.findUnique({ where: { id: toItemId }, select: { sku: true, name: true, category: true, isSerialized: true } });
             if (!targetItem?.isSerialized || targetItem.category !== "TIRE") throw new Error("Item tujuan harus merupakan Ban berserial");

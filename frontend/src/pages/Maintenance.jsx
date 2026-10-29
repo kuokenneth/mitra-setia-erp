@@ -16,7 +16,7 @@ const EMPTY_PURCHASE_REQUEST = { itemId: "", qty: 1, urgency: "URGENT", reason: 
 const newPurchaseRequestLine = () => ({ key: `${Date.now()}-${Math.random()}`, itemId: "", qty: 1 });
 const retreadTarget = (sourceItem, items) => {
   const sku = String(sourceItem?.sku || "").trim().toUpperCase().replace(/_SECOND$/, "");
-  const expectedSku = sku.startsWith("BAN_") && !sku.startsWith("BAN_MASAK_") ? `BAN_MASAK_${sku.slice(4)}` : "";
+  const expectedSku = sku.startsWith("BAN_MASAK_") ? sku : sku.startsWith("BAN_") ? `BAN_MASAK_${sku.slice(4)}` : "";
   return items.find((item) => String(item.sku || "").trim().toUpperCase() === expectedSku);
 };
 
@@ -2065,7 +2065,7 @@ export default function Maintenance() {
                     </div>}
                     {serializedSource === "INVENTORY" && returnStockUnitId && replaceDisposition === "RETREADING" && <div className="maintenance-retread-inline">
                       <div className="maintenance-retread-notice"><strong>Ban lama akan dikirim untuk masak</strong><small>Nomor seri tetap sama dan status unit berubah menjadi RETREADING. Harga final diisi saat penerimaan Ban Masak.</small></div>
-                      <label>Item tujuan setelah dimasak<Select value={retreadForm.toItemId} onChange={(e)=>setRetreadForm((form)=>({...form,toItemId:e.target.value}))}><option value="">Pilih item Ban Masak</option>{retreadOptions.items.filter((item)=>item.id!==selectedReturnAssignment?.stockUnit?.itemId).map((item)=><option key={item.id} value={item.id}>{item.sku} — {item.name}</option>)}</Select></label>
+                      <label>Item tujuan setelah dimasak<Select value={retreadForm.toItemId} onChange={(e)=>setRetreadForm((form)=>({...form,toItemId:e.target.value}))}><option value="">Pilih item Ban Masak</option>{retreadOptions.items.map((item)=><option key={item.id} value={item.id}>{item.sku} — {item.name}</option>)}</Select></label>
                       <label>Vendor masak ban<Select value={retreadForm.supplierId} onChange={(e)=>setRetreadForm((form)=>({...form,supplierId:e.target.value}))}><option value="">Tanpa vendor</option>{retreadOptions.suppliers.map((supplier)=><option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</Select></label>
                       <label>Tanggal dilepas / dikirim<Input type="datetime-local" value={retreadForm.sentAt} onChange={(e)=>setRetreadForm((form)=>({...form,sentAt:e.target.value}))}/></label>
                       <label className="wide">Catatan masak<Input value={retreadForm.notes} onChange={(e)=>setRetreadForm((form)=>({...form,notes:e.target.value}))} placeholder="Contoh: casing masih layak"/></label>
