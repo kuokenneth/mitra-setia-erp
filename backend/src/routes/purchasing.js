@@ -6,6 +6,10 @@ const { SYSTEM_ACCOUNTS, cashCode, postJournal } = require("../services/accounti
 const { esc, num: fmtNum, money, date: fmtDate, documentHtml } = require("../utils/printDocument");
 const { notifyOwnerSafely } = require("../services/emailNotifications");
 const { nextDailyNumber } = require("../utils/documentNumber");
+const {
+  SUPPLIER_PAYMENT_EXPENSE_SYNC_ENABLED,
+  SUPPLIER_PAYMENT_EXPENSE_MARKER,
+} = require("../config/purchaseExpenseSync");
 const router = express.Router();
 
 async function backfillLegacyConsumptionAllocations(tx, batch) {
@@ -79,7 +83,7 @@ async function refreshAllocatedMovementCosts(tx, batchId) {
 const includePO = { supplier: true, request: { include: { maintenance: { include: { truck: true } } } }, requestLinks: { include: { request: { include: { maintenance: { include: { truck: true } } } } } }, cancelledBy: { select: { id: true, name: true, email: true } }, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } }, partRepair: { include: { stockUnit: true } } } }, receipts: { include: { items: { include: { purchaseOrderItem: { include: { item: true } }, supplierBillItems: { include: { bill: true } } } }, location: true, createdBy: { select: { name: true } }, supplierBillLines: { include: { bill: true } } } }, payments: { include: { createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } } } };
 
 async function syncSupplierPaymentExpense(tx, paymentId, approvedById) {
-  const marker = `AUTO_SUPPLIER_PAYMENT:${paymentId}`;
+  const marker = `${SUPPLIER_PAYMENT_EXPENSE_MARKER}${paymentId}`;
   const existing = await tx.expense.findFirst({ where: { notes: marker } });
   if (existing) return existing;
   const payment = await tx.purchasePayment.findUnique({
@@ -961,7 +965,9 @@ router.patch("/payments/:id/approve", requireRole("OWNER", "ADMIN"), async (req,
       const paid = bill.payments.filter(row => row.status === "PAID").reduce((sum, row) => sum + row.amount, 0);
       await tx.supplierBill.update({ where: { id: bill.id }, data: { status: paid >= bill.amount ? "PAID" : "PARTIALLY_PAID" } });
     }
-    await syncSupplierPaymentExpense(tx, updated.id, req.user.id);
+    if (SUPPLIER_PAYMENT_EXPENSE_SYNC_ENABLED) {
+      await syncSupplierPaymentExpense(tx, updated.id, req.user.id);
+    }
     return updated;
   });
   res.json({ ok: true, payment });

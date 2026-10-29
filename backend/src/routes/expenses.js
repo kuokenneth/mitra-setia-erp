@@ -11,6 +11,7 @@ const router = express.Router();
 const allowedRoles = ["OWNER", "ADMIN", "STAFF"];
 const proofRoles = ["OWNER", "ADMIN", "STAFF"];
 const TRIP_EXPENSE_LIMIT = Number(process.env.TRIP_EXPENSE_LIMIT || 0);
+const { visibleExpenseWhere } = require("../config/purchaseExpenseSync");
 const EXPENSE_CATEGORIES = ["PANJAR", "TRIP_ALLOWANCE", "REMAINING_TRIP_ALLOWANCE", "UNLOADING_FEE", "FUEL_LOAN", "LOADING_LOAN", "DRIVER_SALARY", "FUEL", "TOLL_PARKING", "LOADING_UNLOADING", "REPAIR_MAINTENANCE", "SPAREPART", "OFFICE_OPERATIONAL", "EMPLOYEE_SALARY", "OPERATIONAL_COST", "ELECTRICITY", "WATER", "TELECOMMUNICATION", "OFFICE_EQUIPMENT", "COMMISSION_FEE", "DOCUMENT_ADMINISTRATION", "BPJS", "TAX", "EMPLOYEE_RECEIVABLE", "FINANCE_DEBT_PAYMENT", "OTHER"];
 
 function ensureRole(req, res) {
@@ -136,6 +137,7 @@ function expenseFilterWhere({ q, paymentMethod, status, month } = {}) {
   const monthRange = expenseMonthRange(month);
   return {
     AND: [
+      visibleExpenseWhere(),
       ...(paymentMethod ? [{ paymentMethod }] : []),
       ...(status ? [{ status }] : []),
       ...(monthRange ? [{ expenseDate: monthRange }] : []),
@@ -271,6 +273,7 @@ router.get("/export", authRequired, async (req, res) => {
   if (!ensureRole(req, res)) return;
 
   const items = await prisma.expense.findMany({
+    where: visibleExpenseWhere(),
     orderBy: [{ expenseDate: "asc" }, { createdAt: "asc" }],
     select: {
       expenseDate: true,
@@ -402,7 +405,7 @@ router.get("/report", authRequired, async (req, res) => {
   const end = new Date(`${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00+07:00`);
 
   const items = await prisma.expense.findMany({
-    where: { expenseDate: { gte: start, lt: end } },
+    where: { AND: [visibleExpenseWhere(), { expenseDate: { gte: start, lt: end } }] },
     orderBy: { expenseDate: "asc" },
     include: {
       trip: {

@@ -1,5 +1,6 @@
 const { prisma } = require("../src/prisma");
 const { SYSTEM_ACCOUNTS, cashCode, postJournal } = require("../src/services/accounting");
+const { visibleExpenseWhere } = require("../src/config/purchaseExpenseSync");
 
 async function sync() {
   const [invoices, customerPayments, receipts, supplierPayments, expenses] = await Promise.all([
@@ -7,7 +8,7 @@ async function sync() {
     prisma.receivablePayment.findMany(),
     prisma.goodsReceipt.findMany({ include: { items: { include: { purchaseOrderItem: true } }, purchaseOrder: true } }),
     prisma.purchasePayment.findMany({ where: { status: "PAID" } }),
-    prisma.expense.findMany({ where: { status: { in: ["PAID", "APPROVED"] } } }),
+    prisma.expense.findMany({ where: { AND: [visibleExpenseWhere(), { status: { in: ["PAID", "APPROVED"] } }] } }),
   ]);
   for (const x of invoices) await prisma.$transaction(tx => postJournal(tx, { date: x.sentAt || x.issuedAt, description: `Invoice ${x.number}`, sourceType: "CUSTOMER_INVOICE", sourceId: x.id, lines: [{ code: SYSTEM_ACCOUNTS.AR, debit: x.total }, { code: SYSTEM_ACCOUNTS.REVENUE, credit: x.total }] }));
   for (const x of customerPayments) { const pph=Number(x.pph23Amount||0), deductions=Number(x.claimAmount||0)+Number(x.adminFee||0), net=x.amount-pph-deductions; await prisma.$transaction(tx => postJournal(tx, { date: x.receivedAt, description: `Penerimaan ${x.number}`, sourceType: "CUSTOMER_PAYMENT", sourceId: x.id, lines: [{ code: cashCode(x.method), debit: net }, ...(pph ? [{ code: SYSTEM_ACCOUNTS.WITHHOLDING_TAX, debit: pph }] : []), ...(deductions ? [{ code: SYSTEM_ACCOUNTS.EXPENSE, debit: deductions }] : []), { code: SYSTEM_ACCOUNTS.AR, credit: x.amount }] })); }
