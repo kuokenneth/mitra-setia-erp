@@ -1,6 +1,5 @@
 const { prisma } = require("../prisma");
 const { emailOwnerConfigured, sendOwnerEmail } = require("./emailNotifications");
-const { visibleExpenseWhere } = require("../config/purchaseExpenseSync");
 
 const JAKARTA_UTC_OFFSET_HOURS = 7;
 const SUMMARY_HOUR = 18;
@@ -54,7 +53,7 @@ async function buildDailyOwnerSummary(now = new Date()) {
     openTripActions,
   ] = await Promise.all([
     prisma.purchaseRequest.count({ where: { status: "WAITING_APPROVAL" } }),
-    prisma.expense.aggregate({ where: { AND: [visibleExpenseWhere(), { status: "PAID" }] }, _count: true, _sum: { amount: true } }),
+    prisma.expense.aggregate({ where: { status: "PAID" }, _count: true, _sum: { amount: true } }),
     prisma.purchasePayment.aggregate({ where: { status: "WAITING_PAYMENT_APPROVAL" }, _count: true, _sum: { amount: true } }),
     prisma.supplierBill.findMany({
       where: { dueDate: { lt: now }, status: { in: ["OPEN", "WAITING_PAYMENT_APPROVAL", "PARTIALLY_PAID"] } },

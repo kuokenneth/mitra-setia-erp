@@ -4,7 +4,6 @@ const { authRequired } = require("../middleware/authRequired");
 const { requireRole } = require("../middleware/requireRole");
 const { SYSTEM_ACCOUNTS, cashCode, postJournal } = require("../services/accounting");
 const { documentHtml, esc, money, date } = require("../utils/printDocument");
-const { visibleExpenseWhere } = require("../config/purchaseExpenseSync");
 const router = express.Router();
 router.use(authRequired, requireRole("OWNER", "ADMIN"));
 
@@ -76,7 +75,7 @@ router.post("/sync", async (req, res) => {
       prisma.receivablePayment.findMany({ include: { invoice: true } }),
       prisma.goodsReceipt.findMany({ include: { items: { include: { purchaseOrderItem: true } }, purchaseOrder: true } }),
       prisma.purchasePayment.findMany({ where: { status: "PAID" }, include: { purchaseOrder: true } }),
-      prisma.expense.findMany({ where: { AND: [visibleExpenseWhere(), { status: { in: ["PAID","APPROVED"] } }] } }),
+      prisma.expense.findMany({ where: { status: { in: ["PAID","APPROVED"] } } }),
       prisma.expenseReturn.findMany(),
       prisma.stockMovement.findMany({ where: { type: "OUT", fromLocationId: { not: null }, totalCost: { gt: 0 }, NOT: [{ note: { startsWith: "Pembelian langsung" } }, { note: { startsWith: "Langsung dipasang" } }] }, include: { item: true, maintenance: true } }),
       prisma.stockMovement.findMany({ where: { type: "IN", totalCost: { gt: 0 }, OR: [{ note: { startsWith: "RETURN_OF:" } }, { note: { startsWith: "RETURN_ASSIGNMENT:" } }] }, include: { item: true, maintenance: true } }),
