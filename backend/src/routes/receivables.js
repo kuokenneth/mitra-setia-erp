@@ -366,6 +366,8 @@ function excelDate(value) {
   return new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)));
 }
 
+const excelHistoryDate = value => value ? new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value)) : "";
+
 router.get("/export", async (req, res) => {
   try {
     const month = String(req.query.month || "").trim();
@@ -389,6 +391,9 @@ router.get("/export", async (req, res) => {
       transactionCount: group.expenses.length,
       total: Number(group.total || 0),
       paid: Number(group.paid || 0),
+      paymentDates: group.payments.map(payment => excelHistoryDate(payment.receivedAt)).join("\n"),
+      paymentAmounts: group.payments.map(payment => Number(payment.amount || 0).toLocaleString("id-ID")).join("\n"),
+      paymentCount: group.payments.length,
       balance: Number(group.balance || 0),
     }));
     const labels = { DRAFT: "Belum lunas - Draft", SENT: "Belum lunas", PARTIALLY_PAID: "Belum lunas - Sebagian", PAID: "Lunas", OVERDUE: "Belum lunas - Jatuh tempo" };
@@ -444,15 +449,17 @@ router.get("/export", async (req, res) => {
       { header: "Jumlah Transaksi", key: "transactionCount", width: 18 },
       { header: "Total Piutang", key: "total", width: 20 },
       { header: "Sudah Dibayar", key: "paid", width: 20 },
+      { header: "Tanggal Pembayaran", key: "paymentDates", width: 22 },
+      { header: "Jumlah Pembayaran", key: "paymentAmounts", width: 22 },
       { header: "Sisa Piutang", key: "balance", width: 20 },
     ];
-    employeeRows.forEach((row, index) => employeeSheet.addRow({ ...row, no: index + 1 }));
+    employeeRows.forEach((row, index) => { const sheetRow = employeeSheet.addRow({ ...row, no: index + 1 }); sheetRow.height = Math.max(18, row.paymentCount * 15); });
     const employeeHeader = employeeSheet.getRow(1);
     employeeHeader.height = 28;
     employeeHeader.font = { bold: true, color: { argb: "FFFFFFFF" } };
     employeeHeader.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF176B40" } };
     employeeHeader.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
-    employeeSheet.autoFilter = { from: "A1", to: "G1" };
+    employeeSheet.autoFilter = { from: "A1", to: "I1" };
     ["total", "paid", "balance"].forEach(key => { employeeSheet.getColumn(key).numFmt = "#,##0"; employeeSheet.getColumn(key).alignment = { horizontal: "right" }; });
     employeeSheet.eachRow((row, rowNumber) => { if (rowNumber === 1) return; row.alignment = { vertical: "top", wrapText: true }; if (rowNumber % 2 === 0) row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F7F4" } }; });
     if (employeeRows.length) {

@@ -1,10 +1,17 @@
-/* Public website chrome — CV. Mitra Setia */
+/* Public website chrome — CV. Mitra Setia
+   Same tokens as the ERP (src/designSystem.css): white surface, ERP green accents, Manrope. */
 .public-page {
+  --pn-green: #0d7142;        /* ERP primary-600 */
+  --pn-green-700: #0a5a36;
+  --pn-green-50: #f0f7f3;
+  --pn-text: #1d2c24;
+  --pn-muted: #68776f;
+  --pn-border: #dce4df;
   position: relative;
   min-height: 100dvh;
   background: #fff;
-  color: #17352a;
-  font-family: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--pn-text);
+  font-family: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 .public-outlet { width: 100%; }
 html.public-menu-open { overflow: hidden; }
@@ -12,77 +19,84 @@ html.public-menu-open { overflow: hidden; }
 /* ---------- top bar ---------- */
 .public-nav {
   position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
-  font-family: "Inter", system-ui, sans-serif;
-  transition: background-color .35s ease, border-color .35s ease;
+  font-family: "Manrope", system-ui, sans-serif;
+  transition: background-color .35s ease, border-color .35s ease, box-shadow .35s ease;
   border-bottom: 1px solid transparent;
 }
 .public-nav.is-transparent { background: transparent; }
 .public-nav.is-solid {
-  background: rgba(11, 20, 32, .95);   /* near-solid instead of backdrop blur: no re-blurring every scrolled frame */
-  border-bottom-color: rgba(255, 255, 255, .08);
+  background: rgba(255, 255, 255, .97);   /* near-solid instead of backdrop blur: no re-blurring every scrolled frame */
+  border-bottom-color: var(--pn-border);
+  box-shadow: 0 6px 24px rgba(18, 71, 47, .06);
 }
 .public-nav-inner {
   display: flex; align-items: center; justify-content: space-between; gap: 24px;
   max-width: 1304px; height: 80px; margin: 0 auto; padding: 0 32px; box-sizing: border-box;
 }
 
-.public-brand:hover { color: #fff; }
-.public-brand { display: flex; align-items: center; gap: 12px; color: #fff; text-decoration: none; }
-.public-brand img { width: 42px; height: 42px; border-radius: 8px; object-fit: contain; }
+.public-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; transition: color .3s ease; }
+.public-nav.is-transparent .public-brand, .public-nav.is-transparent .public-brand:hover { color: #fff; }
+.public-nav.is-solid .public-brand, .public-nav.is-solid .public-brand:hover { color: var(--pn-text); }
+.public-brand img { width: 42px; height: 42px; border-radius: 10px; object-fit: contain; }
 .public-brand span { display: flex; flex-direction: column; }
-.public-brand strong { font-family: "Space Grotesk", "Inter", sans-serif; font-size: 16px; letter-spacing: -.01em; }
-.public-brand small { margin-top: 1px; color: #aab4bf; font-size: 12px; font-weight: 500; }
+.public-brand strong { font-size: 16px; font-weight: 800; letter-spacing: -.02em; }
+.public-brand small { margin-top: 1px; font-size: 12px; font-weight: 600; transition: color .3s ease; }
+.public-nav.is-transparent .public-brand small { color: rgba(255, 255, 255, .72); }
+.public-nav.is-solid .public-brand small { color: var(--pn-muted); }
 
-.public-links { display: flex; align-items: center; gap: 30px; }
+.public-links { display: flex; align-items: center; gap: 6px; }
 .public-links a {
-  position: relative; padding: 8px 0;
-  color: rgba(255, 255, 255, .82); font-size: 14px; font-weight: 500; text-decoration: none;
-  transition: color .2s ease;
+  position: relative; padding: 9px 12px; border-radius: 8px;
+  font-size: 14px; font-weight: 650; text-decoration: none;
+  transition: color .2s ease, background-color .2s ease;
 }
-.public-links a::after {
-  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
-  background: #f97316; transform: scaleX(0); transform-origin: 0 50%; transition: transform .25s ease;
-}
-.public-links a:hover, .public-links a.active { color: #fff; }
-.public-links a:hover::after, .public-links a.active::after { transform: scaleX(1); }
+/* over the hero photo */
+.public-nav.is-transparent .public-links a { color: rgba(255, 255, 255, .86); }
+.public-nav.is-transparent .public-links a:hover,
+.public-nav.is-transparent .public-links a.active { color: #fff; background: rgba(255, 255, 255, .12); }
+/* white bar: same active state as the ERP sidebar */
+.public-nav.is-solid .public-links a { color: #4c5b53; }
+.public-nav.is-solid .public-links a:hover { color: var(--pn-green-700); background: var(--pn-green-50); }
+.public-nav.is-solid .public-links a.active { color: var(--pn-green-700); background: var(--pn-green-50); }
 
 .public-actions { display: flex; align-items: center; gap: 10px; }
-/* Portal Karyawan — understated outline that matches the nav's type and height */
+/* Portal Karyawan — the ERP primary button */
 .public-login {
-  display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px 0 16px;
-  border: 1px solid rgba(255, 255, 255, .26); border-radius: 4px;
-  background: rgba(255, 255, 255, .04);
-  color: #fff; font-size: 14px; font-weight: 500; line-height: 1; text-decoration: none; white-space: nowrap;
-  transition: border-color .25s ease, background-color .25s ease, color .25s ease;
+  display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 14px 0 18px;
+  border: 1px solid transparent; border-radius: 10px;
+  background: var(--pn-green); color: #fff;
+  font-size: 14px; font-weight: 750; line-height: 1; text-decoration: none; white-space: nowrap;
+  transition: background-color .25s ease, border-color .25s ease, color .25s ease, box-shadow .25s ease;
 }
-.public-nav.is-transparent .public-login {
-  background: rgba(11, 20, 32, .36);
-  border-color: rgba(255, 255, 255, .34);
-}
-.public-nav.is-solid .public-login { background: transparent; border-color: rgba(255, 255, 255, .2); }
-.public-login-icon { font-size: 16px; color: rgba(255, 255, 255, .7); transition: transform .3s cubic-bezier(.22, 1, .36, 1), color .25s ease; }
-.public-nav .public-login:hover { border-color: rgba(249, 115, 22, .85); background: rgba(249, 115, 22, .08); color: #fff; }
-.public-login:hover .public-login-icon { transform: translate(2px, -2px); color: #f97316; }
+.public-nav .public-login:hover { background: var(--pn-green-700); color: #fff; box-shadow: 0 8px 20px rgba(13, 113, 66, .24); }
+.public-nav.is-transparent .public-login { background: #188451; box-shadow: 0 8px 22px rgba(4, 30, 18, .3); }
+.public-nav.is-transparent .public-login:hover { background: var(--pn-green); }
+.public-login-icon { font-size: 16px; color: rgba(255, 255, 255, .85); transition: transform .3s cubic-bezier(.22, 1, .36, 1); }
+.public-login:hover .public-login-icon { transform: translate(2px, -2px); color: #fff; }
 
 .public-menu-button {
   display: none; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
-  width: 40px; height: 40px; padding: 0; border: 1px solid rgba(255, 255, 255, .26); border-radius: 4px;
-  background: transparent; cursor: pointer;
+  width: 42px; height: 42px; padding: 0; border: 1px solid rgba(255, 255, 255, .34); border-radius: 10px;
+  background: transparent; cursor: pointer; transition: border-color .25s ease;
 }
-.public-menu-button:hover { border-color: rgba(255, 255, 255, .6); }
+.public-menu-button:hover { border-color: rgba(255, 255, 255, .7); background: transparent; }
+.public-nav.is-solid .public-menu-button { border-color: var(--pn-border); }
+.public-nav.is-solid .public-menu-button:hover { border-color: #bfddca; background: var(--pn-green-50); }
 .public-menu-button:focus:not(:focus-visible) { outline: none; }
-.public-menu-button span { width: 18px; height: 2px; border-radius: 2px; background: #fff; transition: transform .25s ease, opacity .2s ease; }
+.public-menu-button span { width: 18px; height: 2px; border-radius: 2px; background: #fff; transition: transform .25s ease, opacity .2s ease, background-color .25s ease; }
+.public-nav.is-solid .public-menu-button span { background: var(--pn-text); }
 .public-menu-button[aria-expanded="true"] span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
 .public-menu-button[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
 .public-menu-button[aria-expanded="true"] span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
 .public-nav a:focus-visible, .public-nav button:focus-visible, .public-mobile-menu a:focus-visible {
-  outline: 3px solid #f97316; outline-offset: 3px; border-radius: 4px;
+  outline: 3px solid #8fd3ad; outline-offset: 3px; border-radius: 8px;
 }
+.public-nav.is-solid a:focus-visible, .public-nav.is-solid button:focus-visible, .public-mobile-menu a:focus-visible { outline-color: var(--pn-green); }
 
 .public-scroll-progress {
   position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
-  background: #f97316; transform: scaleX(0); transform-origin: 0 50%; will-change: transform;
+  background: #188451; transform: scaleX(0); transform-origin: 0 50%; will-change: transform;
 }
 .public-nav.is-transparent .public-scroll-progress { opacity: 0; }
 
@@ -91,31 +105,32 @@ html.public-menu-open { overflow: hidden; }
   position: fixed; inset: 0; z-index: 999;
   display: flex; flex-direction: column; justify-content: center;
   padding: 100px 28px 40px; box-sizing: border-box;
-  background: #0b1420;
+  background: #fff;
   visibility: hidden; opacity: 0; transform: translateY(-12px);
   transition: opacity .3s ease, transform .3s ease, visibility 0s linear .3s;
 }
 .public-mobile-menu.is-open { visibility: visible; opacity: 1; transform: none; transition: opacity .3s ease, transform .3s ease; }
 .public-mobile-menu nav { display: flex; flex-direction: column; }
 .public-mobile-menu a {
-  padding: 16px 0; border-bottom: 1px solid rgba(255, 255, 255, .1);
-  color: #fff; font-family: "Space Grotesk", "Inter", sans-serif; font-size: 28px; font-weight: 600;
-  letter-spacing: -.02em; text-decoration: none;
+  padding: 16px 0; border-bottom: 1px solid var(--pn-border);
+  color: var(--pn-text); font-size: 26px; font-weight: 800;
+  letter-spacing: -.03em; text-decoration: none;
 }
-.public-mobile-menu a:hover { color: #fff; }
-.public-mobile-menu a.active { color: #f97316; }
+.public-mobile-menu a:hover, .public-mobile-menu a.active { color: var(--pn-green); }
 .public-mobile-menu .public-mobile-portal {
   display: none; align-items: center; justify-content: space-between; gap: 10px;
   min-height: 52px; margin-top: 28px; padding: 0 18px;
-  border: 1px solid rgba(255, 255, 255, .26); border-radius: 4px;
-  color: #fff; font-family: "Inter", sans-serif; font-size: 16px; font-weight: 500; letter-spacing: 0;
+  border: 0; border-radius: 10px; background: var(--pn-green);
+  color: #fff; font-size: 16px; font-weight: 750; letter-spacing: 0;
 }
-.public-mobile-menu .public-mobile-portal svg { color: #f97316; font-size: 18px; }
+.public-mobile-menu .public-mobile-portal:hover { background: var(--pn-green-700); color: #fff; }
+.public-mobile-menu .public-mobile-portal svg { color: #fff; font-size: 18px; }
 
 /* ---------- responsive ---------- */
 @media (max-width: 1280px) {
   .public-nav-inner { height: 72px; padding: 0 24px; }
-  .public-links { gap: 22px; }
+  .public-links { gap: 2px; }
+  .public-links a { padding: 9px 10px; }
 }
 @media (max-width: 1180px) {
   .public-links { display: none; }
@@ -130,9 +145,8 @@ html.public-menu-open { overflow: hidden; }
   .public-brand img { width: 38px; height: 38px; }
   .public-brand strong { font-size: 15px; }
   .public-brand small { font-size: 11px; }
-  .public-menu-button { width: 40px; height: 40px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .public-nav, .public-links a, .public-links a::after, .public-mobile-menu, .public-menu-button span,
-  .public-login, .public-login-icon { transition: none; }
+  .public-nav, .public-links a, .public-mobile-menu, .public-menu-button span,
+  .public-login, .public-login-icon, .public-brand { transition: none; }
 }

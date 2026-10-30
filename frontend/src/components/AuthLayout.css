@@ -1,25 +1,26 @@
 /* =================================================================
    CV. Mitra Setia — employee portal (login + registration)
-   Same tokens as the public landing page (src/pages/Landing.css).
+   ERP design tokens (src/designSystem.css), shared with the landing page.
    ================================================================= */
 .au {
-  --navy: #0b1420;
-  --char: #1c2632;
-  --orange: #f97316;
-  --off: #f5f6f7;
-  --ink: #0b1420;
-  --muted: #535e6b;      /* 6.6:1 on off-white */
-  --line: #cfd6dd;
-  --error: #b42318;
+  --navy: #0c2219;       /* deep forest (visual panel) */
+  --green: #0d7142;      /* ERP primary-600 */
+  --green-700: #0a5a36;
+  --green-50: #f0f7f3;
+  --off: #f4f7f5;        /* ERP bg */
+  --ink: #1d2c24;        /* ERP text */
+  --muted: #56655d;      /* 5.6:1 on --off */
+  --line: #dce4df;       /* ERP border */
+  --error: #9a403d;      /* ERP danger */
   --ease: cubic-bezier(.22, 1, .36, 1);   /* ≈ GSAP power3.out, as on the landing page */
-  --display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --display: "Manrope", system-ui, sans-serif;
 
   display: grid;
   grid-template-columns: 55fr 45fr;
   min-height: 100dvh;
   background: var(--off);
   color: var(--ink);
-  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 16px;
   line-height: 1.55;
 }
@@ -30,7 +31,8 @@
 /* the app's global button/link styles (index.css) are reset inside the portal */
 .au button { font-family: inherit; }
 .au button:focus:not(:focus-visible) { outline: none; }
-.au a:focus-visible, .au button:focus-visible { outline: 3px solid var(--orange); outline-offset: 3px; border-radius: 4px; }
+.au a:focus-visible, .au button:focus-visible { outline: 3px solid var(--green); outline-offset: 3px; border-radius: 7px; }
+.au-visual a:focus-visible { outline-color: #8fd3ad; }
 
 /* ---------------- visual panel ---------------- */
 .au-visual {
@@ -46,8 +48,8 @@
 .au-shade {
   position: absolute; inset: 0; z-index: -1;
   background:
-    linear-gradient(0deg, rgba(11, 20, 32, .96) 0%, rgba(11, 20, 32, .7) 38%, rgba(11, 20, 32, .25) 66%, rgba(11, 20, 32, .6) 100%),
-    linear-gradient(90deg, rgba(11, 20, 32, .35), transparent 70%);
+    linear-gradient(0deg, rgba(12, 34, 25, .96) 0%, rgba(12, 34, 25, .7) 38%, rgba(12, 34, 25, .25) 66%, rgba(12, 34, 25, .6) 100%),
+    linear-gradient(90deg, rgba(12, 34, 25, .35), transparent 70%);
 }
 .au-visual-inner {
   display: flex; flex-direction: column; justify-content: space-between;
@@ -55,19 +57,19 @@
 }
 .au-brand { display: inline-flex; align-items: center; gap: 12px; align-self: flex-start; color: #fff; text-decoration: none; }
 .au-brand:hover { color: #fff; }
-.au-brand img { width: 42px; height: 42px; border-radius: 8px; object-fit: contain; }
-.au-brand span { font-family: var(--display); font-size: 15px; font-weight: 600; letter-spacing: .08em; }
+.au-brand img { width: 42px; height: 42px; border-radius: 10px; object-fit: contain; }
+.au-brand span { font-family: var(--display); font-size: 15px; font-weight: 800; letter-spacing: .06em; }
 .au-label {
   display: flex; align-items: center; gap: 12px;
-  color: #c9d2dc; font-size: 12px; font-weight: 600; letter-spacing: .18em;
+  color: #d4e3da; font-size: 12px; font-weight: 750; letter-spacing: .18em;
 }
-.au-label::before { content: ""; width: 28px; height: 2px; background: var(--orange); }
+.au-label::before { content: ""; width: 28px; height: 2px; border-radius: 2px; background: #8fd3ad; }
 .au-tagline {
   margin-top: 22px;
-  font-family: var(--display); font-weight: 700; letter-spacing: -.035em;
+  font-family: var(--display); font-weight: 800; letter-spacing: -.04em;
   font-size: clamp(40px, 4.6vw, 78px); line-height: .92;
 }
-.au-support { max-width: 40ch; margin-top: 24px; color: #c9d2dc; font-size: 17px; line-height: 1.6; }
+.au-support { max-width: 40ch; margin-top: 24px; color: #d4e3da; font-size: 17px; line-height: 1.6; }
 
 /* ---------------- form panel ---------------- */
 .au-panel {
@@ -77,18 +79,18 @@
 .au-top { display: flex; align-items: center; justify-content: space-between; }
 .au-back {
   display: inline-flex; align-items: center; gap: 8px; min-height: 40px;
-  color: var(--muted); font-size: 14px; font-weight: 500; text-decoration: none;
+  color: var(--muted); font-size: 14px; font-weight: 650; text-decoration: none;
   transition: color .2s ease;
 }
 .au-back svg { transition: transform .25s var(--ease); }
-.au-back:hover { color: var(--ink); }
+.au-back:hover { color: var(--green); }
 .au-back:hover svg { transform: translateX(-3px); }
 .au-main { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px 0; }
 .au-form-wrap { width: 100%; max-width: 500px; }
-.au-foot { color: #6b7682; font-size: 13px; text-align: center; }
+.au-foot { color: #68776f; font-size: 13px; text-align: center; }
 
 .au-head { margin-bottom: 24px; }
-.au-title { font-family: var(--display); font-size: clamp(28px, 2.4vw, 36px); font-weight: 600; letter-spacing: -.03em; line-height: 1.08; }
+.au-title { font-family: var(--display); font-size: clamp(28px, 2.4vw, 36px); font-weight: 800; letter-spacing: -.035em; line-height: 1.08; }
 .au-lead { margin-top: 10px; color: var(--muted); font-size: 16px; }
 
 .au-form { display: grid; gap: 16px; }
@@ -96,72 +98,72 @@
 
 /* fields (CorporateField) */
 .cf { display: grid; gap: 7px; align-content: start; min-width: 0; }
-.cf-label { color: var(--ink); font-size: 14px; font-weight: 600; }
+.cf-label { color: var(--ink); font-size: 14px; font-weight: 700; }
 .cf-optional { color: var(--muted); font-weight: 400; }
 .cf-control {
   position: relative; display: flex; align-items: center; height: 54px;
-  border: 1px solid var(--line); border-radius: 4px; background: #fff;
+  border: 1px solid var(--line); border-radius: 10px; background: #fff;
   transition: border-color .2s ease, box-shadow .2s ease;
 }
-.cf-control:hover { border-color: #aeb8c2; }
-.cf-control:focus-within { border-color: var(--navy); box-shadow: 0 0 0 3px rgba(249, 115, 22, .22); }
+.cf-control:hover { border-color: #bfddca; }
+.cf-control:focus-within { border-color: #188451; box-shadow: 0 0 0 3px rgba(24, 132, 81, .16); }
 .cf.has-error .cf-control { border-color: var(--error); }
-.cf.has-error .cf-control:focus-within { box-shadow: 0 0 0 3px rgba(180, 35, 24, .16); }
-.cf-icon { display: grid; place-items: center; width: 46px; flex: none; color: #7a8591; font-size: 18px; }
-.cf-control:focus-within .cf-icon { color: var(--navy); }
+.cf.has-error .cf-control:focus-within { box-shadow: 0 0 0 3px rgba(154, 64, 61, .16); }
+.cf-icon { display: grid; place-items: center; width: 46px; flex: none; color: #8a968f; font-size: 18px; }
+.cf-control:focus-within .cf-icon { color: var(--green); }
 .cf-control input {
   flex: 1; width: 100%; min-width: 0; height: 100%; padding: 0 14px 0 0;
   border: 0; outline: 0; background: transparent; box-shadow: none;
   color: var(--ink); font: inherit; font-size: 16px;   /* 16px avoids iOS zoom on focus */
 }
-.cf-control input::placeholder { color: #98a1ab; }
+.cf-control input::placeholder { color: #9aa59f; }
 .cf-control input:-webkit-autofill { -webkit-box-shadow: 0 0 0 40px #fff inset; -webkit-text-fill-color: var(--ink); }
 .au .cf-toggle {
   display: grid; place-items: center; flex: none; width: 46px; height: 46px; margin-right: 4px; padding: 0;
-  border: 0; border-radius: 4px; background: transparent; color: #6b7682; font-size: 18px; cursor: pointer;
+  border: 0; border-radius: 8px; background: transparent; color: #68776f; font-size: 18px; cursor: pointer;
   transition: color .2s ease, background-color .2s ease;
 }
-.au .cf-toggle:hover { color: var(--ink); background: #eef1f4; border: 0; }
+.au .cf-toggle:hover { color: var(--green); background: var(--green-50); border: 0; }
 .cf-help { display: flex; align-items: flex-start; gap: 6px; color: var(--muted); font-size: 13px; line-height: 1.45; }
-.cf-error { color: var(--error); font-weight: 500; }
+.cf-error { color: var(--error); font-weight: 650; }
 .cf-error svg { flex: none; margin-top: 2px; }
 
 /* alerts */
 .au-alert {
   display: flex; align-items: flex-start; gap: 10px; margin-bottom: 18px; padding: 13px 16px;
-  border-left: 3px solid; border-radius: 4px; font-size: 14.5px; line-height: 1.5;
+  border: 1px solid; border-left-width: 3px; border-radius: 10px; font-size: 14.5px; line-height: 1.5;
 }
 .au-form .au-alert { margin-bottom: 0; }
 .au-alert svg { flex: none; margin-top: 3px; font-size: 16px; }
-.au-alert-error { border-color: var(--error); background: #fef3f2; color: #7a271a; }
-.au-alert-info { border-color: var(--navy); background: #e9edf2; color: var(--navy); }
-.au-alert-success { border-color: #067647; background: #ecfdf3; color: #054f31; }
+.au-alert-error { border-color: #ecc9c7; border-left-color: var(--error); background: #fff4f3; color: #7a2f2c; }
+.au-alert-info { border-color: #bfddca; border-left-color: var(--green); background: var(--green-50); color: var(--green-700); }
+.au-alert-success { border-color: #bfddca; border-left-color: var(--green); background: var(--green-50); color: #12472f; }
 
-/* primary button — same height/radius/colour as the landing CTA */
+/* primary button — the ERP primary button */
 .au .au-submit {
   display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-  width: 100%; min-height: 56px; margin-top: 6px; padding: 0 24px;
-  border: 0; border-radius: 4px; background: var(--orange); color: var(--navy);
-  font-size: 16px; font-weight: 600; cursor: pointer;
-  transition: background-color .2s ease;
+  width: 100%; min-height: 54px; margin-top: 6px; padding: 0 24px;
+  border: 0; border-radius: 10px; background: var(--green); color: #fff;
+  font-size: 16px; font-weight: 750; cursor: pointer;
+  transition: background-color .2s ease, box-shadow .2s ease;
 }
 .au .au-submit svg { font-size: 18px; transition: transform .25s var(--ease); }
-.au .au-submit:hover { background: #fb8a3c; border: 0; }
+.au .au-submit:hover { background: var(--green-700); border: 0; color: #fff; box-shadow: 0 10px 22px rgba(13, 113, 66, .22); }
 .au .au-submit:hover svg { transform: translateX(3px); }
-.au .au-submit:disabled { cursor: progress; opacity: 1; background: #fbb07a; }
+.au .au-submit:disabled { cursor: progress; opacity: 1; background: #5c9c7a; box-shadow: none; }
 .au-spinner {
-  width: 18px; height: 18px; border: 2px solid rgba(11, 20, 32, .25); border-top-color: var(--navy); border-radius: 50%;
+  width: 18px; height: 18px; border: 2px solid rgba(255, 255, 255, .35); border-top-color: #fff; border-radius: 50%;
   animation: au-spin .8s linear infinite;
 }
 @keyframes au-spin { to { transform: rotate(360deg); } }
 
 .au-switch { margin-top: 24px; color: var(--muted); font-size: 15px; }
 .au-switch a {
-  color: var(--ink); font-weight: 600; text-decoration: underline;
-  text-decoration-color: rgba(249, 115, 22, .7); text-decoration-thickness: 2px; text-underline-offset: 4px;
+  color: var(--green); font-weight: 750; text-decoration: underline;
+  text-decoration-color: rgba(13, 113, 66, .35); text-decoration-thickness: 2px; text-underline-offset: 4px;
   transition: text-decoration-color .2s ease;
 }
-.au-switch a:hover { color: var(--ink); text-decoration-color: var(--orange); }
+.au-switch a:hover { color: var(--green-700); text-decoration-color: var(--green); }
 
 /* ---------------- responsive ---------------- */
 @media (max-width: 1240px) and (min-width: 900px) {

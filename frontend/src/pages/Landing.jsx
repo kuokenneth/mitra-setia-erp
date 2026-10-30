@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { FiArrowRight, FiArrowUpRight, FiLock, FiMail, FiMapPin, FiPhone } from "react-icons/fi";
 import CorporateLogo from "../components/CorporateLogo";
 import useLandingMotion from "./landing/useLandingMotion";
-import useTruckScene from "./landing/useTruckScene";
 import {
   COMPANY, FLEET, REASONS, SERVICES, STEPS, WA_CONSULT, WA_GENERAL,
   clean, isPlaceholder, waLink,
@@ -30,23 +29,29 @@ function Val({ value }) {
 }
 
 const TITLE = "BUILT TO DELIVER. DRIVEN BY TRUST.";
-const FLEET_VIEWS = ["Tampak depan", "Profil samping", "Tampak belakang", "Roda tandem", "Bak muatan"];
 
 export default function Landing() {
   const rootRef = useRef(null);
-  const canvasRef = useRef(null);
   useLandingMotion(rootRef);
-  useTruckScene(rootRef, canvasRef);
 
   return (
     <main className="lp" ref={rootRef}>
-      {/* real-time 3D scene behind the transparent "window" sections (hero, services, fleet, CTA) */}
-      <canvas className="lp-scene" ref={canvasRef} aria-hidden="true" />
-      <div className="lp-scene-vignette" aria-hidden="true" />
 
       {/* ============ 1. HERO ============ */}
       <section className="hx" id="home" aria-labelledby="hx-title">
-        <span className="lp-sr">Animasi 3D truk dump heavy-duty melaju di jalan perkebunan kelapa sawit.</span>
+        <div className="hx-layer hx-bg" aria-hidden="true">
+          <picture>
+            <source media="(max-width: 700px)" srcSet="/landing/hero-bg-sm.webp" />
+            <img src="/landing/hero-bg.webp" alt="" fetchPriority="high" />
+          </picture>
+        </div>
+        <div className="hx-sun" aria-hidden="true" />
+        <div className="hx-layer hx-fg">
+          <picture>
+            <source media="(max-width: 700px)" srcSet="/landing/hero-fg-sm.webp" />
+            <img src="/landing/hero-fg.webp" alt="Barisan truk heavy-duty CV. Mitra Setia" />
+          </picture>
+        </div>
         <div className="hx-dust" aria-hidden="true">
           {DUST.map((d, i) => (
             <span key={i} style={{ left: d.left, top: d.top, width: d.size, height: d.size, animationDelay: d.delay, animationDuration: d.dur }} />
@@ -105,20 +110,21 @@ export default function Landing() {
 
       {/* ============ 3. SERVICES ============ */}
       <section className="sv" id="services" aria-labelledby="sv-title">
-        <div className="sv-intro">
-          <div className="lp-shell sv-head">
-            <h2 id="sv-title">Tiga layanan pengangkutan utama kami.</h2>
-            <p>Setiap layanan disesuaikan dengan jenis muatan, rute, dan jadwal pengiriman pelanggan.</p>
-          </div>
+        <div className="lp-shell sv-head">
+          <h2 id="sv-title">Tiga layanan pengangkutan utama kami.</h2>
+          <p>Setiap layanan disesuaikan dengan jenis muatan, rute, dan jadwal pengiriman pelanggan.</p>
         </div>
         <div className="sv-stack">
-          {/* anchor targets at each panel's position */}
+          {/* anchor targets at each panel's resting position (the panels themselves are sticky) */}
           {SERVICES.map((s, i) => (
             <span key={`a-${s.id}`} id={`layanan-${s.id}`} className="sv-anchor" style={{ "--i": i }} aria-hidden="true" />
           ))}
           {SERVICES.map(s => (
             <article className="sv-panel" key={s.id} aria-labelledby={`sv-${s.id}`}>
-              <div className="sv-inner" style={{ "--fallback": `url(${s.image})` }}>
+              <div className="sv-inner">
+                <div className="sv-media-wrap" aria-hidden="true">
+                  <img className="sv-media" src={s.image} alt="" loading="lazy" decoding="async" />
+                </div>
                 <div className="sv-shade" aria-hidden="true" />
                 <p className="sv-title" aria-hidden="true">{s.decor || s.title}</p>
                 <div className="lp-shell sv-body">
@@ -128,6 +134,7 @@ export default function Landing() {
                     {s.cta} <FiArrowUpRight aria-hidden="true" />
                   </a>
                 </div>
+                <div className="sv-dim" aria-hidden="true" />
                 <span className="lp-sr">{s.alt}</span>
               </div>
             </article>
@@ -135,34 +142,41 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ============ 4. FLEET — the camera circles the truck as you scroll ============ */}
+      {/* ============ 4. FLEET ============ */}
       <section className="fl" id="fleet" aria-labelledby="fl-title">
-        <div className="fl-sticky">
-          <div className="fl-shade" aria-hidden="true" />
-          <div className="lp-shell fl-layout">
-            <div className="fl-intro">
+        <div className="fl-pin">
+          <div className="fl-track">
+            <div className="fl-panel fl-intro">
               <h2 id="fl-title">POWERED BY OUR FLEET.</h2>
               <p>Unit heavy-duty yang disiapkan untuk pekerjaan angkutan berat di Sumatera Utara, dari pupuk dan cangkang kelapa sawit hingga material curah.</p>
-              <p className="fl-note">Visualisasi 3D bersifat ilustratif dan bukan replika persis unit armada kami.</p>
             </div>
-            <div className="fl-specs">
+            <figure className="fl-panel fl-shot fl-shot-wide">
+              <div className="fl-img"><img src="/landing/fleet-lineup.webp" alt="Barisan truk heavy-duty CV. Mitra Setia" loading="lazy" decoding="async" /></div>
+              <figcaption>Armada siap operasi</figcaption>
+            </figure>
+            <div className="fl-panel fl-specs">
               <p className="fl-model-label">Unit utama</p>
               <p className="fl-model"><Val value={FLEET.model} /></p>
               <dl>
                 {FLEET.specs.filter(s => s.value != null).map(s => (
                   <div className="fl-spec" key={s.label}>
+                    <span className="fl-spec-rule" aria-hidden="true" />
                     <dt>{s.label}</dt>
                     <dd><Val value={s.value} /></dd>
                   </div>
                 ))}
               </dl>
             </div>
-            <ol className="fl-views" aria-label="Sudut pandang armada">
-              {FLEET_VIEWS.map((v, i) => (
-                <li className={`fl-view${i === 0 ? " is-active" : ""}`} key={v}><span aria-hidden="true">{i + 1}</span>{v}</li>
-              ))}
-            </ol>
+            <figure className="fl-panel fl-shot fl-shot-tall">
+              <div className="fl-img"><img src="/landing/fleet-side.webp" alt="Truk CV. Mitra Setia saat pemuatan" loading="lazy" decoding="async" /></div>
+              <figcaption>Pemuatan sebelum keberangkatan</figcaption>
+            </figure>
+            <figure className="fl-panel fl-shot fl-shot-detail">
+              <div className="fl-img"><img src="/landing/svc-parts.webp" alt="Detail roda dan sasis truk" loading="lazy" decoding="async" /></div>
+              <figcaption>Kesiapan unit di setiap perjalanan</figcaption>
+            </figure>
           </div>
+          <div className="fl-progress" aria-hidden="true"><span /></div>
         </div>
       </section>
 
@@ -229,6 +243,9 @@ export default function Landing() {
 
       {/* ============ 7. FINAL CTA ============ */}
       <section className="ct" id="contact" aria-labelledby="ct-title">
+        <div className="ct-media-wrap" aria-hidden="true">
+          <img className="ct-media" src="/landing/cta-dusk.webp" alt="" loading="lazy" decoding="async" />
+        </div>
         <div className="ct-shade" aria-hidden="true" />
         <div className="lp-shell ct-content">
           <h2 id="ct-title">YOUR CARGO. OUR COMMITMENT.</h2>

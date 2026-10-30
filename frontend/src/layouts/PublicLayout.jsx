@@ -1,5 +1,5 @@
 // src/layouts/PublicLayout.jsx — public website chrome (CV. Mitra Setia)
-// Transparent over the landing hero, solid navy once the page scrolls.
+// Transparent over the landing hero, then the ERP-style white bar once the page scrolls.
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { FiArrowUpRight } from "react-icons/fi";

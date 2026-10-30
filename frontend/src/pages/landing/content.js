@@ -40,8 +40,8 @@ export const SERVICES = [
     title: "Pengangkutan Pupuk",
     decor: "Pengangkutan Pupuk",   // large outlined background text (max two lines)
     text: "Layanan pengangkutan pupuk untuk mendukung kebutuhan distribusi perkebunan dan industri, dengan fokus pada ketepatan pengiriman dan keandalan operasional.",
-    image: "/landing/svc-pupuk.webp",          // photo fallback when WebGL is unavailable
-    alt: "Animasi 3D: truk dump bermuatan karung pupuk di depan gudang pupuk.",
+    image: "/landing/svc-pupuk.webp",
+    alt: "Pekerja memuat karung ke atas truk CV. Mitra Setia",
     cta: "Diskusikan pengangkutan pupuk",
   },
   {
@@ -50,7 +50,7 @@ export const SERVICES = [
     decor: "Pengangkutan Cangkang",
     text: "Solusi transportasi cangkang kelapa sawit untuk mendukung kebutuhan logistik industri dan distribusi bahan bakar biomassa.",
     image: "/landing/svc-cangkang.webp",
-    alt: "Animasi 3D: cangkang kelapa sawit dimuat dari hopper pabrik kelapa sawit ke bak truk.",
+    alt: "Jalan lintas perkebunan di Sumatera Utara dilihat dari udara",
     cta: "Diskusikan pengangkutan cangkang",
   },
   {
@@ -59,7 +59,7 @@ export const SERVICES = [
     decor: "Ambang & Material",
     text: "Layanan pengangkutan material curah untuk mendukung kebutuhan proyek konstruksi, infrastruktur, dan kegiatan industri.",
     image: "/landing/svc-material.webp",
-    alt: "Animasi 3D: kamera mengitari truk bermuatan material di area pemuatan.",
+    alt: "Barisan dump truck heavy-duty CV. Mitra Setia",
     cta: "Diskusikan pengangkutan ambang & material",
   },
 ];

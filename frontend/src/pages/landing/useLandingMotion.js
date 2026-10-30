@@ -69,11 +69,16 @@ export default function useLandingMotion(rootRef) {
 
           // ---------- 1. HERO ----------
           gsap.timeline({ defaults: { ease: "power4.out" } })
+            .from(".hx-bg img", { scale: 1.1, duration: 2.4, ease: "power2.out" }, 0)
             .from(".hx-line > span", { yPercent: 110, duration: 1.2, stagger: 0.1 }, 0.2)
             .from([".hx-kicker", ".hx-sub", ".hx-actions"], { y: 20, opacity: 0, duration: 0.9, stagger: 0.08, ease: "power3.out" }, 0.65);
 
-          // the 3D camera handles depth (see useTruckScene); here only the copy and the foreground dust move
+          // depth: sky (far) lags most, trucks + ground (near) move almost with the page,
+          // dust (nearest) moves faster than the page. Trucks stay on their ground — no floating.
           gsap.timeline({ defaults: { ease: "none" }, scrollTrigger: { trigger: ".hx", start: "top top", end: "bottom top", scrub: SCRUB } })
+            .fromTo(".hx-bg", { yPercent: 0, scale: 1 }, { yPercent: 18 * k, scale: 1.06, duration: 1 }, 0)
+            .fromTo(".hx-fg", { yPercent: 0 }, { yPercent: 6 * k, duration: 1 }, 0)
+            .fromTo(".hx-sun", { yPercent: 0, opacity: 1 }, { yPercent: 30 * k, opacity: 0.25, duration: 1 }, 0)
             .fromTo(".hx-dust", { yPercent: 0 }, { yPercent: -28 * k, duration: 1 }, 0)
             // copy leaves in layers: subtitle + buttons first, then the headline
             .fromTo(".hx-bottom", { y: 0, opacity: 1 }, { y: -60 * k, opacity: 0, duration: 0.25, ease: "none" }, 0)
@@ -99,21 +104,60 @@ export default function useLandingMotion(rootRef) {
             gsap.from(el, { y: 24, opacity: 0, duration: 0.8, ease: "power3.out", scrollTrigger: { trigger: el, start: "top 90%" } });
           });
 
-          // ---------- 3. SERVICES: copy reveals over the 3D scene ----------
-          gsap.utils.toArray(".sv-panel").forEach(panel => {
+          // ---------- 3. SERVICES: full-screen panels that slide over each other ----------
+          const panels = gsap.utils.toArray(".sv-panel");
+          panels.forEach((panel, i) => {
+            gsap.fromTo(panel.querySelector(".sv-media"), { yPercent: -7 * k, scale: 1.06 }, { yPercent: 7 * k, scale: 1, ease: "none", scrollTrigger: scrubbed(panel) });
             gsap.fromTo(panel.querySelector(".sv-title"), { xPercent: 5 * k }, { xPercent: -4 * k, ease: "none", scrollTrigger: scrubbed(panel) });
             gsap.from(panel.querySelectorAll(".sv-reveal"), {
               y: 32, opacity: 0, duration: 0.8, stagger: 0.08, ease: "power3.out",
-              scrollTrigger: { trigger: panel, start: "top 62%", toggleActions: "play none none reverse" },
+              scrollTrigger: { trigger: panel, start: "top 62%" },
+            });
+
+            const next = panels[i + 1];
+            if (!next) return;
+            // while the next panel slides over: this one darkens and its copy drifts away
+            const cover = { trigger: next, start: "top bottom", end: "top top", scrub: SCRUB };
+            gsap.fromTo(panel.querySelector(".sv-dim"), { opacity: 0 }, { opacity: 0.7, ease: "none", scrollTrigger: cover });
+            gsap.fromTo(panel.querySelector(".sv-body"), { y: 0, opacity: 1 }, { y: -60 * k, opacity: 0, ease: "power1.in", immediateRender: false, scrollTrigger: cover });
+            // once fully covered, stop painting it (no overdraw of stacked full-screen images)
+            ScrollTrigger.create({
+              trigger: next, start: "top top",
+              onEnter: () => gsap.set(panel, { visibility: "hidden" }),
+              onLeaveBack: () => gsap.set(panel, { visibility: "visible" }),
             });
           });
 
-          // ---------- 4. FLEET: sticky stage; the 3D camera orbits (useTruckScene), copy settles in once ----------
-          // animate inner content only — the containers' opacity belongs to the mobile CSS view switching
-          gsap.from([".fl-intro > *", ".fl-specs > *", ".fl-view"], {
-            y: 24, opacity: 0, duration: 0.8, stagger: 0.06, ease: "power3.out",
-            scrollTrigger: { trigger: ".fl", start: "top 55%" },
-          });
+          // ---------- 4. FLEET ----------
+          if (desktop) {
+            const track = root.querySelector(".fl-track");
+            const distance = () => track.scrollWidth - window.innerWidth;
+            const horizontal = gsap.to(track, {
+              x: () => -distance(), ease: "none",
+              scrollTrigger: {
+                trigger: ".fl-pin", start: "top top", end: () => `+=${distance()}`,
+                pin: true, scrub: 0.6, invalidateOnRefresh: true, anticipatePin: 1,
+              },
+            });
+            gsap.fromTo(".fl-progress span", { scaleX: 0 }, {
+              scaleX: 1, ease: "none",
+              scrollTrigger: { trigger: ".fl-pin", start: "top top", end: () => `+=${distance()}`, scrub: 0.6, invalidateOnRefresh: true },
+            });
+            gsap.utils.toArray(".fl-shot img").forEach(img => {
+              gsap.fromTo(img, { scale: 1.08, xPercent: -4 }, {
+                scale: 1, xPercent: 4, ease: "none",
+                scrollTrigger: { trigger: img.closest(".fl-shot"), containerAnimation: horizontal, start: "left right", end: "right left", scrub: true },
+              });
+            });
+            const specs = { trigger: ".fl-specs", containerAnimation: horizontal, start: "left 70%" };
+            gsap.from(".fl-spec", { y: 24, opacity: 0, stagger: 0.08, duration: 0.8, ease: "power3.out", scrollTrigger: specs });
+            gsap.from(".fl-spec-rule", { scaleX: 0, stagger: 0.08, duration: 0.9, ease: "power3.out", scrollTrigger: { ...specs } });
+          } else {
+            gsap.utils.toArray(".fl-shot img").forEach(img => {
+              gsap.fromTo(img, { yPercent: -5, scale: 1.08 }, { yPercent: 5, scale: 1, ease: "none", scrollTrigger: scrubbed(img.closest(".fl-shot")) });
+            });
+            gsap.from(".fl-spec", { y: 20, opacity: 0, stagger: 0.07, duration: 0.7, ease: "power3.out", scrollTrigger: { trigger: ".fl-specs", start: "top 82%" } });
+          }
 
           // ---------- 5. OPERATIONS: the route draws itself with the scroll ----------
           const opSection = root.querySelector(".op");
@@ -157,6 +201,7 @@ export default function useLandingMotion(rootRef) {
           });
 
           // ---------- 7. FINAL CTA ----------
+          gsap.fromTo(".ct-media", { yPercent: -10 * k, scale: 1.08 }, { yPercent: 8 * k, scale: 1, ease: "none", scrollTrigger: scrubbed(".ct") });
           gsap.from(".ct-content > *", {
             y: 32, opacity: 0, duration: 0.9, stagger: 0.1, ease: "power3.out",
             scrollTrigger: { trigger: ".ct", start: "top 55%" },
