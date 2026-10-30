@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  FiActivity, FiAlertTriangle, FiArrowRight, FiArrowUpRight, FiBox, FiCheck,
-  FiClock, FiDollarSign, FiExternalLink, FiLayers, FiMapPin, FiRadio,
-  FiPackage, FiRefreshCw, FiShoppingCart, FiTarget, FiTool, FiTrendingUp, FiTruck, FiWifiOff,
+  FiAlertTriangle, FiArrowDownRight, FiArrowRight, FiArrowUpRight, FiBox, FiCheck, FiCheckCircle, FiClock,
+  FiExternalLink, FiFileText, FiMapPin, FiPackage, FiRadio, FiRefreshCw, FiShoppingCart, FiTool, FiTruck, FiWifiOff,
 } from "react-icons/fi";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
@@ -33,8 +32,54 @@ const lastPushTime = (value) => {
   return timestamp.toLocaleString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false }).replace(" pukul", " ·") + " WIB";
 };
 
-function SectionTitle({ eyebrow, title, meta, icon: Icon }) {
-  return <div className="d4-section-title"><div><span>{eyebrow}</span><h2>{title}</h2></div>{meta ? <b>{meta}</b> : Icon ? <Icon /> : null}</div>;
+const todayLabel = () => new Date().toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric" });
+const pct = (value) => `${Math.max(0, Math.min(100, Math.round(number(value))))}%`;
+
+function Panel({ title, subtitle, meta, action, className = "", children, ...rest }) {
+  return <section className={`db-panel ${className}`.trim()} {...rest}>
+    <header className="db-panel-head">
+      <div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>
+      {action ? <button type="button" className="db-link" onClick={action.onClick}>{action.label}<FiArrowRight aria-hidden="true" /></button> : meta ? <span className="db-chip">{meta}</span> : null}
+    </header>
+    {children}
+  </section>;
+}
+
+function Meter({ value, tone = "" }) {
+  return <span className={`db-meter ${tone}`.trim()} aria-hidden="true"><i style={{ width: pct(value) }} /></span>;
+}
+
+function Spark({ data }) {
+  if (!data.length) return null;
+  const max = Math.max(1, ...data.map((item) => item.value));
+  const step = data.length > 1 ? 100 / (data.length - 1) : 100;
+  const points = data.map((item, index) => `${(index * step).toFixed(2)},${(30 - item.value / max * 26).toFixed(2)}`).join(" ");
+  return <svg className="db-spark" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true"><polyline points={`0,32 ${points} 100,32`} className="area" /><polyline points={points} className="line" /></svg>;
+}
+
+function Kpi({ icon, label, value, detail, tone = "green", onClick, children }) {
+  return <button type="button" className={`db-kpi ${tone}`} onClick={onClick}>
+    <span className="db-kpi-top"><i aria-hidden="true">{icon}</i>{label}<FiArrowUpRight className="db-kpi-go" aria-hidden="true" /></span>
+    <strong>{value}</strong>
+    <small>{detail}</small>
+    <span className="db-kpi-visual">{children}</span>
+  </button>;
+}
+
+function TrendChart({ data }) {
+  const max = Math.max(1, ...data.map((item) => item.value));
+  const every = data.length <= 14 ? 1 : data.length <= 31 ? 5 : 15;
+  const showValues = data.length <= 14;
+  return <div className="db-chart" role="img" aria-label={`Trip selesai per hari: ${data.map((item) => `${item.label} ${item.value}`).join(", ")}`}>
+    <div className="db-chart-grid" aria-hidden="true"><span>{max}</span><span>{Math.round(max / 2)}</span><span>0</span></div>
+    <div className={`db-chart-bars${data.length > 31 ? " dense" : ""}`}>
+      {data.map((item, index) => <div key={item.key} className={index === data.length - 1 ? "is-today" : ""} title={`${item.label}: ${item.value} trip`}>
+        {showValues && <b>{item.value}</b>}
+        <i style={{ height: `${Math.max(item.value ? 4 : 1.5, item.value / max * 100)}%` }} />
+        <span>{(index % every === 0 || index === data.length - 1) ? item.short : ""}</span>
+      </div>)}
+    </div>
+  </div>;
 }
 
 function AlertRow({ truck }) {
@@ -42,26 +87,28 @@ function AlertRow({ truck }) {
   const returnToBase = truck.tripReturnWarning || truck.tripServiceWarning;
   const stopped = Boolean(truck.gpsStopWarning);
   const hasGps = Number.isFinite(Number(truck.lastGpsLatitude)) && Number.isFinite(Number(truck.lastGpsLongitude));
-  return <article className={`d4-alert ${critical ? "critical" : "stopped"}`}>
-    <i><FiAlertTriangle /></i>
-    <div className="d4-alert-main"><div><strong>{truck.plateNumber}</strong><b>{critical ? "AREA WARNING" : returnToBase ? "KEMBALI KE BASE" : "BERHENTI LAMA"}</b></div><p><FiMapPin /> {returnToBase ? `${returnToBase.location} · perlu tindakan` : truck.gpsLocation?.name || "Di luar master lokasi"}</p></div>
-    <div className="d4-alert-meta"><span>{returnToBase ? stopTime(returnToBase.durationMinutes) : stopped ? stopTime(truck.gpsStopWarning.durationMinutes) : "Sedang berada di area"}</span><small>Push GPS: {lastPushTime(truck.lastGpsAt)}{truck.gpsTelemetry?.fresh === false ? " · data tertunda" : ""}</small><small>{truck.driverUser?.name || "Tanpa pengemudi"}</small></div>
-    {hasGps && <a aria-label={`Buka lokasi ${truck.plateNumber}`} href={`https://www.google.com/maps?q=${truck.lastGpsLatitude},${truck.lastGpsLongitude}`} target="_blank" rel="noreferrer"><FiExternalLink /></a>}
+  const kind = critical ? "Area warning" : returnToBase ? "Kembali ke base" : "Berhenti lama";
+  return <article className={`db-alert ${critical ? "critical" : "warning"}`}>
+    <i aria-hidden="true"><FiAlertTriangle /></i>
+    <div className="db-alert-main">
+      <div><strong>{truck.plateNumber}</strong><span className="db-tag">{kind}</span></div>
+      <p><FiMapPin aria-hidden="true" /> {returnToBase ? `${returnToBase.location} · perlu tindakan` : truck.gpsLocation?.name || "Di luar master lokasi"}</p>
+      <small>{truck.driverUser?.name || "Tanpa pengemudi"} · GPS {lastPushTime(truck.lastGpsAt)}{truck.gpsTelemetry?.fresh === false ? " · data tertunda" : ""}</small>
+    </div>
+    <div className="db-alert-time"><FiClock aria-hidden="true" />{returnToBase ? stopTime(returnToBase.durationMinutes) : stopped ? stopTime(truck.gpsStopWarning.durationMinutes) : "Di dalam area"}</div>
+    {hasGps ? <a className="db-icon-btn" aria-label={`Buka lokasi ${truck.plateNumber} di Google Maps`} href={`https://www.google.com/maps?q=${truck.lastGpsLatitude},${truck.lastGpsLongitude}`} target="_blank" rel="noreferrer"><FiExternalLink /></a> : <span />}
   </article>;
 }
 
-function Stat({ label, value, detail, trend, tone = "neutral", onClick }) {
-  const Tag = onClick ? "button" : "div";
-  return <Tag className={`d4-stat ${tone}`} onClick={onClick}><span>{label}</span><strong>{value}</strong><small>{detail}</small>{trend && <em><FiTrendingUp />{trend}</em>}</Tag>;
-}
-
-function MiniBars({ data }) {
-  const max = Math.max(1, ...data.map((item) => item.value));
-  return <div className="d4-bars" aria-label="Grafik trip selesai per hari">{data.map((item) => <div key={item.key} title={`${item.label}: ${item.value} trip`}><i style={{ height: `${Math.max(7, item.value / max * 100)}%` }} /><span>{item.short}</span></div>)}</div>;
-}
-
-function FlowStep({ label, value, note, tone }) {
-  return <div className={`d4-flow-step ${tone || ""}`}><span>{label}</span><strong>{value}</strong><small>{note}</small></div>;
+function DomainCard({ icon, tone, title, value, caption, onOpen, openLabel, metrics }) {
+  return <section className={`db-panel db-domain ${tone}`}>
+    <header className="db-domain-head">
+      <i aria-hidden="true">{icon}</i>
+      <div><h2>{title}</h2><p><strong>{value}</strong> {caption}</p></div>
+      <button type="button" className="db-link" onClick={onOpen}>{openLabel}<FiArrowRight aria-hidden="true" /></button>
+    </header>
+    <dl className="db-domain-metrics">{metrics.map((metric) => <div key={metric.label}><dt>{metric.label}</dt><dd className={metric.attention ? "attention" : ""}>{metric.value}</dd><small>{metric.note}</small></div>)}</dl>
+  </section>;
 }
 
 export default function Dashboard() {
@@ -155,7 +202,7 @@ export default function Dashboard() {
     const maintenanceHealth = trucks.length ? Math.max(0, Math.round(100 - openMaintenance / trucks.length * 100)) : 100;
     const safetyHealth = trucks.length ? Math.max(0, Math.round(100 - warnings.length / trucks.length * 100)) : 100;
     const pulse = Math.round(utilization * .35 + gpsHealth * .25 + maintenanceHealth * .2 + safetyHealth * .2);
-    return { status, active, warnings, gpsMapped: gpsMapped.length, gpsOnline, gpsStale: gpsMapped.length - gpsOnline, gpsMissing: trucks.length - gpsMapped.length, openMaintenance, lowStock, expiringStnk, completedTrips, movingTrips, arrivedTrips, orderStatus, fulfillment, trend, throughputChange, utilization, gpsHealth, pulse };
+    return { status, active, warnings, gpsMapped: gpsMapped.length, gpsOnline, gpsStale: gpsMapped.length - gpsOnline, gpsMissing: trucks.length - gpsMapped.length, openMaintenance, lowStock, expiringStnk, completedTrips, movingTrips, arrivedTrips, orderStatus, fulfillment, trend, throughputChange, utilization, gpsHealth, maintenanceHealth, safetyHealth, pulse };
   }, [trucks, maintenance, maintenanceSummary, inventory, trips, orders, period, referenceTime]);
 
   const priorities = useMemo(() => [
@@ -189,107 +236,136 @@ export default function Dashboard() {
     return { waitingApproval, inTransit, unpaidBills: unpaidBills.length, outstanding };
   }, [purchasing]);
 
-  return <main className="d4-page" data-testid="dashboard-page">
-    <header className="d4-header">
-      <div><span>OPERATIONS INTELLIGENCE</span><h1>Selamat datang, {user?.name?.split(" ")[0] || "Pengguna"}</h1><p>Command center untuk melihat ritme operasi, risiko, dan keputusan hari ini.</p></div>
-      <div className="d4-header-tools">
-        <div className="d4-period" aria-label="Pilih periode analisis">{[7, 30, 90].map((value) => <button key={value} className={period === value ? "active" : ""} onClick={() => { setRefreshing(true); setPeriod(value); }}>{value} hari</button>)}</div>
-        <button className="d4-refresh" aria-label="Perbarui dashboard" onClick={() => { setRefreshing(true); setRevision((value) => value + 1); }} disabled={refreshing}><FiRefreshCw className={refreshing ? "spin" : ""} /></button>
-        <div className={`d4-live ${connected ? "connected" : "disconnected"}`}><i /> <span>{connected ? "Live" : "Terputus"}<small>{lastUpdated ? `Diperbarui ${lastUpdated.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}` : "Menghubungkan data"}</small></span></div>
+  const attention = priorities.filter((item) => item.level !== "safe").length;
+  const pulseLabel = data.pulse >= 85 ? "Operasi sehat" : data.pulse >= 65 ? "Perlu perhatian" : "Butuh intervensi";
+  const pulseTone = data.pulse >= 85 ? "good" : data.pulse >= 65 ? "watch" : "bad";
+  const show = (value) => loading ? "—" : value;
+
+  return <main className="db-page" data-testid="dashboard-page">
+    <header className="db-header">
+      <div className="db-header-copy">
+        <span className="db-date">{todayLabel()}</span>
+        <h1>Selamat datang, {user?.name?.split(" ")[0] || "Pengguna"}</h1>
+        <p>{loading ? "Menyiapkan ringkasan operasional…" : attention ? `${attention} hal perlu perhatian Anda hari ini.` : "Operasional berjalan normal. Tidak ada hal mendesak."}</p>
+      </div>
+      <div className="db-tools">
+        <div className="db-segment" role="group" aria-label="Pilih periode analisis">{[7, 30, 90].map((value) => <button type="button" key={value} aria-pressed={period === value} className={period === value ? "active" : ""} onClick={() => { setRefreshing(true); setPeriod(value); }}>{value} hari</button>)}</div>
+        <button type="button" className="db-icon-btn db-refresh" aria-label="Perbarui dashboard" onClick={() => { setRefreshing(true); setRevision((value) => value + 1); }} disabled={refreshing}><FiRefreshCw className={refreshing ? "spin" : ""} /></button>
+        <div className={`db-live ${connected ? "on" : "off"}`} role="status"><i aria-hidden="true" /><span>{connected ? "Live" : "Terputus"}</span><small>{lastUpdated ? lastUpdated.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "…"}</small></div>
       </div>
     </header>
 
-    <section className="d4-executive">
-      <div className="d4-pulse-card">
-        <div className="d4-pulse-top"><span>OPERATIONAL PULSE</span><FiActivity /></div>
-        <div className="d4-pulse-main"><div className="d4-pulse-ring" style={{ "--pulse": `${data.pulse * 3.6}deg` }}><div><strong>{loading ? "—" : data.pulse}</strong><small>/100</small></div></div><div><b>{data.pulse >= 85 ? "Operasi sehat" : data.pulse >= 65 ? "Perlu perhatian" : "Butuh intervensi"}</b><p>Skor gabungan utilisasi, GPS, maintenance, dan exception armada.</p></div></div>
-        <div className="d4-pulse-factors"><span>Utilisasi <b>{data.utilization}%</b></span><span>GPS sehat <b>{data.gpsHealth}%</b></span><span>Exception <b>{data.warnings.length}</b></span></div>
+    <section className="db-kpis" aria-label="Indikator utama">
+      <Kpi icon={<FiCheckCircle />} label="Trip selesai" value={show(data.completedTrips)} tone="green" onClick={() => navigate("/trips")}
+        detail={<><span className={data.throughputChange >= 0 ? "up" : "down"}>{data.throughputChange >= 0 ? <FiArrowUpRight /> : <FiArrowDownRight />}{Math.abs(data.throughputChange)}%</span> {period} hari terakhir</>}>
+        <Spark data={data.trend} />
+      </Kpi>
+      <Kpi icon={<FiTruck />} label="Armada aktif" value={loading ? "—" : <>{data.active}<em>/{trucks.length}</em></>} tone="green" onClick={() => navigate("/trucks")}
+        detail={`${data.status.DISPATCH || 0} sedang berjalan · ${data.utilization}% utilisasi`}>
+        <Meter value={data.utilization} />
+      </Kpi>
+      <Kpi icon={<FiFileText />} label="Order aktif" value={show(orders.length)} tone="info" onClick={() => navigate("/orders")}
+        detail={`${data.fulfillment}% kuantitas sudah dialokasikan`}>
+        <Meter value={data.fulfillment} tone="info" />
+      </Kpi>
+      <Kpi icon={<FiAlertTriangle />} label="Exception" value={show(data.warnings.length + data.arrivedTrips.length)} tone={data.warnings.length ? "danger" : "neutral"} onClick={() => navigate("/fleet-map")}
+        detail={`${data.warnings.length} warning armada · ${data.arrivedTrips.length} trip tertunda`}>
+        <span className="db-kpi-dots" aria-hidden="true">{Array.from({ length: Math.min(12, data.warnings.length + data.arrivedTrips.length) }, (_, index) => <i key={index} className={index < data.warnings.length ? "w" : "a"} />)}</span>
+      </Kpi>
+    </section>
+
+    <div className="db-layout">
+      <div className="db-col">
+        <Panel title="Prioritas tindakan" subtitle="Diurutkan dari yang paling mendesak" meta={loading ? undefined : `${attention} agenda`} className="db-priorities">
+          {loading ? <div className="db-pad"><LoadingState compact label="Menyusun prioritas" rows={2} /></div> : <ul className="db-priority-list">{priorities.map((item) => <li key={item.title}><button type="button" className={item.level} onClick={() => navigate(item.path)}>
+            <i aria-hidden="true">{item.level === "safe" ? <FiCheck /> : item.level === "neutral" ? <FiTool /> : <FiAlertTriangle />}</i>
+            <span><strong>{item.title}</strong><small>{item.detail}</small></span>
+            <em>{item.action}<FiArrowRight aria-hidden="true" /></em>
+          </button></li>)}</ul>}
+        </Panel>
+
+        <Panel title="Trip selesai per hari" subtitle={`${data.completedTrips} trip dalam ${period} hari · ${data.throughputChange >= 0 ? "naik" : "turun"} ${Math.abs(data.throughputChange)}% dibanding paruh awal periode`} action={{ label: "Lihat trips", onClick: () => navigate("/trips") }}>
+          {loading ? <div className="db-pad"><LoadingState compact label="Memuat throughput" rows={2} /></div> : <TrendChart data={data.trend} />}
+        </Panel>
+
+        <Panel title="Warning armada" subtitle="Area warning, berhenti lama, dan kembali ke base" meta={`${data.warnings.length} aktif`} className="db-alerts">
+          <div className="db-alert-list" data-testid="alerts-list">{loading ? <div className="db-pad"><LoadingState compact label="Memuat monitoring GPS" rows={3} /></div> : data.warnings.length ? data.warnings.map((truck) => <AlertRow key={truck.id} truck={truck} />) : <div className="db-empty"><FiCheck aria-hidden="true" /><strong>Semua armada aman</strong><span>Tidak ada area warning atau berhenti terlalu lama.</span></div>}</div>
+          <footer className="db-panel-foot"><button type="button" className="db-link" onClick={() => navigate("/fleet-map")}><FiMapPin aria-hidden="true" />Buka peta armada<FiArrowRight aria-hidden="true" /></button></footer>
+        </Panel>
+
+        {data.arrivedTrips.length > 0 && <Panel title="Trip tiba menunggu penyelesaian" subtitle="Selesaikan agar billing dan laporan muatan dapat diproses" meta={`${data.arrivedTrips.length} trip`} className="db-arrived">
+          <ul className="db-arrived-list">{data.arrivedTrips.slice(0, 8).map((trip) => <li key={trip.id}><button type="button" onClick={() => navigate(`/trips/${trip.id}`)}>
+            <span><strong>{trip.order?.orderNo || trip.tripNo || "Trip"}</strong><small>{trip.truck?.plateNumber || trip.plateNumberSnap || "Tanpa armada"} · {trip.driverUser?.name || trip.driverNameSnap || "Tanpa pengemudi"}</small></span>
+            <span><strong>{trip.order?.toText || trip.toText || "Tujuan belum dicatat"}</strong><small>{trip.cargoNameSnap || trip.order?.cargoName || "Muatan"}</small></span>
+            <em>Selesaikan<FiArrowRight aria-hidden="true" /></em>
+          </button></li>)}</ul>
+        </Panel>}
       </div>
-      <div className="d4-stat-grid">
-        <Stat label="TRIP SELESAI" value={loading ? "—" : data.completedTrips} detail={`${period} hari terakhir`} trend={`${data.throughputChange >= 0 ? "+" : ""}${data.throughputChange}% vs paruh awal`} tone="green" onClick={() => navigate("/trips")} />
-        <Stat label="ARMADA AKTIF" value={loading ? "—" : `${data.active}/${trucks.length}`} detail={`${data.status.DISPATCH || 0} sedang berjalan`} tone="blue" onClick={() => navigate("/trucks")} />
-        <Stat label="ORDER AKTIF" value={loading ? "—" : orders.length} detail={`${data.fulfillment}% sudah dialokasikan`} tone="amber" onClick={() => navigate("/orders")} />
-        <Stat label="EXCEPTION" value={loading ? "—" : data.warnings.length + data.arrivedTrips.length} detail="warning + trip tertunda" tone={data.warnings.length ? "red" : "neutral"} onClick={() => navigate("/fleet-map")} />
-      </div>
-      {canViewFinance && <div className="d4-finance-card">
-        <div className="d4-finance-head"><span>FINANCIAL PULSE · {month}</span><FiDollarSign /></div>
-        <small>Laba bersih bulan berjalan</small><strong className={profit < 0 ? "loss" : "gain"}>{loading ? "—" : rupiah(profit)}</strong>
-        <div className="d4-finance-row"><span>Pendapatan<b>{rupiah(finance.summary?.revenue, true)}</b></span><span>Margin<b>{number(finance.summary?.margin).toLocaleString("id-ID", { maximumFractionDigits: 1 })}%</b></span></div>
-        <div className="d4-finance-row receivable"><span>Piutang berjalan<b>{rupiah(outstanding, true)}</b></span><span>Lewat tempo<b className={overdue ? "danger" : ""}>{rupiah(overdue, true)}</b></span></div>
-        <button onClick={() => navigate("/fleet-profitability")}>Buka analisis profit <FiArrowRight /></button>
-      </div>}
-    </section>
 
-    <section className="d4-analytics-grid">
-      <article className="d4-card d4-throughput">
-        <SectionTitle eyebrow="THROUGHPUT" title="Ritme trip selesai" meta={`${data.completedTrips} trip`} />
-        <div className="d4-chart-summary"><div><strong>{data.completedTrips}</strong><span>Total trip selesai</span></div><div className={data.throughputChange >= 0 ? "positive" : "negative"}><FiArrowUpRight /><strong>{Math.abs(data.throughputChange)}%</strong><span>{data.throughputChange >= 0 ? "meningkat" : "menurun"}</span></div></div>
-        {loading ? <LoadingState compact label="Memuat throughput" rows={2} /> : <MiniBars data={data.trend} />}
-      </article>
+      <aside className="db-col db-side">
+        <Panel title="Kesehatan operasi" subtitle="Skor gabungan utilisasi, GPS, servis, dan exception" className="db-pulse">
+          <div className="db-pulse-main">
+            <div className={`db-ring ${pulseTone}`} style={{ "--pulse": `${data.pulse * 3.6}deg` }}><div><strong>{show(data.pulse)}</strong><small>/100</small></div></div>
+            <div><b className={pulseTone}>{loading ? "Memuat…" : pulseLabel}</b><p>{data.warnings.length} exception · {data.gpsOnline}/{data.gpsMapped} GPS online</p></div>
+          </div>
+          <ul className="db-factors">
+            <li><span>Utilisasi armada</span><b>{data.utilization}%</b><Meter value={data.utilization} /></li>
+            <li><span>GPS sehat</span><b>{data.gpsHealth}%</b><Meter value={data.gpsHealth} /></li>
+            <li><span>Kesiapan servis</span><b>{data.maintenanceHealth}%</b><Meter value={data.maintenanceHealth} /></li>
+            <li><span>Bebas exception</span><b>{data.safetyHealth}%</b><Meter value={data.safetyHealth} tone={data.warnings.length ? "warn" : ""} /></li>
+          </ul>
+        </Panel>
 
-      <article className="d4-card d4-flow-card">
-        <SectionTitle eyebrow="ORDER-TO-DELIVERY" title="Pipeline operasional" icon={FiLayers} />
-        <div className="d4-flow">
-          <FlowStep label="ORDER TERBUKA" value={orders.length} note={`${number(data.orderStatus.CONFIRMED)} confirmed`} />
-          <i><FiArrowRight /></i>
-          <FlowStep label="DALAM JALAN" value={data.movingTrips} note="trip aktif" tone="moving" />
-          <i><FiArrowRight /></i>
-          <FlowStep label="SUDAH TIBA" value={data.arrivedTrips.length} note="perlu closing" tone={data.arrivedTrips.length ? "warning" : ""} />
-        </div>
-        <div className="d4-allocation"><div><span>Alokasi order aktif</span><b>{data.fulfillment}%</b></div><div><i style={{ width: `${data.fulfillment}%` }} /></div><small>{number(data.orderStatus.DRAFT)} draft · {number(data.orderStatus.IN_PROGRESS)} dalam proses</small></div>
-      </article>
+        {canViewFinance && <section className="db-panel db-finance" aria-label="Ringkasan keuangan">
+          <header><span>Keuangan · {month}</span><button type="button" onClick={() => navigate("/fleet-profitability")}>Analisis profit<FiArrowRight aria-hidden="true" /></button></header>
+          <small>Laba bersih bulan berjalan</small>
+          <strong className={profit < 0 ? "loss" : ""}>{show(rupiah(profit))}</strong>
+          <dl>
+            <div><dt>Pendapatan</dt><dd>{rupiah(finance.summary?.revenue, true)}</dd></div>
+            <div><dt>Margin</dt><dd>{number(finance.summary?.margin).toLocaleString("id-ID", { maximumFractionDigits: 1 })}%</dd></div>
+            <div><dt>Piutang berjalan</dt><dd>{rupiah(outstanding, true)}</dd></div>
+            <div><dt>Lewat tempo</dt><dd className={overdue ? "danger" : ""}>{rupiah(overdue, true)}</dd></div>
+          </dl>
+        </section>}
 
-      <article className="d4-card d4-priority-card">
-        <SectionTitle eyebrow="DECISION BRIEFING" title="Prioritas tindakan" meta={`${priorities.length} agenda`} />
-        <div className="d4-priority-list">{priorities.map((item) => <button key={item.title} onClick={() => navigate(item.path)}><i className={item.level}>{item.level === "safe" ? <FiCheck /> : item.level === "neutral" ? <FiTool /> : <FiAlertTriangle />}</i><span><strong>{item.title}</strong><small>{item.detail}</small></span><em>{item.action}<FiArrowRight /></em></button>)}</div>
-      </article>
-    </section>
+        <Panel title="Order ke pengiriman" subtitle="Posisi order dan trip saat ini" className="db-flow-panel">
+          <ol className="db-flow">
+            <li><span>Order terbuka</span><strong>{orders.length}</strong><small>{number(data.orderStatus.CONFIRMED)} confirmed</small></li>
+            <li className="moving"><span>Dalam perjalanan</span><strong>{data.movingTrips}</strong><small>trip aktif</small></li>
+            <li className={data.arrivedTrips.length ? "warning" : ""}><span>Sudah tiba</span><strong>{data.arrivedTrips.length}</strong><small>perlu closing</small></li>
+          </ol>
+          <div className="db-allocation"><div><span>Alokasi order aktif</span><b>{data.fulfillment}%</b></div><Meter value={data.fulfillment} /><small>{number(data.orderStatus.DRAFT)} draft · {number(data.orderStatus.IN_PROGRESS)} dalam proses</small></div>
+        </Panel>
 
-    <section className="d4-business-grid">
-      <article className="d4-card d4-domain-card workshop">
-        <SectionTitle eyebrow="WORKSHOP CONTROL" title="Bengkel & maintenance" meta={`${data.openMaintenance} terbuka`} />
-        <div className="d4-domain-hero"><i><FiTool /></i><div><strong>{data.status.MAINTENANCE}</strong><span>armada sedang di bengkel</span></div><button onClick={() => navigate("/maintenance")}>Buka bengkel <FiArrowRight /></button></div>
-        <div className="d4-domain-metrics"><div><span>Servis terbuka</span><b>{data.openMaintenance}</b><small>pekerjaan aktif</small></div><div><span>Menunggu parts</span><b className={workshop.waitingParts ? "attention" : ""}>{workshop.waitingParts}</b><small>dari pembelian</small></div><div><span>Lebih dari 3 hari</span><b className={workshop.agingJobs ? "attention" : ""}>{workshop.agingJobs}</b><small>butuh eskalasi</small></div></div>
-      </article>
-
-      <article className="d4-card d4-domain-card purchasing">
-        <SectionTitle eyebrow="PROCUREMENT PULSE" title="Pembelian & supplier" meta={`${purchasePulse.inTransit} PO dikirim`} />
-        <div className="d4-domain-hero"><i><FiShoppingCart /></i><div><strong>{purchasePulse.waitingApproval}</strong><span>permintaan menunggu approval</span></div><button onClick={() => navigate("/purchasing")}>Buka pembelian <FiArrowRight /></button></div>
-        <div className="d4-domain-metrics"><div><span>Belum disetujui</span><b className={purchasePulse.waitingApproval ? "attention" : ""}>{purchasePulse.waitingApproval}</b><small>menunggu approval</small></div><div><span>PO dalam proses</span><b>{purchasePulse.inTransit}</b><small>belum diterima penuh</small></div><div><span>Tagihan terbuka</span><b>{purchasePulse.unpaidBills}</b><small>{rupiah(purchasePulse.outstanding, true)}</small></div></div>
-      </article>
-
-      <article className="d4-card d4-domain-card inventory-domain">
-        <SectionTitle eyebrow="MATERIAL READINESS" title="Persediaan & kebutuhan" meta={`${data.lowStock} kritis`} />
-        <div className="d4-domain-hero"><i><FiPackage /></i><div><strong>{inventory.length}</strong><span>item persediaan terpantau</span></div><button onClick={() => navigate("/inventory")}>Buka stok <FiArrowRight /></button></div>
-        <div className="d4-domain-metrics"><div><span>Stok minimum</span><b className={data.lowStock ? "attention" : ""}>{data.lowStock}</b><small>perlu replenishment</small></div><div><span>Kebutuhan bengkel</span><b>{workshop.serviceRequests}</b><small>permintaan terkait servis</small></div><div><span>Kesiapan armada</span><b>{data.status.READY}</b><small>unit siap jalan</small></div></div>
-      </article>
-    </section>
-
-    {data.arrivedTrips.length > 0 && <section className="d4-card d4-arrived-card">
-      <SectionTitle eyebrow="BOTTLENECK" title="Trip tiba menunggu penyelesaian" meta={`${data.arrivedTrips.length} trip`} />
-      <div className="d4-arrived-list">{data.arrivedTrips.slice(0, 8).map((trip) => <button key={trip.id} onClick={() => navigate(`/trips/${trip.id}`)}><i><FiMapPin /></i><span><strong>{trip.order?.orderNo || trip.tripNo || "Trip"}</strong><small>{trip.truck?.plateNumber || trip.plateNumberSnap || "Tanpa armada"} · {trip.driverUser?.name || trip.driverNameSnap || "Tanpa pengemudi"}</small></span><span><strong>{trip.order?.toText || trip.toText || "Tujuan belum dicatat"}</strong><small>{trip.cargoNameSnap || trip.order?.cargoName || "Muatan"}</small></span><em>Selesaikan <FiArrowRight /></em></button>)}</div>
-    </section>}
-
-    <section className="d4-monitor-grid">
-      <article className="d4-card d4-alert-card">
-        <SectionTitle eyebrow="REAL-TIME EXCEPTIONS" title="Warning armada" meta={`${data.warnings.length} aktif`} />
-        <div className="d4-alert-list" data-testid="alerts-list">{loading ? <LoadingState compact label="Memuat monitoring GPS" rows={3} /> : data.warnings.length ? data.warnings.map((truck) => <AlertRow key={truck.id} truck={truck} />) : <div className="d4-empty"><FiCheck /><strong>Semua armada aman</strong><span>Tidak ada area warning atau berhenti terlalu lama.</span></div>}</div>
-      </article>
-
-      <aside className="d4-side-stack">
-        <article className="d4-card d4-health-card">
-          <SectionTitle eyebrow="FLEET HEALTH" title="Kesiapan sistem" icon={FiTarget} />
-          <div className="d4-health-row"><span><i className="gps"><FiRadio /></i>GPS online</span><b>{data.gpsOnline}/{data.gpsMapped}</b><em>{data.gpsHealth}%</em></div>
-          <div className="d4-health-row"><span><i className="ready"><FiTruck /></i>Armada ready</span><b>{data.status.READY}</b><em>{trucks.length ? Math.round(data.status.READY / trucks.length * 100) : 0}%</em></div>
-          <div className="d4-health-row"><span><i className="service"><FiTool /></i>Servis terbuka</span><b>{data.openMaintenance}</b><em className={data.openMaintenance ? "attention" : ""}>{data.openMaintenance ? "Pantau" : "Aman"}</em></div>
-          <div className="d4-health-row"><span><i className="stock"><FiBox /></i>Stok kritis</span><b>{data.lowStock}</b><em className={data.lowStock ? "attention" : ""}>{data.lowStock ? "Tindak" : "Aman"}</em></div>
-          <div className="d4-health-foot"><span><FiWifiOff /> {data.gpsMissing} belum dipasang</span><span><FiClock /> {data.gpsStale} tidak update</span></div>
-        </article>
-        <article className="d4-card d4-quick-card">
-          <SectionTitle eyebrow="QUICK ACCESS" title="Kontrol operasional" />
-          <div className="d4-quick-actions"><button onClick={() => navigate("/fleet-map")}><FiMapPin /><span>Live map<small>Pantau posisi armada</small></span><FiArrowRight /></button><button onClick={() => navigate("/maintenance")}><FiTool /><span>Maintenance<small>{data.openMaintenance} pekerjaan terbuka</small></span><FiArrowRight /></button><button onClick={() => navigate("/inventory")}><FiBox /><span>Persediaan<small>{data.lowStock} stok kritis</small></span><FiArrowRight /></button><button onClick={() => navigate("/trucks")}><FiTruck /><span>Dokumen armada<small>{data.expiringStnk} STNK hampir habis</small></span><FiArrowRight /></button></div>
-        </article>
+        <Panel title="Kesiapan armada" subtitle="GPS, servis, stok, dan dokumen" className="db-health">
+          <ul className="db-health-list">
+            <li><i className="green" aria-hidden="true"><FiRadio /></i><span>GPS online</span><b>{data.gpsOnline}/{data.gpsMapped}</b><em>{data.gpsHealth}%</em></li>
+            <li><i className="green" aria-hidden="true"><FiTruck /></i><span>Armada siap jalan</span><b>{data.status.READY}</b><em>{trucks.length ? Math.round(data.status.READY / trucks.length * 100) : 0}%</em></li>
+            <li><i className="warn" aria-hidden="true"><FiTool /></i><span>Servis terbuka</span><b>{data.openMaintenance}</b><em className={data.openMaintenance ? "attention" : ""}>{data.openMaintenance ? "Pantau" : "Aman"}</em></li>
+            <li><i className="info" aria-hidden="true"><FiBox /></i><span>Stok kritis</span><b>{data.lowStock}</b><em className={data.lowStock ? "attention" : ""}>{data.lowStock ? "Tindak" : "Aman"}</em></li>
+            <li><i className="info" aria-hidden="true"><FiFileText /></i><span>STNK habis ≤ 30 hari</span><b>{data.expiringStnk}</b><em className={data.expiringStnk ? "attention" : ""}>{data.expiringStnk ? "Perpanjang" : "Aman"}</em></li>
+          </ul>
+          <footer className="db-panel-foot db-health-foot"><span><FiWifiOff aria-hidden="true" /> {data.gpsMissing} belum dipasang GPS</span><span><FiClock aria-hidden="true" /> {data.gpsStale} tidak update &gt; 1 jam</span></footer>
+        </Panel>
       </aside>
+    </div>
+
+    <section className="db-domains" aria-label="Bengkel, pembelian, dan persediaan">
+      <DomainCard icon={<FiTool />} tone="warn" title="Bengkel & servis" value={data.status.MAINTENANCE} caption="armada sedang di bengkel" openLabel="Buka servis" onOpen={() => navigate("/maintenance")} metrics={[
+        { label: "Servis terbuka", value: data.openMaintenance, note: "pekerjaan aktif" },
+        { label: "Menunggu parts", value: workshop.waitingParts, note: "dari pembelian", attention: workshop.waitingParts },
+        { label: "Lebih dari 3 hari", value: workshop.agingJobs, note: "butuh eskalasi", attention: workshop.agingJobs },
+      ]} />
+      <DomainCard icon={<FiShoppingCart />} tone="info" title="Pembelian & supplier" value={purchasePulse.waitingApproval} caption="permintaan menunggu approval" openLabel="Buka pembelian" onOpen={() => navigate("/purchasing")} metrics={[
+        { label: "Belum disetujui", value: purchasePulse.waitingApproval, note: "menunggu approval", attention: purchasePulse.waitingApproval },
+        { label: "PO dalam proses", value: purchasePulse.inTransit, note: "belum diterima penuh" },
+        { label: "Tagihan terbuka", value: purchasePulse.unpaidBills, note: rupiah(purchasePulse.outstanding, true) },
+      ]} />
+      <DomainCard icon={<FiPackage />} tone="green" title="Persediaan" value={inventory.length} caption="item persediaan terpantau" openLabel="Buka stok" onOpen={() => navigate("/inventory")} metrics={[
+        { label: "Stok minimum", value: data.lowStock, note: "perlu replenishment", attention: data.lowStock },
+        { label: "Kebutuhan bengkel", value: workshop.serviceRequests, note: "terkait servis" },
+        { label: "Armada siap", value: data.status.READY, note: "unit siap jalan" },
+      ]} />
     </section>
   </main>;
 }
