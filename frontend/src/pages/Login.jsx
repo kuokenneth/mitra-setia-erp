@@ -1,57 +1,115 @@
-import { useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { FiArrowLeft, FiArrowRight, FiCheck, FiEye, FiEyeOff, FiLock, FiMail, FiShield, FiTruck } from "react-icons/fi";
+import { useEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { FiArrowRight, FiCheckCircle, FiInfo, FiLock, FiMail } from "react-icons/fi";
 import { useAuth } from "../AuthContext";
-import CorporateLogo from "../components/CorporateLogo";
-import "./Register.css";
+import CorporateField from "../components/CorporateField";
+import useAuthReveal from "../components/useAuthReveal";
+import { EMAIL_PATTERN, friendlyAuthError, homeFor } from "../components/authErrors";
 
 export default function Login() {
   const { login, logoutReason } = useAuth();
   const nav = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [err, setErr] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const canSubmit = !busy && email.trim().length > 3 && password.length > 0;
+  const registeredEmail = location.state?.registered ? location.state.email || "" : "";
 
-  async function onSubmit(event) {
-    event.preventDefault(); setErr(""); setBusy(true);
-    try {
-      const user = await login(email.trim(), password);
-      nav(location.state?.from || (user?.role === "SPAREPART_ADMIN" ? "/inventory" : "/dashboard"), { replace: true });
-    } catch (error) { setErr(error?.message || String(error)); }
-    finally { setBusy(false); }
+  const [email, setEmail] = useState(registeredEmail);
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const scopeRef = useRef(null);
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
+  useAuthReveal(scopeRef);
+
+  useEffect(() => {
+    const previous = document.title;
+    document.title = "Masuk | Portal Karyawan CV. Mitra Setia";
+    (registeredEmail ? passwordRef : emailRef).current?.focus();
+    return () => { document.title = previous; };
+  }, [registeredEmail]);
+
+  function validate() {
+    const next = {};
+    if (!email.trim()) next.email = "Email wajib diisi.";
+    else if (!EMAIL_PATTERN.test(email.trim())) next.email = "Format email belum benar, contoh: nama@perusahaan.com";
+    if (!password) next.password = "Password wajib diisi.";
+    return next;
   }
 
-  return <main className="register-page login-page">
-    <section className="register-story login-story">
-      <img className="auth-story-photo" src="/hero-2.jpg" alt="Armada operasional Mitra Setia" />
-      <div className="auth-story-shade" />
-      <div className="register-motion" aria-hidden="true"><i /><i /><i /></div>
-      <CorporateLogo className="register-brand" asButton onClick={() => nav("/")} />
-      <div className="register-story-copy"><span className="register-kicker"><i /> PORTAL KARYAWAN</span><h1>Kembali bekerja.<br/><em>Operasional tetap</em><br/>dalam kendali.</h1><p>Akses internal untuk tim Mitra Setia dalam mengelola armada, perjalanan, muatan, biaya, dan aktivitas perusahaan.</p></div>
-      <div className="login-flow" aria-label="Alur sistem"><span><FiTruck/><small>ARMADA</small></span><i/><span><FiCheck/><small>OPERASI</small></span><i/><span><FiShield/><small>TERCATAT</small></span></div>
-      <div className="register-story-footer"><span>MS / SECURE ACCESS</span><span>SUMATERA UTARA</span></div>
-    </section>
+  async function onSubmit(event) {
+    event.preventDefault();
+    if (busy) return;
+    setFormError("");
+    const found = validate();
+    setErrors(found);
+    if (found.email) return emailRef.current?.focus();
+    if (found.password) return passwordRef.current?.focus();
 
-    <section className="register-panel login-panel">
-      <button className="register-back" type="button" onClick={() => nav("/")} data-testid="login-back-home"><FiArrowLeft/> Beranda</button>
-      <div className="register-mobile-brand"><img src="/logo3.png" alt="CV. Mitra Setia"/><span><strong>CV. Mitra Setia</strong><small>Portal Internal</small></span></div>
-      <div className="register-form-wrap login-form-wrap">
-        <span className="register-step">AKSES INTERNAL <b>KARYAWAN</b></span>
-        <h2>Selamat Datang Kembali</h2><p className="register-subtitle">Masuk ke Portal Karyawan Mitra Setia.</p>
-        {logoutReason && <div className="login-notice" role="status"><FiShield/><span>{logoutReason}</span></div>}
-        <form onSubmit={onSubmit}>
-          <div className="register-field"><label htmlFor="login-email">Email</label><span><FiMail/><input id="login-email" data-testid="login-email-input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="nama@perusahaan.com" autoComplete="email" autoFocus /></span></div>
-          <div className="register-field"><label htmlFor="login-password">Password</label><span><FiLock/><input id="login-password" data-testid="login-password-input" type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="Masukkan password" autoComplete="current-password" /><button className="password-toggle" type="button" onClick={()=>setShowPassword(value=>!value)} aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}>{showPassword?<FiEyeOff/>:<FiEye/>}</button></span></div>
-          {err && <div className="register-error" data-testid="login-error"><strong>Login belum berhasil</strong><span>{err}</span></div>}
-          <button className="register-submit" type="submit" disabled={!canSubmit} data-testid="login-submit-btn"><span>{busy ? "Memeriksa akses…" : "Masuk ke ERP"}</span>{busy ? <i className="register-spinner"/> : <FiArrowRight/>}</button>
-        </form>
-        <div className="register-login">Akses hanya untuk pengguna yang telah diotorisasi perusahaan.</div>
-      </div>
-      <small className="register-security"><FiShield/> Sesi aman dan aktivitas sistem tercatat</small>
-    </section>
-  </main>;
+    setBusy(true);
+    try {
+      const user = await login(email.trim(), password);
+      nav(location.state?.from || homeFor(user), { replace: true });
+    } catch (error) {
+      setFormError(friendlyAuthError(error, "login").message);
+      setPassword("");
+      passwordRef.current?.focus();
+      setBusy(false);
+    }
+  }
+
+  const clear = key => setErrors(current => (current[key] ? { ...current, [key]: undefined } : current));
+
+  return (
+    <div ref={scopeRef}>
+      <header className="au-head">
+        <h1 className="au-title au-reveal">Selamat Datang Kembali</h1>
+        <p className="au-lead au-reveal">Masuk menggunakan akun karyawan CV. Mitra Setia.</p>
+      </header>
+
+      {registeredEmail && (
+        <div className="au-alert au-alert-success au-reveal" role="status">
+          <FiCheckCircle aria-hidden="true" />
+          <span><strong>Akun berhasil dibuat.</strong> Silakan masuk dengan password yang baru Anda buat.</span>
+        </div>
+      )}
+      {logoutReason && !registeredEmail && (
+        <div className="au-alert au-alert-info au-reveal" role="status">
+          <FiInfo aria-hidden="true" /><span>{logoutReason}</span>
+        </div>
+      )}
+
+      <form className="au-form" onSubmit={onSubmit} noValidate aria-busy={busy}>
+        <CorporateField
+          ref={emailRef} className="au-reveal" id="login-email" testid="login-email-input"
+          label="Email" icon={<FiMail />} type="email" inputMode="email" autoComplete="username"
+          placeholder="nama@perusahaan.com" value={email} error={errors.email}
+          onChange={e => { setEmail(e.target.value); clear("email"); }}
+        />
+        <CorporateField
+          ref={passwordRef} className="au-reveal" id="login-password" testid="login-password-input"
+          label="Password" icon={<FiLock />} type={showPassword ? "text" : "password"} autoComplete="current-password"
+          placeholder="Masukkan password" value={password} error={errors.password}
+          onChange={e => { setPassword(e.target.value); clear("password"); }}
+          toggle={() => setShowPassword(v => !v)} shown={showPassword}
+        />
+
+        {formError && (
+          <div className="au-alert au-alert-error" role="alert" data-testid="login-error">
+            <span><strong>Login belum berhasil.</strong> {formError}</span>
+          </div>
+        )}
+
+        <button className="au-submit au-reveal" type="submit" disabled={busy} data-testid="login-submit-btn">
+          {busy ? <><span className="au-spinner" aria-hidden="true" /> Memeriksa akses…</> : <>Masuk ke Portal <FiArrowRight aria-hidden="true" /></>}
+        </button>
+      </form>
+
+      <p className="au-switch au-reveal">
+        Belum memiliki akun? <Link to="/register" data-testid="login-register-link">Daftar Karyawan</Link>
+      </p>
+    </div>
+  );
 }

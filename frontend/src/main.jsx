@@ -9,6 +9,7 @@ import ProtectedRoute from "./ProtectedRoute";
 
 import AppLayout from "./layouts/AppLayout";
 import PublicLayout from "./layouts/PublicLayout";
+import AuthLayout from "./components/AuthLayout";
 
 import Landing from "./pages/Landing"; // or PublicHome
 import Login from "./pages/Login";
@@ -52,9 +53,11 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           {/* 🌍 PUBLIC WEBSITE */}
           <Route element={<PublicLayout />}>
             <Route path="/" element={<Landing />} />
-            {/* 🔓 AUTH PAGES (ERP LOGIN) */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
+            {/* 🔓 AUTH PAGES (ERP LOGIN) — one shared shell so the visual persists between them */}
+            <Route element={<AuthLayout />}>
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+            </Route>
           </Route>
 
           {/* 🔐 ERP SYSTEM */}

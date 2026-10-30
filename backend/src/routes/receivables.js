@@ -158,6 +158,32 @@ function billingWeight(plannedKg, actualKg, tolerancePercent) {
   return { planned, actual, loss, tolerance, toleranceWeight, claimableLoss, withinTolerance, billable: Math.max(0, planned - claimableLoss) };
 }
 
+function summarizeEmployeeReceivables(expenses, payments) {
+  const groups = new Map();
+  for (const expense of expenses) {
+    const employee = expense.employee
+      ? { ...expense.employee, kind: "USER" }
+      : expense.employeeParty ? { ...expense.employeeParty, email: null, kind: "PARTY" } : null;
+    if (!employee) continue;
+    const key = `${employee.kind}:${employee.id}`;
+    const group = groups.get(key) || { employee, total: 0, paid: 0, balance: 0, expenses: [], payments: [] };
+    group.total += Number(expense.amount || 0);
+    group.expenses.push(expense);
+    groups.set(key, group);
+  }
+  for (const payment of payments) {
+    const key = payment.employeeId ? `USER:${payment.employeeId}` : payment.employeePartyId ? `PARTY:${payment.employeePartyId}` : "";
+    const group = groups.get(key);
+    if (!group) continue;
+    group.paid += Number(payment.amount || 0);
+    group.payments.push(payment);
+  }
+  return [...groups.values()]
+    .map(group => ({ ...group, balance: Math.max(0, group.total - group.paid) }))
+    .filter(group => group.balance > 0)
+    .sort((a, b) => (a.employee?.name || a.employee?.email || "").localeCompare(b.employee?.name || b.employee?.email || "", "id"));
+}
+
 router.get("/overview", async (_req, res) => {
   try {
     const [customers, trucks, invoices, eligibleOrders, materialRows, singleTrips, employeeExpenses, employeePayments] = await Promise.all([
@@ -203,23 +229,7 @@ router.get("/overview", async (_req, res) => {
     }
     const cargoLabel = value => value === "FERTILIZER" ? "Pupuk" : value === "CANGKANG" ? "Cangkang" : value;
     const singleSources = [...singleGroups.values()].map(group => ({ type: "SINGLE_TRIP_GROUP", id: group.key, customerId: group.customerId, label: `Trip Tunggal — ${group.customerName} · ${cargoLabel(group.cargoCategory)} (${group.trips.length} trip)`, customerName: group.customerName, customerPhone: group.customerPhone, billingAddress: group.billingAddress, cargoCategory: group.cargoCategory, singleTripIds: group.trips.map(trip => trip.id), totalWeightKg: group.totalWeightKg, trips: group.trips }));
-    const employeeGroups = new Map();
-    for (const expense of employeeExpenses) {
-      const employee = expense.employee
-        ? { ...expense.employee, kind: "USER" }
-        : expense.employeeParty ? { ...expense.employeeParty, email: null, kind: "PARTY" } : null;
-      if (!employee) continue;
-      const key = `${employee.kind}:${employee.id}`;
-      const group = employeeGroups.get(key) || { employee, total: 0, paid: 0, balance: 0, expenses: [], payments: [] };
-      group.total += Number(expense.amount || 0); group.expenses.push(expense); employeeGroups.set(key, group);
-    }
-    for (const payment of employeePayments) {
-      const key = payment.employeeId ? `USER:${payment.employeeId}` : payment.employeePartyId ? `PARTY:${payment.employeePartyId}` : "";
-      const group = employeeGroups.get(key);
-      if (!group) continue;
-      group.paid += Number(payment.amount || 0); group.payments.push(payment);
-    }
-    const employeeReceivables = [...employeeGroups.values()].map(group => ({ ...group, balance: Math.max(0, group.total - group.paid) })).filter(group => group.balance > 0).sort((a, b) => (a.employee?.name || a.employee?.email || "").localeCompare(b.employee?.name || b.employee?.email || "", "id"));
+    const employeeReceivables = summarizeEmployeeReceivables(employeeExpenses, employeePayments);
     res.json({ ok: true, customers, trucks, invoices: rows, employeeReceivables, eligibleOrders: orderSources.map(source => source.order), eligibleMaterialGroups: [...groups.values()], eligibleSingleTrips: singleTrips, eligibleSources: [...orderSources, ...materialSources, ...singleSources], stats });
   } catch (error) {
     res.status(400).json({ error: error.message || "Gagal memuat piutang" });
@@ -367,8 +377,20 @@ router.get("/export", async (req, res) => {
     const nextMonth = monthNumber === 12 ? 1 : monthNumber + 1;
     const start = new Date(`${month}-01T00:00:00+07:00`);
     const end = new Date(`${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00+07:00`);
-    const invoices = await prisma.invoice.findMany({ where: { issuedAt: { gte: start, lt: end }, status: { not: "VOID" } }, include: invoiceInclude, orderBy: [{ issuedAt: "asc" }, { number: "asc" }] });
+    const [invoices, employeeExpenses, employeePayments] = await Promise.all([
+      prisma.invoice.findMany({ where: { issuedAt: { gte: start, lt: end }, status: { not: "VOID" } }, include: invoiceInclude, orderBy: [{ issuedAt: "asc" }, { number: "asc" }] }),
+      prisma.expense.findMany({ where: { category: "EMPLOYEE_RECEIVABLE", OR: [{ employeeId: { not: null } }, { employeePartyId: { not: null } }] }, include: { employee: { select: { id: true, name: true, email: true } }, employeeParty: { select: { id: true, name: true, phone: true } } }, orderBy: { expenseDate: "desc" } }),
+      prisma.employeeReceivablePayment.findMany({ orderBy: { receivedAt: "desc" } }),
+    ]);
     const items = invoices.map(summarize);
+    const employeeRows = summarizeEmployeeReceivables(employeeExpenses, employeePayments).map(group => ({
+      employee: group.employee.name || group.employee.email || "Tanpa nama",
+      contact: group.employee.email || group.employee.phone || "",
+      transactionCount: group.expenses.length,
+      total: Number(group.total || 0),
+      paid: Number(group.paid || 0),
+      balance: Number(group.balance || 0),
+    }));
     const labels = { DRAFT: "Belum lunas - Draft", SENT: "Belum lunas", PARTIALLY_PAID: "Belum lunas - Sebagian", PAID: "Lunas", OVERDUE: "Belum lunas - Jatuh tempo" };
     const rows = items.map((item, index) => ({
       no: index + 1,
@@ -414,6 +436,30 @@ router.get("/export", async (req, res) => {
     addSheet("Semua Piutang", rows);
     addSheet("Lunas", rows.filter(row => row.isPaid));
     addSheet("Belum Lunas", rows.filter(row => !row.isPaid));
+    const employeeSheet = workbook.addWorksheet("Piutang Karyawan", { views: [{ state: "frozen", ySplit: 1 }], pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+    employeeSheet.columns = [
+      { header: "No", key: "no", width: 7 },
+      { header: "Karyawan / Orang", key: "employee", width: 30 },
+      { header: "Kontak", key: "contact", width: 30 },
+      { header: "Jumlah Transaksi", key: "transactionCount", width: 18 },
+      { header: "Total Piutang", key: "total", width: 20 },
+      { header: "Sudah Dibayar", key: "paid", width: 20 },
+      { header: "Sisa Piutang", key: "balance", width: 20 },
+    ];
+    employeeRows.forEach((row, index) => employeeSheet.addRow({ ...row, no: index + 1 }));
+    const employeeHeader = employeeSheet.getRow(1);
+    employeeHeader.height = 28;
+    employeeHeader.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    employeeHeader.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF176B40" } };
+    employeeHeader.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    employeeSheet.autoFilter = { from: "A1", to: "G1" };
+    ["total", "paid", "balance"].forEach(key => { employeeSheet.getColumn(key).numFmt = "#,##0"; employeeSheet.getColumn(key).alignment = { horizontal: "right" }; });
+    employeeSheet.eachRow((row, rowNumber) => { if (rowNumber === 1) return; row.alignment = { vertical: "top", wrapText: true }; if (rowNumber % 2 === 0) row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F7F4" } }; });
+    if (employeeRows.length) {
+      const employeeTotalRow = employeeSheet.addRow({ employee: "TOTAL", transactionCount: employeeRows.reduce((sum, row) => sum + row.transactionCount, 0), total: employeeRows.reduce((sum, row) => sum + row.total, 0), paid: employeeRows.reduce((sum, row) => sum + row.paid, 0), balance: employeeRows.reduce((sum, row) => sum + row.balance, 0) });
+      employeeTotalRow.font = { bold: true };
+      employeeTotalRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDDEDE3" } };
+    }
     const output = await workbook.xlsx.writeBuffer();
     const filename = `piutang-${month}.xlsx`;
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");

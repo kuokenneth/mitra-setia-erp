@@ -1,65 +1,147 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { FiArrowLeft, FiArrowRight, FiCheck, FiLock, FiMail, FiShield, FiTruck, FiUser } from "react-icons/fi";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { FiArrowRight, FiCheck, FiKey, FiLock, FiMail, FiUser } from "react-icons/fi";
 import { api } from "../api";
 import CorporateField from "../components/CorporateField";
-import CorporateLogo from "../components/CorporateLogo";
-import "./Register.css";
+import useAuthReveal from "../components/useAuthReveal";
+import { EMAIL_PATTERN, PASSWORD_MIN, friendlyAuthError } from "../components/authErrors";
+
+const EMPTY = { name: "", email: "", password: "", confirmPassword: "", inviteCode: "" };
+const ORDER = ["name", "email", "password", "confirmPassword", "inviteCode"];
 
 export default function Register() {
   const nav = useNavigate();
-  const [form, setForm] = useState({ name: "", email: "", password: "", confirmPassword: "", inviteCode: "" });
-  const [err, setErr] = useState("");
+  const [form, setForm] = useState(EMPTY);
+  const [visible, setVisible] = useState({ password: false, confirmPassword: false });
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [visible, setVisible] = useState({ password:false, confirmPassword:false });
-  const emailNorm = useMemo(() => form.email.trim().toLowerCase(), [form.email]);
-  const mismatch = form.password && form.confirmPassword && form.password !== form.confirmPassword;
-  const canSubmit = !busy && emailNorm.length > 3 && form.inviteCode.trim() && form.password.length >= 6 && form.confirmPassword.length >= 6 && !mismatch;
-  const change = key => event => setForm(current => ({ ...current, [key]: event.target.value }));
 
-  async function onSubmit(event) {
-    event.preventDefault(); setErr(""); setBusy(true);
-    try {
-      if (!emailNorm) throw new Error("Email wajib diisi.");
-      if (form.password.length < 6) throw new Error("Password minimal 6 karakter.");
-      if (mismatch) throw new Error("Konfirmasi password tidak cocok.");
-      if (!form.inviteCode.trim()) throw new Error("Kode undangan wajib diisi.");
-      await api("/auth/register", { method: "POST", body: JSON.stringify({ name: form.name.trim() || null, email: emailNorm, password: form.password, confirmPassword: form.confirmPassword, inviteCode: form.inviteCode.trim(), role: "STAFF" }) });
-      nav("/login");
-    } catch (error) { setErr(error?.message || String(error)); }
-    finally { setBusy(false); }
+  const scopeRef = useRef(null);
+  const nameRef = useRef(null);
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
+  const confirmRef = useRef(null);
+  const inviteRef = useRef(null);
+  // only read inside event handlers, never during render
+  const focusField = key => ({ name: nameRef, email: emailRef, password: passwordRef, confirmPassword: confirmRef, inviteCode: inviteRef })[key]?.current?.focus();
+  useAuthReveal(scopeRef);
+
+  useEffect(() => {
+    const previous = document.title;
+    document.title = "Daftar | Portal Karyawan CV. Mitra Setia";
+    return () => { document.title = previous; };
+  }, []);
+
+  const emailNorm = useMemo(() => form.email.trim().toLowerCase(), [form.email]);
+  const liveMismatch = form.confirmPassword && form.password !== form.confirmPassword;
+
+  const change = key => event => {
+    const value = event.target.value;
+    setForm(current => ({ ...current, [key]: value }));
+    setErrors(current => (current[key] ? { ...current, [key]: undefined } : current));
+  };
+
+  function validate() {
+    const next = {};
+    if (!emailNorm) next.email = "Email wajib diisi.";
+    else if (!EMAIL_PATTERN.test(emailNorm)) next.email = "Format email belum benar, contoh: nama@perusahaan.com";
+    if (!form.password) next.password = "Password wajib diisi.";
+    else if (form.password.length < PASSWORD_MIN) next.password = `Password minimal ${PASSWORD_MIN} karakter.`;
+    if (!form.confirmPassword) next.confirmPassword = "Ulangi password Anda.";
+    else if (form.password !== form.confirmPassword) next.confirmPassword = "Konfirmasi password tidak sama.";
+    if (!form.inviteCode.trim()) next.inviteCode = "Kode undangan wajib diisi.";
+    return next;
   }
 
-  return <main className="register-page">
-    <section className="register-story">
-      <img className="auth-story-photo" src="/hero-1.jpg" alt="Jajaran armada Mitra Setia" />
-      <div className="auth-story-shade" />
-      <div className="register-motion" aria-hidden="true"><i /><i /><i /></div>
-      <CorporateLogo className="register-brand" asButton onClick={() => nav("/")} />
-      <div className="register-story-copy"><span className="register-kicker"><i /> AKSES TEROTORISASI</span><h1>Akun internal.<br/><em>Khusus karyawan</em><br/>Mitra Setia.</h1><p>Pendaftaran hanya tersedia bagi pengguna yang telah mendapatkan kode undangan resmi dari perusahaan.</p></div>
-      <div className="register-operation-card"><span><FiTruck /></span><div><small>ALUR OPERASIONAL</small><strong>Terhubung &amp; terdokumentasi</strong></div><b><i /> Aktif</b></div>
-      <div className="register-story-footer"><span>MS / STAFF ACCESS</span><span>SUMATERA UTARA</span></div>
-    </section>
+  const focusFirst = found => {
+    const key = ORDER.find(k => found[k]);
+    if (key) focusField(key);
+  };
 
-    <section className="register-panel">
-      <button className="register-back" type="button" onClick={() => nav("/")} data-testid="register-back-home"><FiArrowLeft /> Beranda</button>
-      <div className="register-mobile-brand"><img src="/logo3.png" alt="CV. Mitra Setia"/><span><strong>CV. Mitra Setia</strong><small>Portal Internal</small></span></div>
-      <div className="register-form-wrap">
-        <span className="register-step">AKSES KARYAWAN <b>UNDANGAN WAJIB</b></span><h2>Pendaftaran Akun Karyawan</h2><p className="register-subtitle">Pendaftaran hanya tersedia untuk pengguna yang telah mendapatkan otorisasi perusahaan.</p>
-        <form onSubmit={onSubmit}>
-          <CorporateField id="register-name" testid="register-name-input" label="Nama lengkap" icon={<FiUser/>} value={form.name} onChange={change("name")} placeholder="Nama lengkap" autoComplete="name" />
-          <CorporateField id="register-email" testid="register-email-input" label="Email" icon={<FiMail/>} type="email" value={form.email} onChange={change("email")} placeholder="nama@perusahaan.com" autoComplete="email" />
-          <div className="register-field-grid">
-            <CorporateField id="register-password" testid="register-password-input" label="Password" icon={<FiLock/>} type={visible.password?"text":"password"} value={form.password} onChange={change("password")} placeholder="Min. 6 karakter" autoComplete="new-password" toggle={()=>setVisible(v=>({...v,password:!v.password}))} shown={visible.password}/>
-            <CorporateField id="register-confirm" testid="register-confirm-password-input" label="Konfirmasi" icon={<FiCheck/>} type={visible.confirmPassword?"text":"password"} value={form.confirmPassword} onChange={change("confirmPassword")} placeholder="Ulangi password" autoComplete="new-password" error={mismatch ? "Password tidak cocok" : ""} toggle={()=>setVisible(v=>({...v,confirmPassword:!v.confirmPassword}))} shown={visible.confirmPassword}/>
+  async function onSubmit(event) {
+    event.preventDefault();
+    if (busy) return;
+    setFormError("");
+    const found = validate();
+    setErrors(found);
+    if (Object.values(found).some(Boolean)) return focusFirst(found);
+
+    setBusy(true);
+    try {
+      // Role is decided by the server (always STAFF); the client never sends one.
+      await api("/auth/register", {
+        method: "POST",
+        body: JSON.stringify({
+          name: form.name.trim() || null,
+          email: emailNorm,
+          password: form.password,
+          confirmPassword: form.confirmPassword,
+          inviteCode: form.inviteCode.trim(),
+        }),
+      });
+      nav("/login", { replace: true, state: { registered: true, email: emailNorm } });
+    } catch (error) {
+      const { message, field } = friendlyAuthError(error, "register");
+      if (field) {
+        setErrors({ [field]: message });
+        focusField(field);
+      } else {
+        setFormError(message);
+      }
+      setBusy(false);
+    }
+  }
+
+  const passwordNote = form.password && form.password.length < PASSWORD_MIN
+    ? `${PASSWORD_MIN - form.password.length} karakter lagi`
+    : `Minimal ${PASSWORD_MIN} karakter.`;
+
+  return (
+    <div ref={scopeRef}>
+      <header className="au-head">
+        <h1 className="au-title au-reveal">Bergabung dengan Tim Kami</h1>
+        <p className="au-lead au-reveal">Daftarkan akun karyawan untuk mengakses sistem internal CV. Mitra Setia.</p>
+      </header>
+
+      <form className="au-form" onSubmit={onSubmit} noValidate aria-busy={busy}>
+        <CorporateField ref={nameRef} className="au-reveal" id="register-name" testid="register-name-input"
+          label="Nama lengkap" optional icon={<FiUser />} autoComplete="name" placeholder="Nama sesuai data karyawan"
+          value={form.name} onChange={change("name")} />
+        <CorporateField ref={emailRef} className="au-reveal" id="register-email" testid="register-email-input"
+          label="Email" icon={<FiMail />} type="email" inputMode="email" autoComplete="email" placeholder="nama@perusahaan.com"
+          value={form.email} onChange={change("email")} error={errors.email} />
+        <div className="au-row au-reveal">
+          <CorporateField ref={passwordRef} id="register-password" testid="register-password-input"
+            label="Password" icon={<FiLock />} type={visible.password ? "text" : "password"} autoComplete="new-password"
+            placeholder={`Min. ${PASSWORD_MIN} karakter`} value={form.password} onChange={change("password")}
+            error={errors.password} note={passwordNote}
+            toggle={() => setVisible(v => ({ ...v, password: !v.password }))} shown={visible.password} />
+          <CorporateField ref={confirmRef} id="register-confirm" testid="register-confirm-password-input"
+            label="Konfirmasi password" icon={<FiCheck />} type={visible.confirmPassword ? "text" : "password"} autoComplete="new-password"
+            placeholder="Ulangi password" value={form.confirmPassword} onChange={change("confirmPassword")}
+            error={errors.confirmPassword || (liveMismatch ? "Belum sama dengan password." : "")}
+            toggle={() => setVisible(v => ({ ...v, confirmPassword: !v.confirmPassword }))} shown={visible.confirmPassword} />
+        </div>
+        <CorporateField ref={inviteRef} className="au-reveal" id="register-invite" testid="register-invite-code-input"
+          label="Kode undangan" icon={<FiKey />} autoComplete="off" autoCapitalize="off" spellCheck={false}
+          placeholder="Kode dari admin perusahaan" value={form.inviteCode} onChange={change("inviteCode")}
+          error={errors.inviteCode} note="Pendaftaran hanya untuk karyawan yang menerima kode undangan resmi." />
+
+        {formError && (
+          <div className="au-alert au-alert-error" role="alert" data-testid="register-error">
+            <span><strong>Pendaftaran belum berhasil.</strong> {formError}</span>
           </div>
-          <CorporateField id="register-invite" testid="register-invite-code-input" label="Kode undangan" icon={<FiShield/>} value={form.inviteCode} onChange={change("inviteCode")} placeholder="Masukkan kode dari admin" note="Akun hanya dapat dibuat melalui undangan resmi." />
-          {err && <div className="register-error" data-testid="register-error"><strong>Registrasi belum berhasil</strong><span>{err}</span></div>}
-          <button className="register-submit" type="submit" disabled={!canSubmit} data-testid="register-submit-btn"><span>{busy ? "Menyiapkan akun…" : "Daftar sebagai staff"}</span>{busy ? <i className="register-spinner"/> : <FiArrowRight />}</button>
-        </form>
-        <div className="register-login">Sudah memiliki akun? <button type="button" onClick={() => nav("/login")} data-testid="register-login-link">Masuk di sini <FiArrowRight /></button></div>
-      </div>
-      <small className="register-security"><FiShield /> Akses dilindungi dan aktivitas tercatat</small>
-    </section>
-  </main>;
+        )}
+
+        <button className="au-submit au-reveal" type="submit" disabled={busy} data-testid="register-submit-btn">
+          {busy ? <><span className="au-spinner" aria-hidden="true" /> Membuat akun…</> : <>Daftar Akun <FiArrowRight aria-hidden="true" /></>}
+        </button>
+      </form>
+
+      <p className="au-switch au-reveal">
+        Sudah memiliki akun? <Link to="/login" data-testid="register-login-link">Masuk di sini</Link>
+      </p>
+    </div>
+  );
 }

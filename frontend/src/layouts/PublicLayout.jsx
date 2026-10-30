@@ -1,287 +1,129 @@
-// src/layouts/PublicLayout.jsx - Corporate Green Design
+// src/layouts/PublicLayout.jsx — public website chrome (CV. Mitra Setia)
+// Transparent over the landing hero, solid navy once the page scrolls.
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { FiArrowUpRight } from "react-icons/fi";
 import CorporateLogo from "../components/CorporateLogo";
 import "./PublicLayout.css";
+
+const NAV_LINKS = [
+  { label: "Beranda", href: "/#home" },
+  { label: "Tentang Kami", href: "/#about" },
+  { label: "Layanan", href: "/#services" },
+  { label: "Armada", href: "/#fleet" },
+  { label: "Operasional", href: "/#operations" },
+  { label: "Hubungi Kami", href: "/#contact" },
+];
+const SECTION_IDS = ["about", "services", "fleet", "operations", "contact"];
 
 export default function PublicLayout() {
   const { pathname } = useLocation();
   const hideChrome = pathname === "/login" || pathname === "/register";
-  // Corporate Green Color Palette
-  const BRAND = useMemo(
-    () => ({
-      primary: "#0B6038",
-      primaryDark: "#075631",
-      primaryLight: "#10A050",
-      secondary: "#F5F9F7",
-      accent: "#D4E8DC",
-      text: "#17352A",
-      textLight: "#4A4A4A",
-      textMuted: "#6B7280",
-      white: "#FFFFFF",
-      border: "#E5E7EB",
-    }),
-    []
-  );
+  const isHome = pathname === "/";
 
-  const [isMobile, setIsMobile] = useState(
-    typeof window !== "undefined" ? window.innerWidth <= 1280 : false
-  );
   const [scrolled, setScrolled] = useState(false);
-  const [scrollProgress, setScrollProgress] = useState(0);
+  const progressRef = useRef(null);
   const [activeSection, setActiveSection] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // Scroll work happens outside React: the progress bar is written straight to the DOM once
+  // per frame, and React state only changes when "scrolled" actually flips.
   useEffect(() => {
-    const onResize = () => {
-      const compact = window.innerWidth <= 1280;
-      setIsMobile(compact);
-      if (!compact) setMenuOpen(false);
-    };
-    const onScroll = () => {
-      setScrolled(window.scrollY > 50);
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const y = window.scrollY;
+      setScrolled(prev => (prev === y > 40 ? prev : y > 40));
       const available = document.documentElement.scrollHeight - window.innerHeight;
-      setScrollProgress(available > 0 ? Math.min(100, (window.scrollY / available) * 100) : 0);
+      if (progressRef.current) progressRef.current.style.transform = `scaleX(${available > 0 ? Math.min(1, y / available) : 0})`;
     };
-
-    window.addEventListener("resize", onResize);
+    const onScroll = () => { if (!frame) frame = requestAnimationFrame(update); };
+    const onResize = () => { if (window.innerWidth > 1180) setMenuOpen(false); };
     window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-
+    window.addEventListener("resize", onResize);
+    update();
     return () => {
-      window.removeEventListener("resize", onResize);
+      cancelAnimationFrame(frame);
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onResize);
     };
   }, []);
 
   useEffect(() => {
-    if (pathname !== "/") return undefined;
-    const ids = ["about", "services", "fleet", "contact"];
+    if (!isHome) return undefined;
     const observer = new IntersectionObserver(entries => {
-      const visible = entries.filter(entry => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      const visible = entries.filter(e => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
       if (visible) setActiveSection(visible.target.id);
-    }, { rootMargin: "-30% 0px -55%", threshold: [0, 0.1, 0.4] });
-    ids.map(id => document.getElementById(id)).filter(Boolean).forEach(section => observer.observe(section));
+    }, { rootMargin: "-35% 0px -55%", threshold: [0, 0.1, 0.4] });
+    SECTION_IDS.map(id => document.getElementById(id)).filter(Boolean).forEach(s => observer.observe(s));
     return () => observer.disconnect();
-  }, [pathname]);
+  }, [isHome]);
 
-  const page = {
-    minHeight: "100dvh",
-    background: BRAND.white,
-    color: BRAND.text,
-    fontFamily: '"Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    position: "relative",
-  };
+  // lock page scroll behind the open mobile menu
+  useEffect(() => {
+    document.documentElement.classList.toggle("public-menu-open", menuOpen);
+    return () => document.documentElement.classList.remove("public-menu-open");
+  }, [menuOpen]);
 
-  // Navbar styles - transparent on landing hero, white when scrolled or on other pages
-  const showTransparent = false;
-  
-  const topbar = {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 1000,
-    transition: "all 0.3s ease",
-    background: showTransparent ? "transparent" : BRAND.white,
-    boxShadow: showTransparent ? "none" : "0 6px 18px rgba(0,0,0,0.08)",
-  };
-
-  const wrap = {
-    maxWidth: 1280,
-    margin: "0 auto",
-    width: "100%",
-    boxSizing: "border-box",
-    padding: isMobile ? "10px 20px" : "12px 48px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 16,
-    height: scrolled ? 70 : 80,
-    transition: "height 0.3s ease",
-  };
-
-  const navLinks = [
-    { label: "Beranda", href: "/#home" },
-    { label: "Tentang Kami", href: "/#about" },
-    { label: "Layanan", href: "/#services" },
-    { label: "Armada", href: "/#fleet" },
-    { label: "Hubungi Kami", href: "/#contact" },
-  ];
-
-  const navLinkStyle = {
-    fontSize: 14,
-    fontWeight: 600,
-    color: showTransparent ? BRAND.white : BRAND.text,
-    textDecoration: "none",
-    transition: "color 0.3s ease",
-    padding: "8px 0",
-  };
-
-  const loginBtn = {
-    padding: "10px 20px",
-    borderRadius: 6,
-    fontWeight: 600,
-    fontSize: 14,
-    textDecoration: "none",
-    background: showTransparent ? "#B9DB4C" : BRAND.primary,
-    color: showTransparent ? "#14321E" : BRAND.white,
-    border: "none",
-    transition: "all 0.3s ease",
-  };
-
-  const hamburger = {
-    display: "flex",
-    flexDirection: "column",
-    gap: 5,
-    cursor: "pointer",
-    padding: 8,
-    background: "transparent",
-    border: "none",
-  };
-
-  const hamburgerLine = {
-    width: 24,
-    height: 2,
-    background: showTransparent ? BRAND.white : BRAND.text,
-    borderRadius: 2,
-    transition: "all 0.3s ease",
-  };
-
-  const mobileMenu = {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    background: BRAND.white,
-    zIndex: 9999,
-    display: "flex",
-    flexDirection: "column",
-    transform: menuOpen ? "translateX(0)" : "translateX(100%)",
-    transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-  };
-
-  const outletWrap = {
-    width: "100%",
-    minHeight: hideChrome ? "100dvh" : "auto",
-    paddingTop: 0, // Landing reserves the fixed navbar height in its hero.
-  };
+  const transparent = isHome && !scrolled && !menuOpen;
+  const isActive = href => activeSection && href.endsWith(`#${activeSection}`);
 
   return (
-    <div style={page}>
+    <div className="public-page">
       {!hideChrome && (
         <>
-          {/* Corporate Navbar */}
-          <nav style={topbar} className={`public-nav ${scrolled ? "is-scrolled" : ""}`} data-testid="main-navigation">
-            <div style={wrap} className="public-nav-inner">
-              {/* Logo/Brand */}
+          <header className={`public-nav ${transparent ? "is-transparent" : "is-solid"}`} data-testid="main-navigation">
+            <div className="public-nav-inner">
               <CorporateLogo className="public-brand" />
 
-              {/* Desktop Navigation */}
-              {!isMobile && (
-                <div className="public-links" style={{ display: "flex", alignItems: "center", gap: 32 }}>
-                  {navLinks.map((link) => (
-                    <a
-                    key={link.label}
-                    href={link.href}
-                    style={navLinkStyle}
-                    className={activeSection && link.href.endsWith(activeSection) ? "active" : ""}
-                      data-testid={`nav-${link.label.toLowerCase().replace(/\s/g, '-')}`}
-                      onMouseEnter={(e) => (e.currentTarget.style.color = showTransparent ? "#B9DB4C" : BRAND.primary)}
-                      onMouseLeave={(e) => (e.currentTarget.style.color = showTransparent ? BRAND.white : BRAND.text)}
-                    >
-                      {link.label}
-                    </a>
-                  ))}
-                </div>
-              )}
-
-              {/* CTA Buttons */}
-              <div className="public-actions" style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <Link
-                  to="/login"
-                  style={loginBtn}
-                  className="public-login"
-                  data-testid="nav-login-btn"
-                  onMouseEnter={(e) => (e.currentTarget.style.background = showTransparent ? "#CBEA66" : BRAND.primaryDark)}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = showTransparent ? "#B9DB4C" : BRAND.primary)}
-                >
-                  Portal Karyawan
-                </Link>
-
-                {/* Mobile Hamburger */}
-                {isMobile && (
-                  <button
-                    style={hamburger}
-                    className="public-menu-button"
-                    onClick={() => setMenuOpen(!menuOpen)}
-                    aria-label="Toggle menu"
-                    data-testid="mobile-menu-btn"
-                  >
-                    <span style={hamburgerLine} />
-                    <span style={hamburgerLine} />
-                    <span style={hamburgerLine} />
-                  </button>
-                )}
-              </div>
-            </div>
-            <span className="public-scroll-progress" style={{ width: `${scrollProgress}%` }} />
-          </nav>
-
-          {/* Mobile Menu */}
-          {isMobile && (
-            <div style={mobileMenu} className="public-mobile-menu" data-testid="mobile-menu">
-              {/* Close Button */}
-              <div style={{ display: "flex", justifyContent: "flex-end", padding: 20 }}>
-                <button
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    fontSize: 32,
-                    cursor: "pointer",
-                    color: BRAND.text,
-                    padding: 8,
-                  }}
-                  onClick={() => setMenuOpen(false)}
-                  aria-label="Close menu"
-                >
-                  ×
-                </button>
-              </div>
-
-              {/* Mobile Links */}
-              <div style={{ display: "flex", flexDirection: "column", padding: "20px 32px", gap: 8 }}>
-                {navLinks.map((link) => (
-                  <a
-                    key={link.label}
-                    href={link.href}
-                    style={{
-                      fontSize: 18,
-                      fontWeight: 600,
-                      color: BRAND.text,
-                      textDecoration: "none",
-                      padding: "16px 0",
-                      borderBottom: `1px solid ${BRAND.border}`,
-                    }}
-                    onClick={() => setMenuOpen(false)}
-                    className={activeSection && link.href.endsWith(activeSection) ? "active" : ""}
-                  >
+              <nav className="public-links" aria-label="Navigasi utama">
+                {NAV_LINKS.map(link => (
+                  <a key={link.label} href={link.href} className={isActive(link.href) ? "active" : ""}
+                    data-testid={`nav-${link.label.toLowerCase().replace(/\s/g, "-")}`}>
                     {link.label}
                   </a>
                 ))}
+              </nav>
+
+              <div className="public-actions">
+                <Link to="/login" className="public-login" data-testid="nav-login-btn">
+                  <span>Portal Karyawan</span>
+                  <FiArrowUpRight className="public-login-icon" aria-hidden="true" />
+                </Link>
+                <button className="public-menu-button" type="button" onClick={() => setMenuOpen(o => !o)}
+                  aria-label={menuOpen ? "Tutup menu" : "Buka menu"} aria-expanded={menuOpen} aria-controls="public-mobile-menu"
+                  data-testid="mobile-menu-btn">
+                  <span /><span /><span />
+                </button>
               </div>
             </div>
-          )}
+            <span className="public-scroll-progress" ref={progressRef} />
+          </header>
+
+          <div id="public-mobile-menu" className={`public-mobile-menu ${menuOpen ? "is-open" : ""}`} data-testid="mobile-menu" aria-hidden={!menuOpen}>
+            <nav aria-label="Navigasi seluler">
+              {NAV_LINKS.map(link => (
+                <a key={link.label} href={link.href} tabIndex={menuOpen ? 0 : -1}
+                  className={isActive(link.href) ? "active" : ""} onClick={() => setMenuOpen(false)}>
+                  {link.label}
+                </a>
+              ))}
+              {/* only shown on phones, where the bar button is hidden — never two at once */}
+              <Link to="/login" className="public-mobile-portal" tabIndex={menuOpen ? 0 : -1} onClick={() => setMenuOpen(false)}
+                data-testid="mobile-portal-btn">
+                <span>Portal Karyawan</span>
+                <FiArrowUpRight aria-hidden="true" />
+              </Link>
+            </nav>
+          </div>
         </>
       )}
 
-      {/* Main Content */}
-      <div style={outletWrap}>
+      <div className="public-outlet" style={{ minHeight: hideChrome ? "100dvh" : "auto" }}>
         <Outlet />
       </div>
 
-      {/* Global Styles */}
+      {/* kept from the previous layout: login/register use this font and reset */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         html, body { margin: 0; padding: 0; overflow-x: clip; }

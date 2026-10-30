@@ -92,7 +92,9 @@ router.post("/register", rateLimit({ windowMs: 60 * 60 * 1000, max: 10 }), async
 
     return res.json({ ok: true, user });
   } catch (e) {
-    return res.status(500).json({ ok: false, error: e?.message || String(e) });
+    // Log the real cause on the server; never send internal details to the browser.
+    console.error("[auth/register]", e);
+    return res.status(500).json({ ok: false, error: "Registration failed. Please try again later." });
   }
 });
 
@@ -155,7 +157,8 @@ router.post(
       },
     });
   } catch (e) {
-    return res.status(500).json({ ok: false, error: e?.message || String(e) });
+    console.error("[auth/login]", e);
+    return res.status(500).json({ ok: false, error: "Login failed. Please try again later." });
   }
   }
 );
