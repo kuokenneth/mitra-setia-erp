@@ -136,8 +136,10 @@
 .db-kpi-dots i.a { background: #d7a94f; }
 
 /* ---------- two-column body ---------- */
-.db-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 380px); gap: var(--db-gap); align-items: start; margin-top: var(--db-gap); }
-.db-col { display: grid; gap: var(--db-gap); min-width: 0; }
+.db-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 380px); gap: var(--db-gap); align-items: stretch; margin-top: var(--db-gap); }
+/* both columns end on the same line: the last card in each column takes up the remaining height */
+.db-col { display: flex; flex-direction: column; gap: var(--db-gap); min-width: 0; }
+.db-col > :last-child { flex: 1 1 auto; }
 
 /* priorities */
 .db-priority-list { border-top: 1px solid var(--db-line-soft); }
@@ -178,7 +180,10 @@
 .db-chart-bars.dense i { width: 100%; border-radius: 2px 2px 0 0; }
 
 /* fleet warnings */
-.db-alert-list { max-height: 452px; overflow: auto; border-top: 1px solid var(--db-line-soft); scrollbar-width: thin; }
+/* the list's own length never sets the card height (desktop): it fills the space the column gives it and scrolls */
+.db-alert-body { position: relative; flex: 1 1 auto; min-height: 340px; border-top: 1px solid var(--db-line-soft); }
+.db-alert-list { position: absolute; inset: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.db-alert-body .db-empty { height: 100%; }
 .db-alert {
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 14px;
   padding: 14px 20px; border-bottom: 1px solid var(--db-line-soft);
@@ -313,7 +318,10 @@
   .db-kpis { grid-template-columns: 1fr 1fr; }
   .db-layout { grid-template-columns: 1fr; }
   /* side panels sit in a two-up grid under the main column */
+  .db-col { display: grid; }
   .db-side { grid-template-columns: 1fr 1fr; align-items: start; }
+  .db-alert-body { min-height: 0; }
+  .db-alert-list { position: static; max-height: 520px; }
 }
 @media (max-width: 760px) {
   .db-page { padding: 20px 14px 40px; }
@@ -344,6 +352,7 @@
   .db-health-list li { padding: 11px 16px; grid-template-columns: auto 1fr auto auto; }
   .db-domain-head { padding: 16px; }
   .db-alert-list { max-height: none; }
+  .db-alert-body .db-empty { height: auto; }
   .db-domain-metrics > div { padding: 12px 10px 14px 16px; }
 }
 @media (max-width: 420px) {

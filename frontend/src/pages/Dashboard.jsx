@@ -288,11 +288,6 @@ export default function Dashboard() {
           {loading ? <div className="db-pad"><LoadingState compact label="Memuat throughput" rows={2} /></div> : <TrendChart data={data.trend} />}
         </Panel>
 
-        <Panel title="Warning armada" subtitle="Area warning, berhenti lama, dan kembali ke base" meta={`${data.warnings.length} aktif`} className="db-alerts">
-          <div className="db-alert-list" data-testid="alerts-list">{loading ? <div className="db-pad"><LoadingState compact label="Memuat monitoring GPS" rows={3} /></div> : data.warnings.length ? data.warnings.map((truck) => <AlertRow key={truck.id} truck={truck} />) : <div className="db-empty"><FiCheck aria-hidden="true" /><strong>Semua armada aman</strong><span>Tidak ada area warning atau berhenti terlalu lama.</span></div>}</div>
-          <footer className="db-panel-foot"><button type="button" className="db-link" onClick={() => navigate("/fleet-map")}><FiMapPin aria-hidden="true" />Buka peta armada<FiArrowRight aria-hidden="true" /></button></footer>
-        </Panel>
-
         {data.arrivedTrips.length > 0 && <Panel title="Trip tiba menunggu penyelesaian" subtitle="Selesaikan agar billing dan laporan muatan dapat diproses" meta={`${data.arrivedTrips.length} trip`} className="db-arrived">
           <ul className="db-arrived-list">{data.arrivedTrips.slice(0, 8).map((trip) => <li key={trip.id}><button type="button" onClick={() => navigate(`/trips/${trip.id}`)}>
             <span><strong>{trip.order?.orderNo || trip.tripNo || "Trip"}</strong><small>{trip.truck?.plateNumber || trip.plateNumberSnap || "Tanpa armada"} · {trip.driverUser?.name || trip.driverNameSnap || "Tanpa pengemudi"}</small></span>
@@ -300,6 +295,12 @@ export default function Dashboard() {
             <em>Selesaikan<FiArrowRight aria-hidden="true" /></em>
           </button></li>)}</ul>
         </Panel>}
+
+        <Panel title="Warning armada" subtitle="Area warning, berhenti lama, dan kembali ke base" meta={`${data.warnings.length} aktif`} className="db-alerts">
+          <div className="db-alert-body"><div className="db-alert-list" data-testid="alerts-list">{loading ? <div className="db-pad"><LoadingState compact label="Memuat monitoring GPS" rows={3} /></div> : data.warnings.length ? data.warnings.map((truck) => <AlertRow key={truck.id} truck={truck} />) : <div className="db-empty"><FiCheck aria-hidden="true" /><strong>Semua armada aman</strong><span>Tidak ada area warning atau berhenti terlalu lama.</span></div>}</div></div>
+          <footer className="db-panel-foot"><button type="button" className="db-link" onClick={() => navigate("/fleet-map")}><FiMapPin aria-hidden="true" />Buka peta armada<FiArrowRight aria-hidden="true" /></button></footer>
+        </Panel>
+
       </div>
 
       <aside className="db-col db-side">
