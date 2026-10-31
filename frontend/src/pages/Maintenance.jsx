@@ -607,6 +607,7 @@ export default function Maintenance() {
   const [serialQuickUnits, setSerialQuickUnits] = useState([]);
   const [serialQuickLoading, setSerialQuickLoading] = useState(false);
   const [assignNote, setAssignNote] = useState("");
+  const [assignSerial, setAssignSerial] = useState("");
   const [assigning, setAssigning] = useState(false);
   const [serializedSource, setSerializedSource] = useState("INVENTORY");
   const [donorUnits, setDonorUnits] = useState([]);
@@ -1147,6 +1148,7 @@ export default function Maintenance() {
         method: "POST",
         body: JSON.stringify({
           stockUnitId: unitPick,
+          serialNumber: assignSerial.trim() || undefined,
           note: assignNote || undefined,
           replaceStockUnitId: returnStockUnitId || undefined,
           replaceDisposition,
@@ -1161,6 +1163,7 @@ export default function Maintenance() {
       });
 
       setAssignNote("");
+      setAssignSerial("");
       setUnitPick("");
       setReturnStockUnitId("");
       setReplaceDisposition("IN_STOCK");
@@ -2075,6 +2078,13 @@ export default function Maintenance() {
                   <SelectedSerialAge item={selectedSerializedItem} assignment={selectedReturnAssignment} />
 
                   <div className="maintenance-install-footer">
+                    {serializedSource === "INVENTORY" && unitPick && !availableUnits.find((unit) => unit.id === unitPick)?.serialNumber && <Input
+                      value={assignSerial}
+                      onChange={(e) => setAssignSerial(e.target.value)}
+                      placeholder="Nomor seri ban (wajib saat dipasang)"
+                      disabled={!allowed || activeJob.status !== "OPEN"}
+                      data-testid="assign-serial-input"
+                    />}
                     <Input
                       value={assignNote}
                       onChange={(e) => setAssignNote(e.target.value)}

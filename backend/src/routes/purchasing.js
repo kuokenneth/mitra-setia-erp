@@ -748,7 +748,9 @@ async function createGoodsReceipt(tx, payload, userId) {
           : poi.partRepairId
             ? [{ repairUnitId: poi.partRepair.stockUnitId }]
           : (Array.isArray(row.units) ? row.units : []);
-        if (!Number.isInteger(qty) || units.length !== qty) throw new Error(`${poi.item.name}: jumlah serial number harus sama dengan qty diterima`);
+        if (!Number.isInteger(qty)) throw new Error(`${poi.item.name}: jumlah unit harus berupa angka bulat`);
+        if (!poi.tireRetreadId && !poi.partRepairId && units.length === 0) units.push(...Array.from({ length: qty }, () => ({})));
+        if (units.length !== qty) throw new Error(`${poi.item.name}: jumlah data unit harus sama dengan qty diterima`);
         for (const unit of units) {
           if (unit.retreadUnitId) {
             if (poi.item.category !== "TIRE") throw new Error(`${poi.item.name}: hasil retreading hanya dapat diterima sebagai item kategori Ban`);
@@ -802,8 +804,8 @@ async function createGoodsReceipt(tx, payload, userId) {
             continue;
           }
           const serialNumber = String(unit.serialNumber || "").trim();
-          if (!serialNumber) throw new Error(`${poi.item.name}: serial number wajib diisi`);
-          const stockUnit = await tx.stockUnit.create({ data: { itemId: poi.itemId, locationId, inventoryBatchId: batch.id, serialNumber, barcode: unit.barcode ? String(unit.barcode).trim() : null, purchasePrice: poi.unitPrice, purchasedAt: rec.receivedAt, currency: "IDR", status: "IN_STOCK" } });
+          if (directToTruck && !serialNumber) throw new Error(`${poi.item.name}: nomor seri wajib diisi karena barang langsung dipasang`);
+          const stockUnit = await tx.stockUnit.create({ data: { itemId: poi.itemId, locationId, inventoryBatchId: batch.id, serialNumber: serialNumber || null, barcode: unit.barcode ? String(unit.barcode).trim() : null, purchasePrice: poi.unitPrice, purchasedAt: rec.receivedAt, currency: "IDR", status: "IN_STOCK" } });
           if (directToTruck) {
             await tx.truckSparePartAssignment.create({ data: { truckId: directTruck.id, stockUnitId: stockUnit.id, installedAt: rec.receivedAt, installCost: poi.unitPrice, currency: "IDR", note: `Pembelian langsung ${po.number}`, maintenanceId: directMaintenance?.id || null, createdById: userId } });
             await tx.stockUnit.update({ where: { id: stockUnit.id }, data: { status: "ASSIGNED", locationId: null } });

@@ -1039,7 +1039,7 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
 
     const maintenanceId = req.params.id;
-    const { stockUnitId, note, replaceStockUnitId, replaceDisposition = "IN_STOCK", retread, second } = req.body || {};
+    const { stockUnitId, serialNumber, note, replaceStockUnitId, replaceDisposition = "IN_STOCK", retread, second } = req.body || {};
     if (!stockUnitId) return res.status(400).json({ error: "stockUnitId is required" });
 
     // ✅ Read-only fetches OUTSIDE transaction (faster + safer)
@@ -1056,6 +1056,8 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
     });
     if (!unit) return res.status(404).json({ error: "Stock unit not found" });
     if (unit.status !== "IN_STOCK") return res.status(400).json({ error: "Stock unit not available" });
+    const finalSerial = unit.serialNumber || String(serialNumber || "").trim();
+    if (!finalSerial) return res.status(400).json({ error: "Nomor seri wajib diisi saat unit akan dipasang" });
 
     const now = new Date();
     const fromLocationId = unit.locationId || null;
@@ -1064,6 +1066,11 @@ router.post("/:id/assign-unit", authRequired, async (req, res) => {
     // ✅ Make transaction shorter + allow more time on hosted DB
     const created = await prisma.$transaction(
       async (tx) => {
+        if (!unit.serialNumber) {
+          const duplicate = await tx.stockUnit.findFirst({ where: { serialNumber: finalSerial, id: { not: unit.id } }, select: { id: true } });
+          if (duplicate) throw new Error("Nomor seri sudah digunakan oleh unit lain");
+          await tx.stockUnit.update({ where: { id: unit.id }, data: { serialNumber: finalSerial } });
+        }
         // ----------------------------
         // (0) OPTIONAL: REPLACE / REMOVE OLD UNIT
         // ----------------------------

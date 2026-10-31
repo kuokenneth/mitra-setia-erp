@@ -681,7 +681,11 @@ router.post(
       // SERIALIZED
       // ============================
       if (item.isSerialized) {
-        const list = Array.isArray(units) ? units : [];
+        let list = Array.isArray(units) ? units : [];
+        const requestedQty = Number(qty || 0);
+        if (list.length === 0 && Number.isInteger(requestedQty) && requestedQty > 0) {
+          list = Array.from({ length: requestedQty }, () => ({}));
+        }
         const totalRaw = req.body?.totalPurchasePrice;
 
         if (list.length === 0) throw new Error("Serialized item requires units[]");
@@ -705,8 +709,7 @@ router.post(
         const dividedPrice = hasTotalPrice ? Math.floor(parsedTotalPrice / unitCount) : null;
 
         const data = list.map((u) => {
-          const serial = u?.serialNumber ? String(u.serialNumber).trim() : "";
-          if (!serial) throw new Error("Each serialized unit must have serialNumber");
+          const serial = u?.serialNumber ? String(u.serialNumber).trim() : null;
 
           const price = hasUnitPrices ? parseInt(u.purchasePrice, 10) : dividedPrice;
           if (!Number.isFinite(price) || price < 0) throw new Error("Invalid purchase price calculation");
@@ -725,7 +728,7 @@ router.post(
 
         const receivedQty = data.length;
 
-        await prisma.$transaction(async (tx) => {
+        const createdBatchId = await prisma.$transaction(async (tx) => {
           await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId, locationId } }, update: {}, create: { itemId, locationId, qty: 0 } });
           const averageUnitPrice = Math.round(data.reduce((sum, unit) => sum + unit.purchasePrice, 0) / receivedQty);
           const batch = await tx.inventoryBatch.create({ data: { itemId, locationId, receivedQty, remainingQty: receivedQty, receivedAt: new Date(), unitPrice: averageUnitPrice } });
@@ -744,12 +747,13 @@ router.post(
               toLocationId: locationId,
             },
           });
+          return batch.id;
         });
 
         // fetch created units back (optional, but matches your old response)
-        const serials = data.map((d) => d.serialNumber);
+        const serials = data.map((d) => d.serialNumber).filter(Boolean);
         const createdUnits = await prisma.stockUnit.findMany({
-          where: { itemId, serialNumber: { in: serials } },
+          where: { itemId, ...(serials.length ? { serialNumber: { in: serials } } : { inventoryBatchId: createdBatchId }) },
           orderBy: { createdAt: "desc" },
         });
 
@@ -1445,7 +1449,7 @@ router.post(
   async (req, res) => {
     const createdById = req.user?.id || null;
     const { unitId } = req.params;
-    const { truckId, installedAt, note, maintenanceId, fromLocationId } = req.body || {};
+    const { truckId, installedAt, note, maintenanceId, fromLocationId, serialNumber } = req.body || {};
 
     if (!truckId) return res.status(400).json({ ok: false, error: "truckId is required" });
 
@@ -1457,6 +1461,13 @@ router.post(
         });
         if (!unit) throw new Error("Unit not found");
         if (unit.status !== "IN_STOCK") throw new Error("Unit is not available (must be IN_STOCK)");
+        const finalSerial = unit.serialNumber || String(serialNumber || "").trim();
+        if (!finalSerial) throw new Error("Nomor seri wajib diisi saat unit akan dipasang");
+        if (!unit.serialNumber) {
+          const duplicate = await tx.stockUnit.findFirst({ where: { serialNumber: finalSerial, id: { not: unitId } }, select: { id: true } });
+          if (duplicate) throw new Error("Nomor seri sudah digunakan oleh unit lain");
+          await tx.stockUnit.update({ where: { id: unitId }, data: { serialNumber: finalSerial } });
+        }
 
         const truck = await tx.truck.findUnique({ where: { id: truckId } });
         if (!truck) throw new Error("Truck not found");

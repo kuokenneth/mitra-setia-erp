@@ -561,6 +561,7 @@ export default function Inventory() {
   const [receiveUnitRows, setReceiveUnitRows] = useState([{ serialNumber: "", purchasePrice: "" }]);
   const [assignForm, setAssignForm] = useState({
     unitId: "",
+    serialNumber: "",
     truckId: "",
     installedAt: "",
     note: "",
@@ -1029,10 +1030,13 @@ export default function Inventory() {
           .map((row) => ({ serialNumber: String(row.serialNumber || "").trim(), purchasePrice: row.purchasePrice === "" ? undefined : Number(row.purchasePrice) }))
           .filter((row) => row.serialNumber || row.purchasePrice != null);
 
-        if (unitsPayload.length === 0) {
-          throw new Error("Tambahkan minimal satu nomor seri.");
+        const deferredSerials = unitsPayload.length === 0;
+        if (deferredSerials) {
+          const qty = Number(receiveForm.qty || 0);
+          if (!Number.isInteger(qty) || qty <= 0) throw new Error("Jumlah unit harus berupa angka bulat lebih dari nol.");
+          payload.qty = qty;
         }
-        if (unitsPayload.some((unit) => !unit.serialNumber)) throw new Error("Nomor seri tidak boleh kosong.");
+        if (!deferredSerials && unitsPayload.some((unit) => !unit.serialNumber)) throw new Error("Nomor seri tidak boleh kosong pada baris yang diisi.");
         const normalizedSerials = unitsPayload.map((unit) => unit.serialNumber.toLocaleLowerCase("id-ID"));
         if (new Set(normalizedSerials).size !== normalizedSerials.length) throw new Error("Nomor seri tidak boleh duplikat.");
         if (unitsPayload.some((unit) => unit.purchasePrice != null && (!Number.isFinite(unit.purchasePrice) || unit.purchasePrice < 0))) throw new Error("Harga unit harus berupa angka nol atau lebih.");
@@ -1107,6 +1111,7 @@ export default function Inventory() {
         method: "POST",
         body: JSON.stringify({
           truckId: assignForm.truckId,
+          serialNumber: assignForm.serialNumber || undefined,
           installedAt: assignForm.installedAt || undefined,
           note: assignForm.note || undefined,
           maintenanceId: assignForm.maintenanceId || undefined,
@@ -1114,7 +1119,7 @@ export default function Inventory() {
       });
 
       setOpenAssign(false);
-      setAssignForm({ unitId: "", truckId: "", installedAt: "", note: "", maintenanceId: "" });
+      setAssignForm({ unitId: "", serialNumber: "", truckId: "", installedAt: "", note: "", maintenanceId: "" });
 
       await Promise.all([loadItems(), loadUnits(), loadMovements()]);
     } catch (e) {
@@ -1365,7 +1370,7 @@ export default function Inventory() {
                 unitLocationId={unitLocationId}
                 setUnitLocationId={setUnitLocationId}
                 onAssign={(unit) => {
-                  setAssignForm((p) => ({ ...p, unitId: unit.id }));
+                  setAssignForm((p) => ({ ...p, unitId: unit.id, serialNumber: unit.serialNumber || "" }));
                   setOpenAssign(true);
                 }}
                 onBarcode={(unit) => {
@@ -1758,7 +1763,7 @@ export default function Inventory() {
                 }}
               />
               <div style={{ marginTop: 6, fontSize: 12, color: BRAND.textMuted }}>
-                Untuk barang berseri, jumlah mengikuti daftar nomor seri di bawah.
+                Nomor seri boleh dikosongkan sekarang dan diisi saat ban dipasang.
               </div>
             </div>}
 
@@ -1803,9 +1808,9 @@ export default function Inventory() {
               if (!item?.isSerialized) return null;
               return <div className="inventory-serial-editor" style={{ gridColumn: "1 / -1" }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>
-                Daftar unit berseri (wajib)
+                Daftar nomor seri (opsional saat stok masuk)
               </div>
-              <div className="inventory-serial-help">Masukkan satu unit pada setiap baris. Nomor seri diperiksa agar tidak kosong atau duplikat.</div>
+              <div className="inventory-serial-help">Untuk input cepat, cukup isi Jumlah dan Total Harga. Nomor seri dapat dicatat nanti ketika unit dipasang.</div>
               <div className="inventory-serial-table"><div className="inventory-serial-head"><span>No.</span><span>Nomor seri</span><span>Harga/unit (Rp)</span><span/></div>{receiveUnitRows.map((row, index) => <div className="inventory-serial-row" key={index}><b>{index + 1}</b><input value={row.serialNumber} onChange={(e) => setReceiveUnitRows((rows) => rows.map((current, rowIndex) => rowIndex === index ? { ...current, serialNumber: e.target.value } : current))} placeholder="Contoh: SN001"/><input type="number" min="0" value={row.purchasePrice} disabled={String(receiveForm.totalPurchasePrice || "").trim() !== ""} onChange={(e) => setReceiveUnitRows((rows) => rows.map((current, rowIndex) => rowIndex === index ? { ...current, purchasePrice: e.target.value } : current))} placeholder={receiveForm.totalPurchasePrice ? "Pakai total harga" : "Contoh: 2000000"}/><button type="button" aria-label={`Hapus baris ${index + 1}`} disabled={receiveUnitRows.length === 1} onClick={() => { setReceiveUnitRows((rows) => rows.filter((_, rowIndex) => rowIndex !== index)); setReceiveForm((form) => ({ ...form, qty: Math.max(1, receiveUnitRows.length - 1) })); }}><FiX/></button></div>)}</div>
               <button type="button" className="inventory-add-serial" onClick={() => { setReceiveUnitRows((rows) => [...rows, { serialNumber: "", purchasePrice: "" }]); setReceiveForm((form) => ({ ...form, qty: receiveUnitRows.length + 1 })); }}><FiPlus/> Tambah unit</button>
             </div>})()}
@@ -1948,6 +1953,16 @@ export default function Inventory() {
           <div style={{ display: "grid", gap: 12 }}>
             <div>
               <Pill variant="green">Unit ID: {assignForm.unitId || "-"}</Pill>
+            </div>
+
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Nomor seri</div>
+              <input
+                style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}
+                value={assignForm.serialNumber}
+                onChange={(e) => setAssignForm((p) => ({ ...p, serialNumber: e.target.value }))}
+                placeholder="Wajib jika belum dicatat saat stok masuk"
+              />
             </div>
 
             <div>
