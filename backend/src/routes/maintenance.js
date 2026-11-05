@@ -380,12 +380,27 @@ router.get("/:id", authRequired, async (req, res) => {
           orderBy: { createdAt: "desc" },
           include: { createdBy: { select: { id: true, name: true, email: true, role: true } } },
         },
-        purchaseRequests: { select: { id: true, number: true, status: true, urgency: true, purpose: true, directUse: true, createdAt: true, damageProofUrl: true, damageProofFileName: true, damageProofMimeType: true, damageProofs: true, purchaseOrders: { select: { id: true, number: true, status: true, items: { select: { itemId: true, qty: true, receivedQty: true } } }, orderBy: { createdAt: "desc" } }, items: { select: { id: true, itemId: true, originalQty: true, approvedQty: true, item: { select: { id: true, sku: true, name: true, unit: true } } } } }, orderBy: { createdAt: "desc" } },
+        purchaseRequests: { select: { id: true, number: true, status: true, urgency: true, purpose: true, directUse: true, createdAt: true, damageProofUrl: true, damageProofFileName: true, damageProofMimeType: true, damageProofs: true, purchaseOrders: { select: { id: true, number: true, status: true, createdAt: true, items: { select: { itemId: true, purchaseRequestItemId: true, qty: true, receivedQty: true } } }, orderBy: { createdAt: "desc" } }, purchaseOrderLinks: { select: { purchaseOrder: { select: { id: true, number: true, status: true, createdAt: true, items: { select: { itemId: true, purchaseRequestItemId: true, qty: true, receivedQty: true } } } } } }, items: { select: { id: true, itemId: true, originalQty: true, approvedQty: true, item: { select: { id: true, sku: true, name: true, unit: true } } } } }, orderBy: { createdAt: "desc" } },
         partRepairs: { include: { stockUnit: { include: { item: true } }, supplier: true }, orderBy: { createdAt: "desc" } },
       },
     });
 
     if (!job) return res.status(404).json({ error: "Maintenance job not found" });
+    job.purchaseRequests = job.purchaseRequests.map(request => {
+      const requestItemIds = new Set(request.items.map(item => item.id));
+      const ordersById = new Map([
+        ...request.purchaseOrders,
+        ...request.purchaseOrderLinks.map(link => link.purchaseOrder),
+      ].map(order => [order.id, {
+        ...order,
+        items: order.items.filter(item => requestItemIds.has(item.purchaseRequestItemId)),
+      }]));
+      const { purchaseOrderLinks, ...requestWithoutLinks } = request;
+      return {
+        ...requestWithoutLinks,
+        purchaseOrders: [...ordersById.values()].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+      };
+    });
     const [repairSerialized, repairNonSerialized] = await Promise.all([
       prisma.truckSparePartAssignment.findMany({
         where: { truckId: job.truckId, removedAt: null, stockUnit: { status: "ASSIGNED", item: { isSerialized: true } } },
@@ -509,15 +524,20 @@ router.patch("/:id/status", authRequired, async (req, res) => {
       const serviceRequests = await prisma.purchaseRequest.findMany({
         where: { maintenanceId: id, OR: [{ directUse: true }, { purpose: "MAINTENANCE_STOCK_REQUEST" }], status: { notIn: ["REJECTED", "CANCELLED"] } },
         include: {
-          items: { select: { itemId: true, originalQty: true, approvedQty: true } },
-          purchaseOrders: { where: { status: { not: "CANCELLED" } }, select: { items: { select: { itemId: true, receivedQty: true } } } },
+          items: { select: { id: true, originalQty: true, approvedQty: true } },
+          purchaseOrders: { where: { status: { not: "CANCELLED" } }, select: { id: true, items: { select: { purchaseRequestItemId: true, receivedQty: true } } } },
+          purchaseOrderLinks: { where: { purchaseOrder: { status: { not: "CANCELLED" } } }, select: { purchaseOrder: { select: { id: true, items: { select: { purchaseRequestItemId: true, receivedQty: true } } } } } },
         },
       });
       const unfinished = serviceRequests.filter(request => {
-        if (request.status !== "APPROVED" || !request.purchaseOrders.length) return true;
+        const orders = [...new Map([
+          ...request.purchaseOrders,
+          ...request.purchaseOrderLinks.map(link => link.purchaseOrder),
+        ].map(order => [order.id, order])).values()];
+        if (request.status !== "APPROVED" || !orders.length) return true;
         return request.items.some(item => {
           const requiredQty = Number(item.approvedQty ?? item.originalQty ?? 0);
-          const receivedQty = request.purchaseOrders.reduce((sum, order) => sum + order.items.filter(row => row.itemId === item.itemId).reduce((itemSum, row) => itemSum + Number(row.receivedQty || 0), 0), 0);
+          const receivedQty = orders.reduce((sum, order) => sum + order.items.filter(row => row.purchaseRequestItemId === item.id).reduce((itemSum, row) => itemSum + Number(row.receivedQty || 0), 0), 0);
           return receivedQty + 0.000001 < requiredQty;
         });
       });
