@@ -25,6 +25,10 @@ const isActiveReceiptItem = item => item.condition !== "RETURNED_TO_SUPPLIER";
 const billedReceiptItemQty = item => (item.supplierBillItems || []).reduce((sum, line) => sum + Number(line.qty || 0), 0);
 const remainingReceiptItemQty = item => Math.max(0, Number(item.qty || 0) - billedReceiptItemQty(item));
 const isReceiptItemFullyBilled = item => remainingReceiptItemQty(item) <= 0;
+const receiptGroupKey = (supplierId, receipt) => {
+  const proofKey = receipt.deliveryNoteProofUrl || receipt.deliveryNoteFileName;
+  return proofKey ? `${supplierId}:${proofKey}` : `${supplierId}:${receipt.deliveryNote || receipt.id}`;
+};
 const receiptValue = receipt => receipt.items.filter(isActiveReceiptItem).reduce((sum, row) => sum + Number(row.qty) * Number(row.purchaseOrderItem?.unitPrice || 0), 0);
 const receiptTargetTruck = (po, trucks) => {
   const serviceDirect = (po?.request?.directUse || po?.request?.purpose === "MAINTENANCE_STOCK_REQUEST") && po?.request?.maintenance;
@@ -544,18 +548,25 @@ export default function Purchasing() {
   function toggleRepairBillItem(movementId) {
     setBillForm(current => ({ ...current, repairMovementIds: current.repairMovementIds.includes(movementId) ? current.repairMovementIds.filter(id => id !== movementId) : [...current.repairMovementIds, movementId] }));
   }
-  function toggleBillReceipt(receipt) {
+  function toggleBillReceiptGroup(entries) {
+    const receipts = entries.map(({receipt}) => receipt);
     setBillForm(current => {
-      const removing = current.receiptIds.includes(receipt.id);
-      const selected = removing ? current.receiptIds.filter(id => id !== receipt.id) : [...current.receiptIds, receipt.id];
-      const availableItems = receipt.items.filter(item => !isReceiptItemFullyBilled(item) && item.condition !== "RETURNED_TO_SUPPLIER");
-      const itemIds = removing ? current.itemIds.filter(id => !availableItems.some(item => item.id === id)) : [...new Set([...current.itemIds, ...availableItems.map(item => item.id)])];
+      const removing = receipts.every(receipt => current.receiptIds.includes(receipt.id));
+      const receiptIdSet = new Set(receipts.map(receipt => receipt.id));
+      const availableItems = receipts.flatMap(receipt => receipt.items.filter(item => !isReceiptItemFullyBilled(item) && item.condition !== "RETURNED_TO_SUPPLIER"));
+      const availableItemIds = new Set(availableItems.map(item => item.id));
+      const receiptIds = removing ? current.receiptIds.filter(id => !receiptIdSet.has(id)) : [...new Set([...current.receiptIds, ...receiptIdSet])];
+      const itemIds = removing ? current.itemIds.filter(id => !availableItemIds.has(id)) : [...new Set([...current.itemIds, ...availableItemIds])];
       const itemPrices = { ...current.itemPrices };
       const itemQuantities = { ...current.itemQuantities };
-      if (removing) availableItems.forEach(item => delete itemPrices[item.id]);
-      else availableItems.forEach(item => { itemPrices[item.id] = item.purchaseOrderItem?.unitPrice > 0 ? String(item.purchaseOrderItem.unitPrice) : ""; itemQuantities[item.id] = String(remainingReceiptItemQty(item)); });
-      if (removing) availableItems.forEach(item => delete itemQuantities[item.id]);
-      return { ...current, receiptIds: selected, itemIds, itemPrices, itemQuantities };
+      availableItems.forEach(item => {
+        if (removing) { delete itemPrices[item.id]; delete itemQuantities[item.id]; }
+        else {
+          itemPrices[item.id] = item.purchaseOrderItem?.unitPrice > 0 ? String(item.purchaseOrderItem.unitPrice) : "";
+          itemQuantities[item.id] = String(remainingReceiptItemQty(item));
+        }
+      });
+      return { ...current, receiptIds, itemIds, itemPrices, itemQuantities };
     });
   }
   function toggleAllBillReceipts() {
@@ -642,6 +653,13 @@ export default function Purchasing() {
     const insidePeriod = (!billReceiptPeriod.from || receivedDate >= billReceiptPeriod.from) && (!billReceiptPeriod.to || receivedDate <= billReceiptPeriod.to);
     return insidePeriod && receipt.items.some(item=>!isReceiptItemFullyBilled(item)&&item.condition!=="RETURNED_TO_SUPPLIER");
   }).sort((a,b)=>new Date(a.receipt.receivedAt)-new Date(b.receipt.receivedAt)||String(a.receipt.number).localeCompare(String(b.receipt.number)));
+  const selectableBillReceiptGroups = [...selectableBillReceipts.reduce((groups, entry) => {
+    const key = receiptGroupKey(entry.po.supplierId, entry.receipt);
+    const group = groups.get(key) || { key, entries: [] };
+    group.entries.push(entry);
+    groups.set(key, group);
+    return groups;
+  }, new Map()).values()];
   const allBillReceiptsSelected = selectableBillReceipts.length > 0 && selectableBillReceipts.every(({receipt})=>billForm.receiptIds.includes(receipt.id));
   const billItemCandidates = billReceipts.flatMap(({receipt,po})=>receipt.items.filter(item=>!isReceiptItemFullyBilled(item)&&item.condition!=="RETURNED_TO_SUPPLIER").map(item=>({item,receipt,po})));
   const billItemGroups = [...billItemCandidates.reduce((groups, row) => {
@@ -649,7 +667,7 @@ export default function Purchasing() {
     const itemKey = row.item.purchaseOrderItem?.itemId || catalogItem?.sku || row.item.id;
     const rawPrice = billForm.itemPrices[row.item.id];
     const priceKey = rawPrice === undefined || rawPrice === "" ? "EMPTY" : String(Number(rawPrice));
-    const key = `${row.receipt.id}::${itemKey}::${priceKey}`;
+    const key = `${receiptGroupKey(row.po.supplierId, row.receipt)}::${itemKey}::${priceKey}`;
     const group = groups.get(key) || { key, item: catalogItem, rows: [] };
     group.rows.push(row);
     groups.set(key, group);
@@ -657,9 +675,12 @@ export default function Purchasing() {
   }, new Map()).values()].sort((a,b)=>new Date(a.rows[0]?.receipt?.receivedAt||0)-new Date(b.rows[0]?.receipt?.receivedAt||0)||String(a.rows[0]?.receipt?.number||"").localeCompare(String(b.rows[0]?.receipt?.number||""))||String(a.item?.name||"").localeCompare(String(b.item?.name||""),"id"));
   const billItemReceiptGroups = [...billItemGroups.reduce((groups, itemGroup) => {
     const receipt = itemGroup.rows[0]?.receipt;
-    const group = groups.get(receipt?.id) || { receipt, itemGroups: [] };
+    const po = itemGroup.rows[0]?.po;
+    const key = receiptGroupKey(po?.supplierId, receipt);
+    const receipts = billReceipts.filter(entry => receiptGroupKey(entry.po.supplierId, entry.receipt) === key).map(entry => entry.receipt);
+    const group = groups.get(key) || { key, receipts, itemGroups: [] };
     group.itemGroups.push(itemGroup);
-    groups.set(receipt?.id, group);
+    groups.set(key, group);
     return groups;
   }, new Map()).values()];
   const billItems = billItemCandidates.filter(({item})=>billForm.itemIds.includes(item.id));
@@ -699,8 +720,7 @@ export default function Purchasing() {
   const filteredRequests = data.requests.filter(row => statusMatches(requestBucket(row)) && matchesQuery([row.number,row.reason,row.purpose,row.status,row.maintenance?.truck?.plateNumber,row.items.map(item=>[item.item?.name,item.item?.sku])]));
   const filteredOrders = data.orders.filter(row => statusMatches(orderBucket(row)) && matchesQuery([row.number,row.status,row.supplier?.name,poRequestNumbers(row),row.items.map(item=>[item.item?.name,item.item?.sku])]));
   const receiptGroups = [...data.orders.flatMap(po=>po.receipts.map(gr=>({po,gr}))).reduce((groups, entry) => {
-    const proofKey = entry.gr.deliveryNoteProofUrl || entry.gr.deliveryNoteFileName;
-    const key = proofKey ? `${entry.po.supplierId}:${proofKey}` : `${entry.po.supplierId}:${entry.gr.deliveryNote || entry.gr.id}`;
+    const key = receiptGroupKey(entry.po.supplierId, entry.gr);
     const group = groups.get(key) || { key, entries: [] };
     group.entries.push(entry);
     groups.set(key, group);
@@ -812,10 +832,10 @@ export default function Purchasing() {
     {modal==="bill"&&<div className="overlay supplier-bill-overlay" onMouseDown={()=>setModal("")}><form className="modal purchase-request-modal transaction-modal supplier-bill-modal" onSubmit={createBill} onMouseDown={e=>e.stopPropagation()}>
       <div className="modal-heading supplier-bill-heading"><div><span className="eyebrow">REKONSILIASI TAGIHAN SUPPLIER</span><h2>Cocokkan invoice dengan barang diterima</h2><p>Pilih surat penerimaan, lalu masukkan harga tiap barang sesuai invoice supplier.</p></div><button className="supplier-bill-close" type="button" aria-label="Tutup rekonsiliasi tagihan" onClick={()=>setModal("")}>×</button></div>
       <div className="po-form-body"><label>Supplier<select required value={billForm.supplierId} onChange={e=>setBillForm({...billForm,supplierId:e.target.value,receiptIds:[],itemIds:[],itemPrices:{},itemQuantities:{},repairMovementIds:[]})}><option value="">Pilih supplier</option>{data.suppliers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
-        <section className="bill-receipt-section"><header><span><small>LANGKAH 1</small><strong>Pilih Penerimaan yang Ditagihkan</strong></span><div className="bill-select-all"><button type="button" disabled={!selectableBillReceipts.length} onClick={toggleAllBillReceipts}>{allBillReceiptsSelected?"Batalkan semua":"Pilih semua dalam periode"}</button><b>{billForm.receiptIds.length} dipilih</b></div></header><div className="bill-receipt-period"><span><b>Periode penerimaan</b><small>Tampilkan GR berdasarkan tanggal barang diterima.</small></span><label>Dari tanggal<input type="date" value={billReceiptPeriod.from} onChange={e=>changeBillReceiptPeriod("from",e.target.value)}/></label><label>Sampai tanggal<input type="date" value={billReceiptPeriod.to} onChange={e=>changeBillReceiptPeriod("to",e.target.value)}/></label><button type="button" disabled={!billReceiptPeriod.from&&!billReceiptPeriod.to} onClick={resetBillReceiptPeriod}>Reset</button></div><div className="bill-receipt-picker">{selectableBillReceipts.map(({receipt})=>{const selected=billForm.receiptIds.includes(receipt.id);return <label key={receipt.id} className={selected?"selected":""}><input type="checkbox" checked={selected} onChange={()=>toggleBillReceipt(receipt)}/><i>{selected&&<FiCheck/>}</i><span><strong>{receipt.number}</strong><small>{new Date(receipt.receivedAt).toLocaleDateString("id-ID",{day:"numeric",month:"long",year:"numeric"})}</small><em className="bill-delivery-note">Surat jalan: {receipt.deliveryNote||"-"}</em></span><span className="bill-receipt-proof">{receipt.deliveryNoteProofUrl?<ProtectedFilePreview url={receipt.deliveryNoteProofUrl} mimeType={receipt.deliveryNoteMimeType} fileName={receipt.deliveryNoteFileName||`Bukti ${receipt.number}`} imageStyle={{width:96,height:68,objectFit:"cover",borderRadius:8}} onError={e=>setFormError(e.message)}/>:<FiFileText/>}</span><b>{receipt.items.length} barang</b></label>})}{billForm.supplierId&&!selectableBillReceipts.length&&<div className="bill-receipt-empty"><FiCheck/><span><strong>Tidak ada penerimaan pada periode ini</strong><small>Ubah rentang tanggal atau pilih supplier lain.</small></span></div>}</div></section>
+        <section className="bill-receipt-section"><header><span><small>LANGKAH 1</small><strong>Pilih Penerimaan yang Ditagihkan</strong></span><div className="bill-select-all"><button type="button" disabled={!selectableBillReceipts.length} onClick={toggleAllBillReceipts}>{allBillReceiptsSelected?"Batalkan semua":"Pilih semua dalam periode"}</button><b>{billForm.receiptIds.length} GR dipilih</b></div></header><div className="bill-receipt-period"><span><b>Periode penerimaan</b><small>Tampilkan penerimaan berdasarkan tanggal barang diterima.</small></span><label>Dari tanggal<input type="date" value={billReceiptPeriod.from} onChange={e=>changeBillReceiptPeriod("from",e.target.value)}/></label><label>Sampai tanggal<input type="date" value={billReceiptPeriod.to} onChange={e=>changeBillReceiptPeriod("to",e.target.value)}/></label><button type="button" disabled={!billReceiptPeriod.from&&!billReceiptPeriod.to} onClick={resetBillReceiptPeriod}>Reset</button></div><div className="bill-receipt-picker">{selectableBillReceiptGroups.map(group=>{const receipts=group.entries.map(({receipt})=>receipt);const selected=receipts.every(receipt=>billForm.receiptIds.includes(receipt.id));const first=receipts[0];const itemCount=receipts.reduce((sum,receipt)=>sum+receipt.items.filter(item=>!isReceiptItemFullyBilled(item)&&item.condition!=="RETURNED_TO_SUPPLIER").length,0);return <label key={group.key} className={selected?"selected":""}><input type="checkbox" checked={selected} onChange={()=>toggleBillReceiptGroup(group.entries)}/><i>{selected&&<FiCheck/>}</i><span><strong>Surat jalan {first.deliveryNote||"-"}</strong><small>{new Date(first.receivedAt).toLocaleDateString("id-ID",{day:"numeric",month:"long",year:"numeric"})}</small><em className="bill-delivery-note">{receipts.length} penerimaan · {receipts.map(receipt=>receipt.number).join(", ")}</em></span><span className="bill-receipt-proof">{first.deliveryNoteProofUrl?<ProtectedFilePreview url={first.deliveryNoteProofUrl} mimeType={first.deliveryNoteMimeType} fileName={first.deliveryNoteFileName||`Bukti ${first.number}`} imageStyle={{width:96,height:68,objectFit:"cover",borderRadius:8}} onError={e=>setFormError(e.message)}/>:<FiFileText/>}</span><b>{itemCount} barang</b></label>})}{billForm.supplierId&&!selectableBillReceiptGroups.length&&<div className="bill-receipt-empty"><FiCheck/><span><strong>Tidak ada penerimaan pada periode ini</strong><small>Ubah rentang tanggal atau pilih supplier lain.</small></span></div>}</div></section>
         {!!selectableRepairBillItems.length&&<section className="bill-receipt-section"><header><span><small>JASA PERBAIKAN</small><strong>Pilih pekerjaan yang ditagihkan</strong></span><b>{selectedRepairBillItems.length} dipilih</b></header><div className="bill-receipt-picker">{selectableRepairBillItems.map(row=>{const selected=billForm.repairMovementIds.includes(row.id);return <label key={row.id} className={selected?"selected":""}><input type="checkbox" checked={selected} onChange={()=>toggleRepairBillItem(row.id)}/><i>{selected&&<FiCheck/>}</i><span><strong>{row.item?.name}</strong><small>{row.maintenance?.truck?.plateNumber||"-"} · {row.maintenance?.number||"Perbaikan"}</small><em>{new Date(row.createdAt).toLocaleDateString("id-ID",{day:"numeric",month:"long",year:"numeric"})}</em></span><b>{money(row.totalCost)}</b></label>})}</div></section>}
         <div className="grid3"><label>Nomor invoice<input required value={billForm.invoiceNumber} onChange={e=>setBillForm({...billForm,invoiceNumber:e.target.value})}/></label><label>Tanggal invoice<input required type="date" value={billForm.invoiceDate} onChange={e=>setBillForm({...billForm,invoiceDate:e.target.value})}/></label><label>Jatuh tempo<input type="date" value={billForm.dueDate} onChange={e=>setBillForm({...billForm,dueDate:e.target.value})}/></label></div>
-        <div className="supplier-bill-flat-details" data-testid="supplier-bill-item-details"><div className="supplier-bill-flat-head"><span><small>LANGKAH 2 · PER PENERIMAAN</small><strong>Masukkan Jumlah yang Ditagih</strong></span><b>{billItems.length} baris penerimaan digunakan</b></div><div className="supplier-bill-flat-scroll">{billItemReceiptGroups.length?billItemReceiptGroups.map(({receipt,itemGroups})=><section className="supplier-bill-receipt-group" key={receipt.id}><header><span><small>PENERIMAAN</small><strong>{receipt.number}</strong></span><span><b>{new Date(receipt.receivedAt).toLocaleDateString("id-ID",{day:"numeric",month:"long",year:"numeric"})}</b><small>Surat jalan {receipt.deliveryNote||"—"}</small></span><em>{itemGroups.length} barang</em></header><div className="supplier-bill-flat-columns"><span>Barang</span><span>Qty ditagih</span><span>Harga satuan</span><span>Subtotal</span></div>{itemGroups.map(renderBillItemGroup)}</section>):<div className="supplier-bill-flat-empty"><FiFileText/><span><strong>Belum ada rincian barang</strong><small>Pilih penerimaan pada Langkah 1.</small></span></div>}</div></div>
+        <div className="supplier-bill-flat-details" data-testid="supplier-bill-item-details"><div className="supplier-bill-flat-head"><span><small>LANGKAH 2 · PER PENERIMAAN</small><strong>Masukkan Jumlah yang Ditagih</strong></span><b>{billItems.length} baris penerimaan digunakan</b></div><div className="supplier-bill-flat-scroll">{billItemReceiptGroups.length?billItemReceiptGroups.map(({key,receipts,itemGroups})=>{const first=receipts[0];return <section className="supplier-bill-receipt-group" key={key}><header><span><small>PENERIMAAN</small><strong>Surat jalan {first.deliveryNote||"—"}</strong></span><span><b>{new Date(first.receivedAt).toLocaleDateString("id-ID",{day:"numeric",month:"long",year:"numeric"})}</b><small>{receipts.length} GR · {receipts.map(receipt=>receipt.number).join(", ")}</small></span><em>{itemGroups.length} barang</em></header><div className="supplier-bill-flat-columns"><span>Barang</span><span>Qty ditagih</span><span>Harga satuan</span><span>Subtotal</span></div>{itemGroups.map(renderBillItemGroup)}</section>}):<div className="supplier-bill-flat-empty"><FiFileText/><span><strong>Belum ada rincian barang</strong><small>Pilih penerimaan pada Langkah 1.</small></span></div>}</div></div>
         <section className="bill-summary"><header><small>LANGKAH 3</small><strong>Ringkasan Tagihan</strong></header><div><span>Subtotal barang dan jasa</span><b>{money(billTotal)}</b></div><div className="bill-summary-total"><span>Total tagihan invoice</span><strong>{money(billTotal)}</strong></div></section>
         <label className="receipt-upload required-proof bill-multi-upload"><input required={!billProofFiles.length} multiple type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={e=>{const incoming=[...(e.target.files||[])];setBillProofFiles(current=>[...current,...incoming.filter(file=>!current.some(saved=>saved.name===file.name&&saved.size===file.size&&saved.lastModified===file.lastModified))]);e.target.value=""}}/><span className="receipt-upload-icon"><FiUploadCloud/></span><span><strong>{billProofFiles.length?`${billProofFiles.length} file invoice dipilih`:"Lampirkan invoice supplier"}</strong><small>Klik lagi untuk menambahkan file · JPG, PNG, WEBP atau PDF</small></span></label>{!!billProofFiles.length&&<div className="bill-upload-list">{billProofFiles.map((file,index)=><div key={`${file.name}-${file.size}-${file.lastModified}`}><span><b>{index+1}</b><strong title={file.name}>{file.name}</strong><small>{(file.size/1024/1024).toLocaleString("id-ID",{maximumFractionDigits:2})} MB</small></span><button type="button" onClick={()=>setBillProofFiles(files=>files.filter((_,fileIndex)=>fileIndex!==index))} aria-label={`Hapus ${file.name}`}>×</button></div>)}</div>}<label>Catatan<textarea rows="2" value={billForm.notes} onChange={e=>setBillForm({...billForm,notes:e.target.value})}/></label>{formError&&<div className="form-error">{formError}</div>}
       </div><div className="modal-actions"><button className="secondary-btn" type="button" onClick={()=>setModal("")}>Batal</button><button className="primary" disabled={busy||!billPricesValid||!billProofFiles.length}>{busy?"Mencocokkan...":"Cocok & Simpan Tagihan"}</button></div></form></div>}
