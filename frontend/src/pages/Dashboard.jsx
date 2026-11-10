@@ -113,7 +113,7 @@ function DomainCard({ icon, tone, title, value, caption, onOpen, openLabel, metr
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const canViewFinance = ["OWNER", "ADMIN"].includes(user?.role);
+  const canViewFinance = ["OWNER", "ADMIN", "STAFF"].includes(user?.role);
   const [period, setPeriod] = useState(7);
   const [revision, setRevision] = useState(0);
   const [loading, setLoading] = useState(true);

@@ -909,7 +909,7 @@ export default function Expenses() {
 
               {!loading && items.length === 0 ? (
                 <tr>
-                  <td style={s.empty} colSpan={7}>
+                  <td style={s.empty} className="expense-empty-cell" colSpan={7}>
                     Belum ada pengeluaran yang sesuai.
                   </td>
                 </tr>
