@@ -470,7 +470,7 @@ router.post("/single", authRequired, async (req, res) => {
         tx.customer.findUnique({ where: { id: billingCustomerId } }),
       ]);
       if (!truck) throw new Error("Truk tidak ditemukan");
-      if (["MAINTENANCE", "INACTIVE"].includes(truck.status)) throw new Error("Truk sedang tidak tersedia untuk perjalanan");
+      if (truck.status === "INACTIVE") throw new Error("Truk nonaktif tidak tersedia untuk perjalanan");
       if (!pickup || !destination) throw new Error("Master lokasi muat atau tujuan tidak ditemukan");
       if (!billingCustomer) throw new Error("Customer tagihan tidak ditemukan");
       const selectedDriverId = driverUserId || truck.driverUserId;

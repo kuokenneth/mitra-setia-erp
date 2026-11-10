@@ -219,7 +219,7 @@ export default function Trips() {
     setSingleTripQ("");
     try {
       const [truckData, locationData, customerData] = await Promise.all([api("/trucks"), api("/operational-locations"), api("/customers")]);
-      const trucks = (truckData.items || []).filter(truck => truck.status === "READY" && truck.driverUser?.id);
+      const trucks = (truckData.items || []).filter(truck => ["READY", "MAINTENANCE"].includes(truck.status) && truck.driverUser?.id);
       const locations = (locationData.items || []).filter(location => location.isActive);
       const normalizeLocationName = value => String(value || "").trim().toLocaleLowerCase("id-ID").replace(/[^a-z0-9]+/g, " ").trim();
       const mitraSetia = locations.find(location => normalizeLocationName(location.name).includes("cv mitra setia"))
@@ -497,7 +497,7 @@ export default function Trips() {
             <section className="empty-return-picker">
               <div className="empty-return-section-title"><div><span>LANGKAH 1</span><strong>Pilih Armada Ready</strong></div><b>{filteredSingleTripTrucks.length}</b></div>
               <label className="empty-return-search"><FiSearch/><input value={singleTripQ} onChange={event => setSingleTripQ(event.target.value)} placeholder="Cari BK, pengemudi, atau lokasi…"/></label>
-              <div className="empty-return-trucks">{filteredSingleTripTrucks.map(truck => <button type="button" className={singleTripForm.truckId === truck.id ? "active" : ""} key={truck.id} onClick={() => setSingleTripForm(form => ({ ...form, truckId: truck.id }))}><i><FiTruck/></i><span><strong>{truck.plateNumber}</strong><small>{truck.brand || "Armada"} {truck.model ? `· ${truck.model}` : ""}</small><em><FiMapPin/> {truck.gpsLocation?.name || truck.currentLocation || "Lokasi GPS belum dikenali"}</em></span><b>{truck.driverUser?.name || "Tanpa pengemudi"}</b></button>)}{!singleTripBusy && !filteredSingleTripTrucks.length && <div className="empty-return-empty">Tidak ada armada READY yang sesuai pencarian.</div>}</div>
+              <div className="empty-return-trucks">{filteredSingleTripTrucks.map(truck => <button type="button" className={singleTripForm.truckId === truck.id ? "active" : ""} key={truck.id} onClick={() => setSingleTripForm(form => ({ ...form, truckId: truck.id }))}><i><FiTruck/></i><span><strong>{truck.plateNumber}</strong><small>{truck.brand || "Armada"} {truck.model ? `· ${truck.model}` : ""} · {truck.status === "MAINTENANCE" ? "Maintenance" : "Ready"}</small><em><FiMapPin/> {truck.gpsLocation?.name || truck.currentLocation || "Lokasi GPS belum dikenali"}</em></span><b>{truck.driverUser?.name || "Tanpa pengemudi"}</b></button>)}{!singleTripBusy && !filteredSingleTripTrucks.length && <div className="empty-return-empty">Tidak ada armada READY atau MAINTENANCE yang sesuai pencarian.</div>}</div>
             </section>
             <section className="empty-return-details">
               <div className="empty-return-section-title"><div><span>LANGKAH 2</span><strong>Muatan & Rute</strong></div></div>

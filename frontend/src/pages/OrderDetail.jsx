@@ -469,7 +469,7 @@ export default function OrderDetail() {
     const items = data?.items || data || [];
     const normalize = (value) => String(value || "").trim().toLocaleLowerCase("id-ID");
     const origin = normalize(order?.pickupLocation?.name || order?.fromText);
-    const available = items.filter((truck) => truck.status === "READY").map((truck) => {
+    const available = items.filter((truck) => ["READY", "MAINTENANCE"].includes(truck.status)).map((truck) => {
       const current = normalize(truck.gpsLocation?.name || truck.currentLocation);
       const atPickup = current === origin || (order?.pickupLocation?.id && truck.gpsLocation?.id === order.pickupLocation.id);
       return { ...truck, atPickup };
@@ -1038,8 +1038,8 @@ export default function OrderDetail() {
           {/* LEFT - Truck Picker */}
           <Card>
             <div className="order-trip-picker" style={{ padding: 16 }}>
-              <div className="order-trip-section-title"><div><span>LANGKAH 1</span><strong>Pilih Armada Ready</strong></div><b>{filteredTrucks.length}</b></div>
-              <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>Semua armada READY dapat dicari. Armada di luar radius <strong>{order?.fromText || "lokasi muat"}</strong> akan diberi warning.</div>
+              <div className="order-trip-section-title"><div><span>LANGKAH 1</span><strong>Pilih Armada</strong></div><b>{filteredTrucks.length}</b></div>
+              <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>Armada READY dan MAINTENANCE dapat dipilih untuk pencatatan trip yang terlambat. Armada di luar radius <strong>{order?.fromText || "lokasi muat"}</strong> akan diberi warning.</div>
               <label className="order-trip-search"><FiSearch/><Input placeholder="Cari BK atau nomor polisi…" value={truckQ} onChange={(e) => setTruckQ(e.target.value)} /></label>
 
               <div style={{ marginTop: 12, maxHeight: isNarrow ? 200 : 350, overflow: "auto" }}>
@@ -1048,7 +1048,7 @@ export default function OrderDetail() {
                   return (
                     <button type="button"
                       key={t.id}
-                      className={`order-trip-truck ${active ? "active" : ""} ${!t.atPickup ? "warning" : ""}`}
+                      className={`order-trip-truck ${active ? "active" : ""} ${!t.atPickup || t.status === "MAINTENANCE" ? "warning" : ""}`}
                       style={{
                         padding: 14,
                         borderRadius: 6,
@@ -1070,13 +1070,14 @@ export default function OrderDetail() {
                       <div style={{ fontSize: 12, color: BRAND.primary, marginTop: 4, fontWeight: 600 }}>
                         <FiMapPin/> {t.gpsLocation?.name || t.currentLocation || "Belum diatur"}
                       </div>
+                      {t.status === "MAINTENANCE" && <div className="order-trip-location-warning"><FiAlertTriangle/> Sedang maintenance · pilih untuk pencatatan trip terlambat</div>}
                       {!t.atPickup && <div className="order-trip-location-warning"><FiAlertTriangle/> Belum berada di lokasi asal muatan</div>}</div>
                     </button>
                   );
                 })}
 
                 {filteredTrucks.length === 0 && (
-                  <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>Tidak ada kendaraan berstatus siap pakai.</div>
+                  <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>Tidak ada kendaraan READY atau MAINTENANCE.</div>
                 )}
               </div>
             </div>

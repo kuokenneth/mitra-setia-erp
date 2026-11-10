@@ -578,7 +578,7 @@ router.post("/:id/proofs", authRequired, async (req, res) => {
  * POST /orders/:id/trips
  * Assign truck + driver => create a Trip
  * Rules:
- *  - Truck must be READY or waiting for a backhaul
+ *  - Truck may be READY or MAINTENANCE when a trip is recorded late
  *  - Driver must be ACTIVE and role DRIVER
  *  - Driver cannot be assigned to another active trip
  *  - Truck cannot be assigned to another active trip
@@ -633,7 +633,7 @@ router.post("/:id/trips", authRequired, async (req, res) => {
 
       const truck = await tx.truck.findUnique({ where: { id: truckId } });
       if (!truck) throw new Error("Truck not found");
-      if (truck.status !== "READY") throw new Error("Armada harus berstatus READY");
+      if (!["READY", "MAINTENANCE"].includes(truck.status)) throw new Error("Armada harus berstatus READY atau MAINTENANCE");
       if (!order.pickupLocation || !order.destinationLocation) {
         throw new Error("Lokasi muat dan tujuan order wajib dipilih dari Master Lokasi sebelum membuat trip");
       }

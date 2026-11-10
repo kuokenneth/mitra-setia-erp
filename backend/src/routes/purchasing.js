@@ -401,7 +401,6 @@ router.post("/requests", async (req, res) => {
     ? req.body.damageProofs
     : damageProofUrl ? [{ url: damageProofUrl, fileName: damageProofFileName, mimeType: damageProofMimeType, size: damageProofSize }] : [])
     .filter(proof => proof?.url && String(proof.mimeType || "").startsWith("image/"));
-  if (!damageProofs.length) return res.status(400).json({ error: "Minimal satu foto bukti barang rusak wajib dilampirkan" });
   const primaryProof = damageProofs[0];
   const regularItemIds = items.filter(row => row.itemId && !row.retreadUnitId && !row.partRepairId).map(row => String(row.itemId));
   if (regularItemIds.length && !acknowledgeAvailableStock) {
@@ -458,7 +457,7 @@ router.post("/requests", async (req, res) => {
       preparedItems.push({ itemId: row.itemId, originalQty: requestedQty, notes: row.notes });
     }
   }
-  const request = await prisma.$transaction(async tx => tx.purchaseRequest.create({ data: { number: await nextDailyNumber(tx, "purchaseRequest", "PR"), urgency, purpose, truckId, reason, notes, damageProofUrl: primaryProof.url, damageProofFileName: primaryProof.fileName || null, damageProofMimeType: primaryProof.mimeType, damageProofSize: Number.isFinite(Number(primaryProof.size)) ? Number(primaryProof.size) : null, status: submit ? "WAITING_APPROVAL" : "DRAFT", createdById: req.user.id, items: { create: preparedItems }, damageProofs: { create: damageProofs.map(proof => ({ url: proof.url, fileName: proof.fileName || null, mimeType: proof.mimeType || null, size: Number.isFinite(Number(proof.size)) ? Number(proof.size) : null })) } }, include: { items: { include: { item: true } }, damageProofs: true } }));
+  const request = await prisma.$transaction(async tx => tx.purchaseRequest.create({ data: { number: await nextDailyNumber(tx, "purchaseRequest", "PR"), urgency, purpose, truckId, reason, notes, damageProofUrl: primaryProof?.url || null, damageProofFileName: primaryProof?.fileName || null, damageProofMimeType: primaryProof?.mimeType || null, damageProofSize: Number.isFinite(Number(primaryProof?.size)) ? Number(primaryProof.size) : null, status: submit ? "WAITING_APPROVAL" : "DRAFT", createdById: req.user.id, items: { create: preparedItems }, ...(damageProofs.length ? { damageProofs: { create: damageProofs.map(proof => ({ url: proof.url, fileName: proof.fileName || null, mimeType: proof.mimeType || null, size: Number.isFinite(Number(proof.size)) ? Number(proof.size) : null })) } } : {}) }, include: { items: { include: { item: true } }, damageProofs: true } }));
   if (request.status === "WAITING_APPROVAL") {
     await notifyOwnerSafely({
       event: "Permintaan pembelian baru",
@@ -466,7 +465,7 @@ router.post("/requests", async (req, res) => {
       details: `${request.items.map(row => `${row.item.name} · ${purpose === "STOCK" && !row.tireRetreadId ? "jumlah ditentukan saat PO" : `${row.originalQty} ${row.item.unit}`}`).join(", ")} · ${reason}`,
       path: `/purchasing?approveRequest=${encodeURIComponent(request.id)}`,
       actionLabel: "Setujui Permintaan",
-      proof: { url: request.damageProofUrl, fileName: request.damageProofFileName, mimeType: request.damageProofMimeType },
+      proof: request.damageProofUrl ? { url: request.damageProofUrl, fileName: request.damageProofFileName, mimeType: request.damageProofMimeType } : undefined,
     });
   }
   res.json({ ok: true, request });
@@ -727,7 +726,6 @@ async function createGoodsReceipt(tx, payload, userId) {
     if (po.request?.purpose === "TRUCK" && !directTruck) throw new Error("Truk tujuan pembelian tidak ditemukan");
     const directToTruck = Boolean(directTruck);
     if (!locationId || !items.length) throw new Error("Lokasi dan item penerimaan wajib diisi");
-    if (!deliveryNoteProofUrl) throw new Error("Foto bukti surat penerimaan wajib dilampirkan");
     const invoiceAmount = supplierInvoiceAmount === "" || supplierInvoiceAmount == null ? null : Number(supplierInvoiceAmount);
     if (invoiceAmount != null && (!Number.isFinite(invoiceAmount) || invoiceAmount < 0)) throw new Error("Nilai invoice supplier tidak valid");
     const invoiceDate = supplierInvoiceDate ? new Date(supplierInvoiceDate) : null;
