@@ -7,6 +7,8 @@ const { esc, num: fmtNum, money, date: fmtDate, documentHtml } = require("../uti
 const { notifyOwnerSafely } = require("../services/emailNotifications");
 const { nextDailyNumber } = require("../utils/documentNumber");
 const router = express.Router();
+const PERSAUDARAAN_RETREAD_PRICE = 900000;
+const isPersaudaraan = supplier => String(supplier?.name || "").trim().toLocaleUpperCase("id-ID") === "PERSAUDARAAN";
 
 async function backfillLegacyConsumptionAllocations(tx, batch) {
   const consumedQty = Math.max(0, Number(batch.receivedQty || 0) - Number(batch.remainingQty || 0));
@@ -454,7 +456,7 @@ router.post("/retreads/create-order", async (req, res) => {
           data: {
             number: await nextDailyNumber(tx, "purchaseOrder", "PO"), requestId: request.id, supplierId, status: "SENT_TO_SUPPLIER",
             paymentTerms: "Ditagihkan kemudian", createdById: req.user.id,
-            items: { create: rows.map(({ retread }) => ({ itemId: retread.toItemId, purchaseRequestItemId: requestItemByRetread.get(retread.id).id, qty: 1, unitPrice: 0, tireRetreadId: retread.id })) },
+            items: { create: rows.map(({ retread }) => ({ itemId: retread.toItemId, purchaseRequestItemId: requestItemByRetread.get(retread.id).id, qty: 1, unitPrice: isPersaudaraan(retread.supplier) ? PERSAUDARAAN_RETREAD_PRICE : 0, tireRetreadId: retread.id })) },
           },
           include: includePO,
         });
@@ -790,7 +792,7 @@ router.patch("/orders/:id/cancel", requireRole("OWNER", "ADMIN"), async (req, re
 });
 async function createGoodsReceipt(tx, payload, userId) {
     const { purchaseOrderId, locationId, deliveryNote, deliveryNoteProofUrl, deliveryNoteFileName, deliveryNoteMimeType, deliveryNoteSize, notes, supplierInvoiceNumber, supplierInvoiceDate, supplierInvoiceAmount, supplierInvoiceProofUrl, supplierInvoiceFileName, supplierInvoiceMimeType, supplierInvoiceSize, items = [] } = payload;
-    const po = await tx.purchaseOrder.findUnique({ where: { id: purchaseOrderId }, include: { request: { include: { maintenance: true } }, items: { include: { item: true, tireRetread: true, partRepair: true } } } });
+    const po = await tx.purchaseOrder.findUnique({ where: { id: purchaseOrderId }, include: { supplier: true, request: { include: { maintenance: true } }, items: { include: { item: true, tireRetread: true, partRepair: true } } } });
     if (!po) throw new Error("Purchase Order tidak ditemukan");
     if (!["SENT_TO_SUPPLIER", "PARTIALLY_RECEIVED"].includes(po.status)) throw new Error(po.status === "CANCELLED" ? "Purchase Order sudah dibatalkan" : "Purchase Order belum siap menerima barang");
     // Service requests marked for direct use still enter the receiving location
@@ -810,7 +812,7 @@ async function createGoodsReceipt(tx, payload, userId) {
     if (invoiceDate && Number.isNaN(invoiceDate.getTime())) throw new Error("Tanggal invoice supplier tidak valid");
     const rec = await tx.goodsReceipt.create({ data: { number: await nextDailyNumber(tx, "goodsReceipt", "GR"), purchaseOrderId, locationId, deliveryNote, deliveryNoteProofUrl, deliveryNoteFileName: deliveryNoteFileName || null, deliveryNoteMimeType: deliveryNoteMimeType || null, deliveryNoteSize: Number.isFinite(Number(deliveryNoteSize)) ? Number(deliveryNoteSize) : null, notes, supplierInvoiceNumber: supplierInvoiceNumber ? String(supplierInvoiceNumber).trim() : null, supplierInvoiceDate: invoiceDate, supplierInvoiceAmount: invoiceAmount == null ? null : Math.round(invoiceAmount), supplierInvoiceProofUrl: supplierInvoiceProofUrl || null, supplierInvoiceFileName: supplierInvoiceFileName || null, supplierInvoiceMimeType: supplierInvoiceMimeType || null, supplierInvoiceSize: Number.isFinite(Number(supplierInvoiceSize)) ? Number(supplierInvoiceSize) : null, createdById: userId } });
     for (const row of items) {
-      const poi = po.items.find(i => i.id === row.purchaseOrderItemId); const qty = Number(row.qty); const unitPrice = Math.round(Number(row.unitPrice));
+      const poi = po.items.find(i => i.id === row.purchaseOrderItemId); const qty = Number(row.qty); const unitPrice = poi?.tireRetreadId && isPersaudaraan(po.supplier) ? PERSAUDARAAN_RETREAD_PRICE : Math.round(Number(row.unitPrice));
       if (!poi || qty <= 0 || poi.receivedQty + qty > poi.qty) throw new Error("Jumlah penerimaan melebihi sisa PO");
       if (!Number.isFinite(unitPrice) || unitPrice <= 0) throw new Error(`${poi.item.name}: harga satuan sementara wajib lebih dari Rp0`);
       poi.unitPrice = unitPrice;
