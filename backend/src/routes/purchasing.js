@@ -389,6 +389,84 @@ router.get("/bills/:id/receipt-print", async (req, res) => {
   }));
 });
 router.post("/suppliers", async (req, res) => res.json({ ok: true, supplier: await prisma.supplier.create({ data: req.body }) }));
+router.post("/retreads/create-order", async (req, res) => {
+  const items = Array.isArray(req.body?.items) ? req.body.items : [];
+  if (!items.length) return res.status(400).json({ error: "Pilih minimal satu ban masak" });
+  const unitIds = items.map(row => String(row?.unitId || "").trim());
+  if (unitIds.some(id => !id) || new Set(unitIds).size !== unitIds.length) return res.status(400).json({ error: "Daftar ban masak tidak valid atau duplikat" });
+  const outcomes = new Map(items.map(row => [String(row.unitId), {
+    outcome: String(row?.outcome || "RECEIVED").toUpperCase(),
+    scrapReason: String(row?.scrapReason || "").trim(),
+  }]));
+  if ([...outcomes.values()].some(row => !["RECEIVED", "SCRAPPED"].includes(row.outcome))) return res.status(400).json({ error: "Hasil ban masak tidak valid" });
+  if ([...outcomes.values()].some(row => row.outcome === "SCRAPPED" && !row.scrapReason)) return res.status(400).json({ error: "Alasan scrap wajib diisi" });
+
+  try {
+    const result = await prisma.$transaction(async tx => {
+      const units = await tx.stockUnit.findMany({
+        where: { id: { in: unitIds } },
+        include: {
+          tireRetreads: {
+            where: { status: "SENT" }, orderBy: { sentAt: "desc" }, take: 1,
+            include: { supplier: true, toItem: true, purchaseRequestItems: { where: { request: { status: { notIn: ["REJECTED", "CANCELLED"] } } }, select: { id: true } } },
+          },
+        },
+      });
+      if (units.length !== unitIds.length) throw new Error("Salah satu ban masak tidak ditemukan");
+      const received = [];
+      const scrapped = [];
+      for (const unit of units) {
+        const retread = unit.tireRetreads[0];
+        if (unit.status !== "RETREADING" || !retread) throw new Error(`${unit.serialNumber || unit.id} tidak lagi dalam proses masak`);
+        if (retread.purchaseRequestItems.length) throw new Error(`${unit.serialNumber || unit.id} sudah memiliki permintaan atau PO aktif`);
+        const resultRow = outcomes.get(unit.id);
+        if (resultRow.outcome === "SCRAPPED") {
+          const note = `Tidak dapat dimasak / SCRAP: ${resultRow.scrapReason}`;
+          await tx.stockUnit.update({ where: { id: unit.id }, data: { status: "SCRAPPED", locationId: null, scrappedAt: new Date() } });
+          await tx.tireRetread.update({ where: { id: retread.id }, data: { status: "COMPLETED", completedAt: new Date(), cost: 0, notes: [retread.notes, note].filter(Boolean).join(" · ") } });
+          await tx.stockMovement.create({ data: { type: "ADJUST", itemId: unit.itemId, qty: 1, note, createdById: req.user.id, stockUnitId: unit.id } });
+          scrapped.push(unit.id);
+        } else {
+          if (!retread.supplierId) throw new Error(`${unit.serialNumber || unit.id} belum memiliki vendor masak ban`);
+          received.push({ unit, retread });
+        }
+      }
+
+      const orders = [];
+      const bySupplier = new Map();
+      for (const row of received) {
+        const group = bySupplier.get(row.retread.supplierId) || [];
+        group.push(row);
+        bySupplier.set(row.retread.supplierId, group);
+      }
+      for (const [supplierId, rows] of bySupplier) {
+        const request = await tx.purchaseRequest.create({
+          data: {
+            number: await nextDailyNumber(tx, "purchaseRequest", "PR"), status: "APPROVED", urgency: "NORMAL", purpose: "STOCK",
+            reason: `Penerimaan hasil ban masak · ${rows.length} unit`, createdById: req.user.id, approvedById: req.user.id,
+            approvedAt: new Date(), approvalNotes: "Dibuat otomatis dari proses hasil ban masak.",
+            items: { create: rows.map(({ retread }) => ({ itemId: retread.toItemId, originalQty: 1, approvedQty: 1, tireRetreadId: retread.id })) },
+          },
+          include: { items: true },
+        });
+        const requestItemByRetread = new Map(request.items.map(item => [item.tireRetreadId, item]));
+        const order = await tx.purchaseOrder.create({
+          data: {
+            number: await nextDailyNumber(tx, "purchaseOrder", "PO"), requestId: request.id, supplierId, status: "SENT_TO_SUPPLIER",
+            paymentTerms: "Ditagihkan kemudian", createdById: req.user.id,
+            items: { create: rows.map(({ retread }) => ({ itemId: retread.toItemId, purchaseRequestItemId: requestItemByRetread.get(retread.id).id, qty: 1, unitPrice: 0, tireRetreadId: retread.id })) },
+          },
+          include: includePO,
+        });
+        orders.push(order);
+      }
+      return { orders, orderedCount: received.length, scrappedCount: scrapped.length };
+    }, { timeout: 30000 });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(400).json({ error: error.message || "Gagal membuat PO ban masak" });
+  }
+});
 router.post("/requests", async (req, res) => {
   const { urgency, purpose, truckId, reason, notes, items = [], submit = true, acknowledgeAvailableStock = false, damageProofUrl, damageProofFileName, damageProofMimeType, damageProofSize } = req.body;
   if (!reason || !items.length) return res.status(400).json({ error: "Alasan dan minimal satu item wajib diisi" });
