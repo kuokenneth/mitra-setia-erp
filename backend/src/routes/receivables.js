@@ -191,8 +191,8 @@ router.get("/overview", async (_req, res) => {
       prisma.truck.findMany({ select: { id: true, plateNumber: true, brand: true, model: true }, orderBy: { plateNumber: "asc" } }),
       prisma.invoice.findMany({ include: invoiceInclude, orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }] }),
       prisma.order.findMany({
-        where: { status: "COMPLETED", invoices: { none: { sourceType: "ORDER", status: { not: "VOID" } } } },
-        include: { customer: true, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true, plateNumberSnap: true, truck: { select: { plateNumber: true } } } }, tripAllocations: { where: { trip: { status: "COMPLETED" } }, select: { qtyPlanned: true, qtyActual: true, trip: { select: { plateNumberSnap: true, truck: { select: { plateNumber: true } } } } } }, materialInvoices: { select: { id: true, billingCustomerName: true, billedInvoiceId: true, destinationCompletedAt: true, lines: { select: { id: true, itemName: true, qty: true, unit: true, totalAmount: true } } } } },
+        where: { status: { in: ["CONFIRMED", "IN_PROGRESS", "COMPLETED"] } },
+        include: { customer: true, invoices: { where: { sourceType: "ORDER", status: { not: "VOID" } }, select: { id: true, billableQuantity: true, deliveredQuantity: true, status: true } }, trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true, plateNumberSnap: true, truck: { select: { plateNumber: true } } } }, tripAllocations: { where: { trip: { status: "COMPLETED" } }, select: { qtyPlanned: true, qtyActual: true, unitSnap: true, trip: { select: { plateNumberSnap: true, truck: { select: { plateNumber: true } } } } } }, materialInvoices: { select: { id: true, billingCustomerName: true, billedInvoiceId: true, destinationCompletedAt: true, lines: { select: { id: true, itemName: true, qty: true, unit: true, totalAmount: true } } } } },
         orderBy: { updatedAt: "desc" },
       }),
       prisma.materialInvoice.findMany({ where: { billedInvoiceId: null, destinationCompletedAt: { not: null } }, include: { lines: { include: { stockAllocations: { include: { receipt: { include: { customer: true, location: true } } } } } }, trip: { include: { truck: true } }, destinationLocation: true }, orderBy: { issuedAt: "asc" } }),
@@ -217,7 +217,13 @@ router.get("/overview", async (_req, res) => {
       group.total += item.lines.reduce((sum, line) => sum + Number(line.totalAmount || 0), 0);
       group.invoiceIds.push(item.id); group.invoices.push(item); groups.set(key, group);
     }
-    const orderSources = eligibleOrders.map(order => ({ type: "ORDER", id: order.id, customerId: order.customerId || null, label: `${order.orderNo} — ${order.customer?.name || order.customerName || "Tanpa nama"}`, customerName: order.customer?.name || order.customerName || "", customerPhone: order.customer?.phone || "", billingAddress: order.customer?.address || "", order: { ...order, shipment: shipmentSummary(order), materialSubtotal: materialSubtotal(order) } }));
+    const orderSources = eligibleOrders.map(order => {
+      const shipment = shipmentSummary(order);
+      const deliveredKg = quantityKg(shipment.delivered, order.unit);
+      const orderedKg = quantityKg(Number(order.qty || 0), order.unit);
+      const billedKg = order.invoices.reduce((sum, invoice) => sum + Number(invoice.billableQuantity ?? invoice.deliveredQuantity ?? 0), 0);
+      return { type: "ORDER", id: order.id, customerId: order.customerId || null, label: `${order.orderNo} — ${order.customer?.name || order.customerName || "Tanpa nama"}`, customerName: order.customer?.name || order.customerName || "", customerPhone: order.customer?.phone || "", billingAddress: order.customer?.address || "", order: { ...order, shipment: { ...shipment, deliveredKg, orderedKg, billedKg, readyToBillKg: Math.max(0, deliveredKg - billedKg), remainingOrderKg: Math.max(0, orderedKg - billedKg) }, materialSubtotal: materialSubtotal(order) } };
+    }).filter(source => source.order.shipment.readyToBillKg > 0.000001);
     const materialSources = [...groups.values()].map(group => ({ type: "MATERIAL", id: group.key, customerId: group.customerId, label: `Faktur Muatan — ${group.customerName} (${group.invoiceIds.length} faktur)`, customerName: group.customerName, customerPhone: group.customerPhone, billingAddress: group.billingAddress, materialInvoiceIds: group.invoiceIds, materialSubtotal: group.total, invoices: group.invoices }));
     const singleGroups = new Map();
     for (const trip of singleTrips) {
@@ -546,18 +552,18 @@ router.post("/invoices", async (req, res) => {
         select: {
           id: true, status: true, qty: true, unit: true, customerId: true,
           customer: { select: { cargoLossTolerancePercent: true } },
-          invoices: { select: { sourceType: true, status: true } },
+          invoices: { where: { sourceType: "ORDER", status: { not: "VOID" } }, select: { sourceType: true, status: true, billableQuantity: true, deliveredQuantity: true } },
           trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true } },
           tripAllocations: { where: { trip: { status: "COMPLETED" } }, select: { qtyPlanned: true, qtyActual: true } },
         },
       });
-      if (!order || order.status !== "COMPLETED") throw new Error("Invoice hanya dapat dibuat dari pesanan yang selesai");
-      if (order.invoices.some((item) => item.sourceType === "ORDER" && item.status !== "VOID")) throw new Error("Pesanan ini sudah memiliki invoice");
+      if (!order || !["CONFIRMED", "IN_PROGRESS", "COMPLETED"].includes(order.status)) throw new Error("Pesanan belum siap ditagih");
       const shipment = shipmentSummary(order);
-      const plannedQuantity = shipment.planned > 0 ? shipment.planned : Number(order.qty || 0);
-      const deliveredQuantity = shipment.delivered;
-      const plannedKg = quantityKg(plannedQuantity, order.unit);
-      const deliveredKg = quantityKg(deliveredQuantity, order.unit);
+      const deliveredKgTotal = quantityKg(shipment.delivered, order.unit);
+      const billedKg = order.invoices.reduce((sum, item) => sum + Number(item.billableQuantity ?? item.deliveredQuantity ?? 0), 0);
+      const deliveredKg = Math.max(0, deliveredKgTotal - billedKg);
+      if (deliveredKg <= 0.000001) throw new Error("Belum ada muatan selesai yang belum ditagih");
+      const plannedKg = deliveredKg;
       const tolerancePercent = requestedTolerance ?? Number(order.customer?.cargoLossTolerancePercent || 0);
       const billing = billingWeight(plannedKg, deliveredKg, tolerancePercent);
       const subtotal = 0;
@@ -566,12 +572,13 @@ router.post("/invoices", async (req, res) => {
       const number = await nextInvoiceNumber(tx, "INV");
       const created = await tx.invoice.create({
         data: {
-          number, orderId, billingKey: `ORDER:${orderId}`, sourceType: "ORDER", customerId: order.customerId, customerName: customerName.trim(),
+          number, orderId, billingKey: `ORDER:${orderId}:${Date.now()}`, sourceType: "ORDER", customerId: order.customerId, customerName: customerName.trim(),
           customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null,
           dueAt: dueDate, subtotal, contractSubtotal: 0, plannedQuantity: plannedKg || null,
-          deliveredQuantity: plannedKg > 0 ? deliveredKg : null, billableQuantity: billing.billable || null, tolerancePercent,
+          deliveredQuantity: deliveredKg || null, billableQuantity: billing.billable || null, tolerancePercent,
           cargoLossQuantity: plannedKg > 0 ? billing.claimableLoss : null,
-          cargoLossAmount, materialSubtotal: 0, tax: 0, discount: 0, total, notes: notes?.trim() || null, manualData: adjustmentMeta, createdById: req.user.id,
+          cargoLossAmount, materialSubtotal: 0, tax: 0, discount: 0, total, notes: notes?.trim() || null,
+          manualData: { ...adjustmentMeta, partialBilling: true, billingFromKg: billedKg, billingToKg: billedKg + deliveredKg }, createdById: req.user.id,
         },
         select: { id: true },
       });
@@ -628,12 +635,10 @@ router.patch("/invoices/:id/draft", async (req, res) => {
       } else {
         const ratePerKg = amount(req.body.ratePerKg, "Harga per kg");
         if (ratePerKg <= 0) throw new Error("Harga per kg wajib diisi");
-        const shipment = shipmentSummary(invoice.order);
-        const planned = shipment.planned > 0 ? shipment.planned : Number(invoice.order?.qty || 0);
-        const plannedKg = quantityKg(planned, invoice.order?.unit);
-        const actualKg = quantityKg(shipment.delivered, invoice.order?.unit);
+        const plannedKg = Number(invoice.plannedQuantity || invoice.billableQuantity || invoice.deliveredQuantity || 0);
+        const actualKg = Number(invoice.deliveredQuantity || invoice.billableQuantity || 0);
         const tolerancePercent = requestedTolerance;
-        const billing = billingWeight(plannedKg, actualKg, tolerancePercent);
+        const billing = { ...billingWeight(plannedKg, actualKg, tolerancePercent), billable: Number(invoice.billableQuantity || actualKg) };
         subtotal = Math.round(billing.billable * ratePerKg);
         contractSubtotal = Math.round(plannedKg * ratePerKg);
         cargoLossAmount = Math.max(0, contractSubtotal - subtotal);
@@ -666,11 +671,20 @@ router.get("/invoices/:id/print", async (req, res) => {
     const deliveryEvidence = proofTrips.flatMap(trip => (trip?.arrivalProofs || []).map(proof => ({ ...proof, trip })));
 
     let rowNumber = 0;
-    const orderEntries = invoice.order
+    const allOrderEntries = invoice.order
       ? (invoice.order.tripAllocations?.length
           ? invoice.order.tripAllocations.map(item => ({ ...item, unitSnap: item.unitSnap || invoice.order.unit, trip: item.trip }))
           : (invoice.order.trips || []).map(trip => ({ qtyPlanned: trip.qtyPlanned, qtyActual: trip.qtyActual, unitSnap: trip.unitSnap || invoice.order.unit, trip })))
       : [];
+    const billingFromKg = Number(invoice.manualData?.billingFromKg || 0);
+    const billingToKg = Number(invoice.manualData?.billingToKg || Infinity);
+    let orderCursorKg = 0;
+    const orderEntries = allOrderEntries.filter(item => {
+      const itemKg = quantityKg(item.qtyActual ?? item.qtyPlanned, item.unitSnap);
+      const startKg = orderCursorKg;
+      orderCursorKg += itemKg;
+      return orderCursorKg > billingFromKg + 0.000001 && startKg < billingToKg - 0.000001;
+    });
     const weightRows = invoice.singleTripLines?.length
       ? invoice.singleTripLines.map(line => ({ trip: line.trip, plannedKg: Number(line.plannedWeightKg ?? line.actualWeightKg ?? 0), actualKg: Number(line.actualWeightKg || 0), billableKg: Number(line.billableWeightKg ?? line.actualWeightKg ?? 0), lossKg: Number(line.cargoLossWeightKg ?? Math.max(0, Number(line.plannedWeightKg || 0) - Number(line.actualWeightKg || 0))), tolerancePercent: Number(line.tolerancePercent ?? invoice.tolerancePercent ?? 0), ratePerKg: Number(line.ratePerKg || 0), amount: Number(line.amount || 0) }))
       : orderEntries.map(item => {

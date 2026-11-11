@@ -247,8 +247,8 @@ export default function Receivables() {
   }, [data.customers, data.eligibleSources]);
   const customerSources = (data.eligibleSources || []).filter(source => customerKey(source) === invoiceForm.billingCustomerKey);
   const invoiceOrder = selectedSource?.order;
-  const plannedQuantity = Number(invoiceOrder?.shipment?.planned || invoiceOrder?.qty || 0);
-  const deliveredQuantity = Number(invoiceOrder?.shipment?.delivered || 0);
+  const plannedQuantity = Number(invoiceOrder?.shipment?.readyToBillKg || invoiceOrder?.shipment?.planned || invoiceOrder?.qty || 0);
+  const deliveredQuantity = Number(invoiceOrder?.shipment?.readyToBillKg || invoiceOrder?.shipment?.delivered || 0);
   const billableRatio = plannedQuantity > 0 ? Math.min(1, Math.max(0, deliveredQuantity / plannedQuantity)) : 1;
   const billableSubtotal = Math.round(Number(invoiceForm.contractSubtotal || 0) * billableRatio);
   const selectedMaterialInvoices = selectedSource?.type === "MATERIAL"
@@ -343,13 +343,13 @@ export default function Receivables() {
               const isMaterial = source.type === "MATERIAL";
               const category = isMaterial ? "Ambang / Material" : source.type === "SINGLE_TRIP_GROUP" ? (source.cargoCategory === "FERTILIZER" ? "Pupuk" : "Cangkang") : (source.order?.cargoName || "Pesanan");
               const numbers = isOrder ? source.order?.orderNo : isMaterial ? (source.invoices || []).map(row => row.number).join(", ") : (source.trips || []).map(row => row.tripNo).join(", ");
-              const weight = isOrder ? `${Number(source.order?.shipment?.delivered || 0).toLocaleString("id-ID")} ${source.order?.unit || ""}` : isMaterial ? (source.invoices || []).flatMap(row => row.lines || []).map(line => `${line.qty} ${line.unit}`).join(" · ") : `${Number(source.totalWeightKg || 0).toLocaleString("id-ID")} kg`;
-              const count = isOrder ? `${source.order?.shipment?.delivered ? "Realisasi selesai" : "Order selesai"}` : `${isMaterial ? source.invoices?.length : source.trips?.length} ${isMaterial ? "faktur" : "trip"}`;
+              const weight = isOrder ? `${Number(source.order?.shipment?.readyToBillKg || 0).toLocaleString("id-ID")} kg siap ditagih` : isMaterial ? (source.invoices || []).flatMap(row => row.lines || []).map(line => `${line.qty} ${line.unit}`).join(" · ") : `${Number(source.totalWeightKg || 0).toLocaleString("id-ID")} kg`;
+              const count = isOrder ? `${Number(source.order?.shipment?.billedKg || 0).toLocaleString("id-ID")} kg sudah ditagih` : `${isMaterial ? source.invoices?.length : source.trips?.length} ${isMaterial ? "faktur" : "trip"}`;
               const plateNumbers = sourcePlateNumbers(source);
               return <button type="button" key={sourceKey} className={`ar-source-choice ${selected ? "selected" : ""}`} onClick={() => chooseOrder(sourceKey)}><i>{selected && <FiCheck/>}</i><span><small>{category}</small><b>{numbers || source.label}</b><em>{count}{plateNumbers.length ? ` · Armada: ${plateNumbers.join(", ")}` : " · Armada belum tercatat"}</em></span><strong>{weight || "—"}</strong></button>;
             })}
           </div>
-          {invoiceOrder && <div className="ar-order-summary"><span><small>Rute pengiriman</small><strong>{invoiceOrder.fromText || "—"} → {invoiceOrder.toText || "—"}</strong></span><span><small>Realisasi muatan</small><strong>{invoiceOrder.shipment?.delivered ?? 0} / {invoiceOrder.shipment?.planned ?? invoiceOrder.qty ?? 0} {invoiceOrder.unit || ""}</strong>{invoiceOrder.shipment?.loss > 0 && <small style={{ color: "#b45309" }}>Kehilangan {invoiceOrder.shipment.loss.toLocaleString("id-ID")} {invoiceOrder.unit || ""}</small>}</span></div>}
+          {invoiceOrder && <div className="ar-order-summary"><span><small>Rute pengiriman</small><strong>{invoiceOrder.fromText || "—"} → {invoiceOrder.toText || "—"}</strong></span><span><small>Progres penagihan DO</small><strong>{Number(invoiceOrder.shipment?.billedKg || 0).toLocaleString("id-ID")} kg sudah ditagih</strong><small>{Number(invoiceOrder.shipment?.readyToBillKg || 0).toLocaleString("id-ID")} kg siap ditagih · total DO {Number(invoiceOrder.shipment?.orderedKg || 0).toLocaleString("id-ID")} kg</small></span></div>}
           {selectedSource?.type === "MATERIAL" && <div className="ar-material-picker">
             <div className="ar-material-picker-head"><div><small>FAKTUR CUSTOMER</small><strong>{selectedSource.customerName}</strong><span>{invoiceForm.materialInvoiceIds.length} dari {selectedSource.materialInvoiceIds.length} faktur dipilih</span></div><button type="button" onClick={() => setInvoiceForm(form => ({ ...form, materialInvoiceIds: form.materialInvoiceIds.length === selectedSource.materialInvoiceIds.length ? [] : [...selectedSource.materialInvoiceIds] }))}>{invoiceForm.materialInvoiceIds.length === selectedSource.materialInvoiceIds.length ? "Batalkan semua" : "Pilih semua"}</button></div>
             <div className="ar-material-list">{(selectedSource.invoices || []).map(invoice => {
