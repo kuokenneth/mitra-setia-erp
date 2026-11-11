@@ -119,6 +119,45 @@ function shipmentSummary(order) {
   return { planned, delivered, loss: Math.max(0, planned - delivered), unit: order?.unit || null };
 }
 
+function orderCompletedLoads(order) {
+  const rows = order?.tripAllocations?.length
+    ? order.tripAllocations.map(row => ({
+        id: row.trip?.id,
+        tripNo: row.trip?.tripNo,
+        plateNumber: row.trip?.truck?.plateNumber || row.trip?.plateNumberSnap,
+        completedAt: row.trip?.completedAt,
+        quantityKg: quantityKg(Number(row.qtyActual ?? row.qtyPlanned ?? 0), row.unitSnap || order.unit),
+      }))
+    : (order?.trips || []).map(trip => ({
+        id: trip.id,
+        tripNo: trip.tripNo,
+        plateNumber: trip.truck?.plateNumber || trip.plateNumberSnap,
+        completedAt: trip.completedAt,
+        quantityKg: quantityKg(Number(trip.qtyActual ?? trip.qtyPlanned ?? 0), trip.unitSnap || order.unit),
+      }));
+  return rows.filter(row => row.id && row.quantityKg > 0);
+}
+
+function selectedOrderTripIds(invoice) {
+  const ids = invoice?.manualData?.orderTripIds;
+  return Array.isArray(ids) ? ids.map(String) : [];
+}
+
+function availableOrderLoads(order) {
+  const explicitlyBilled = new Set((order.invoices || []).flatMap(selectedOrderTripIds));
+  let legacyBilledKg = (order.invoices || [])
+    .filter(invoice => !selectedOrderTripIds(invoice).length)
+    .reduce((sum, invoice) => sum + Number(invoice.billableQuantity ?? invoice.deliveredQuantity ?? 0), 0);
+  return orderCompletedLoads(order).filter(load => {
+    if (explicitlyBilled.has(load.id)) return false;
+    if (legacyBilledKg > 0.000001) {
+      legacyBilledKg = Math.max(0, legacyBilledKg - load.quantityKg);
+      return false;
+    }
+    return true;
+  });
+}
+
 function eligibleOrderMaterials(order) {
   const owner = String(order?.customer?.name || order?.customerName || "").trim().toLocaleLowerCase("id-ID");
   return (order?.materialInvoices || []).filter((invoice) =>
@@ -217,13 +256,26 @@ router.get("/overview", async (_req, res) => {
       group.total += item.lines.reduce((sum, line) => sum + Number(line.totalAmount || 0), 0);
       group.invoiceIds.push(item.id); group.invoices.push(item); groups.set(key, group);
     }
-    const orderSources = eligibleOrders.map(order => {
+    const orderSources = await Promise.all(eligibleOrders.map(async summaryOrder => {
+      const order = await prisma.order.findUnique({
+        where: { id: summaryOrder.id },
+        include: {
+          customer: true,
+          invoices: { where: { sourceType: "ORDER", status: { not: "VOID" } }, select: { billableQuantity: true, deliveredQuantity: true, manualData: true } },
+          trips: { where: { status: "COMPLETED" }, include: { truck: true } },
+          tripAllocations: { where: { trip: { status: "COMPLETED" } }, include: { trip: { include: { truck: true } } } },
+          materialInvoices: { include: { lines: true } },
+        },
+      });
       const shipment = shipmentSummary(order);
       const deliveredKg = quantityKg(shipment.delivered, order.unit);
       const orderedKg = quantityKg(Number(order.qty || 0), order.unit);
       const billedKg = order.invoices.reduce((sum, invoice) => sum + Number(invoice.billableQuantity ?? invoice.deliveredQuantity ?? 0), 0);
-      return { type: "ORDER", id: order.id, customerId: order.customerId || null, label: `${order.orderNo} — ${order.customer?.name || order.customerName || "Tanpa nama"}`, customerName: order.customer?.name || order.customerName || "", customerPhone: order.customer?.phone || "", billingAddress: order.customer?.address || "", order: { ...order, shipment: { ...shipment, deliveredKg, orderedKg, billedKg, readyToBillKg: Math.max(0, deliveredKg - billedKg), remainingOrderKg: Math.max(0, orderedKg - billedKg) }, materialSubtotal: materialSubtotal(order) } };
-    }).filter(source => source.order.shipment.readyToBillKg > 0.000001);
+      const availableLoads = availableOrderLoads(order);
+      const selectableKg = availableLoads.reduce((sum, load) => sum + load.quantityKg, 0);
+      return { type: "ORDER", id: order.id, customerId: order.customerId || null, label: `${order.deliveryOrderNo || order.spkNo || order.orderNo} — ${order.customer?.name || order.customerName || "Tanpa nama"}`, customerName: order.customer?.name || order.customerName || "", customerPhone: order.customer?.phone || "", billingAddress: order.customer?.address || "", order: { ...order, availableLoads, shipment: { ...shipment, deliveredKg, orderedKg, billedKg, readyToBillKg: Math.min(Math.max(0, deliveredKg - billedKg), selectableKg), remainingOrderKg: Math.max(0, orderedKg - billedKg) }, materialSubtotal: materialSubtotal(order) } };
+    }));
+    const billableOrderSources = orderSources.filter(source => source.order.shipment.readyToBillKg > 0.000001);
     const materialSources = [...groups.values()].map(group => ({ type: "MATERIAL", id: group.key, customerId: group.customerId, label: `Faktur Muatan — ${group.customerName} (${group.invoiceIds.length} faktur)`, customerName: group.customerName, customerPhone: group.customerPhone, billingAddress: group.billingAddress, materialInvoiceIds: group.invoiceIds, materialSubtotal: group.total, invoices: group.invoices }));
     const singleGroups = new Map();
     for (const trip of singleTrips) {
@@ -236,7 +288,7 @@ router.get("/overview", async (_req, res) => {
     const cargoLabel = value => value === "FERTILIZER" ? "Pupuk" : value === "CANGKANG" ? "Cangkang" : value;
     const singleSources = [...singleGroups.values()].map(group => ({ type: "SINGLE_TRIP_GROUP", id: group.key, customerId: group.customerId, label: `Trip Tunggal — ${group.customerName} · ${cargoLabel(group.cargoCategory)} (${group.trips.length} trip)`, customerName: group.customerName, customerPhone: group.customerPhone, billingAddress: group.billingAddress, cargoCategory: group.cargoCategory, singleTripIds: group.trips.map(trip => trip.id), totalWeightKg: group.totalWeightKg, trips: group.trips }));
     const employeeReceivables = summarizeEmployeeReceivables(employeeExpenses, employeePayments);
-    res.json({ ok: true, customers, trucks, invoices: rows, employeeReceivables, eligibleOrders: orderSources.map(source => source.order), eligibleMaterialGroups: [...groups.values()], eligibleSingleTrips: singleTrips, eligibleSources: [...orderSources, ...materialSources, ...singleSources], stats });
+    res.json({ ok: true, customers, trucks, invoices: rows, employeeReceivables, eligibleOrders: billableOrderSources.map(source => source.order), eligibleMaterialGroups: [...groups.values()], eligibleSingleTrips: singleTrips, eligibleSources: [...billableOrderSources, ...materialSources, ...singleSources], stats });
   } catch (error) {
     res.status(400).json({ error: error.message || "Gagal memuat piutang" });
   }
@@ -484,7 +536,7 @@ router.get("/export", async (req, res) => {
 
 router.post("/invoices", async (req, res) => {
   try {
-    const { orderId, customerId, customerName, customerPhone, billingAddress, receipt, dueAt, notes, sourceType = "ORDER", materialInvoiceIds = [], materialLineAmounts = {}, singleTripId, singleTripIds = [] } = req.body;
+    const { orderId, customerId, customerName, customerPhone, billingAddress, receipt, dueAt, notes, sourceType = "ORDER", materialInvoiceIds = [], materialLineAmounts = {}, singleTripId, singleTripIds = [], orderTripIds = [] } = req.body;
     const contractSubtotal = amount(req.body.contractSubtotal ?? req.body.subtotal, "Harga kontrak");
     const taxRate = req.body.taxRate === "" || req.body.taxRate === null || req.body.taxRate === undefined ? 0 : Number(req.body.taxRate);
     const pph23Rate = Number(req.body.pph23Rate ?? 2);
@@ -552,16 +604,19 @@ router.post("/invoices", async (req, res) => {
         select: {
           id: true, status: true, qty: true, unit: true, customerId: true,
           customer: { select: { cargoLossTolerancePercent: true } },
-          invoices: { where: { sourceType: "ORDER", status: { not: "VOID" } }, select: { sourceType: true, status: true, billableQuantity: true, deliveredQuantity: true } },
-          trips: { where: { status: "COMPLETED" }, select: { qtyPlanned: true, qtyActual: true } },
-          tripAllocations: { where: { trip: { status: "COMPLETED" } }, select: { qtyPlanned: true, qtyActual: true } },
+          invoices: { where: { sourceType: "ORDER", status: { not: "VOID" } }, select: { sourceType: true, status: true, billableQuantity: true, deliveredQuantity: true, manualData: true } },
+          trips: { where: { status: "COMPLETED" }, include: { truck: true } },
+          tripAllocations: { where: { trip: { status: "COMPLETED" } }, include: { trip: { include: { truck: true } } } },
         },
       });
       if (!order || !["CONFIRMED", "IN_PROGRESS", "COMPLETED"].includes(order.status)) throw new Error("Pesanan belum siap ditagih");
-      const shipment = shipmentSummary(order);
-      const deliveredKgTotal = quantityKg(shipment.delivered, order.unit);
       const billedKg = order.invoices.reduce((sum, item) => sum + Number(item.billableQuantity ?? item.deliveredQuantity ?? 0), 0);
-      const deliveredKg = Math.max(0, deliveredKgTotal - billedKg);
+      const availableLoads = availableOrderLoads(order);
+      const requestedIds = [...new Set(orderTripIds.map(String))].filter(Boolean);
+      if (!requestedIds.length) throw new Error("Pilih minimal satu armada yang hendak ditagih");
+      const selectedLoads = availableLoads.filter(load => requestedIds.includes(load.id));
+      if (selectedLoads.length !== requestedIds.length) throw new Error("Sebagian armada tidak tersedia atau sudah pernah ditagih");
+      const deliveredKg = selectedLoads.reduce((sum, load) => sum + load.quantityKg, 0);
       if (deliveredKg <= 0.000001) throw new Error("Belum ada muatan selesai yang belum ditagih");
       const plannedKg = deliveredKg;
       const tolerancePercent = requestedTolerance ?? Number(order.customer?.cargoLossTolerancePercent || 0);
@@ -578,7 +633,7 @@ router.post("/invoices", async (req, res) => {
           deliveredQuantity: deliveredKg || null, billableQuantity: billing.billable || null, tolerancePercent,
           cargoLossQuantity: plannedKg > 0 ? billing.claimableLoss : null,
           cargoLossAmount, materialSubtotal: 0, tax: 0, discount: 0, total, notes: notes?.trim() || null,
-          manualData: { ...adjustmentMeta, partialBilling: true, billingFromKg: billedKg, billingToKg: billedKg + deliveredKg }, createdById: req.user.id,
+          manualData: { ...adjustmentMeta, partialBilling: true, billingFromKg: billedKg, billingToKg: billedKg + deliveredKg, orderTripIds: requestedIds, orderLoads: selectedLoads }, createdById: req.user.id,
         },
         select: { id: true },
       });

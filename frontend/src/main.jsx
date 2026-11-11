@@ -43,6 +43,7 @@ import "./geometryPolish.css";
 import "./tableResponsive.css";
 import "./workspaceFluid.css";
 import "./headerSystem.css";
+import "./tabletFit.css"; // iPad / tablet adjustments, loaded last
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

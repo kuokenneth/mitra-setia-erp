@@ -1,5 +1,5 @@
 // src/pages/Maintenance.jsx - Corporate Minimalist Design
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, apiAssetUrl, getAccessToken, uploadFiles } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
@@ -485,8 +485,18 @@ function ServicePhoto({ photo, alt }) {
   return <img src={displaySrc} alt={alt} style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }} />;
 }
 
-function Modal({ open, title, onClose, children, width = 900, className = "" }) {
+function Modal({ open, title, onClose, children, width = 900, className = "", scrollMemoryRef }) {
   const { dialogRef, titleId } = useDialogLifecycle(open, onClose);
+  const bodyRef = useRef(null);
+  // When the parent temporarily hides this modal (e.g. while the photo editor is
+  // open) it is rebuilt afterwards; put the body back where the user left it.
+  useLayoutEffect(() => {
+    if (!open || !scrollMemoryRef?.current) return undefined;
+    const restore = () => { if (bodyRef.current) bodyRef.current.scrollTop = scrollMemoryRef.current; };
+    restore();
+    const frame = requestAnimationFrame(restore); // after focus handling and late content
+    return () => cancelAnimationFrame(frame);
+  }, [open, scrollMemoryRef]);
   if (!open) return null;
   return (
     <div
@@ -532,6 +542,8 @@ function Modal({ open, title, onClose, children, width = 900, className = "" }) 
           </Button>
         </div>
         <div
+          ref={bodyRef}
+          onScroll={scrollMemoryRef ? (event) => { scrollMemoryRef.current = event.currentTarget.scrollTop; } : undefined}
           className="maintenance-modal-body"
           style={{
             padding: 20,
@@ -647,6 +659,7 @@ export default function Maintenance() {
   const [purchaseDamagePhotos, setPurchaseDamagePhotos] = useState([]);
   const [purchasePhotoEditorIndex, setPurchasePhotoEditorIndex] = useState(null);
   const [showPurchasePhotoEditor, setShowPurchasePhotoEditor] = useState(false);
+  const detailScrollRef = useRef(0); // scroll position of the Detail Servis modal
   const [purchaseUploadProgress, setPurchaseUploadProgress] = useState(null);
   const [purchasePhotoError, setPurchasePhotoError] = useState("");
   const [requestingPurchase, setRequestingPurchase] = useState(false);
@@ -723,6 +736,7 @@ export default function Maintenance() {
   async function openDetail(id) {
     if (activeId && activeJob) purchaseDraftsRef.current.set(activeId, { form: { ...purchaseRequestForm }, lines: purchaseRequestLines.map(line => ({ ...line })), photos: [...purchaseDamagePhotos] });
     const purchaseDraft = purchaseDraftsRef.current.get(id);
+    detailScrollRef.current = 0;
     setShowDetail(true);
     setDetailTab("PARTS");
     setActiveId(id);
@@ -773,6 +787,7 @@ export default function Maintenance() {
   function closeDetail() {
     if (activeId) purchaseDraftsRef.current.set(activeId, { form: { ...purchaseRequestForm }, lines: purchaseRequestLines.map(line => ({ ...line })), photos: [...purchaseDamagePhotos] });
     setShowDetail(false);
+    detailScrollRef.current = 0;
   }
 
   async function refreshDetail() {
@@ -1733,7 +1748,7 @@ export default function Maintenance() {
       </Modal>
 
       {/* DETAIL MODAL */}
-      <Modal open={showDetail && !showPurchasePhotoEditor} title="Detail Servis" onClose={closeDetail} width={1320} className="maintenance-detail-modal">
+      <Modal open={showDetail && !showPurchasePhotoEditor} title="Detail Servis" onClose={closeDetail} width={1320} className="maintenance-detail-modal" scrollMemoryRef={detailScrollRef}>
         {detailLoading || !activeJob ? (
           <LoadingState compact label="Memuat detail servis" note="Menyiapkan pekerjaan dan penggunaan sparepart…" rows={4} />
         ) : (

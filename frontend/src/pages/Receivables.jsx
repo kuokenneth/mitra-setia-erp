@@ -73,7 +73,7 @@ export default function Receivables() {
   const [exportBusy, setExportBusy] = useState(false);
   const [employeeView, setEmployeeView] = useState(false);
   const [employeeDetail, setEmployeeDetail] = useState(null);
-  const [invoiceForm, setInvoiceForm] = useState({ billingCustomerKey: "", sourceKey: "", sourceType: "ORDER", orderId: "", customerId: "", materialInvoiceIds: [], materialLineAmounts: {}, singleTripId: "", singleTripIds: [], ratePerKg: "", tolerancePercent: "0", customerName: "", customerPhone: "", billingAddress: "", receipt: "", dueAt: afterDays(30), contractSubtotal: "", taxRate: "", pph23Rate: 2, claim: 0, notes: "" });
+  const [invoiceForm, setInvoiceForm] = useState({ billingCustomerKey: "", sourceKey: "", sourceType: "ORDER", orderId: "", orderTripIds: [], customerId: "", materialInvoiceIds: [], materialLineAmounts: {}, singleTripId: "", singleTripIds: [], ratePerKg: "", tolerancePercent: "0", customerName: "", customerPhone: "", billingAddress: "", receipt: "", dueAt: afterDays(30), contractSubtotal: "", taxRate: "", pph23Rate: 2, claim: 0, notes: "" });
   const [paymentForm, setPaymentForm] = useState({ amount: "", claimAmount: "", adminFee: "", method: "BANK_TRANSFER", reference: "", receivedAt: new Date().toISOString().slice(0, 10), notes: "" });
   const [batchPaymentForm, setBatchPaymentForm] = useState({ customerKey: "", invoices: {}, method: "BANK_TRANSFER", reference: "", receivedAt: new Date().toISOString().slice(0, 10), notes: "" });
   const [employeePayment, setEmployeePayment] = useState(null);
@@ -101,7 +101,7 @@ export default function Receivables() {
   const pagedInvoiceRows = rows.slice((activeInvoicePage - 1) * invoicePageSize, activeInvoicePage * invoicePageSize);
 
   function openInvoice() {
-    setInvoiceForm({ billingCustomerKey: "", sourceKey: "", sourceType: "ORDER", orderId: "", customerId: "", materialInvoiceIds: [], materialLineAmounts: {}, singleTripId: "", singleTripIds: [], ratePerKg: "", tolerancePercent: "0", customerName: "", customerPhone: "", billingAddress: "", receipt: "", dueAt: afterDays(30), contractSubtotal: "", taxRate: "", pph23Rate: 2, claim: 0, notes: "" });
+    setInvoiceForm({ billingCustomerKey: "", sourceKey: "", sourceType: "ORDER", orderId: "", orderTripIds: [], customerId: "", materialInvoiceIds: [], materialLineAmounts: {}, singleTripId: "", singleTripIds: [], ratePerKg: "", tolerancePercent: "0", customerName: "", customerPhone: "", billingAddress: "", receipt: "", dueAt: afterDays(30), contractSubtotal: "", taxRate: "", pph23Rate: 2, claim: 0, notes: "" });
     setError(""); setModal("invoice");
   }
   function openManualInvoice() { setManualForm(emptyManualForm()); setError(""); setModal("manual-invoice"); }
@@ -112,11 +112,11 @@ export default function Receivables() {
   function chooseCustomer(key) {
     const customer = data.customers.find(item => `id:${item.id}` === key);
     const source = data.eligibleSources.find(item => customerKey(item) === key);
-    setInvoiceForm(form => ({ ...form, billingCustomerKey: key, sourceKey: "", sourceType: "ORDER", orderId: "", customerId: customer?.id || source?.customerId || "", materialInvoiceIds: [], materialLineAmounts: {}, singleTripId: "", singleTripIds: [], ratePerKg: "", tolerancePercent: String(customer?.cargoLossTolerancePercent ?? 0), customerName: customer?.name || source?.customerName || "", customerPhone: customer?.phone || source?.customerPhone || "", billingAddress: customer?.address || source?.billingAddress || "", contractSubtotal: "" }));
+    setInvoiceForm(form => ({ ...form, billingCustomerKey: key, sourceKey: "", sourceType: "ORDER", orderId: "", orderTripIds: [], customerId: customer?.id || source?.customerId || "", materialInvoiceIds: [], materialLineAmounts: {}, singleTripId: "", singleTripIds: [], ratePerKg: "", tolerancePercent: String(customer?.cargoLossTolerancePercent ?? 0), customerName: customer?.name || source?.customerName || "", customerPhone: customer?.phone || source?.customerPhone || "", billingAddress: customer?.address || source?.billingAddress || "", contractSubtotal: "" }));
   }
   function chooseOrder(sourceKey) {
     const source = data.eligibleSources.find(item => `${item.type}:${item.id}` === sourceKey);
-    setInvoiceForm(form => ({ ...form, sourceKey, sourceType: source?.type || "ORDER", orderId: source?.type === "ORDER" ? source.id : "", customerId: source?.customerId || "", materialInvoiceIds: source?.materialInvoiceIds || [], materialLineAmounts: {}, singleTripId: source?.singleTripId || "", singleTripIds: source?.singleTripIds || [], ratePerKg: "", customerName: source?.customerName || "", customerPhone: source?.customerPhone || "", billingAddress: source?.billingAddress || "", contractSubtotal: ["MATERIAL", "SINGLE_TRIP_GROUP"].includes(source?.type) ? "0" : "" }));
+    setInvoiceForm(form => ({ ...form, sourceKey, sourceType: source?.type || "ORDER", orderId: source?.type === "ORDER" ? source.id : "", orderTripIds: source?.type === "ORDER" ? (source.order?.availableLoads || []).map(load => load.id) : [], customerId: source?.customerId || "", materialInvoiceIds: source?.materialInvoiceIds || [], materialLineAmounts: {}, singleTripId: source?.singleTripId || "", singleTripIds: source?.singleTripIds || [], ratePerKg: "", customerName: source?.customerName || "", customerPhone: source?.customerPhone || "", billingAddress: source?.billingAddress || "", contractSubtotal: ["MATERIAL", "SINGLE_TRIP_GROUP"].includes(source?.type) ? "0" : "" }));
   }
   async function createInvoice(event) {
     event.preventDefault(); setBusy(true); setError("");
@@ -237,6 +237,9 @@ export default function Receivables() {
   function toggleSingleTrip(id) {
     setInvoiceForm(form => ({ ...form, singleTripIds: form.singleTripIds.includes(id) ? form.singleTripIds.filter(item => item !== id) : [...form.singleTripIds, id] }));
   }
+  function toggleOrderTrip(id) {
+    setInvoiceForm(form => ({ ...form, orderTripIds: form.orderTripIds.includes(id) ? form.orderTripIds.filter(item => item !== id) : [...form.orderTripIds, id] }));
+  }
 
   const selectedSource = data.eligibleSources?.find(source => `${source.type}:${source.id}` === invoiceForm.sourceKey);
   const billingCustomers = useMemo(() => {
@@ -247,8 +250,10 @@ export default function Receivables() {
   }, [data.customers, data.eligibleSources]);
   const customerSources = (data.eligibleSources || []).filter(source => customerKey(source) === invoiceForm.billingCustomerKey);
   const invoiceOrder = selectedSource?.order;
-  const plannedQuantity = Number(invoiceOrder?.shipment?.readyToBillKg || invoiceOrder?.shipment?.planned || invoiceOrder?.qty || 0);
-  const deliveredQuantity = Number(invoiceOrder?.shipment?.readyToBillKg || invoiceOrder?.shipment?.delivered || 0);
+  const selectedOrderLoads = selectedSource?.type === "ORDER" ? (invoiceOrder?.availableLoads || []).filter(load => invoiceForm.orderTripIds.includes(load.id)) : [];
+  const selectedOrderWeightKg = selectedOrderLoads.reduce((sum, load) => sum + Number(load.quantityKg || 0), 0);
+  const plannedQuantity = selectedSource?.type === "ORDER" ? selectedOrderWeightKg : Number(invoiceOrder?.shipment?.readyToBillKg || invoiceOrder?.shipment?.planned || invoiceOrder?.qty || 0);
+  const deliveredQuantity = selectedSource?.type === "ORDER" ? selectedOrderWeightKg : Number(invoiceOrder?.shipment?.readyToBillKg || invoiceOrder?.shipment?.delivered || 0);
   const billableRatio = plannedQuantity > 0 ? Math.min(1, Math.max(0, deliveredQuantity / plannedQuantity)) : 1;
   const billableSubtotal = Math.round(Number(invoiceForm.contractSubtotal || 0) * billableRatio);
   const selectedMaterialInvoices = selectedSource?.type === "MATERIAL"
@@ -263,7 +268,7 @@ export default function Receivables() {
   const draftSubtotal = selectedSource?.type === "SINGLE_TRIP_GROUP" ? singleTripSubtotal : billableSubtotal + materialSubtotal;
   const pph23 = Math.round(draftSubtotal * Number(invoiceForm.pph23Rate || 0) / 100);
   const total = draftSubtotal - Math.round(draftSubtotal * Number(invoiceForm.taxRate || 0) / 100);
-  const invoiceBlockReason = !invoiceForm.billingCustomerKey ? "Pilih customer tagihan terlebih dahulu" : !selectedSource ? "Pilih sumber tagihan customer ini" : selectedSource.type === "MATERIAL" && !invoiceForm.materialInvoiceIds.length ? "Pilih minimal satu Faktur Muatan" : selectedSource.type === "SINGLE_TRIP_GROUP" && !invoiceForm.singleTripIds.length ? "Pilih minimal satu Trip Tunggal" : "";
+  const invoiceBlockReason = !invoiceForm.billingCustomerKey ? "Pilih customer tagihan terlebih dahulu" : !selectedSource ? "Pilih sumber tagihan customer ini" : selectedSource.type === "ORDER" && !invoiceForm.orderTripIds.length ? "Pilih minimal satu armada yang hendak ditagih" : selectedSource.type === "MATERIAL" && !invoiceForm.materialInvoiceIds.length ? "Pilih minimal satu Faktur Muatan" : selectedSource.type === "SINGLE_TRIP_GROUP" && !invoiceForm.singleTripIds.length ? "Pilih minimal satu Trip Tunggal" : "";
   const canSaveInvoice = !busy && !invoiceBlockReason;
   const safeEmployeeReceivables = (data.employeeReceivables || []).map((row, index) => ({
     ...row,
@@ -342,7 +347,7 @@ export default function Receivables() {
               const isOrder = source.type === "ORDER";
               const isMaterial = source.type === "MATERIAL";
               const category = isMaterial ? "Ambang / Material" : source.type === "SINGLE_TRIP_GROUP" ? (source.cargoCategory === "FERTILIZER" ? "Pupuk" : "Cangkang") : (source.order?.cargoName || "Pesanan");
-              const numbers = isOrder ? source.order?.orderNo : isMaterial ? (source.invoices || []).map(row => row.number).join(", ") : (source.trips || []).map(row => row.tripNo).join(", ");
+              const numbers = isOrder ? (source.order?.deliveryOrderNo || source.order?.spkNo || "Nomor DO belum diisi") : isMaterial ? (source.invoices || []).map(row => row.number).join(", ") : (source.trips || []).map(row => row.tripNo).join(", ");
               const weight = isOrder ? `${Number(source.order?.shipment?.readyToBillKg || 0).toLocaleString("id-ID")} kg siap ditagih` : isMaterial ? (source.invoices || []).flatMap(row => row.lines || []).map(line => `${line.qty} ${line.unit}`).join(" · ") : `${Number(source.totalWeightKg || 0).toLocaleString("id-ID")} kg`;
               const count = isOrder ? `${Number(source.order?.shipment?.billedKg || 0).toLocaleString("id-ID")} kg sudah ditagih` : `${isMaterial ? source.invoices?.length : source.trips?.length} ${isMaterial ? "faktur" : "trip"}`;
               const plateNumbers = sourcePlateNumbers(source);
@@ -350,6 +355,11 @@ export default function Receivables() {
             })}
           </div>
           {invoiceOrder && <div className="ar-order-summary"><span><small>Rute pengiriman</small><strong>{invoiceOrder.fromText || "—"} → {invoiceOrder.toText || "—"}</strong></span><span><small>Progres penagihan DO</small><strong>{Number(invoiceOrder.shipment?.billedKg || 0).toLocaleString("id-ID")} kg sudah ditagih</strong><small>{Number(invoiceOrder.shipment?.readyToBillKg || 0).toLocaleString("id-ID")} kg siap ditagih · total DO {Number(invoiceOrder.shipment?.orderedKg || 0).toLocaleString("id-ID")} kg</small></span></div>}
+          {selectedSource?.type === "ORDER" && <div className="ar-material-picker">
+            <div className="ar-material-picker-head"><div><small>ARMADA YANG HENDAK DITAGIH</small><strong>{invoiceOrder?.deliveryOrderNo || invoiceOrder?.spkNo || "DO belum diisi"}</strong><span>{invoiceForm.orderTripIds.length} dari {(invoiceOrder?.availableLoads || []).length} armada dipilih</span></div><button type="button" onClick={() => setInvoiceForm(form => ({ ...form, orderTripIds: form.orderTripIds.length === (invoiceOrder?.availableLoads || []).length ? [] : (invoiceOrder?.availableLoads || []).map(load => load.id) }))}>{invoiceForm.orderTripIds.length === (invoiceOrder?.availableLoads || []).length ? "Batalkan semua" : "Pilih semua"}</button></div>
+            <div className="ar-material-list">{(invoiceOrder?.availableLoads || []).map(load => <label className={`ar-material-item ${invoiceForm.orderTripIds.includes(load.id) ? "selected" : ""}`} key={load.id}><input type="checkbox" checked={invoiceForm.orderTripIds.includes(load.id)} onChange={() => toggleOrderTrip(load.id)}/><span><b>{load.plateNumber || "Tanpa nomor polisi"}</b><small>{load.tripNo || "Trip"} · selesai {tanggal(load.completedAt)}</small></span><strong>{Number(load.quantityKg || 0).toLocaleString("id-ID")} kg</strong></label>)}</div>
+            <div className="ar-material-subtotal"><span>Total berat armada terpilih</span><strong>{selectedOrderWeightKg.toLocaleString("id-ID")} kg</strong></div>
+          </div>}
           {selectedSource?.type === "MATERIAL" && <div className="ar-material-picker">
             <div className="ar-material-picker-head"><div><small>FAKTUR CUSTOMER</small><strong>{selectedSource.customerName}</strong><span>{invoiceForm.materialInvoiceIds.length} dari {selectedSource.materialInvoiceIds.length} faktur dipilih</span></div><button type="button" onClick={() => setInvoiceForm(form => ({ ...form, materialInvoiceIds: form.materialInvoiceIds.length === selectedSource.materialInvoiceIds.length ? [] : [...selectedSource.materialInvoiceIds] }))}>{invoiceForm.materialInvoiceIds.length === selectedSource.materialInvoiceIds.length ? "Batalkan semua" : "Pilih semua"}</button></div>
             <div className="ar-material-list">{(selectedSource.invoices || []).map(invoice => {

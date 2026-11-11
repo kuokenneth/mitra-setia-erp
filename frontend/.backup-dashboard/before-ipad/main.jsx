@@ -1,0 +1,104 @@
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import "./index.css";
+import "./designSystem.css";
+
+import { AuthProvider } from "./AuthContext";
+import ProtectedRoute from "./ProtectedRoute";
+
+import AppLayout from "./layouts/AppLayout";
+import PublicLayout from "./layouts/PublicLayout";
+import AuthLayout from "./components/AuthLayout";
+
+import Landing from "./pages/Landing"; // or PublicHome
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+
+import Dashboard from "./pages/Dashboard";
+import Users from "./pages/Users";
+import Trucks from "./pages/Trucks";
+import Inventory from "./pages/Inventory";
+import Maintenance from "./pages/Maintenance";
+import Orders from "./pages/Orders";
+import Expenses from "./pages/Expenses";
+import DriverHome from "./pages/DriverHome";
+import EditProfile from "./pages/EditProfile";
+import CreateDriver from "./pages/CreateDriver";
+import OrderCreate from "./pages/OrderCreate";
+import OrderDetail from "./pages/OrderDetail";
+import TripDetail from "./pages/TripDetail";
+import Trips from "./pages/Trips";
+import Purchasing from "./pages/Purchasing";
+import Receivables from "./pages/Receivables";
+import Accounting from "./pages/Accounting";
+import FleetProfitability from "./pages/FleetProfitability";
+import FleetMap from "./pages/FleetMap";
+import OperationalLocations from "./pages/OperationalLocations";
+import AuditTrail from "./pages/AuditTrail";
+import MaterialStock from "./pages/MaterialStock";
+import PageErrorBoundary from "./components/PageErrorBoundary";
+import "./enterpriseOverrides.css";
+import "./geometryPolish.css";
+import "./tableResponsive.css";
+import "./workspaceFluid.css";
+import "./headerSystem.css";
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+
+          {/* 🌍 PUBLIC WEBSITE */}
+          <Route element={<PublicLayout />}>
+            <Route path="/" element={<Landing />} />
+            {/* 🔓 AUTH PAGES (ERP LOGIN) — one shared shell so the visual persists between them */}
+            <Route element={<AuthLayout />}>
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+            </Route>
+          </Route>
+
+          {/* 🔐 ERP SYSTEM */}
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/users" element={<Users />} />
+            <Route path="/trucks" element={<Trucks />} />
+            <Route path="/fleet-map" element={<FleetMap />} />
+            <Route path="/operational-locations" element={<OperationalLocations />} />
+            <Route path="/material-stock" element={<MaterialStock />} />
+            <Route path="/inventory" element={<Inventory />} />
+            <Route path="/purchasing" element={<Purchasing />} />
+            <Route path="/receivables" element={<Receivables />} />
+            <Route path="/accounting" element={<Accounting />} />
+            <Route path="/fleet-profitability" element={<FleetProfitability />} />
+            <Route path="/audit-trail" element={<AuditTrail />} />
+            <Route path="/maintenance" element={<Maintenance />} />
+            <Route path="/expenses" element={<Expenses />} />
+            <Route path="/orders" element={<Orders />} />
+            <Route path="/orders/new" element={<OrderCreate />} />
+            <Route path="/orders/:id" element={<OrderDetail />} />
+            <Route path="/drivers/new" element={<CreateDriver />} />
+            <Route path="/trips/:id" element={<PageErrorBoundary><TripDetail /></PageErrorBoundary>} />
+            <Route path="/trips" element={<PageErrorBoundary><Trips /></PageErrorBoundary>} />
+
+            {/* Driver */}
+            <Route path="/driver" element={<DriverHome />} />
+            <Route path="/driver/jobs" element={<DriverHome />} />
+            <Route path="/profile" element={<EditProfile />} />
+          </Route>
+
+          {/* ❌ Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
+  </React.StrictMode>
+);

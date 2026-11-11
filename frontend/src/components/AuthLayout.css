@@ -216,6 +216,12 @@
   .cf-control input { scroll-margin-block: 96px; }
 }
 
+/* iPad landscape (≈1133 × 744) matches the short-screen rule above, but its form
+   column is too narrow for two password fields side by side. */
+@media (min-width: 900px) and (max-width: 1240px) and (max-height: 820px) {
+  .au-row { grid-template-columns: 1fr; gap: 14px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .au-photos img, .cf-control, .au .au-submit, .au .au-submit svg, .au-back svg, .au-switch a { transition: none; }
   .au-spinner { animation-duration: 2s; }

@@ -370,6 +370,15 @@
 .purchasing .po-modal .po-form-body {
   gap: 13px;
   padding: 17px 24px 20px;
+  /* Rows keep their natural height and the body scrolls. Without this the
+     grid squeezed "Pilih permintaan" and the price list to ~70px, clipping
+     them so neither they nor the form could be scrolled. */
+  grid-auto-rows: max-content;
+  align-content: start;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .bulk-po-requests{overflow:hidden;border:1px solid #dce7df;border-radius:11px;background:#fff}.bulk-po-requests>header{padding:11px 13px;border-bottom:1px solid #e5ece8;background:#f4f8f5}.bulk-po-requests>header span,.bulk-po-requests>header strong,.bulk-po-requests>header small{display:block}.bulk-po-requests>header strong{font-size:11px}.bulk-po-requests>header small{margin-top:2px;color:#748179;font-size:9px}.bulk-po-requests>div{display:grid;max-height:220px;overflow-y:auto;padding:8px;gap:6px;scrollbar-width:thin}.purchasing .bulk-po-requests label{display:grid;grid-template-columns:20px minmax(0,1fr);align-items:center;gap:9px;margin:0;padding:9px 10px;border:1px solid #e1e9e4;border-radius:8px;background:#fff;cursor:pointer}.purchasing .bulk-po-requests label.selected{border-color:#6cab82;background:#edf8f1}.purchasing .bulk-po-requests input{width:16px;height:16px;margin:0}.bulk-po-requests label span{display:grid;min-width:0;gap:2px}.bulk-po-requests label b{font-size:10px}.bulk-po-requests label small{overflow:hidden;color:#748179;font-size:9px;text-overflow:ellipsis;white-space:nowrap}
 .purchasing .po-modal .item-mode {
