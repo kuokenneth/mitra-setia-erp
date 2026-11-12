@@ -1870,7 +1870,7 @@ export default function Inventory() {
               <TruckSearchSelect trucks={trucks} value={consumeForm.truckId} onChange={(truckId) => setConsumeForm(form => ({ ...form, truckId }))} placeholder="Ketik nomor polisi, merek, atau model..."/>
             </div>}
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Barang tanpa nomor seri</div>
+              <div className="inventory-receive-field-head">Barang tanpa nomor seri</div>
               <ItemSearchSelect
                 items={receiveItems.filter((item) => !item.isSerialized)}
                 value={consumeForm.itemId}
@@ -1887,7 +1887,7 @@ export default function Inventory() {
             </div>
 
             <div>
-              <div style={{ minHeight: 18, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>
+              <div className="inventory-receive-field-head" style={{ justifyContent: "space-between", gap: 8 }}>
                 <span>Lokasi asal</span>
                 <button
                   type="button"
