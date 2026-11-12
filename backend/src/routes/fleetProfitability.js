@@ -2,6 +2,7 @@ const express = require("express");
 const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { requireRole } = require("../middleware/requireRole");
+const { esc, money, documentHtml } = require("../utils/printDocument");
 
 const router = express.Router();
 router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF"));
@@ -309,6 +310,30 @@ router.get("/", async (req, res) => {
     }), { revenue: 0, cargoLoss: 0, totalCost: 0, profit: 0, trips: 0 });
     summary.margin = summary.revenue > 0 ? round((summary.profit / summary.revenue) * 100) : 0;
     rows.forEach(row => { row.revenueContribution = ratio(row.revenue, summary.revenue); });
+    if (req.query.print === "true") {
+      const periodLabel = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(start);
+      const reportRows = [...rows].sort((a, b) => b.profit - a.profit).map((row, index) => `<tr>
+        <td class="center">${index + 1}</td>
+        <td><b>${esc(row.truck.plateNumber)}</b><br><span class="muted">${esc([row.truck.brand, row.truck.model].filter(Boolean).join(" ") || "Detail belum diisi")}</span></td>
+        <td class="center">${row.trips.total}<br><span class="muted">${row.trips.completed} selesai</span></td>
+        <td class="right">${money(row.revenue)}</td>
+        <td class="right">${money(row.tripExpenses)}</td>
+        <td class="right">${money(row.vehicleExpenses)}</td>
+        <td class="right">${money(row.spareParts)}</td>
+        <td class="right">${money(row.fixedTotal)}</td>
+        <td class="right">${money(row.totalCost)}</td>
+        <td class="right"><b>${money(row.profit)}</b></td>
+        <td class="right">${esc(`${row.margin.toLocaleString("id-ID", { maximumFractionDigits: 1 })}%`)}</td>
+      </tr>`).join("");
+      return res.type("html").send(documentHtml({
+        title: "LAPORAN PROFIT ARMADA",
+        subtitle: periodLabel,
+        landscape: true,
+        meta: `${rows.length} armada · ${summary.trips} trip`,
+        body: `<div class="summary"><div class="box">Pendapatan<b>${money(summary.revenue)}</b></div><div class="box">Total biaya<b>${money(summary.totalCost)}</b></div><div class="box">Laba bersih<b>${money(summary.profit)}</b><span class="muted">Margin ${esc(`${summary.margin.toLocaleString("id-ID", { maximumFractionDigits: 1 })}%`)}</span></div></div>
+          <table><thead><tr><th class="center">No.</th><th>Armada</th><th class="center">Trip</th><th class="right">Pendapatan</th><th class="right">Biaya trip</th><th class="right">Biaya armada</th><th class="right">Sparepart</th><th class="right">Biaya tetap</th><th class="right">Total biaya</th><th class="right">Laba / rugi</th><th class="right">Margin</th></tr></thead><tbody>${reportRows || `<tr><td colspan="11" class="center">Belum ada armada pada periode ini.</td></tr>`}</tbody><tfoot><tr><th colspan="3" class="right">TOTAL</th><th class="right">${money(summary.revenue)}</th><th colspan="4"></th><th class="right">${money(summary.totalCost)}</th><th class="right">${money(summary.profit)}</th><th class="right">${esc(`${summary.margin.toLocaleString("id-ID", { maximumFractionDigits: 1 })}%`)}</th></tr></tfoot></table>`,
+      }));
+    }
     res.json({ ok: true, month, summary, rows });
   } catch (error) {
     res.status(400).json({ error: error.message || "Gagal menghitung profit armada" });

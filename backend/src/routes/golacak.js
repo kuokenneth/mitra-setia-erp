@@ -372,7 +372,7 @@ async function evaluateArrival(truck, event) {
     await prisma.trip.update({ where: { id: trip.id }, data: { gpsArrivalCandidateAt: observedAt } });
     return { arrived: false, candidate: true, tripId: trip.id, distance: Math.round(distance) };
   }
-  const dwellMinutes = Math.max(0, Number(process.env.GOLACAK_ARRIVAL_DWELL_MINUTES || 5));
+  const dwellMinutes = Math.max(30, Number(process.env.GOLACAK_ARRIVAL_DWELL_MINUTES || 30));
   if (observedAt.getTime() - trip.gpsArrivalCandidateAt.getTime() < dwellMinutes * 60000) {
     return { arrived: false, candidate: true, tripId: trip.id, distance: Math.round(distance) };
   }
@@ -381,16 +381,9 @@ async function evaluateArrival(truck, event) {
     const arrived = await prisma.$transaction(async (tx) => {
       const updated = await tx.tripOrderAllocation.updateMany({ where: { id: activeOrderStop.id, destinationArrivedAt: null }, data: { destinationArrivedAt: observedAt } });
       if (updated.count) {
-        const [remainingOrders, remainingMaterials] = await Promise.all([
-          tx.tripOrderAllocation.count({ where: { tripId: trip.id, id: { not: activeOrderStop.id }, destinationCompletedAt: null } }),
-          tx.materialInvoice.count({ where: { tripId: trip.id, destinationLocationId: { not: null }, destinationCompletedAt: null } }),
-        ]);
-        const finalDestination = remainingOrders === 0 && remainingMaterials === 0;
         await tx.trip.update({
           where: { id: trip.id },
-          data: finalDestination
-            ? { status: "ARRIVED", phase: "AT_DESTINATION", arrivedAt: observedAt, gpsArrivalCandidateAt: null }
-            : { gpsArrivalCandidateAt: null },
+          data: { status: "ARRIVED", phase: "AT_DESTINATION", arrivedAt: observedAt, gpsArrivalCandidateAt: null },
         });
         await tx.truck.update({ where: { id: truck.id }, data: { currentLocation: orderDestination?.name || activeOrderStop.order?.toText || truck.currentLocation, locationUpdatedAt: observedAt } });
       }
@@ -403,16 +396,9 @@ async function evaluateArrival(truck, event) {
     const arrived = await prisma.$transaction(async (tx) => {
       const updated = await tx.materialInvoice.updateMany({ where: { id: activeMaterialStop.id, destinationArrivedAt: null }, data: { destinationArrivedAt: observedAt } });
       if (updated.count) {
-        const [remainingOrders, remainingMaterials] = await Promise.all([
-          tx.tripOrderAllocation.count({ where: { tripId: trip.id, destinationCompletedAt: null } }),
-          tx.materialInvoice.count({ where: { tripId: trip.id, id: { not: activeMaterialStop.id }, destinationLocationId: { not: null }, destinationCompletedAt: null } }),
-        ]);
-        const finalDestination = remainingOrders === 0 && remainingMaterials === 0;
         await tx.trip.update({
           where: { id: trip.id },
-          data: finalDestination
-            ? { status: "ARRIVED", phase: "AT_DESTINATION", arrivedAt: observedAt, gpsArrivalCandidateAt: null }
-            : { gpsArrivalCandidateAt: null },
+          data: { status: "ARRIVED", phase: "AT_DESTINATION", arrivedAt: observedAt, gpsArrivalCandidateAt: null },
         });
         await tx.truck.update({ where: { id: truck.id }, data: { currentLocation: activeMaterialStop.destinationLocation?.name || truck.currentLocation, locationUpdatedAt: observedAt } });
       }

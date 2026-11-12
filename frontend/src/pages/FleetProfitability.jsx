@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { FiActivity, FiAlertTriangle, FiCalendar, FiDollarSign, FiEdit2, FiFileText, FiPlus, FiTrash2, FiTruck, FiTrendingDown, FiTrendingUp, FiX } from "react-icons/fi";
-import { api } from "../api";
+import { FiActivity, FiAlertTriangle, FiCalendar, FiDollarSign, FiEdit2, FiFileText, FiPlus, FiPrinter, FiTrash2, FiTruck, FiTrendingDown, FiTrendingUp, FiX } from "react-icons/fi";
+import { api, openPrintDocument } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import LoadingState from "../components/LoadingState";
@@ -91,10 +91,16 @@ export default function FleetProfitability() {
     finally { setSaving(false); }
   }
 
+  async function printReport() {
+    setError("");
+    try { await openPrintDocument(`/fleet-profitability?month=${encodeURIComponent(month)}&print=true`); }
+    catch (err) { setError(err.message); }
+  }
+
   if (!canAccess) return <main className="fp-page"><header className="fp-head"><div><span>AKSES DIBATASI</span><h1>Profit Armada</h1><p>Halaman ini hanya tersedia untuk Owner, Admin, dan Staff.</p></div></header></main>;
 
   return <main className="fp-page">
-    <header className="fp-head"><div className="fp-head-copy"><span>KEUANGAN · ANALISIS ARMADA</span><h1>Profit Armada</h1><p>Pantau kontribusi pendapatan, struktur biaya, dan laba bersih setiap armada dalam satu laporan.</p></div><div className="fp-period-card"><FiCalendar/><label><small>PERIODE LAPORAN</small><input type="month" value={month} onChange={event => setMonth(event.target.value)} /></label></div></header>
+    <header className="fp-head"><div className="fp-head-copy"><span>KEUANGAN · ANALISIS ARMADA</span><h1>Profit Armada</h1><p>Pantau kontribusi pendapatan, struktur biaya, dan laba bersih setiap armada dalam satu laporan.</p></div><div className="fp-head-actions"><div className="fp-period-card"><FiCalendar/><label><small>PERIODE LAPORAN</small><input type="month" value={month} onChange={event => setMonth(event.target.value)} /></label></div><button type="button" className="fp-print-button" onClick={printReport} disabled={loading}><FiPrinter/><span>Cetak Laporan</span></button></div></header>
     {error && <div className="fp-error">{error}</div>}
     <section className="fp-summary">
       <article className="revenue"><FiDollarSign/><small>Pendapatan</small><strong>{money(data.summary.revenue)}</strong><span>{data.summary.trips || 0} trip pada periode ini</span></article>

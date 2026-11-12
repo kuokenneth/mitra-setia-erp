@@ -1342,6 +1342,12 @@ export default function Inventory() {
 
                   const firstLocWithStock =
                     (item.stocks || []).find((s) => Number(s.qty || 0) > 0)?.locationId || "";
+                  // The row action may be used before the modal's full item list
+                  // has been loaded. Keep the clicked row in the picker data so
+                  // its controlled value can render immediately.
+                  setReceiveItems((current) => current.some((entry) => entry.id === item.id)
+                    ? current
+                    : [item, ...current]);
                   setConsumeForm((p) => ({
                     ...p,
                     itemId,
@@ -1881,15 +1887,15 @@ export default function Inventory() {
             </div>
 
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>
-                Lokasi asal{" "}
-                <Btn
-                  style={{ ...btn, height: 28, padding: "0 10px", marginLeft: 8, fontSize: 12 }}
+              <div style={{ minHeight: 18, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>
+                <span>Lokasi asal</span>
+                <button
                   type="button"
                   onClick={() => setOpenCreateLocation(true)}
+                  style={{ border: 0, background: "transparent", padding: 0, color: BRAND.primary, font: "inherit", lineHeight: 1, cursor: "pointer" }}
                 >
-                  + Baru
-                </Btn>
+                  + Lokasi baru
+                </button>
               </div>
               <select
                 style={{ ...selectPill, minWidth: 0, width: "100%", boxSizing: "border-box" }}

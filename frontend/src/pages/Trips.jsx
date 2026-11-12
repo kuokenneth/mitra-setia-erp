@@ -10,7 +10,7 @@ import "./TripCreateMenu.css";
 const statusLabel = {
   PLANNED: "Direncanakan",
   DISPATCHED: "Berangkat",
-  ARRIVED: "Tiba",
+  ARRIVED: "Tunggu bukti timbangan",
   COMPLETED: "Selesai",
   CANCELLED: "Dibatalkan"
 };
@@ -71,8 +71,8 @@ const CONTROL_STAGES = [{
   warning: true
 }, {
   key: "AT_DESTINATION",
-  label: "Tiba & bongkar",
-  note: "Menunggu berat dan selesai",
+  label: "Tunggu bukti timbangan",
+  note: "Kedatangan terkunci sampai berat dimasukkan",
   icon: FiMapPin
 }];
 const ACTION_OPTIONS = [{

@@ -398,7 +398,13 @@ router.patch("/:id/material-stops/:invoiceId/complete", authRequired, async (req
     if (!invoice.destinationArrivedAt) return res.status(400).json({ error: "Kendaraan belum terdeteksi tiba di tujuan ini" });
     const saved = await prisma.$transaction(async (tx) => {
       const updated = await tx.materialInvoice.update({ where: { id: invoice.id }, data: { destinationCompletedAt: new Date() } });
-      await tx.trip.update({ where: { id: invoice.tripId }, data: { gpsArrivalCandidateAt: null } });
+      const [remainingOrders, remainingMaterials] = await Promise.all([
+        tx.tripOrderAllocation.count({ where: { tripId: invoice.tripId, destinationCompletedAt: null } }),
+        tx.materialInvoice.count({ where: { tripId: invoice.tripId, id: { not: invoice.id }, destinationLocationId: { not: null }, destinationCompletedAt: null } }),
+      ]);
+      await tx.trip.update({ where: { id: invoice.tripId }, data: remainingOrders || remainingMaterials
+        ? { status: "DISPATCHED", phase: "TO_DESTINATION", gpsArrivalCandidateAt: null }
+        : { status: "ARRIVED", phase: "AT_DESTINATION", gpsArrivalCandidateAt: null } });
       return updated;
     });
     res.json(saved);
@@ -855,7 +861,7 @@ router.patch("/:id/order-stops/:allocationId/complete", authRequired, async (req
       ]);
       await tx.trip.update({ where: { id: allocation.tripId }, data: remainingOrders === 0 && remainingMaterials === 0
         ? { status: "ARRIVED", phase: "AT_DESTINATION", arrivedAt: new Date(), gpsArrivalCandidateAt: null }
-        : { gpsArrivalCandidateAt: null } });
+        : { status: "DISPATCHED", phase: "TO_DESTINATION", gpsArrivalCandidateAt: null } });
       if (remainingOrders === 0 && remainingMaterials === 0) await tx.truck.update({ where: { id: allocation.trip.truckId }, data: { currentLocation: allocation.order.destinationLocation?.name || allocation.order.toText, locationUpdatedAt: new Date() } });
       await recomputeOrderStatus(tx, allocation.orderId);
       return updated;
@@ -1068,16 +1074,9 @@ router.post("/:id/arrive-destination", authRequired, async (req, res) => {
       if (activeOrderStop) await tx.tripOrderAllocation.update({ where: { id: activeOrderStop.id }, data: { destinationArrivedAt: ts } });
       else if (activeMaterialStop) await tx.materialInvoice.update({ where: { id: activeMaterialStop.id }, data: { destinationArrivedAt: ts } });
 
-      const [remainingOrders, remainingMaterials] = await Promise.all([
-        tx.tripOrderAllocation.count({ where: { tripId: trip.id, ...(activeOrderStop ? { id: { not: activeOrderStop.id } } : {}), destinationCompletedAt: null } }),
-        tx.materialInvoice.count({ where: { tripId: trip.id, destinationLocationId: { not: null }, ...(activeMaterialStop ? { id: { not: activeMaterialStop.id } } : {}), destinationCompletedAt: null } }),
-      ]);
-      const finalDestination = remainingOrders === 0 && remainingMaterials === 0;
       const updated = await tx.trip.update({
         where: { id: trip.id },
-        data: finalDestination
-          ? { status: "ARRIVED", phase: "AT_DESTINATION", arrivedAt: ts, gpsArrivalCandidateAt: null }
-          : { gpsArrivalCandidateAt: null },
+        data: { status: "ARRIVED", phase: "AT_DESTINATION", arrivedAt: ts, gpsArrivalCandidateAt: null },
       });
       if (trip.truckId) await tx.truck.update({ where: { id: trip.truckId }, data: { currentLocation: destinationName, locationUpdatedAt: ts } });
       return updated;

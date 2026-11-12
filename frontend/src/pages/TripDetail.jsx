@@ -132,7 +132,7 @@ function tripBadgeStyle(status) {
 const STATUS_STEPS = [
   { value: "PLANNED", label: "Direncanakan", icon: FiClock },
   { value: "DISPATCHED", label: "Berangkat", icon: FiTruck },
-  { value: "ARRIVED", label: "Tiba", icon: FiMapPin },
+  { value: "ARRIVED", label: "Tunggu bukti timbangan", icon: FiMapPin },
   { value: "COMPLETED", label: "Selesai", icon: FiFlag },
 ];
 
@@ -140,7 +140,7 @@ const DELIVERY_PHASES = [
   { value: "TO_PICKUP", label: "Menuju lokasi muat" },
   { value: "AT_PICKUP", label: "Tiba & proses muat" },
   { value: "TO_DESTINATION", label: "Mengantar muatan" },
-  { value: "AT_DESTINATION", label: "Tiba di tujuan" },
+  { value: "AT_DESTINATION", label: "Tunggu bukti timbangan" },
   { value: "COMPLETED", label: "Selesai" },
 ];
 const DELIVERY_PHASE_LABELS = Object.fromEntries(DELIVERY_PHASES.map((phase) => [phase.value, phase.label]));
