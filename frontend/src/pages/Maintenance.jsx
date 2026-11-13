@@ -672,11 +672,20 @@ export default function Maintenance() {
   const donorSearchTimer = useRef(null);
   const donorReplacementSearchTimer = useRef(null);
   const truckLoadRequestRef = useRef(0);
+  const listLoadRequestRef = useRef(0);
   const purchaseDamageInputRef = useRef(null);
   const purchaseDraftsRef = useRef(new Map());
 
-  async function load(targetPage = page) {
-    setLoading(true);
+  async function load(targetPage) {
+    const backgroundRefresh = Boolean(targetPage && typeof targetPage === "object");
+    const requestedPage = backgroundRefresh
+      ? page
+      : Math.max(1, Number.parseInt(targetPage ?? page, 10) || 1);
+    const requestId = ++listLoadRequestRef.current;
+    if (!backgroundRefresh) {
+      setPage(requestedPage);
+      setLoading(true);
+    }
     setErr("");
     try {
       const params = new URLSearchParams();
@@ -684,18 +693,19 @@ export default function Maintenance() {
       if (status) params.set("status", status);
       if (from) params.set("from", from);
       if (to) params.set("to", to);
-      params.set("page", String(targetPage));
+      params.set("page", String(requestedPage));
 
       const data = await api("/maintenance?" + params.toString());
+      if (requestId !== listLoadRequestRef.current) return;
       setJobs(data.jobs || []);
       const nextPagination = data.pagination || { page: 1, limit: 10, total: (data.jobs || []).length, totalPages: 1 };
       setPagination(nextPagination);
       setPage(nextPagination.page);
       setListSummary(data.summary || { total: nextPagination.total, open: 0, done: 0, cancelled: 0 });
     } catch (e) {
-      setErr(e.message || "Gagal memuat");
+      if (requestId === listLoadRequestRef.current) setErr(e.message || "Gagal memuat");
     } finally {
-      setLoading(false);
+      if (requestId === listLoadRequestRef.current) setLoading(false);
     }
   }
   useLiveRefresh(load);

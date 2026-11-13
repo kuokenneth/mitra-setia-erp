@@ -388,30 +388,66 @@ router.get("/cash-receipts/vouchers-print", async (req, res) => {
 
 router.get("/report", async (req, res) => {
   try {
+    const outstandingOnly = req.query.scope === "outstanding";
     const month = String(req.query.month || "").trim();
     const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month);
-    if (!match) return res.status(400).send("Periode harus dalam format YYYY-MM");
-    const year = Number(match[1]);
-    const monthNumber = Number(match[2]);
+    if (!outstandingOnly && !match) return res.status(400).send("Periode harus dalam format YYYY-MM");
+    const year = match ? Number(match[1]) : 0;
+    const monthNumber = match ? Number(match[2]) : 0;
     const nextYear = monthNumber === 12 ? year + 1 : year;
     const nextMonth = monthNumber === 12 ? 1 : monthNumber + 1;
-    const start = new Date(`${month}-01T00:00:00+07:00`);
-    const end = new Date(`${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00+07:00`);
-    const invoices = await prisma.invoice.findMany({ where: { issuedAt: { gte: start, lt: end } }, include: invoiceInclude, orderBy: [{ issuedAt: "asc" }, { number: "asc" }] });
-    const items = invoices.map(summarize);
+    const start = match ? new Date(`${month}-01T00:00:00+07:00`) : null;
+    const end = match ? new Date(`${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00+07:00`) : null;
+    const invoices = await prisma.invoice.findMany({
+      where: outstandingOnly ? { status: { notIn: ["PAID", "VOID"] } } : { issuedAt: { gte: start, lt: end } },
+      include: invoiceInclude,
+      orderBy: outstandingOnly ? [{ dueAt: "asc" }, { issuedAt: "asc" }, { number: "asc" }] : [{ issuedAt: "asc" }, { number: "asc" }],
+    });
+    const items = invoices.map(summarize).filter(item => !outstandingOnly || Number(item.balance || 0) > 0);
     const active = items.filter(item => item.status !== "VOID");
     const invoiced = active.reduce((sum, item) => sum + Number(item.total || 0), 0);
     const received = active.reduce((sum, item) => sum + Number(item.paid || 0), 0);
     const outstanding = active.reduce((sum, item) => sum + Number(item.balance || 0), 0);
     const overdue = active.filter(item => item.displayStatus === "OVERDUE").reduce((sum, item) => sum + Number(item.balance || 0), 0);
     const labels = { DRAFT: "Draft", SENT: "Terkirim", PARTIALLY_PAID: "Dibayar sebagian", PAID: "Lunas", OVERDUE: "Jatuh tempo", VOID: "Dibatalkan" };
-    const sourceText = item => item.order?.orderNo || (item.singleTripLines?.length ? `${item.singleTripLines.length} trip tunggal` : "") || item.singleTrip?.tripNo || (item.materialInvoices?.length ? `${item.materialInvoices.length} faktur muatan` : "") || (item.sourceType?.startsWith("MANUAL_") ? "Tagihan tunggal" : "-");
-    const rows = items.map((item, index) => `<tr><td class="center">${index + 1}</td><td>${esc(date(item.issuedAt))}</td><td><b>${esc(item.number)}</b></td><td>${esc(item.customerName)}</td><td>${esc(sourceText(item))}</td><td>${esc(date(item.dueAt))}</td><td>${esc(labels[item.displayStatus] || item.displayStatus)}</td><td class="right">${money(item.total)}</td><td class="right">${money(item.paid)}</td><td class="right"><b>${money(item.balance)}</b></td></tr>`).join("");
-    const periodLabel = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(start);
+    const sourceText = item => String(item.manualData?.receipt || "").trim() || item.order?.orderNo || (item.singleTripLines?.length ? `${item.singleTripLines.length} trip tunggal` : "") || item.singleTrip?.tripNo || (item.materialInvoices?.length ? `${item.materialInvoices.length} faktur muatan` : "") || (item.sourceType?.startsWith("MANUAL_") ? "Kwitansi belum dicatat" : "-");
+    const tripDetails = item => {
+      if (item.manualLines?.length) return item.manualLines.map(line => {
+        const data = line.data || {};
+        return { date: data.date || data.unloadingDate, document: data.documentNo || data.reference || "Tagihan tunggal", plate: data.plateNumber || line.truck?.plateNumber, route: [data.fromText || item.manualData?.fromText, data.toText || item.manualData?.toText].filter(Boolean).join(" → "), cargo: data.cargoName, qty: line.quantity, unit: line.unit, amount: line.amount };
+      });
+      if (item.singleTripLines?.length) return item.singleTripLines.map(line => ({ date: line.trip?.completedAt, document: line.trip?.dispatchLetter?.number || line.trip?.tripNo, plate: line.trip?.truck?.plateNumber || line.trip?.plateNumberSnap, route: [line.trip?.fromText, line.trip?.toText].filter(Boolean).join(" → "), cargo: line.trip?.cargoNameSnap, qty: line.billableWeightKg ?? line.actualWeightKg, unit: "KG", amount: line.amount }));
+      if (item.order) {
+        const entries = item.order.tripAllocations?.length
+          ? item.order.tripAllocations.map(allocation => ({ trip: allocation.trip, qty: allocation.qtyActual ?? allocation.qtyPlanned, unit: allocation.unitSnap || item.order.unit }))
+          : (item.order.trips || []).map(trip => ({ trip, qty: trip.qtyActual ?? trip.qtyPlanned, unit: trip.unitSnap || item.order.unit }));
+        const selectedIds = new Set(selectedOrderTripIds(item));
+        const billingFromKg = Number(item.manualData?.billingFromKg || 0);
+        const billingToKg = Number(item.manualData?.billingToKg || Infinity);
+        let cursorKg = 0;
+        return entries.filter(entry => {
+          if (selectedIds.size) return selectedIds.has(String(entry.trip?.id));
+          const rowKg = quantityKg(entry.qty, entry.unit);
+          const rowStart = cursorKg;
+          cursorKg += rowKg;
+          return cursorKg > billingFromKg + 0.000001 && rowStart < billingToKg - 0.000001;
+        }).map(entry => ({ date: entry.trip?.completedAt, document: entry.trip?.dispatchLetter?.number || entry.trip?.tripNo || item.order.deliveryOrderNo, plate: entry.trip?.truck?.plateNumber || entry.trip?.plateNumberSnap, route: [entry.trip?.fromText || item.order.fromText, entry.trip?.toText || item.order.toText].filter(Boolean).join(" → "), cargo: entry.trip?.cargoNameSnap || item.order.cargoName, qty: entry.qty, unit: entry.unit }));
+      }
+      if (item.singleTrip) return [{ date: item.singleTrip.completedAt, document: item.singleTrip.dispatchLetter?.number || item.singleTrip.tripNo, plate: item.singleTrip.truck?.plateNumber || item.singleTrip.plateNumberSnap, route: [item.singleTrip.fromText, item.singleTrip.toText].filter(Boolean).join(" → "), cargo: item.singleTrip.cargoNameSnap, qty: item.billableQuantity || item.deliveredQuantity, unit: "KG", amount: item.contractSubtotal }];
+      return (item.materialInvoices || []).flatMap(materialInvoice => (materialInvoice.lines || []).map(line => ({ date: materialInvoice.issuedAt, document: materialInvoice.number, plate: materialInvoice.trip?.truck?.plateNumber, route: materialInvoice.destinationLocation?.name || materialInvoice.destinationText, cargo: line.itemName, qty: line.qty, unit: line.unit, amount: line.totalAmount })));
+    };
+    const rows = items.map((item, index) => {
+      const details = tripDetails(item);
+      const showAmount = details.some(row => row.amount != null);
+      const detailRows = details.map((detail, detailIndex) => `<tr><td class="center">${detailIndex + 1}</td><td>${esc(date(detail.date))}</td><td>${esc(detail.document || "-")}</td><td>${esc(detail.plate || "-")}</td><td>${esc(detail.route || "-")}</td><td>${esc(detail.cargo || "-")}</td><td class="right">${esc(num(detail.qty))} ${esc(detail.unit || "")}</td>${showAmount ? `<td class="right">${detail.amount == null ? "-" : money(detail.amount)}</td>` : ""}</tr>`).join("");
+      const detail = details.length ? `<tr style="break-inside:avoid"><td colspan="10" style="padding:7px 12px 11px;background:#f7faf8"><b style="color:#176b40">Rincian trip (${details.length})</b><table style="margin-top:5px;font-size:9px"><thead><tr><th class="center">No</th><th>Tanggal</th><th>Trip / Surat Jalan</th><th>Armada</th><th>Rute / Tujuan</th><th>Muatan</th><th class="right">Jumlah</th>${showAmount ? `<th class="right">Nilai</th>` : ""}</tr></thead><tbody>${detailRows}</tbody></table></td></tr>` : "";
+      return `<tr style="break-after:avoid"><td class="center">${index + 1}</td><td>${esc(date(item.issuedAt))}</td><td><b>${esc(item.number)}</b></td><td>${esc(item.customerName)}</td><td>${esc(sourceText(item))}</td><td>${esc(date(item.dueAt))}</td><td>${esc(labels[item.displayStatus] || item.displayStatus)}</td><td class="right">${money(item.total)}</td><td class="right">${money(item.paid)}</td><td class="right"><b>${money(item.balance)}</b></td></tr>${detail}`;
+    }).join("");
+    const periodLabel = outstandingOnly ? "Semua periode · Belum bayar" : new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(start);
     res.type("html").send(documentHtml({
       title: "LAPORAN PIUTANG PELANGGAN", subtitle: periodLabel, landscape: true,
-      meta: `Periode invoice: ${esc(periodLabel)}<br>Jumlah tagihan: ${items.length}`,
-      body: `<div class="summary"><div class="box">Total ditagih<b>${money(invoiced)}</b><span>${active.length} invoice aktif</span></div><div class="box">Sudah diterima<b>${money(received)}</b><span>Pembayaran tercatat</span></div><div class="box">Sisa piutang<b>${money(outstanding)}</b><span>Jatuh tempo: ${money(overdue)}</span></div></div><table><thead><tr><th class="center">No</th><th>Tanggal</th><th>Invoice</th><th>Pelanggan</th><th>Pesanan / Sumber</th><th>Jatuh Tempo</th><th>Status</th><th class="right">Total</th><th class="right">Dibayar</th><th class="right">Sisa</th></tr></thead><tbody>${rows || `<tr><td colspan="10" class="center">Belum ada tagihan pada periode ini.</td></tr>`}</tbody><tfoot><tr><td colspan="7" class="right"><b>TOTAL</b></td><td class="right"><b>${money(invoiced)}</b></td><td class="right"><b>${money(received)}</b></td><td class="right"><b>${money(outstanding)}</b></td></tr></tfoot></table><div class="signatures"><div>Dibuat oleh</div><div>Diperiksa oleh</div><div>Disetujui oleh</div></div>`,
+      meta: `${outstandingOnly ? "Cakupan" : "Periode invoice"}: ${esc(periodLabel)}<br>Jumlah tagihan: ${items.length}`,
+      body: `<div class="summary"><div class="box">Total ditagih<b>${money(invoiced)}</b><span>${active.length} invoice aktif</span></div><div class="box">Sudah diterima<b>${money(received)}</b><span>Pembayaran tercatat</span></div><div class="box">Sisa piutang<b>${money(outstanding)}</b><span>Jatuh tempo: ${money(overdue)}</span></div></div><table><thead><tr><th class="center">No</th><th>Tanggal</th><th>Invoice</th><th>Pelanggan</th><th>Kwitansi / Sumber</th><th>Jatuh Tempo</th><th>Status</th><th class="right">Total</th><th class="right">Dibayar</th><th class="right">Sisa</th></tr></thead><tbody>${rows || `<tr><td colspan="10" class="center">Belum ada tagihan pada periode ini.</td></tr>`}</tbody><tfoot><tr><td colspan="7" class="right"><b>TOTAL</b></td><td class="right"><b>${money(invoiced)}</b></td><td class="right"><b>${money(received)}</b></td><td class="right"><b>${money(outstanding)}</b></td></tr></tfoot></table><div class="signatures"><div>Dibuat oleh</div><div>Diperiksa oleh</div><div>Disetujui oleh</div></div>`,
     }));
   } catch (error) { res.status(400).send(error.message || "Gagal membuat laporan piutang"); }
 });
