@@ -220,7 +220,6 @@ router.post("/:id/purchase-requests", authRequired, async (req, res) => {
       ? req.body.damageProofs
       : req.body.damageProofUrl ? [{ url: req.body.damageProofUrl, fileName: req.body.damageProofFileName, mimeType: req.body.damageProofMimeType, size: req.body.damageProofSize }] : [])
       .filter(proof => proof?.url && String(proof.mimeType || "").startsWith("image/"));
-    if (!damageProofs.length) return res.status(400).json({ error: "Minimal satu foto bukti barang rusak wajib dilampirkan" });
     const primaryProof = damageProofs[0];
     const requestedRows = Array.isArray(req.body.items) && req.body.items.length
       ? req.body.items
@@ -268,10 +267,10 @@ router.post("/:id/purchase-requests", authRequired, async (req, res) => {
         directUse: true,
         reason: String(req.body.reason || `Kebutuhan sparepart servis ${maintenance.title}`).trim(),
         notes: req.body.notes ? String(req.body.notes).trim() : null,
-        damageProofUrl: primaryProof.url,
-        damageProofFileName: primaryProof.fileName || null,
-        damageProofMimeType: primaryProof.mimeType,
-        damageProofSize: primaryProof.size == null ? null : Number(primaryProof.size),
+        damageProofUrl: primaryProof?.url || null,
+        damageProofFileName: primaryProof?.fileName || null,
+        damageProofMimeType: primaryProof?.mimeType || null,
+        damageProofSize: primaryProof?.size == null ? null : Number(primaryProof.size),
         createdById: req.user.id,
         items: { create: rows },
         damageProofs: { create: damageProofs.map(proof => ({ url: proof.url, fileName: proof.fileName || null, mimeType: proof.mimeType || null, size: Number.isFinite(Number(proof.size)) ? Number(proof.size) : null })) },
@@ -285,7 +284,7 @@ router.post("/:id/purchase-requests", authRequired, async (req, res) => {
       details: `${request.items.map(row => `${row.item.name} · ${Number(row.originalQty).toLocaleString("id-ID")} ${row.item.unit}`).join(", ")} · ${request.reason}`,
       path: `/purchasing?approveRequest=${encodeURIComponent(request.id)}`,
       actionLabel: "Setujui Permintaan",
-      proof: { url: request.damageProofUrl, fileName: request.damageProofFileName, mimeType: request.damageProofMimeType },
+      proof: request.damageProofUrl ? { url: request.damageProofUrl, fileName: request.damageProofFileName, mimeType: request.damageProofMimeType } : undefined,
     });
     res.status(201).json({ ok: true, request });
   } catch (e) {
