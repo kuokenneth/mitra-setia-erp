@@ -527,6 +527,7 @@ export default function Inventory() {
   const [legacyTireRows, setLegacyTireRows] = useState([{ serialNumber: "", barcode: "", position: "", installedAt: localDateTimeValue() }]);
   const [openCreateLocation, setOpenCreateLocation] = useState(false);
   const [openConsume, setOpenConsume] = useState(false);
+  const [consumeBusy, setConsumeBusy] = useState(false);
   const [openBarcode, setOpenBarcode] = useState(false);
   const [barcodeForm, setBarcodeForm] = useState({ unitId: "", barcode: "" });
 
@@ -1170,21 +1171,23 @@ export default function Inventory() {
   }
 
   async function consumeStock() {
+    if (consumeBusy) return;
     setErr("");
+    setConsumeBusy(true);
     try {
       const item = receiveItems.find((x) => x.id === consumeForm.itemId) || items.find((x) => x.id === consumeForm.itemId);
-      if (!item) throw new Error("Select an item");
-      if (item.isSerialized) throw new Error("Consume is only for NON-serialized items.");
-      if (!consumeForm.locationId) throw new Error("Select a location");
+      if (!item) throw new Error("Pilih barang yang akan digunakan");
+      if (item.isSerialized) throw new Error("Barang bernomor seri harus digunakan melalui menu pemasangan unit");
+      if (!consumeForm.locationId) throw new Error("Pilih lokasi asal stok");
       if (consumeForm.destinationType === "TRUCK" && !consumeForm.truckId) throw new Error("Pilih mobil tujuan");
 
       const qty = Number(consumeForm.qty);
-      if (!Number.isFinite(qty) || qty <= 0) throw new Error("Qty must be more than 0");
+      if (!Number.isFinite(qty) || qty <= 0) throw new Error("Jumlah yang digunakan harus lebih dari 0");
 
       const stockRow = (item.stocks || []).find((s) => s.locationId === consumeForm.locationId);
       const available = Number(stockRow?.qty || 0);
       if (qty > available) {
-        throw new Error(`Not enough stock. Available: ${available} ${item.unit || ""}`);
+        throw new Error(`Stok tidak cukup. Tersedia ${available} ${item.unit || ""}`);
       }
 
       await api("/inventory/consume", {
@@ -1205,6 +1208,8 @@ export default function Inventory() {
       await Promise.all([loadItems(), loadMovements()]);
     } catch (e) {
       setErr(String(e?.message || e));
+    } finally {
+      setConsumeBusy(false);
     }
   }
 
@@ -1843,7 +1848,6 @@ export default function Inventory() {
         </Modal>
 
         <Modal open={openConsume} eyebrow="STOK KELUAR" title="Gunakan stok" description="Gunakan untuk operasional umum atau masukkan langsung ke stok mobil tanpa membuat servis." tone="red" onClose={() => setOpenConsume(false)}>
-          {err ? <div style={{ ...errorBox, marginBottom: 14 }}>{err}</div> : null}
           {locations.length === 0 ? (
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontWeight: 600, color: BRAND.text }}>Lokasi tidak ditemukan</div>
@@ -1869,7 +1873,7 @@ export default function Inventory() {
               <div style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted, marginBottom: 6 }}>Mobil tujuan</div>
               <TruckSearchSelect trucks={trucks} value={consumeForm.truckId} onChange={(truckId) => setConsumeForm(form => ({ ...form, truckId }))} placeholder="Ketik nomor polisi, merek, atau model..."/>
             </div>}
-            <div>
+            <div className="inventory-consume-field">
               <div className="inventory-receive-field-head">Barang tanpa nomor seri</div>
               <ItemSearchSelect
                 items={receiveItems.filter((item) => !item.isSerialized)}
@@ -1886,7 +1890,7 @@ export default function Inventory() {
               />
             </div>
 
-            <div>
+            <div className="inventory-consume-field">
               <div className="inventory-receive-field-head" style={{ justifyContent: "space-between", gap: 8 }}>
                 <span>Lokasi asal</span>
                 <button
@@ -1934,12 +1938,13 @@ export default function Inventory() {
             </div>
           </div>
 
+          {err ? <div style={{ ...errorBox, marginTop: 16 }}>{err}</div> : null}
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
-            <Btn style={btn} onClick={() => setOpenConsume(false)}>
+            <Btn type="button" style={btn} onClick={() => setOpenConsume(false)} disabled={consumeBusy}>
               Batal
             </Btn>
-            <Btn style={btnPrimary} onClick={consumeStock} disabled={locations.length === 0}>
-              {consumeForm.destinationType === "TRUCK" ? "Masukkan ke Mobil" : "Simpan Stok Keluar"}
+            <Btn type="button" style={btnPrimary} onClick={consumeStock} disabled={locations.length === 0 || consumeBusy}>
+              {consumeBusy ? "Menyimpan…" : consumeForm.destinationType === "TRUCK" ? "Masukkan ke Mobil" : "Simpan Stok Keluar"}
             </Btn>
           </div>
         </Modal>
