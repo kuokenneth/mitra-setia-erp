@@ -1,0 +1,30 @@
+/* Harga pembanding di form Pembelian (lihat PurchasePriceWarning.jsx). */
+.ppw {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; grid-column: 1 / -1; width: 100%; min-width: 0;
+  margin-top: 8px; padding: 8px 10px; border-radius: 9px; box-sizing: border-box;
+  font-size: 12.5px; line-height: 1.45; text-align: left;
+}
+.ppw > svg { flex: none; }
+.ppw > span { flex: 1 1 220px; min-width: 0; }
+.ppw b { font-variant-numeric: tabular-nums; }
+.ppw-quiet { background: #f5f7f6; color: #5f6e66; }
+.ppw-dot { width: 7px; height: 7px; border-radius: 50%; background: #8fb59f; animation: ppw-pulse 1s ease-in-out infinite; }
+@keyframes ppw-pulse { 50% { opacity: .3; } }
+.ppw-ref { background: #f0f7f3; color: #24533a; }
+.ppw-ok { background: #f0f7f3; color: #0a5a36; }
+.ppw-good { background: #ebf6ef; color: #0a5a36; }
+.ppw-link { display: inline-flex; flex: none; align-items: center; gap: 4px; color: #0d7142; font-weight: 750; text-decoration: none; white-space: nowrap; }
+.ppw-link:hover { text-decoration: underline; }
+.ppw-alert { display: grid; gap: 8px; padding: 11px 12px; border: 1px solid; }
+.ppw-alert .ppw-head { display: flex; gap: 8px; align-items: flex-start; }
+.ppw-alert .ppw-head svg { margin-top: 2px; font-size: 15px; }
+.ppw-alert strong { font-size: 13px; font-weight: 800; }
+.ppw-alert dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 6px 12px; margin: 0; }
+.ppw-alert dl div { display: grid; gap: 1px; min-width: 0; }
+.ppw-alert dt { opacity: .78; font-size: 11.5px; font-weight: 700; }
+.ppw-alert dd { margin: 0; overflow-wrap: anywhere; font-weight: 750; font-variant-numeric: tabular-nums; }
+.ppw-alert p { margin: 0; font-size: 12px; opacity: .9; }
+.ppw-mild { border-color: #f0dfb3; background: #fffaeb; color: #6d5019; }
+.ppw-strong { border-color: #f2c99e; background: #fff3e6; color: #7c3f0e; }
+.ppw-high { border-color: #efc2bf; background: #fff2f1; color: #8d2f2b; }
+@media (prefers-reduced-motion: reduce) { .ppw-dot { animation: none; } }

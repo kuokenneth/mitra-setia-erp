@@ -1,84 +1,205 @@
-import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { FiArrowLeft, FiBarChart2, FiDownload, FiSearch, FiTrendingUp, FiX } from 'react-icons/fi';
-import { api, API_BASE, getAccessToken, openPrintDocument } from '../api';
-import { useAuth } from '../AuthContext';
-import { useLiveRefresh } from '../liveUpdates';
-import LoadingState from '../components/LoadingState';
-import { ProtectedFilePreview } from '../components/ProtectedFile';
-import './PriceAnalytics.css';
-const money = v => v == null ? '—' : new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(Number(v));
-const num = v => Number(v||0).toLocaleString('id-ID',{maximumFractionDigits:2});
-const date = v => v ? new Date(v).toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Jakarta'}) : '—';
-const categories={GENERAL_SPAREPART:'Sparepart umum',TIRE:'Ban',BATTERY:'Aki',OIL:'Oli',OTHER:'Lainnya'};
-const query = o => new URLSearchParams(Object.entries(o).filter(([,v])=>v!==''&&v!=null)).toString();
-function useData(path,version=0){
- const [state,setState]=useState({loading:true,data:null,error:''});
- useEffect(()=>{if(!path)return;let active=true;const controller=new AbortController();api(path,{signal:controller.signal}).then(data=>{if(active)setState({data,loading:false,error:'',path,version});}).catch(e=>{if(active)setState({data:null,loading:false,error:e.message,path,version});});return()=>{active=false;controller.abort();};},[path,version]);
- return state.path===path&&state.version===version?state:{loading:!!path,data:null,error:''};
+// Analitik Harga Sparepart — overview, sparepart detail (?item=) and supplier view (?supplier=).
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import {
+  FiActivity, FiAlertCircle, FiArrowDownRight, FiBox, FiDollarSign, FiFilter, FiInfo, FiPackage, FiRefreshCw, FiRotateCcw, FiSettings, FiTrendingUp, FiTruck,
+} from "react-icons/fi";
+import useApi from "./priceAnalytics/useApi";
+import SparepartSearch from "./priceAnalytics/SparepartSearch";
+import ItemDetail from "./priceAnalytics/ItemDetail";
+import SupplierView from "./priceAnalytics/SupplierView";
+import Opportunities from "./priceAnalytics/Opportunities";
+import SettingsDialog from "./priceAnalytics/SettingsDialog";
+import { MonthlyBars, ShareList } from "./priceAnalytics/charts";
+import { ChangeBadge, EmptyState, ErrorState, Kpi, Pagination, Panel, Segment, SkeletonRows } from "./priceAnalytics/ui";
+import { CATEGORY_LABEL, PERIODS, dateLabel, periodRange, qty as fmtQty, query, rupiah } from "./priceAnalytics/format";
+import "./PriceAnalytics.css";
+
+const SORTS = [
+  { value: "value", label: "Nilai pembelian tertinggi" },
+  { value: "increase", label: "Kenaikan harga terbesar" },
+  { value: "decrease", label: "Penurunan harga terbesar" },
+  { value: "frequency", label: "Paling sering dibeli" },
+  { value: "recent", label: "Pembelian terbaru" },
+];
+const DEFAULT_FILTERS = { period: "1y", ...periodRange("1y"), category: "", supplierId: "", direction: "", sort: "value" };
+
+function Overview({ meta, filters, setFilters, page, setPage, onOpenItem, onOpenSupplier }) {
+  const apiFilters = { from: filters.from, to: filters.to, category: filters.category, supplierId: filters.supplierId };
+  const res = useApi(`/price-analytics/overview${query({ ...apiFilters, direction: filters.direction, sort: filters.sort, page, limit: 10 })}`);
+  const data = res.data;
+  const k = data?.kpis;
+  const update = (patch) => { setFilters((f) => ({ ...f, ...patch })); setPage(1); };
+  const changed = ["category", "supplierId", "direction"].some((key) => filters[key]) || filters.period !== "1y" || filters.sort !== "value";
+
+  return (
+    <>
+      <section className="pa-filters" aria-label="Filter analitik">
+        <div className="pa-filter-period">
+          <span className="pa-toolbar-label"><FiFilter aria-hidden="true" /> Periode</span>
+          <Segment options={PERIODS.slice(1)} value={filters.period} onChange={(key) => update({ period: key, ...periodRange(key) })} label="Periode cepat" />
+        </div>
+        <label className="pa-field"><span>Dari</span><input type="date" value={filters.from} max={filters.to || undefined} onChange={(event) => update({ from: event.target.value, period: "custom" })} /></label>
+        <label className="pa-field"><span>Sampai</span><input type="date" value={filters.to} min={filters.from || undefined} onChange={(event) => update({ to: event.target.value, period: "custom" })} /></label>
+        <label className="pa-field"><span>Kategori</span>
+          <select value={filters.category} onChange={(event) => update({ category: event.target.value })}>
+            <option value="">Semua kategori</option>
+            {Object.entries(CATEGORY_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </label>
+        <label className="pa-field"><span>Supplier</span>
+          <select value={filters.supplierId} onChange={(event) => update({ supplierId: event.target.value })}>
+            <option value="">Semua supplier</option>
+            {(meta?.suppliers || []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </label>
+        <label className="pa-field"><span>Arah harga</span>
+          <select value={filters.direction} onChange={(event) => update({ direction: event.target.value })}>
+            <option value="">Naik & turun</option>
+            <option value="up">Harga naik</option>
+            <option value="down">Harga turun</option>
+          </select>
+        </label>
+        <label className="pa-field"><span>Urutkan</span>
+          <select value={filters.sort} onChange={(event) => update({ sort: event.target.value })}>
+            {SORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+        </label>
+        {changed && <button type="button" className="pa-btn ghost" onClick={() => { setFilters(DEFAULT_FILTERS); setPage(1); }}><FiRotateCcw /> Reset</button>}
+      </section>
+
+      {res.error && !data ? <ErrorState message={res.error} onRetry={res.reload} /> : (
+        <>
+          <section className="pa-kpis five" aria-label="Indikator harga pembelian" aria-busy={res.loading}>
+            <Kpi icon={<FiBox />} label="Total Jenis Sparepart" value={k?.itemCount.toLocaleString("id-ID")} loading={!k} detail={k ? `${k.transactionCount.toLocaleString("id-ID")} penerimaan barang` : " "} />
+            <Kpi icon={<FiDollarSign />} label="Total Nilai Pembelian" value={k ? rupiah(k.totalValue) : ""} loading={!k} detail="sebelum pajak, diskon & ongkos PO" />
+            <Kpi icon={<FiTrendingUp />} label="Sparepart Mengalami Kenaikan Harga" tone="danger" value={k?.increasedCount.toLocaleString("id-ID")} loading={!k}
+              detail={k ? <><FiArrowDownRight aria-hidden="true" /> {k.decreasedCount} turun · vs pembelian sebelumnya</> : " "}
+              onClick={k ? () => update({ direction: "up", sort: "increase" }) : undefined} />
+            <Kpi icon={<FiActivity />} label="Potensi Penghematan" tone="warn" value={k ? rupiah(k.potentialSavings) : ""} loading={!k}
+              detail={k ? `Estimasi · ${k.savingsCount} pembelian di atas referensi` : " "}
+              onClick={k ? () => document.getElementById("pa-savings")?.scrollIntoView({ behavior: "smooth" }) : undefined} />
+            <Kpi icon={<FiTruck />} label="Supplier Aktif" tone="info" value={k?.supplierCount.toLocaleString("id-ID")} loading={!k} detail="dipakai dalam periode" />
+          </section>
+
+          <div className="pa-overview-grid">
+            <Panel title="Sparepart dalam periode" subtitle="Harga dari penerimaan barang dan invoice supplier · klik untuk melihat riwayat lengkap" className="pa-span-2">
+              {!data ? <SkeletonRows rows={8} columns={6} /> : data.items.length === 0 ? (
+                <div className="pa-pad"><EmptyState icon={<FiPackage />} title="Belum ada pembelian yang cocok dengan filter ini">Riwayat harga diambil dari barang PO yang sudah diterima. Ubah periode atau filter.</EmptyState></div>
+              ) : (
+                <div className={`pa-table-wrap ${res.loading ? "is-loading" : ""}`}>
+                  <table className="pa-table pa-items-table">
+                    <thead>
+                      <tr>
+                        <th>Sparepart</th>
+                        <th className="num">Pembelian</th>
+                        <th className="num">Harga terakhir</th>
+                        <th className="num">Rata-rata</th>
+                        <th className="num">Perubahan</th>
+                        <th className="num">Total nilai</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.items.map((row) => (
+                        <tr key={row.key} className="is-clickable" tabIndex={0} onClick={() => onOpenItem(row.itemId)} onKeyDown={(event) => { if (event.key === "Enter") onOpenItem(row.itemId); }}>
+                          <td data-label="Sparepart"><span className="pa-item-cell"><b>{row.itemName}</b><small>{row.sku}{row.brand ? ` · ${row.brand}` : ""}{row.partNumber ? ` · ${row.partNumber}` : ""}</small></span></td>
+                          <td data-label="Pembelian" className="num">{row.transactionCount}×<small className="pa-sub">{fmtQty(row.qty)} {row.unit} · {row.supplierCount} supplier</small></td>
+                          <td data-label="Harga terakhir" className="num"><b>{rupiah(row.latestPrice)}</b><small className="pa-sub">{row.latestSupplierName} · {dateLabel(row.latestDate, false)}</small></td>
+                          <td data-label="Rata-rata" className="num">{rupiah(row.averagePrice)}<small className="pa-sub">/{row.unit}</small></td>
+                          <td data-label="Perubahan" className="num"><ChangeBadge value={row.change} size="sm" title={row.previousPrice != null ? `Sebelumnya ${rupiah(row.previousPrice)}` : undefined} /></td>
+                          <td data-label="Total nilai" className="num"><b>{rupiah(row.amount)}</b></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div className="pa-panel-foot"><Pagination pagination={data?.pagination} onPage={setPage} label="sparepart" /></div>
+            </Panel>
+            <div className="pa-stack">
+              <Panel title="Nilai pembelian per bulan">
+                <div className="pa-pad">{data ? <MonthlyBars months={data.monthly} /> : <div className="pa-skel" style={{ height: 150 }} />}</div>
+              </Panel>
+              <Panel title="Supplier dengan nilai terbesar" subtitle="Klik untuk analitik supplier">
+                <div className="pa-pad">{data ? <ShareList rows={data.topSuppliers} onOpen={onOpenSupplier} /> : <SkeletonRows rows={4} columns={1} />}</div>
+              </Panel>
+            </div>
+          </div>
+
+          <Opportunities filters={apiFilters} onOpenItem={onOpenItem} />
+
+          {data && (data.quality.notInvoiced > 0 || data.quality.excluded?.NO_PRICE > 0) && (
+            <p className="pa-note">
+              <FiInfo aria-hidden="true" />
+              <span>
+                {data.quality.notInvoiced > 0 && <>{data.quality.notInvoiced} pembelian dalam filter ini masih memakai <b>harga sementara</b> dari penerimaan barang dan akan diperbarui saat invoice supplier dicatat. </>}
+                {data.quality.excluded?.NO_PRICE > 0 && <>{data.quality.excluded.NO_PRICE} penerimaan lama tidak memiliki harga sama sekali sehingga tidak dihitung. </>}
+              </span>
+            </p>
+          )}
+        </>
+      )}
+    </>
+  );
 }
-function Change({value}){return <span className={Number(value)>0?'pa-up':Number(value)<0?'pa-down':'pa-muted'}>{value==null?'—':`${Number(value)>0?'+':''}${num(value)}%`}</span>;}
-function Pager({pagination,onPage}){if(!pagination||pagination.totalPages<=1)return null;return <div className="pa-pagination"><span>{num(pagination.total)} data · halaman {pagination.page} / {pagination.totalPages}</span><button disabled={pagination.page<=1} onClick={()=>onPage(pagination.page-1)}>Sebelumnya</button><button disabled={pagination.page>=pagination.totalPages} onClick={()=>onPage(pagination.page+1)}>Berikutnya</button></div>;}
-function Empty({children='Belum ada pembelian yang memenuhi filter ini.'}){return <div className="pa-empty"><FiBarChart2/><p>{children}</p></div>;}
-function Status({state,children}){return state.loading?<LoadingState label="Memuat analitik harga" rows={3}/>:state.error?<div role="alert" className="pa-error">{state.error}</div>:children;}
-function KPI({label,value,note}){return <article className="pa-kpi"><span>{label}</span><strong>{value}</strong>{note&&<small>{note}</small>}</article>;}
-function Table({head,children}){return <div className="pa-table-scroll"><table><thead><tr>{head.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{children}</tbody></table></div>;}
-function ItemSearch({onSelect}){
- const [text,setText]=useState(''),[debounced,setDebounced]=useState(''),[open,setOpen]=useState(false),[index,setIndex]=useState(-1);
- useEffect(()=>{const t=setTimeout(()=>setDebounced(text.trim()),250);return()=>clearTimeout(t);},[text]);
- const state=useData(debounced?`/price-analytics/search?${query({q:debounced})}`:null);
- const items=state.data?.items||[];
- const choose=item=>{onSelect(item.id);setText('');setOpen(false);setIndex(-1);};
- return <div className="pa-search"><FiSearch/><input role="combobox" aria-label="Cari sparepart" aria-expanded={open&&!!text} aria-controls="pa-suggestions" aria-autocomplete="list" aria-activedescendant={index>=0?`pa-suggestion-${index}`:undefined} value={text} placeholder="Cari nama sparepart, kode barang, merek, atau nomor part..." onFocus={()=>setOpen(true)} onBlur={()=>setOpen(false)} onChange={e=>{setText(e.target.value);setIndex(-1);setOpen(true);}} onKeyDown={e=>{if(e.key==='ArrowDown'){e.preventDefault();setOpen(true);setIndex(i=>Math.min(items.length-1,i+1));}if(e.key==='ArrowUp'){e.preventDefault();setIndex(i=>Math.max(0,i-1));}if(e.key==='Escape')setOpen(false);if(e.key==='Enter'&&debounced===text.trim()&&!state.loading&&items[index]){e.preventDefault();choose(items[index]);}}}/>{text&&<button aria-label="Hapus pencarian" onClick={()=>{setText('');setIndex(-1);}}><FiX/></button>}{open&&text&&<div id="pa-suggestions" role="listbox" className="pa-suggestions">{state.loading||debounced!==text.trim()?<p>Mencari barang…</p>:state.error?<p role="alert">{state.error}</p>:items.length?items.map((item,i)=><div role="option" aria-selected={index===i} id={`pa-suggestion-${i}`} className={index===i?'selected':''} key={item.id} onMouseDown={e=>e.preventDefault()} onClick={()=>choose(item)}><strong>{item.name}</strong><small>{[item.sku,item.brand,item.partNumber,categories[item.category],item.unit].filter(Boolean).join(' · ')}</small></div>):<p>Barang tidak ditemukan.</p>}</div>}</div>;
-}
-const colors=['#15803d','#2563eb','#c2410c','#9333ea','#0891b2','#be185d','#854d0e'];
-const color=id=>colors[[...id].reduce((n,c)=>n+c.charCodeAt(0),0)%colors.length];
-function PriceChart({items,truncated}){
- const [hover,setHover]=useState(null);
- if(!items?.length)return <Empty>Belum ada riwayat harga untuk grafik.</Empty>;
- const prices=items.map(r=>Number(r.unitPrice)), low=Math.min(...prices)*.9,high=Math.max(...prices)*1.1||1;
- const times=items.map(r=>new Date(r.date).getTime()),start=Math.min(...times),end=Math.max(...times);
- const positions=items.map((r,i)=>{const same=times.filter(t=>t===times[i]).length;const prior=times.slice(0,i).filter(t=>t===times[i]).length;return {x:70+(end===start?(i/Math.max(1,items.length-1))*790:((times[i]-start)/(end-start))*790)+(same>1&&end!==start?(prior-(same-1)/2)*4:0),y:220-((Number(r.unitPrice)-low)/(high-low))*180};});
- const suppliers=[...new Map(items.map(r=>[r.supplierId,r.supplierName])).entries()];
- return <><div className="pa-chart"><svg viewBox="0 0 940 280" role="img" aria-label="Grafik harga satuan pembelian historis"><title>Harga satuan per tanggal penerimaan. Pilih titik untuk rincian.</title>{[0,.5,1].map(t=><g key={t}><line x1="70" x2="880" y1={220-t*180} y2={220-t*180} stroke="#e4ece7"/><text x="64" y={224-t*180} textAnchor="end">{num(Math.round(low+(high-low)*t))}</text></g>)}{suppliers.map(([id])=><polyline key={id} fill="none" stroke={color(id)} strokeWidth="2.5" points={items.map((r,i)=>r.supplierId===id?`${positions[i].x},${positions[i].y}`:null).filter(Boolean).join(' ')}/>)}{items.map((r,i)=><circle key={r.id} cx={positions[i].x} cy={positions[i].y} r={hover?.id===r.id?6:4.5} fill={color(r.supplierId)} stroke="white" strokeWidth="1.5" tabIndex="0" aria-label={`${r.supplierName}, ${date(r.date)}, ${num(r.qty)} ${r.unit}, ${money(r.unitPrice)}`} onMouseEnter={()=>setHover(r)} onFocus={()=>setHover(r)} onClick={()=>setHover(r)}><title>{r.supplierName} · {date(r.date)} · {num(r.qty)} {r.unit} · {money(r.unitPrice)}</title></circle>)}<text x="70" y="253">{date(items[0].date)}</text><text x="880" y="253" textAnchor="end">{date(items[items.length-1].date)}</text><text x="70" y="274">Harga satuan (Rp) · tanggal penerimaan</text></svg></div><div className="pa-chart-legend">{suppliers.map(([id,name])=><span key={id}><i style={{background:color(id)}}/>{name}</span>)}</div><div className="pa-chart-detail" aria-live="polite">{hover?<><b>{hover.supplierName}</b><span>{date(hover.date)} · {num(hover.qty)} {hover.unit}</span><strong>{money(hover.unitPrice)} / {hover.unit}</strong></>:<span>Arahkan kursor atau pilih titik grafik untuk melihat rincian pembelian.</span>}</div>{items.length<2&&<p className="pa-note">Data historis belum cukup untuk menunjukkan tren harga.</p>}{truncated&&<p className="pa-note">Grafik menampilkan 1.000 transaksi pertama. Persempit periode untuk melihat seluruh titik.</p>}</>;
-}
-function History({itemId,filters,version,onDocumentError}){
- const [page,setPage]=useState(1),[sort,setSort]=useState('date'),[direction,setDirection]=useState('desc'),[search,setSearch]=useState(''),[text,setText]=useState(''),[exporting,setExporting]=useState(false),[documentRow,setDocumentRow]=useState(null);
- useEffect(()=>{const t=setTimeout(()=>{setSearch(text);setPage(1);},250);return()=>clearTimeout(t);},[text]);
- const qs=query({...filters,q:search,page,sort,order:direction});const state=useData(`/price-analytics/items/${itemId}/history?${qs}`,version);
- async function download(format){setExporting(true);try{const token=getAccessToken();const response=await fetch(`${API_BASE}/price-analytics/items/${itemId}/export?${qs}&format=${format}`,{credentials:'include',headers:token?{Authorization:`Bearer ${token}`}:{}});if(!response.ok){const error=await response.json();throw new Error(error.error);}const url=URL.createObjectURL(await response.blob());const a=document.createElement('a');a.href=url;a.download=`riwayat-harga.${format}`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){onDocumentError(e.message);}finally{setExporting(false);}}
- return <section className="pa-panel"><div className="pa-section-title"><div><h2>Riwayat Harga Pembelian</h2><p>Perubahan dibandingkan pembelian sebanding sebelumnya, termasuk sebelum periode filter.</p></div><div className="pa-actions"><button disabled={exporting} onClick={()=>download('csv')}><FiDownload/> CSV</button><button disabled={exporting} onClick={()=>download('xlsx')}>Excel</button></div></div><div className="pa-toolbar"><input aria-label="Cari dalam riwayat" placeholder="Cari supplier, PO, atau penerimaan…" value={text} onChange={e=>setText(e.target.value)}/><select aria-label="Urutkan riwayat" value={sort} onChange={e=>{setSort(e.target.value);setPage(1);}}><option value="date">Tanggal</option><option value="price">Harga satuan</option><option value="qty">Jumlah</option><option value="supplier">Supplier</option></select><select aria-label="Arah urutan" value={direction} onChange={e=>{setDirection(e.target.value);setPage(1);}}><option value="desc">Terbesar / terbaru</option><option value="asc">Terkecil / terlama</option></select></div><Status state={state}>{state.data?.items.length?<Table head={['Tanggal','Supplier / Dokumen','Jumlah','Harga satuan','Total','Perubahan']}>{state.data.items.map(r=><tr key={r.id}><td>{date(r.date)}<small>{r.priceSource==='LEGACY_BATCH'?'Harga arsip stok':r.priceSource==='INVOICE'?'Sesuai invoice':'Harga sementara penerimaan'}</small></td><td><b>{r.supplierName}</b><div className="pa-documents"><button onClick={()=>openPrintDocument(`/purchasing/orders/${r.poId}/print`).catch(e=>onDocumentError(e.message))}>{r.poNumber}</button><button onClick={()=>openPrintDocument(`/purchasing/receipts/${r.receiptId}/print`).catch(e=>onDocumentError(e.message))}>{r.receiptNumber}</button>{r.invoices.map(i=><button key={i.id} onClick={()=>openPrintDocument(`/purchasing/bills/${i.id}/receipt-print`).catch(e=>onDocumentError(e.message))}>{i.invoiceNumber}</button>)}</div>{r.deliveryNote&&<small>Surat jalan {r.deliveryNote}</small>}{(r.receiptProofUrl||r.invoices.some(i=>i.proofUrl))&&<button className="pa-proof-button" onClick={()=>setDocumentRow(r)}>Lihat bukti asli</button>}</td><td>{num(r.qty)} {r.unit}</td><td>{money(r.unitPrice)}</td><td>{money(r.amount)}</td><td><Change value={r.change}/></td></tr>)}</Table>:<Empty/>}<Pager pagination={state.data?.pagination} onPage={setPage}/></Status>{documentRow&&<div className="pa-document-overlay" role="dialog" aria-modal="true" aria-label="Bukti dokumen pembelian" onKeyDown={e=>e.key==='Escape'&&setDocumentRow(null)} onClick={e=>e.target===e.currentTarget&&setDocumentRow(null)}><section className="pa-panel"><div className="pa-section-title"><h2>Bukti Dokumen Pembelian</h2><button autoFocus onClick={()=>setDocumentRow(null)}>Tutup</button></div><p>{documentRow.poNumber} · {documentRow.receiptNumber}</p>{[...(documentRow.receiptProofUrl?[{proofUrl:documentRow.receiptProofUrl,proofFileName:documentRow.receiptProofFileName,proofMimeType:documentRow.receiptProofMimeType}]:[]),...documentRow.invoices.filter(i=>i.proofUrl)].map((p,i)=><div key={i}><p>{p.invoiceNumber||'Bukti penerimaan'}</p><ProtectedFilePreview url={p.proofUrl} fileName={p.proofFileName||'Bukti pembelian'} mimeType={p.proofMimeType} imageStyle={{width:'100%',maxHeight:450,objectFit:'contain'}} onError={e=>onDocumentError(e.message)}/></div>)}</section></div>}</section>;
-}
-function ItemDetail({id,filters,onFilter,onSupplier,version}){
- const [period,setPeriod]=useState('all'),[error,setError]=useState('');
- const summary=useData(`/price-analytics/items/${id}/summary?${query(filters)}`,version);
- let chartFrom=filters.from;if(period!=='all'){const d=new Date();d.setMonth(d.getMonth()-Number(period));const range=d.toLocaleDateString('sv-SE',{timeZone:'Asia/Jakarta'});chartFrom=!chartFrom||range>chartFrom?range:chartFrom;}
- const trends=useData(`/price-analytics/items/${id}/trends?${query({...filters,from:chartFrom})}`,version);
- const data=summary.data;
- const bestRecent=data?.suppliers.find(s=>s.recent);
- return <Status state={summary}>{data&&<><section className="pa-item-identity"><span className="pa-item-icon"><FiBarChart2/></span><div><span className="pa-eyebrow">{categories[data.item.category]}</span><h2>{data.item.name}</h2><p>{data.item.sku} · Merek: {data.item.brand||'Belum dicatat'} · Nomor part: {data.item.partNumber||'Belum dicatat'} · {data.item.unit}</p></div><div className="pa-stock"><strong>{num(data.item.stock)} {data.item.unit}</strong><span>Stok gudang saat ini</span></div></section><div className="pa-meta"><span>Total dibeli <b>{num(data.summary.qty)} {data.item.unit}</b></span><span>Riwayat pembelian <b>{num(data.summary.count)}</b></span><span>Supplier digunakan <b>{num(data.summary.supplierCount)}</b></span></div><div className="pa-kpis pa-four"><KPI label="Harga Pembelian Terakhir" value={money(data.latest?.unitPrice)} note={data.latest?`${data.latest.supplierName} · ${date(data.latest.date)}`:'Belum ada pembelian'}/><KPI label="Harga Termurah Tercatat" value={money(data.lowest?.unitPrice)} note={data.lowest?`${data.lowest.supplierName} · ${date(data.lowest.date)}`:'Belum ada pembelian'}/><KPI label="Harga Rata-rata" value={money(data.summary.average)} note="Tertimbang jumlah dibeli dalam periode"/><KPI label="Perubahan Harga" value={<Change value={data.latest?.change}/>} note="Dibanding pembelian sebanding sebelumnya"/></div><section className="pa-reference"><div><span className="pa-eyebrow">HARGA REFERENSI PEMBELIAN</span><h3>{data.reference.sufficient?money(data.reference.unitPrice):'Data historis belum cukup untuk menentukan harga referensi.'}</h3><p>{data.reference.method}.</p></div><div><b>{data.reference.count} transaksi · {data.reference.lookbackDays} hari terakhir</b><small>Terakhir {date(data.reference.latestDate)} · Rata-rata tertimbang {money(data.reference.average)}</small><small>Referensi historis, bukan harga pasar atau penawaran supplier saat ini.</small></div></section><section className="pa-panel"><div className="pa-section-title"><div><h2>Tren Harga Pembelian</h2><p>Barang, satuan, mata uang, dan basis harga yang sama.</p></div><div className="pa-periods">{[['1','1 bulan'],['3','3 bulan'],['6','6 bulan'],['12','1 tahun'],['all','Semua']].map(([v,label])=><button className={period===v?'active':''} key={v} onClick={()=>setPeriod(v)}>{label}</button>)}</div></div><Status state={trends}><PriceChart items={trends.data?.items} truncated={trends.data?.truncated}/></Status></section><section className="pa-panel"><div className="pa-section-title"><div><h2>Perbandingan Harga Supplier</h2><p>Harga pembelian historis pada periode terpilih, bukan penawaran terkini.</p></div>{filters.supplierId&&<button onClick={()=>onFilter('supplierId','')}>Tampilkan semua supplier</button>}</div>{data.suppliers.length?<><Table head={['Supplier','Harga terakhir','Termurah historis','Rata-rata tertimbang','Terakhir beli','Transaksi','Selisih harga terendah','Tindakan']}>{data.suppliers.map(s=><tr className={s.supplierId===bestRecent?.supplierId?'pa-best':''} key={s.supplierId}><td><button className="pa-link" onClick={()=>onSupplier(s.supplierId)}>{s.supplierName}</button>{s.supplierId===bestRecent?.supplierId&&<small>Terendah dalam periode pembanding</small>}{!s.recent&&<small>Di luar periode pembanding terbaru</small>}</td><td>{money(s.latestPrice)}</td><td>{money(s.minimum)}</td><td>{money(s.average)}</td><td>{date(s.latestDate)}</td><td>{num(s.count)}</td><td>{money(Number(s.latestPrice)-Number(data.suppliers[0].latestPrice))}</td><td><button onClick={()=>{onFilter('supplierId',s.supplierId);document.getElementById('pa-history')?.scrollIntoView({behavior:'smooth'});}}>Lihat Riwayat Supplier</button></td></tr>)}</Table>{bestRecent?<p className="pa-insight">{bestRecent.supplierName} memiliki harga pembelian terakhir terendah dalam {data.reference.lookbackDays} hari pembanding, yaitu {money(bestRecent.latestPrice)} per {data.item.unit}.</p>:<p className="pa-note">Tidak ada pembelian supplier dalam periode pembanding terbaru.</p>}</>:<Empty/>}</section>{error&&<div className="pa-error" role="alert">{error}<button onClick={()=>setError('')}>Tutup</button></div>}<div id="pa-history"><History key={id} itemId={id} filters={filters} version={version} onDocumentError={setError}/></div></>}</Status>;
-}
-function Overview({filters,onItem,version}){
- const [page,setPage]=useState(1),[sort,setSort]=useState('value');const state=useData(`/price-analytics/overview?${query({...filters,page,sort})}`,version);const data=state.data;
- return <Status state={state}>{data&&<><div className="pa-kpis"><KPI label="Total Jenis Sparepart" value={num(data.itemCount)} note="Dengan riwayat pembelian"/><KPI label="Total Nilai Pembelian" value={money(data.spend)} note="Nilai barang diterima sebelum penyesuaian PO"/><KPI label="Sparepart Mengalami Kenaikan Harga" value={num(data.increasedCount)} note="Harga terakhir dibanding sebelumnya"/><KPI label="Potensi Penghematan" value={money(data.savings)} note="Estimasi berdasarkan jumlah pembelian"/><KPI label="Supplier Aktif" value={num(data.supplierCount)} note="Digunakan dalam periode"/></div>{(data.quality.missingPrices>0||data.quality.legacyPrices>0)&&<p className="pa-note">Kualitas arsip: {data.quality.missingPrices} penerimaan tanpa harga valid dikecualikan dari perhitungan; {data.quality.legacyPrices} memakai harga arsip stok yang mungkin pernah disesuaikan. Harga asli sebelum pencatatan snapshot tidak dapat dipastikan.</p>}<section className="pa-panel"><div className="pa-section-title"><div><h2>Ringkasan Pembelian Sparepart</h2><p>Pilih barang untuk menelusuri harga dan dokumen pembelian.</p></div><select aria-label="Urutkan ringkasan" value={sort} onChange={e=>{setSort(e.target.value);setPage(1);}}><option value="value">Nilai pembelian tertinggi</option><option value="up">Kenaikan harga tertinggi</option></select></div>{data.items.length?<Table head={['Sparepart','Jumlah dibeli','Transaksi / Supplier','Harga terakhir','Perubahan','Nilai pembelian']}>{data.items.map(r=><tr key={`${r.itemId}-${r.unit}`}><td><button className="pa-link" onClick={()=>onItem(r.itemId)}>{r.name}</button><small>{r.sku}</small></td><td>{num(r.qty)} {r.unit}</td><td>{num(r.count)} / {num(r.suppliers)}</td><td>{money(r.latestPrice)}</td><td><Change value={r.change}/></td><td><b>{money(r.spend)}</b></td></tr>)}</Table>:<Empty/>}<Pager pagination={data.pagination} onPage={setPage}/></section></>}</Status>;
-}
-function Opportunities({filters,onItem,version}){
- const [page,setPage]=useState(1);const state=useData(`/price-analytics/opportunities?${query({...filters,page})}`,version);const data=state.data;
- return <section className="pa-panel"><div className="pa-section-title"><div><h2>Peluang Penghematan Pembelian</h2><p>Estimasi negosiasi dari harga supplier lain yang tercatat lebih dahulu dalam periode pembanding. Penghematan masa depan tidak dijamin.</p></div><FiTrendingUp/></div><Status state={state}>{data&&<>{data.items.length?<Table head={['Sparepart / Pembelian','Harga dibeli','Harga referensi','Selisih / unit','Estimasi potensi hemat']}>{data.items.map(r=><tr key={r.id}><td><button className="pa-link" onClick={()=>onItem(r.itemId)}>{r.name}</button><small>{r.poNumber} · {date(r.date)} · {num(r.qty)} {r.unit}</small></td><td>{money(r.unitPrice)}<small>{r.supplierName}</small></td><td>{money(r.referencePrice)}<small>{r.referenceSupplier} · {date(r.referenceDate)}</small></td><td>{money(r.difference)}</td><td className="pa-down"><b>{money(r.savings)}</b></td></tr>)}</Table>:<Empty>Belum ditemukan selisih harga yang melewati ambang peluang penghematan.</Empty>}<Pager pagination={data.pagination} onPage={setPage}/>{data.signals.length>0&&<><h3>Prioritas Evaluasi Pembelian</h3><div className="pa-signals">{data.signals.map(r=><button key={`${r.itemId}-${r.unit}`} onClick={()=>onItem(r.itemId)}><strong>{r.name}</strong><small>{num(r.count)} pembelian · {money(r.spend)}</small><span>{r.suppliers<2?'Kompetisi supplier terbatas':`${r.suppliers} supplier · rentang harga ${money(r.spread)}`}</span>{Number(r.maxIncrease)>0&&<span>Kenaikan transaksi tertinggi <Change value={r.maxIncrease}/></span>}</button>)}</div><p className="pa-note">Urutan berdasarkan nilai belanja dalam periode terpilih. Gunakan periode satu tahun untuk mengevaluasi belanja tahunan.</p></>}</>}</Status></section>;
-}
-function SupplierDetail({id,filters,onItem,version}){
- const [page,setPage]=useState(1),[sort,setSort]=useState('value');const state=useData(`/price-analytics/suppliers/${id}?${query({...filters,supplierId:undefined,page,sort})}`,version);const data=state.data;
- return <Status state={state}>{data&&<><h2>{data.supplier.name}</h2><div className="pa-kpis pa-four"><KPI label="Jenis Sparepart" value={num(data.metrics.itemCount)}/><KPI label="Total Nilai Pembelian" value={money(data.metrics.spend)}/><KPI label="Jumlah Penerimaan" value={num(data.metrics.count)}/><KPI label="Rata-rata Nilai Penerimaan" value={money(data.metrics.average)}/></div><section className="pa-panel"><div className="pa-section-title"><h2>Daftar Sparepart dari Supplier Ini</h2><select aria-label="Urutkan pembelian supplier" value={sort} onChange={e=>{setSort(e.target.value);setPage(1);}}><option value="value">Nilai pembelian tertinggi</option><option value="frequency">Paling sering dibeli</option><option value="date">Pembelian terbaru</option></select></div>{data.items.length?<Table head={['Sparepart','Jumlah / Transaksi','Harga terakhir','Perubahan','Termurah supplier lain','Terakhir dibeli','Total pembelian']}>{data.items.map(r=><tr key={`${r.itemId}-${r.unit}`}><td><button className="pa-link" onClick={()=>onItem(r.itemId)}>{r.name}</button><small>{r.sku}</small></td><td>{num(r.qty)} {r.unit} / {r.count}</td><td>{money(r.latestPrice)}</td><td><Change value={r.change}/></td><td>{money(r.otherMinimum)}</td><td>{date(r.latestDate)}</td><td>{money(r.spend)}</td></tr>)}</Table>:<Empty/>}<Pager pagination={data.pagination} onPage={setPage}/><p className="pa-note">Pembanding berasal dari pembelian historis barang dan satuan identik dalam periode terpilih.</p></section></>}</Status>;
-}
-export default function PriceAnalytics(){
- const {user}=useAuth();const allowed=['OWNER','ADMIN','STAFF','SPAREPART_ADMIN'].includes(user?.role);
- const [params,setParams]=useSearchParams();const itemId=params.get('item')||'',supplierView=params.get('supplierView')||'';
- const [filters,setFilters]=useState({from:'',to:'',supplierId:'',category:'',direction:''}),[version,setVersion]=useState(0);
- useLiveRefresh(()=>setVersion(v=>v+1));
- const options=useData(allowed?'/price-analytics/filters':null,version);
- const selectItem=id=>setParams(id?{item:id}:{});
- const selectSupplier=id=>setParams({supplierView:id});
- const filter=(key,value)=>setFilters(f=>({...f,[key]:value}));
- if(!allowed)return <div className="pa-error">Anda tidak memiliki akses ke analitik pembelian.</div>;
- return <div className="price-analytics"><header className="pa-page-head"><div><span className="pa-eyebrow">BENGKEL & PEMBELIAN</span><h1>Analitik Harga Sparepart</h1><p>Telusuri pembelian, bandingkan supplier, dan temukan peluang penghematan.</p></div><span className="pa-historical-badge"><FiBarChart2/> Data pembelian historis</span></header><div className="pa-filters"><label>Dari tanggal<input type="date" value={filters.from} max={filters.to||undefined} onChange={e=>filter('from',e.target.value)}/></label><label>Sampai tanggal<input type="date" value={filters.to} min={filters.from||undefined} onChange={e=>filter('to',e.target.value)}/></label><label>Kategori<select value={filters.category} onChange={e=>filter('category',e.target.value)}><option value="">Semua kategori</option>{Object.entries(categories).map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></label><label>Supplier<select value={filters.supplierId} onChange={e=>filter('supplierId',e.target.value)}><option value="">Semua supplier</option>{options.data?.suppliers.map(s=><option value={s.id} key={s.id}>{s.name}</option>)}</select></label><label>Perubahan harga<select value={filters.direction} onChange={e=>filter('direction',e.target.value)}><option value="">Semua perubahan</option><option value="up">Harga naik</option><option value="down">Harga turun</option></select></label><button onClick={()=>setFilters({from:'',to:'',supplierId:'',category:'',direction:''})}>Reset filter</button></div>{options.error&&<div className="pa-error" role="alert">{options.error}</div>}<ItemSearch onSelect={selectItem}/>{(itemId||supplierView)&&<button className="pa-back" onClick={()=>setParams({})}><FiArrowLeft/> Kembali ke ringkasan</button>}<div key={query(filters)}>{supplierView?<SupplierDetail id={supplierView} filters={filters} onItem={id=>{filter('supplierId',supplierView);selectItem(id);}} version={version}/>:itemId?<ItemDetail id={itemId} filters={filters} onFilter={filter} onSupplier={selectSupplier} version={version}/>:<><Overview filters={filters} onItem={selectItem} version={version}/><section className="pa-supplier-explore"><label>Analitik Supplier<select defaultValue="" onChange={e=>e.target.value&&selectSupplier(e.target.value)}><option value="">Pilih supplier untuk melihat analitik pembelian…</option>{options.data?.suppliers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label></section></>}<Opportunities filters={{...filters,...(itemId?{itemId}:{}),...(supplierView?{supplierId:supplierView}:{})}} onItem={selectItem} version={version}/></div><footer className="pa-method"><b>Dasar perhitungan</b><p>Tanggal transaksi = tanggal penerimaan barang (WIB). Hanya jumlah yang diterima dari PO diterima sebagian/penuh; retur supplier dikecualikan. Harga dalam Rp per satuan sebelum pajak, diskon, dan ongkos tingkat PO. Biaya jasa perbaikan dan vulkanisir dianalisis terpisah dari pembelian sparepart dan tidak dimasukkan di sini.</p></footer></div>;
+
+export default function PriceAnalytics() {
+  const [params, setParams] = useSearchParams();
+  const itemId = params.get("item");
+  const supplierId = params.get("supplier");
+  const meta = useApi("/price-analytics/meta");
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [page, setPage] = useState(1);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsOverride, setSettingsOverride] = useState(null);
+  const settings = settingsOverride || meta.data?.settings;
+
+  useEffect(() => {
+    document.querySelector(".erp-content")?.scrollTo?.({ top: 0 });
+    window.scrollTo({ top: 0 });
+  }, [itemId, supplierId]);
+
+  const openItem = (id) => setParams({ item: id });
+  const openSupplier = (id) => setParams({ supplier: id });
+  const back = () => { if (window.history.length > 1) window.history.back(); else setParams({}); };
+
+  return (
+    <div className="pa-page">
+      {!itemId && !supplierId && (
+        <header className="pa-header">
+          <div className="pa-header-copy">
+            <span className="pa-eyebrow">Bengkel & Pembelian</span>
+            <h1>Analitik Harga Sparepart</h1>
+            <p>Cari sparepart, lihat kapan dan dari mana kita membelinya, dan bandingkan harga antar supplier sebelum membuat pembelian berikutnya.</p>
+          </div>
+          <div className="pa-header-tools">
+            <button type="button" className="pa-icon-btn" onClick={meta.reload} aria-label="Muat ulang"><FiRefreshCw className={meta.loading ? "spin" : ""} /></button>
+            {meta.data?.canEditSettings && settings && <button type="button" className="pa-btn" onClick={() => setSettingsOpen(true)}><FiSettings /> Ambang peringatan</button>}
+          </div>
+          <div className="pa-hero">
+            <SparepartSearch onSelect={(item) => openItem(item.id)} />
+            <p className="pa-hero-hint">
+              {meta.data ? (meta.data.transactionCount
+                ? <>Riwayat {meta.data.transactionCount.toLocaleString("id-ID")} penerimaan barang sejak {dateLabel(meta.data.firstDate)}. Harga final mengikuti invoice supplier.</>
+                : <><FiAlertCircle aria-hidden="true" /> Belum ada penerimaan barang dengan harga. Analitik terisi otomatis setelah barang PO diterima.</>) : "Memuat riwayat pembelian…"}
+            </p>
+          </div>
+        </header>
+      )}
+
+      {itemId ? (
+        <ItemDetail key={itemId} itemId={itemId} onBack={back} onSelectItem={openItem} onOpenSupplier={openSupplier} />
+      ) : supplierId ? (
+        <SupplierView key={supplierId} supplierId={supplierId} onBack={back} onOpenItem={openItem} />
+      ) : meta.error && !meta.data ? (
+        <ErrorState message={meta.error} onRetry={meta.reload} />
+      ) : (
+        <Overview meta={meta.data} filters={filters} setFilters={setFilters} page={page} setPage={setPage} onOpenItem={openItem} onOpenSupplier={openSupplier} />
+      )}
+
+      {settingsOpen && settings && (
+        <SettingsDialog settings={settings} onClose={() => setSettingsOpen(false)} onSaved={(saved) => { setSettingsOverride(saved); setSettingsOpen(false); meta.reload(); }} />
+      )}
+    </div>
+  );
 }

@@ -1812,3 +1812,17 @@ model StoredFile {
   @@index([createdAt])
   @@index([storageProvider])
 }
+
+// Analitik Harga Sparepart: warning thresholds and reference-price rules.
+// A single row with id "default", editable by Owner/Admin in the app.
+model PriceAnalyticsSetting {
+  id              String   @id @default("default")
+  mildPct         Float    @default(5)
+  strongPct       Float    @default(10)
+  highPct         Float    @default(20)
+  lookbackDays    Int      @default(180)
+  minTransactions Int      @default(2)
+  updatedById     String?
+  updatedByName   String?
+  updatedAt       DateTime @updatedAt
+}
