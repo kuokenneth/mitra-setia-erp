@@ -440,6 +440,7 @@ model PurchaseOrderItem {
   @@index([tireRetreadId])
   @@index([partRepairId])
   @@index([purchaseRequestItemId])
+  @@index([itemId, purchaseOrderId])
 }
 
 model GoodsReceipt {
@@ -468,6 +469,8 @@ model GoodsReceipt {
   items                   GoodsReceiptItem[]
   inventoryBatches        InventoryBatch[]
   supplierBillLines       SupplierBillReceipt[]
+
+  @@index([receivedAt, purchaseOrderId])
 }
 
 model SupplierBill {
@@ -559,8 +562,15 @@ model GoodsReceiptItem {
   purchaseOrderItem   PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id])
   qty                 Float
   condition           String            @default("GOOD")
+  originalUnitPrice   Int?
+  purchaseUnit        String?
+  priceSource         String?
+  currency            String            @default("IDR")
+  taxBasis            String            @default("BEFORE_ORDER_ADJUSTMENTS")
   inventoryBatch      InventoryBatch?
   supplierBillItems   SupplierBillItem[]
+
+  @@index([purchaseOrderItemId, receiptId])
 }
 
 model PurchasePayment {
@@ -1417,6 +1427,9 @@ model Item {
   id           String       @id @default(cuid())
   sku          String       @unique
   name         String       @unique
+  brand        String?
+  partNumber   String?
+  aliases      String[]     @default([])
   unit         String       @default("PCS")
   isSerialized Boolean      @default(false)
   category     ItemCategory @default(GENERAL_SPAREPART)

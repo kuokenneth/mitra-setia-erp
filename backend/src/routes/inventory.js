@@ -281,7 +281,7 @@ router.post(
   requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"),
   async (req, res) => {
     try {
-      const { sku, name, unit, isSerialized, category } = req.body || {};
+      const { sku, name, unit, isSerialized, category, brand, partNumber, aliases } = req.body || {};
       if (!sku || !name) {
         return res.status(400).json({ ok: false, error: "sku and name are required" });
       }
@@ -308,6 +308,9 @@ router.post(
           unit: unit ? String(unit).trim() : undefined,
           isSerialized: Boolean(isSerialized),
           category: cleanCategory,
+          brand: brand == null ? null : String(brand).trim().slice(0,150),
+          partNumber: partNumber == null ? null : String(partNumber).trim().slice(0,150),
+          aliases: Array.isArray(aliases) ? aliases.slice(0,30).map(v=>String(v).trim().slice(0,150)).filter(Boolean) : [],
         },
       });
 
@@ -331,7 +334,7 @@ router.patch(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { sku, name, unit, isSerialized, category } = req.body || {};
+      const { sku, name, unit, isSerialized, category, brand, partNumber, aliases } = req.body || {};
       const existing = await prisma.item.findUnique({
         where: { id },
         include: { stocks: { select: { qty: true } }, _count: { select: { stockUnits: true, movements: true } } },
@@ -374,6 +377,9 @@ router.patch(
           unit: cleanUnit,
           isSerialized: nextSerialized,
           category: nextCategory,
+          brand: brand === undefined ? undefined : String(brand || "").trim().slice(0,150),
+          partNumber: partNumber === undefined ? undefined : String(partNumber || "").trim().slice(0,150),
+          aliases: aliases === undefined ? undefined : Array.isArray(aliases) ? aliases.slice(0,30).map(v=>String(v).trim().slice(0,150)).filter(Boolean) : [],
         },
       });
       res.json({ ok: true, item });

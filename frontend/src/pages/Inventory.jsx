@@ -940,6 +940,7 @@ export default function Inventory() {
           unit: createItemForm.unit.trim() || "PCS",
           isSerialized: !!createItemForm.isSerialized,
           category: createItemForm.category,
+          brand: createItemForm.brand || "", partNumber: createItemForm.partNumber || "", aliases: (createItemForm.aliases || "").split(",").map(v=>v.trim()).filter(Boolean),
         }),
       });
 
@@ -961,6 +962,7 @@ export default function Inventory() {
       isSerialized: Boolean(item.isSerialized),
       originalSerialized: Boolean(item.isSerialized),
       category: item.category || "GENERAL_SPAREPART",
+      brand: item.brand || "", partNumber: item.partNumber || "", aliases: (item.aliases || []).join(", "),
       totalStock: sumStocks(item.stocks),
     });
   }
@@ -979,6 +981,7 @@ export default function Inventory() {
           unit: editItemForm.unit.trim(),
           isSerialized: editItemForm.isSerialized,
           category: editItemForm.category,
+          brand: editItemForm.brand || "", partNumber: editItemForm.partNumber || "", aliases: (editItemForm.aliases || "").split(",").map(v=>v.trim()).filter(Boolean),
         }),
       });
       setEditItemForm(null);
@@ -1603,6 +1606,9 @@ export default function Inventory() {
               />
             </div>
 
+<label style={{ display: "grid", gap: 6, gridColumn: "1 / -1", fontSize: 12 }}>Merek (opsional)<input style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }} value={createItemForm.brand || ""} onChange={e=>setCreateItemForm(p=>({...p,brand:e.target.value}))}/></label>
+<label style={{ display: "grid", gap: 6, gridColumn: "1 / -1", fontSize: 12 }}>Nomor part (opsional)<input style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }} value={createItemForm.partNumber || ""} onChange={e=>setCreateItemForm(p=>({...p,partNumber:e.target.value}))}/></label>
+<label style={{ display: "grid", gap: 6, gridColumn: "1 / -1", fontSize: 12 }}>Nama alternatif (pisahkan dengan koma)<input style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }} value={createItemForm.aliases || ""} onChange={e=>setCreateItemForm(p=>({...p,aliases:e.target.value}))}/></label>
             <label style={{ display: "grid", gap: 6, gridColumn: "1 / -1", color: BRAND.text, fontWeight: 500 }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>Kategori barang</span>
               <select
@@ -1661,6 +1667,9 @@ export default function Inventory() {
                   />
                   {isSparepartAdmin && <div style={{ marginTop: 6, fontSize: 12, color: BRAND.textMuted }}>Nama barang hanya dapat diubah oleh Owner, Admin, atau Staf.</div>}
                 </div>
+<label style={{ display: "grid", gap: 6, gridColumn: "1 / -1", fontSize: 12 }}>Merek (opsional)<input style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }} value={editItemForm.brand || ""} onChange={e=>setEditItemForm(p=>({...p,brand:e.target.value}))}/></label>
+<label style={{ display: "grid", gap: 6, gridColumn: "1 / -1", fontSize: 12 }}>Nomor part (opsional)<input style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }} value={editItemForm.partNumber || ""} onChange={e=>setEditItemForm(p=>({...p,partNumber:e.target.value}))}/></label>
+<label style={{ display: "grid", gap: 6, gridColumn: "1 / -1", fontSize: 12 }}>Nama alternatif (pisahkan dengan koma)<input style={{ ...inputPill, minWidth: 0, width: "100%", boxSizing: "border-box" }} value={editItemForm.aliases || ""} onChange={e=>setEditItemForm(p=>({...p,aliases:e.target.value}))}/></label>
                 <label style={{ display: "grid", gap: 6, gridColumn: "1 / -1", color: BRAND.text, fontWeight: 500 }}>
                   <span style={{ fontSize: 12, fontWeight: 600, color: BRAND.textMuted }}>Kategori barang</span>
                   <select

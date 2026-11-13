@@ -127,6 +127,7 @@ app.use("/maintenance", maintenanceRoutes);
 app.use("/orders", ordersRoutes);
 app.use("/expenses", expensesRoutes);
 app.use("/purchasing", purchasingRoutes);
+app.use("/price-analytics", require("./routes/priceAnalytics"));
 app.use("/receivables", receivablesRoutes);
 app.use("/accounting", accountingRoutes);
 app.use("/fleet-profitability", fleetProfitabilityRoutes);

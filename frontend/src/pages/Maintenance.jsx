@@ -967,6 +967,7 @@ export default function Maintenance() {
 
   async function setJobStatus(newStatus) {
     if (!activeJob?.id) return;
+    setErr("");
     try {
       await api(`/maintenance/${activeJob.id}/status`, { method: "PATCH", body: JSON.stringify({ status: newStatus }) });
       await refreshDetail();
@@ -1759,6 +1760,7 @@ export default function Maintenance() {
 
       {/* DETAIL MODAL */}
       <Modal open={showDetail && !showPurchasePhotoEditor} title="Detail Servis" onClose={closeDetail} width={1320} className="maintenance-detail-modal" scrollMemoryRef={detailScrollRef}>
+        {err && <div role="alert" style={{ marginBottom: 16, padding: 12, borderRadius: 6, background: BRAND.dangerBg, color: BRAND.danger }}>{err}</div>}
         {detailLoading || !activeJob ? (
           <LoadingState compact label="Memuat detail servis" note="Menyiapkan pekerjaan dan penggunaan sparepart…" rows={4} />
         ) : (

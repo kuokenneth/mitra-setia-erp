@@ -30,6 +30,7 @@ import OrderDetail from "./pages/OrderDetail";
 import TripDetail from "./pages/TripDetail";
 import Trips from "./pages/Trips";
 import Purchasing from "./pages/Purchasing";
+import PriceAnalytics from "./pages/PriceAnalytics";
 import Receivables from "./pages/Receivables";
 import Accounting from "./pages/Accounting";
 import FleetProfitability from "./pages/FleetProfitability";
@@ -77,6 +78,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             <Route path="/material-stock" element={<MaterialStock />} />
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/purchasing" element={<Purchasing />} />
+            <Route path="/price-analytics" element={<PageErrorBoundary><PriceAnalytics /></PageErrorBoundary>} />
             <Route path="/receivables" element={<Receivables />} />
             <Route path="/accounting" element={<Accounting />} />
             <Route path="/fleet-profitability" element={<FleetProfitability />} />

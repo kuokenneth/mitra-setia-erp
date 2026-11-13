@@ -33,11 +33,11 @@ export default function AppLayout() {
 
   const groups = useMemo(() => {
     if (isDriver) return [{ label: "Driver", items: [{ to: "/driver/jobs", label: "Tugas Saya", icon: FiClipboard }] }];
-    if (isSparepartAdmin) return [{ label: "Bengkel & Pembelian", items: [{ to: "/inventory", label: "Inventory", icon: FiBox }, { to: "/maintenance", label: "Servis", icon: FiTool }, { to: "/purchasing", label: "Pembelian", icon: FiShoppingCart }] }];
+    if (isSparepartAdmin) return [{ label: "Bengkel & Pembelian", items: [{ to: "/inventory", label: "Inventory", icon: FiBox }, { to: "/maintenance", label: "Servis", icon: FiTool }, { to: "/purchasing", label: "Pembelian", icon: FiShoppingCart }, { to: "/price-analytics", label: "Analitik Harga Sparepart", icon: FiBarChart2 }] }];
     return [
       { to: "/dashboard", label: "Dashboard", icon: FiBarChart2 },
       { label: "Operasional", items: [{ to: "/trucks", label: "Armada", icon: FiTruck }, { to: "/fleet-map", label: "Peta Armada", icon: FiMap }, { to: "/operational-locations", label: "Master Lokasi", icon: FiMapPin }, { to: "/material-stock", label: "Ambang / Material", icon: FiBox }, { to: "/orders", label: "Pesanan", icon: FiFileText }, { to: "/trips", label: "Trips", icon: FiMap }] },
-      { label: "Bengkel & Pembelian", items: [{ to: "/inventory", label: "Inventory", icon: FiBox }, { to: "/maintenance", label: "Servis", icon: FiTool }, { to: "/purchasing", label: "Pembelian", icon: FiShoppingCart }] },
+      { label: "Bengkel & Pembelian", items: [{ to: "/inventory", label: "Inventory", icon: FiBox }, { to: "/maintenance", label: "Servis", icon: FiTool }, { to: "/purchasing", label: "Pembelian", icon: FiShoppingCart }, { to: "/price-analytics", label: "Analitik Harga Sparepart", icon: FiBarChart2 }] },
       { label: "Keuangan", items: [{ to: "/expenses", label: "Pengeluaran", icon: FiDollarSign }, { to: "/receivables", label: "Piutang", icon: FiCreditCard }, ...((isOwnerAdmin || isStaff) ? [{ to: "/fleet-profitability", label: "Profit Armada", icon: FiPieChart }] : []), ...(isOwnerAdmin ? [{ to: "/accounting", label: "Accounting", icon: FiBookOpen }] : [])] },
       { label: "Administrasi", items: [...(isOwnerAdmin ? [{ to: "/users", label: "Pengguna", icon: FiUser }] : []), ...(canManageDrivers ? [{ to: "/drivers/new", label: "Tambah Pengemudi", icon: FiUserPlus }] : []), ...(role === "OWNER" ? [{ to: "/audit-trail", label: "Audit Trail", icon: FiShield }] : [])] },
     ];

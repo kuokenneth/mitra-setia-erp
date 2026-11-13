@@ -597,7 +597,7 @@ router.patch("/:id/status", authRequired, async (req, res) => {
         }
         await tx.truck.update({
           where: { id: updated.truckId },
-          data: { status: activeTrip?.status === "DISPATCHED" ? "DISPATCH" : activeTrip?.status === "PLANNED" ? "PLANNED" : "READY" },
+          data: { status: activeTrip?.status === "DISPATCHED" ? "DISPATCH" : "READY" },
         });
       }
 
