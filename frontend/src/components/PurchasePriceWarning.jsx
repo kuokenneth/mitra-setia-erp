@@ -39,6 +39,19 @@ export default function PurchasePriceWarning({ itemId, unit, price, supplierId, 
   if (state.key !== key) return <div className="ppw ppw-quiet" aria-live="polite"><span className="ppw-dot" aria-hidden="true" />{referenceOnly ? "Memuat harga referensi…" : "Membandingkan dengan riwayat harga…"}</div>;
   if (state.error) return null; // analytics problems must never get in the way of purchasing
   const { data } = state;
+  return <><MarketPriceNotice market={data.market} thresholds={data.thresholds} itemId={itemId} referenceOnly={referenceOnly}/><InternalPriceResult data={data} itemId={itemId} unit={unit} referenceOnly={referenceOnly} link={link}/></>;
+}
+
+function MarketPriceNotice({ market, thresholds, itemId, referenceOnly }) {
+  if (!market?.sufficient) return null;
+  const elevated = market.differencePct > (thresholds?.mild ?? thresholds?.mildPct ?? 5);
+  return <div className={`ppw ${elevated ? 'ppw-alert' : 'ppw-ref'}`} role="status"><FiInfo aria-hidden="true"/><span>
+    {referenceOnly ? 'Median listing pasar' : elevated ? `Harga ini ${pct(market.differencePct)} lebih tinggi dari median listing pasar` : 'Referensi listing pasar'}: <b>{money(market.price)}</b> · {market.count} listing terverifikasi · {market.sources.join(', ')} · diperiksa {day(market.checkedAt)}.
+    <small> Harga sebelum pajak dan ongkir; pastikan stok serta harga final ke penjual.</small>
+  </span><a className="ppw-link" href={`/price-analytics?tab=market&item=${encodeURIComponent(itemId)}`} target="_blank" rel="noreferrer">Bandingkan harga pasar <FiExternalLink/></a></div>;
+}
+
+function InternalPriceResult({ data, unit, referenceOnly, link }) {
   const ref = data.reference;
 
   if (data.level === "incomparable") return <div className="ppw ppw-quiet"><FiInfo aria-hidden="true" /><span>{data.reason}</span></div>;

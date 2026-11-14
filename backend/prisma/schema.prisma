@@ -309,6 +309,7 @@ model Supplier {
   bills          SupplierBill[]
   tireRetreads   TireRetread[]
   partRepairs    PartRepair[]
+  priceQuotations SupplierPriceQuotation[]
 }
 
 model PurchaseRequest {
@@ -1445,6 +1446,11 @@ model Item {
   retreadsFrom         TireRetread[]         @relation("RetreadFromItem")
   retreadsTo           TireRetread[]         @relation("RetreadToItem")
 
+  marketMonitor MarketPriceMonitor?
+  marketListings MarketProductListing[]
+  marketJobs MarketPriceCheckJob[]
+  priceQuotations SupplierPriceQuotation[]
+
   @@index([category])
 }
 
@@ -1825,4 +1831,116 @@ model PriceAnalyticsSetting {
   updatedById     String?
   updatedByName   String?
   updatedAt       DateTime @updatedAt
+}
+
+
+// External observations and quotations never modify purchase transactions.
+model MarketPriceMonitor {
+  itemId String @id
+  item Item @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  enabled Boolean @default(false)
+  intervalDays Int @default(7)
+  staleDays Int @default(14)
+  expectedBrand String?
+  expectedPartNumber String?
+  productType String @default("UNKNOWN")
+  specifications String?
+  vehicleCompatibility String?
+  nextCheckAt DateTime @default(now())
+  updatedById String?
+  updatedAt DateTime @updatedAt
+  @@index([enabled, nextCheckAt])
+}
+model MarketProductListing {
+  id String @id @default(cuid())
+  itemId String
+  item Item @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  source String
+  provider String @default("MANUAL")
+  url String
+  urlHash String
+  reviewStatus String @default("PENDING")
+  reviewedIdentity String?
+  reviewedById String?
+  reviewedAt DateTime?
+  reviewNotes String?
+  snapshots MarketPriceSnapshot[]
+  createdAt DateTime @default(now())
+  @@unique([itemId, urlHash])
+  @@index([itemId, source, reviewStatus])
+}
+model MarketPriceSnapshot {
+  id String @id @default(cuid())
+  listingId String
+  listing MarketProductListing @relation(fields: [listingId], references: [id], onDelete: Restrict)
+  eventKey String
+  price Decimal @db.Decimal(18, 2)
+  shippingCost Decimal? @db.Decimal(18, 2)
+  packSize Decimal @db.Decimal(18, 3)
+  currency String @default("IDR")
+  unit String
+  taxBasis String @default("UNKNOWN")
+  availability String @default("UNKNOWN")
+  verified Boolean @default(false)
+  matchConfidence String @default("NEEDS_REVIEW")
+  data Json
+  observedAt DateTime
+  recordedAt DateTime @default(now())
+  @@unique([listingId, eventKey])
+  @@index([listingId, observedAt, recordedAt])
+}
+model SupplierPriceQuotation {
+  id String @id @default(cuid())
+  itemId String
+  item Item @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  supplierId String
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  reference String?
+  brand String?
+  partNumber String?
+  productType String @default("UNKNOWN")
+  specifications String?
+  vehicleCompatibility String?
+  unit String
+  packSize Decimal @db.Decimal(18, 3)
+  unitPrice Decimal @db.Decimal(18, 2)
+  quantity Decimal @db.Decimal(18, 3)
+  minimumOrderQty Decimal @db.Decimal(18, 3)
+  discount Decimal @default(0) @db.Decimal(18, 2)
+  shippingCost Decimal? @db.Decimal(18, 2)
+  currency String @default("IDR")
+  taxBasis String @default("UNKNOWN")
+  quotedAt DateTime
+  expiresAt DateTime
+  proof Json?
+  notes String?
+  status String @default("ACTIVE")
+  verified Boolean @default(false)
+  verifiedById String?
+  createdById String
+  createdAt DateTime @default(now())
+  @@index([itemId, status, expiresAt])
+  @@index([supplierId, quotedAt])
+}
+// activeKey deduplicates work across processes; expiring leases survive restarts.
+model MarketPriceCheckJob {
+  id String @id @default(cuid())
+  itemId String
+  item Item @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  provider String
+  activeKey String? @unique
+  status String @default("QUEUED")
+  attempts Int @default(0)
+  availableAt DateTime @default(now())
+  lockedAt DateTime?
+  lockToken String?
+  startedAt DateTime?
+  finishedAt DateTime?
+  requestedById String?
+  resultCount Int @default(0)
+  errorCode String?
+  logs Json @default("[]")
+  createdAt DateTime @default(now())
+  @@index([status, availableAt])
+  @@index([itemId, createdAt])
 }
