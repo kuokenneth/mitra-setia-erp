@@ -1,6 +1,6 @@
 BEGIN;
 -- Preserve fractional unit prices; document totals and journals remain whole rupiah.
-DROP VIEW "SparepartPurchaseHistory";
+DROP VIEW IF EXISTS "SparepartPurchaseHistory";
 ALTER TABLE "PurchaseOrderItem" ALTER COLUMN "unitPrice" TYPE DOUBLE PRECISION;
 ALTER TABLE "SupplierBillRepairItem" ALTER COLUMN "unitPrice" TYPE DOUBLE PRECISION;
 ALTER TABLE "SupplierBillItem" ALTER COLUMN "unitPrice" TYPE DOUBLE PRECISION;
