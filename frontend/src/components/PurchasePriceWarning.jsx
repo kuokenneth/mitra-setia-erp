@@ -6,7 +6,7 @@ import { FiAlertTriangle, FiCheckCircle, FiExternalLink, FiInfo, FiTrendingDown 
 import { api } from "../api";
 import "./PurchasePriceWarning.css";
 
-const money = (value) => (value == null ? "—" : new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Math.round(Number(value))).replace(/\s/g, ""));
+const money = (value) => (value == null ? "—" : new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: Number.isInteger(Number(value)) ? 0 : 2, maximumFractionDigits: 2 }).format(Number(value)).replace(/\s/g, ""));
 const pct = (value) => `${Math.abs(Number(value)).toLocaleString("id-ID", { maximumFractionDigits: 1 })}%`;
 const day = (value) => (value ? new Date(value).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", year: "numeric" }) : "—");
 const TITLE = { mild: "Perhatian", strong: "Perhatian", high: "Harga tinggi" };

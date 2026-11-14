@@ -1,10 +1,10 @@
 // Formatting and small helpers for Analitik Harga Sparepart.
 import { API_BASE, getAccessToken } from "../../api";
 
-const rupiahFormat = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
+const rupiahFormat = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0, maximumFractionDigits: 2 });
 const rupiahCompact = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", notation: "compact", maximumFractionDigits: 1 });
 
-export const rupiah = (value) => (value == null || Number.isNaN(Number(value)) ? "—" : rupiahFormat.format(Math.round(Number(value))).replace(/\s/g, ""));
+export const rupiah = (value) => (value == null || Number.isNaN(Number(value)) ? "—" : (Number.isInteger(Number(value)) ? rupiahFormat : new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 2, maximumFractionDigits: 2 })).format(Number(value)).replace(/\s/g, ""));
 export const rupiahShort = (value) => (value == null ? "—" : rupiahCompact.format(Number(value)).replace(/\s/g, ""));
 export const qty = (value) => (value == null ? "—" : Number(value).toLocaleString("id-ID", { maximumFractionDigits: 3 }));
 export const pct = (value, digits = 1) => (value == null ? "—" : `${value > 0 ? "+" : ""}${Number(value).toLocaleString("id-ID", { minimumFractionDigits: 0, maximumFractionDigits: digits })}%`);

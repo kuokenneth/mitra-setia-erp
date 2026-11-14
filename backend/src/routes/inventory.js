@@ -1,3 +1,4 @@
+const { roundUnitPrice } = require("../utils/unitPrice");
 // backend/src/routes/inventory.js
 const express = require("express");
 const { prisma } = require("../prisma");
@@ -208,7 +209,7 @@ async function consumeBatchesFifo(tx, itemId, locationId, qty) {
     remaining -= used;
   }
   if (remaining > 0.000001) fullyPriced = false;
-  return { remaining, allocations, totalCost: fullyPriced ? Math.round(totalCost) : null };
+  return { remaining, allocations, unitPrice: fullyPriced ? roundUnitPrice(totalCost / qty) : null, totalCost: fullyPriced ? Math.round(totalCost) : null };
 }
 
 /**
@@ -736,7 +737,7 @@ router.post(
 
         const createdBatchId = await prisma.$transaction(async (tx) => {
           await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId, locationId } }, update: {}, create: { itemId, locationId, qty: 0 } });
-          const averageUnitPrice = Math.round(data.reduce((sum, unit) => sum + unit.purchasePrice, 0) / receivedQty);
+          const averageUnitPrice = roundUnitPrice(data.reduce((sum, unit) => sum + unit.purchasePrice, 0) / receivedQty);
           const batch = await tx.inventoryBatch.create({ data: { itemId, locationId, receivedQty, remainingQty: receivedQty, receivedAt: new Date(), unitPrice: averageUnitPrice } });
           await tx.stockUnit.createMany({ data: data.map((unit) => ({ ...unit, inventoryBatchId: batch.id })) });
           await tx.inventoryStock.update({
@@ -777,7 +778,7 @@ router.post(
       if (totalPrice != null && (!Number.isFinite(totalPrice) || totalPrice < 0)) {
         throw new Error("totalPurchasePrice must be a valid positive amount");
       }
-      const unitPrice = totalPrice == null ? null : Math.round(totalPrice / receivedQty);
+      const unitPrice = totalPrice == null ? null : roundUnitPrice(totalPrice / receivedQty);
 
       const movement = await prisma.$transaction(async (tx) => {
         await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId, locationId } }, update: {}, create: { itemId, locationId, qty: 0 } });
@@ -1279,7 +1280,7 @@ router.post(
             include: { item: true, location: true },
           });
           await tx.tireRetread.update({ where: { id: retread.id }, data: { status: "COMPLETED", completedAt, cost: unitPrice } });
-          await tx.stockMovement.create({ data: { type: "IN", itemId: retread.toItemId, qty: 1, unitPrice, totalCost: unitPrice, note: `Ban selesai dimasak${retread.supplier?.name ? ` oleh ${retread.supplier.name}` : ""}`, createdById, toLocationId: locationId, stockUnitId: unitId } });
+          await tx.stockMovement.create({ data: { type: "IN", itemId: retread.toItemId, qty: 1, unitPrice, totalCost: unitPrice == null ? null : Math.round(unitPrice), note: `Ban selesai dimasak${retread.supplier?.name ? ` oleh ${retread.supplier.name}` : ""}`, createdById, toLocationId: locationId, stockUnitId: unitId } });
           results.push(updatedUnit);
         }
         return results;
@@ -1786,13 +1787,13 @@ router.post(
 
         const costing = await consumeBatchesFifo(tx, itemId, locationId, useQty);
         if (costing.totalCost == null) throw new Error("Harga batch stok belum lengkap. Lengkapi harga penerimaan sebelum stok digunakan agar Accounting tidak kehilangan nilai.");
-        const unitPrice = costing.totalCost == null ? null : Math.round(costing.totalCost / useQty);
+        const unitPrice = costing.unitPrice;
 
         if (targetTruck) {
           const existingTruckStock = await tx.truckPartStock.findUnique({ where: { truckId_itemId: { truckId: targetTruck.id, itemId } } });
           const oldQty = Number(existingTruckStock?.qty || 0);
           const oldValue = existingTruckStock?.unitPrice == null ? 0 : oldQty * Number(existingTruckStock.unitPrice);
-          const nextUnitPrice = existingTruckStock?.unitPrice == null && oldQty > 0 ? null : Math.round((oldValue + costing.totalCost) / (oldQty + useQty));
+          const nextUnitPrice = existingTruckStock?.unitPrice == null && oldQty > 0 ? null : roundUnitPrice((oldValue + useQty * unitPrice) / (oldQty + useQty));
           await tx.truckPartStock.upsert({
             where: { truckId_itemId: { truckId: targetTruck.id, itemId } },
             create: { truckId: targetTruck.id, itemId, qty: useQty, unitPrice },

@@ -44,6 +44,14 @@ const dataset = (rows) => pa.buildDataset(rows);
 const seriesOf = (data, itemId = "item-1", unit = "pcs") => data.byKey.get(`${itemId}|${unit}|IDR|BEFORE_ORDER_ADJUSTMENTS`) || [];
 
 describe("transaksi yang dihitung", () => {
+  test("harga desimal dipertahankan untuk penerimaan, invoice, dan invoice sebagian", () => {
+    for (const bills of [[], [{ qty: 60, price: 147552.6 }], [{ qty: 20, price: 147552.6 }]]) {
+      const line = pa.normalizeLine(row({ qty: 60, price: 147552.6, bills }));
+      assert.equal(line.unitPrice, 147552.6);
+      assert.equal(line.amount, 8853156);
+    }
+  });
+
   test("harga invoice menggantikan harga sementara penerimaan", () => {
     const line = pa.normalizeLine(row({ price: 100000, bills: [{ qty: 10, price: 95000 }] }));
     assert.equal(line.unitPrice, 95000);

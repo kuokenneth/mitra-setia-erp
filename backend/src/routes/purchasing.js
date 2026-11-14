@@ -1,3 +1,4 @@
+const { roundUnitPrice } = require("../utils/unitPrice");
 const express = require("express");
 const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
@@ -62,7 +63,7 @@ async function refreshAllocatedMovementCosts(tx, batchId) {
     const totalCost = fullyPriced
       ? Math.round(movement.batchAllocations.reduce((sum, allocation) => sum + Number(allocation.qty) * Number(allocation.batch.unitPrice), 0))
       : null;
-    const unitPrice = totalCost == null || Number(movement.qty) <= 0 ? null : Math.round(totalCost / Number(movement.qty));
+    const unitPrice = totalCost == null || Number(movement.qty) <= 0 ? null : roundUnitPrice(movement.batchAllocations.reduce((sum, allocation) => sum + Number(allocation.qty) * Number(allocation.batch.unitPrice), 0) / Number(movement.qty));
     await tx.stockMovement.update({ where: { id: movement.id }, data: { totalCost, unitPrice } });
 
     const returns = await tx.stockMovement.findMany({
@@ -269,7 +270,7 @@ router.post("/repairs/non-serialized/receive-batch", async (req, res) => {
     const notes = String(req.body?.notes || "").trim();
     if (!items.length) throw new Error("Pilih minimal satu hasil perbaikan");
     if (!locationId) throw new Error("Lokasi penerimaan wajib dipilih");
-    const prepared = items.map((row) => ({ movementId: String(row.movementId || ""), qty: Number(row.qty), unitPrice: Math.round(Number(row.unitPrice)) }));
+    const prepared = items.map((row) => ({ movementId: String(row.movementId || ""), qty: Number(row.qty), unitPrice: roundUnitPrice(row.unitPrice) }));
     if (prepared.some(row => !row.movementId || !Number.isFinite(row.qty) || row.qty <= 0 || !Number.isFinite(row.unitPrice) || row.unitPrice <= 0)) throw new Error("Jumlah dan harga perbaikan setiap barang wajib diisi");
     const receipts = await prisma.$transaction(async tx => {
       const location = await tx.inventoryLocation.findUnique({ where: { id: locationId }, select: { id: true } });
@@ -290,7 +291,7 @@ router.post("/repairs/non-serialized/:movementId/receive", async (req, res) => {
   try {
     const movementId = String(req.params.movementId || "");
     const qty = Number(req.body?.qty);
-    const unitPrice = Math.round(Number(req.body?.unitPrice));
+    const unitPrice = roundUnitPrice(req.body?.unitPrice);
     const locationId = String(req.body?.locationId || "");
     const notes = String(req.body?.notes || "").trim();
     if (!movementId || !Number.isFinite(qty) || qty <= 0) return res.status(400).json({ error: "Jumlah penerimaan wajib lebih dari 0" });
@@ -812,7 +813,7 @@ async function createGoodsReceipt(tx, payload, userId) {
     if (invoiceDate && Number.isNaN(invoiceDate.getTime())) throw new Error("Tanggal invoice supplier tidak valid");
     const rec = await tx.goodsReceipt.create({ data: { number: await nextDailyNumber(tx, "goodsReceipt", "GR"), purchaseOrderId, locationId, deliveryNote, deliveryNoteProofUrl, deliveryNoteFileName: deliveryNoteFileName || null, deliveryNoteMimeType: deliveryNoteMimeType || null, deliveryNoteSize: Number.isFinite(Number(deliveryNoteSize)) ? Number(deliveryNoteSize) : null, notes, supplierInvoiceNumber: supplierInvoiceNumber ? String(supplierInvoiceNumber).trim() : null, supplierInvoiceDate: invoiceDate, supplierInvoiceAmount: invoiceAmount == null ? null : Math.round(invoiceAmount), supplierInvoiceProofUrl: supplierInvoiceProofUrl || null, supplierInvoiceFileName: supplierInvoiceFileName || null, supplierInvoiceMimeType: supplierInvoiceMimeType || null, supplierInvoiceSize: Number.isFinite(Number(supplierInvoiceSize)) ? Number(supplierInvoiceSize) : null, createdById: userId } });
     for (const row of items) {
-      const poi = po.items.find(i => i.id === row.purchaseOrderItemId); const qty = Number(row.qty); const unitPrice = poi?.tireRetreadId && isPersaudaraan(po.supplier) ? PERSAUDARAAN_RETREAD_PRICE : Math.round(Number(row.unitPrice));
+      const poi = po.items.find(i => i.id === row.purchaseOrderItemId); const qty = Number(row.qty); const unitPrice = poi?.tireRetreadId && isPersaudaraan(po.supplier) ? PERSAUDARAAN_RETREAD_PRICE : roundUnitPrice(row.unitPrice);
       if (!poi || qty <= 0 || poi.receivedQty + qty > poi.qty) throw new Error("Jumlah penerimaan melebihi sisa PO");
       if (!Number.isFinite(unitPrice) || unitPrice <= 0) throw new Error(`${poi.item.name}: harga satuan sementara wajib lebih dari Rp0`);
       poi.unitPrice = unitPrice;
@@ -858,7 +859,7 @@ async function createGoodsReceipt(tx, payload, userId) {
                 status: "IN_STOCK",
                 retreadCount: { increment: 1 },
                 lastRetreadAt: rec.receivedAt,
-                totalRetreadCost: { increment: poi.unitPrice },
+                totalRetreadCost: { increment: Math.round(poi.unitPrice) },
               },
             });
             await tx.tireRetread.update({
@@ -866,7 +867,7 @@ async function createGoodsReceipt(tx, payload, userId) {
               data: {
                 status: "COMPLETED",
                 completedAt: rec.receivedAt,
-                cost: poi.unitPrice,
+                cost: Math.round(poi.unitPrice),
                 supplierId: retread.supplierId || po.supplierId,
               },
             });
@@ -878,7 +879,7 @@ async function createGoodsReceipt(tx, payload, userId) {
             const repair = existingUnit.partRepairs[0];
             if (!repair || repair.id !== poi.partRepairId) throw new Error("Proses perbaikan unit tidak sesuai dengan PO");
             await tx.stockUnit.update({ where: { id: existingUnit.id }, data: { locationId, inventoryBatchId: batch.id, purchasePrice: poi.unitPrice, status: "IN_STOCK" } });
-            await tx.partRepair.update({ where: { id: repair.id }, data: { status: "COMPLETED", completedAt: rec.receivedAt, cost: poi.unitPrice, supplierId: repair.supplierId || po.supplierId } });
+            await tx.partRepair.update({ where: { id: repair.id }, data: { status: "COMPLETED", completedAt: rec.receivedAt, cost: Math.round(poi.unitPrice), supplierId: repair.supplierId || po.supplierId } });
             continue;
           }
           const serialNumber = String(unit.serialNumber || "").trim();
@@ -887,7 +888,7 @@ async function createGoodsReceipt(tx, payload, userId) {
           if (directToTruck) {
             await tx.truckSparePartAssignment.create({ data: { truckId: directTruck.id, stockUnitId: stockUnit.id, installedAt: rec.receivedAt, installCost: poi.unitPrice, currency: "IDR", note: `Pembelian langsung ${po.number}`, maintenanceId: directMaintenance?.id || null, createdById: userId } });
             await tx.stockUnit.update({ where: { id: stockUnit.id }, data: { status: "ASSIGNED", locationId: null } });
-            await tx.stockMovement.create({ data: { type: "OUT", itemId: poi.itemId, qty: 1, unitPrice: poi.unitPrice, totalCost: poi.unitPrice, fromLocationId: locationId, toTruckId: directTruck.id, maintenanceId: directMaintenance?.id || null, stockUnitId: stockUnit.id, createdById: userId, note: `${directMaintenance ? `Langsung dipasang pada ${directMaintenance.title}` : `Langsung masuk ke ${directTruck.plateNumber}`} · ${po.number}` } });
+            await tx.stockMovement.create({ data: { type: "OUT", itemId: poi.itemId, qty: 1, unitPrice: poi.unitPrice, totalCost: poi.unitPrice == null ? null : Math.round(poi.unitPrice), fromLocationId: locationId, toTruckId: directTruck.id, maintenanceId: directMaintenance?.id || null, stockUnitId: stockUnit.id, createdById: userId, note: `${directMaintenance ? `Langsung dipasang pada ${directMaintenance.title}` : `Langsung masuk ke ${directTruck.plateNumber}`} · ${po.number}` } });
           }
         }
       }
@@ -899,7 +900,7 @@ async function createGoodsReceipt(tx, payload, userId) {
           const existingTruckStock = await tx.truckPartStock.findUnique({ where: { truckId_itemId: { truckId: directTruck.id, itemId: poi.itemId } } });
           const oldQty = Number(existingTruckStock?.qty || 0);
           const oldValue = existingTruckStock?.unitPrice == null ? 0 : oldQty * Number(existingTruckStock.unitPrice);
-          const nextUnitPrice = oldQty > 0 && existingTruckStock?.unitPrice == null ? null : Math.round((oldValue + qty * poi.unitPrice) / (oldQty + qty));
+          const nextUnitPrice = oldQty > 0 && existingTruckStock?.unitPrice == null ? null : roundUnitPrice((oldValue + qty * poi.unitPrice) / (oldQty + qty));
           await tx.truckPartStock.upsert({ where: { truckId_itemId: { truckId: directTruck.id, itemId: poi.itemId } }, create: { truckId: directTruck.id, itemId: poi.itemId, qty, unitPrice: poi.unitPrice }, update: { qty: { increment: qty }, unitPrice: nextUnitPrice } });
           const outMovement = await tx.stockMovement.create({ data: { type: "OUT", itemId: poi.itemId, qty, unitPrice: poi.unitPrice, totalCost: Math.round(qty * poi.unitPrice), fromLocationId: locationId, toTruckId: directTruck.id, maintenanceId: directMaintenance?.id || null, createdById: userId, note: `${directMaintenance ? `Pembelian langsung & dipakai pada ${directMaintenance.title}` : `Pembelian langsung untuk ${directTruck.plateNumber}`} · ${po.number}` } });
           await tx.stockMovementBatchAllocation.create({ data: { movementId: outMovement.id, batchId: batch.id, qty } });
@@ -963,7 +964,7 @@ router.post("/bills", async (req, res) => {
       const requestedQty = Number(itemQuantities[item.id] ?? availableQty);
       if (!Number.isFinite(requestedQty) || requestedQty <= 0 || requestedQty > availableQty) throw new Error(`Qty ditagih ${item.purchaseOrderItem.item.name} harus antara 0 dan ${availableQty}`);
       if (!Object.prototype.hasOwnProperty.call(itemPrices, item.id) || itemPrices[item.id] === "") throw new Error(`Harga ${item.purchaseOrderItem.item.name} wajib diisi`);
-      const unitPrice = Math.round(Number(itemPrices[item.id]));
+      const unitPrice = roundUnitPrice(itemPrices[item.id]);
       const isRepair = Boolean(item.purchaseOrderItem.partRepairId);
       if (!Number.isFinite(unitPrice) || unitPrice < 0 || (!isRepair && unitPrice === 0)) throw new Error(isRepair ? `Harga perbaikan ${item.purchaseOrderItem.item.name} tidak valid` : `Harga ${item.purchaseOrderItem.item.name} harus lebih dari Rp0`);
       return { receipt, item, qty: requestedQty, unitPrice, amount: Math.round(requestedQty * unitPrice) };

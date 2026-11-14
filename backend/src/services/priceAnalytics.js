@@ -200,12 +200,12 @@ function normalizeLine(row) {
   for (const invoice of invoices) {
     const q = toMilli(invoice.qty);
     billedMilli += q;
-    billedAmount += q * BigInt(Math.round(invoice.unitPrice));
+    billedAmount += q * BigInt(Math.round(invoice.unitPrice * 100)) / 100n;
   }
   if (billedMilli > qtyMilli) return skip("OVER_INVOICED");
 
-  const receiptPrice = Number(row.originalUnitPrice) > 0 ? Math.round(Number(row.originalUnitPrice)) : null;
-  const batchPrice = Number(row.inventoryBatch?.unitPrice) > 0 ? Math.round(Number(row.inventoryBatch.unitPrice)) : null;
+  const receiptPrice = Number(row.originalUnitPrice) > 0 ? Number(row.originalUnitPrice) : null;
+  const batchPrice = Number(row.inventoryBatch?.unitPrice) > 0 ? Number(row.inventoryBatch.unitPrice) : null;
   const provisional = receiptPrice ?? batchPrice;
   const remaining = qtyMilli - billedMilli;
 
@@ -215,7 +215,7 @@ function normalizeLine(row) {
     amountMilli = billedAmount;
     priceStatus = "INVOICE";
   } else if (provisional != null) {
-    amountMilli = billedAmount + remaining * BigInt(provisional);
+    amountMilli = billedAmount + remaining * BigInt(Math.round(provisional * 100)) / 100n;
     priceStatus = billedMilli > 0n ? "PARTIAL_INVOICE" : receiptPrice != null ? "RECEIPT" : "LEGACY";
   } else if (billedMilli > 0n) {
     // Remainder has no price: use the invoiced price for the whole line.

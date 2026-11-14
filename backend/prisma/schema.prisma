@@ -428,7 +428,7 @@ model PurchaseOrderItem {
   purchaseRequestItemId String?
   purchaseRequestItem   PurchaseRequestItem? @relation(fields: [purchaseRequestItemId], references: [id], onDelete: SetNull)
   qty                   Float
-  unitPrice             Int
+  unitPrice             Float
   receivedQty           Float                @default(0)
   tireRetreadId         String?
   tireRetread           TireRetread?         @relation("PurchaseOrderItemRetread", fields: [tireRetreadId], references: [id], onDelete: SetNull)
@@ -509,7 +509,7 @@ model SupplierBillRepairItem {
   movementId String        @unique
   movement   StockMovement @relation(fields: [movementId], references: [id])
   qty        Float
-  unitPrice  Int
+  unitPrice  Float
   amount     Int
 
   @@index([billId])
@@ -547,7 +547,7 @@ model SupplierBillItem {
   receiptItemId String
   receiptItem   GoodsReceiptItem @relation(fields: [receiptItemId], references: [id])
   qty           Float
-  unitPrice     Int
+  unitPrice     Float
   amount        Int
 
   @@index([billId])
@@ -562,7 +562,7 @@ model GoodsReceiptItem {
   purchaseOrderItem   PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id])
   qty                 Float
   condition           String            @default("GOOD")
-  originalUnitPrice   Int?
+  originalUnitPrice   Float?
   purchaseUnit        String?
   priceSource         String?
   currency            String            @default("IDR")
@@ -1365,7 +1365,7 @@ model StockUnit {
   barcode          String? @unique
   inventoryBatchId String?
 
-  purchasePrice Int?
+  purchasePrice Float?
   currency      String?   @default("IDR")
   purchasedAt   DateTime?
 
@@ -1402,7 +1402,7 @@ model TruckSparePartAssignment {
   removedAt   DateTime?
 
   // ✅ Snapshot values at install time (important for reporting & audit)
-  installCost Int? // copy from StockUnit.purchasePrice when installed
+  installCost Float? // copy from StockUnit.purchasePrice when installed
   currency    String? @default("IDR")
 
   note        String?
@@ -1454,7 +1454,7 @@ model TruckPartStock {
   truckId   String
   itemId    String
   qty       Float    @default(0)
-  unitPrice Int?
+  unitPrice Float?
   updatedAt DateTime @updatedAt
 
   truck Truck @relation(fields: [truckId], references: [id], onDelete: Cascade)
@@ -1539,7 +1539,7 @@ model InventoryBatch {
   purchaseOrderItemId String?
   receivedQty         Float
   remainingQty        Float?
-  unitPrice           Int?
+  unitPrice           Float?
   receivedAt          DateTime @default(now())
   createdAt           DateTime @default(now())
 
@@ -1574,7 +1574,7 @@ model StockMovement {
   type      StockMoveType
   itemId    String
   qty       Float
-  unitPrice Int?
+  unitPrice Float?
   totalCost Int?
   note      String?
   createdAt DateTime      @default(now())
