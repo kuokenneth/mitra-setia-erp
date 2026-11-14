@@ -1834,7 +1834,8 @@ model PriceAnalyticsSetting {
 }
 
 
-// External observations and quotations never modify purchase transactions.
+// Retired market-price storage. Retained for migration compatibility and existing data.
+// The market-price feature, endpoints, and worker have been removed.
 model MarketPriceMonitor {
   itemId String @id
   item Item @relation(fields: [itemId], references: [id], onDelete: Restrict)

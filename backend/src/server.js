@@ -128,7 +128,6 @@ app.use("/orders", ordersRoutes);
 app.use("/expenses", expensesRoutes);
 app.use("/purchasing", purchasingRoutes);
 app.use("/price-analytics", require("./routes/priceAnalytics"));
-app.use("/market-prices", require("./routes/marketPrices"));
 app.use("/receivables", receivablesRoutes);
 app.use("/accounting", accountingRoutes);
 app.use("/fleet-profitability", fleetProfitabilityRoutes);
@@ -156,7 +155,6 @@ app.use("/dispatch", dispatchRouter);
 const port = process.env.PORT || 4000;
 app.listen(port, () => {
   console.log(`Backend running on http://localhost:${port}`);
-  require("./services/marketPrices/jobs").startMarketPriceWorker(prisma);
   startGpsEventRetention();
   startDailyOwnerSummary();
   startApprovalReminderEmails();

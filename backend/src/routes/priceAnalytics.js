@@ -509,14 +509,7 @@ function createPriceAnalyticsRouter(db = prisma) {
       const own = series.filter((line) => line.supplierId === String(body.supplierId) && !excludeIds.includes(line.id));
       supplierLatest = own.length ? pa.slimLine(own[own.length - 1]) : null;
     }
-    let market = null;
-    try {
-      market = await require("../services/marketPrices/store").marketReference(db, item.id, body.unitPrice, { excludeIds });
-    } catch (error) {
-      // An unavailable market source must never interrupt purchasing or internal analytics.
-      console.warn("[market-price reference]", error.code || error.name);
-    }
-    res.json({ ...result, item, supplierLatest, market });
+    res.json({ ...result, item, supplierLatest });
   }));
 
   router.use((error, req, res, next) => {

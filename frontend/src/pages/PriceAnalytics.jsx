@@ -8,7 +8,6 @@ import useApi from "./priceAnalytics/useApi";
 import SparepartSearch from "./priceAnalytics/SparepartSearch";
 import ItemDetail from "./priceAnalytics/ItemDetail";
 import SupplierView from "./priceAnalytics/SupplierView";
-import MarketPrices from "./priceAnalytics/MarketPrices";
 import Opportunities from "./priceAnalytics/Opportunities";
 import SettingsDialog from "./priceAnalytics/SettingsDialog";
 import { MonthlyBars, ShareList } from "./priceAnalytics/charts";
@@ -148,7 +147,6 @@ export default function PriceAnalytics() {
   const [params, setParams] = useSearchParams();
   const itemId = params.get("item");
   const supplierId = params.get("supplier");
-  const marketTab = params.get("tab") === "market";
   const meta = useApi("/price-analytics/meta");
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [page, setPage] = useState(1);
@@ -161,17 +159,13 @@ export default function PriceAnalytics() {
     window.scrollTo({ top: 0 });
   }, [itemId, supplierId]);
 
-  const openItem = (id) => setParams({ ...(marketTab ? { tab: "market" } : {}), item: id });
+  const openItem = (id) => setParams({ item: id });
   const openSupplier = (id) => setParams({ supplier: id });
   const back = () => { if (window.history.length > 1) window.history.back(); else setParams({}); };
 
   return (
     <div className="pa-page">
-      <nav className="mp-tabs" aria-label="Analitik harga sparepart">
-        <button type="button" className={!marketTab ? "active" : ""} onClick={() => setParams(itemId ? { item: itemId } : {})}>Histori Pembelian</button>
-        <button type="button" className={marketTab ? "active" : ""} onClick={() => setParams({ tab: "market", ...(itemId ? { item: itemId } : {}) })}>Harga Pasar</button>
-      </nav>
-      {!marketTab && !itemId && !supplierId && (
+      {!itemId && !supplierId && (
         <header className="pa-header">
           <div className="pa-header-copy">
             <span className="pa-eyebrow">Bengkel & Pembelian</span>
@@ -193,9 +187,7 @@ export default function PriceAnalytics() {
         </header>
       )}
 
-      {marketTab ? (
-        <MarketPrices key={itemId || "market"} itemId={itemId} onSelect={openItem} />
-      ) : itemId ? (
+      {itemId ? (
         <ItemDetail key={itemId} itemId={itemId} onBack={back} onSelectItem={openItem} onOpenSupplier={openSupplier} />
       ) : supplierId ? (
         <SupplierView key={supplierId} supplierId={supplierId} onBack={back} onOpenItem={openItem} />
