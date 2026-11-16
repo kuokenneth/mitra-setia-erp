@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { FiBarChart2, FiBookOpen, FiBox, FiChevronLeft, FiChevronRight, FiClipboard, FiCreditCard, FiDollarSign, FiFileText, FiLogOut, FiMap, FiMapPin, FiMenu, FiPieChart, FiShield, FiShoppingCart, FiTool, FiTruck, FiUser, FiUserPlus, FiX, FiTrendingUp } from "react-icons/fi";
+import { FiBarChart2, FiBookOpen, FiBox, FiClipboard, FiCreditCard, FiDollarSign, FiFileText, FiLogOut, FiMap, FiMapPin, FiMenu, FiPieChart, FiShield, FiShoppingCart, FiTool, FiTruck, FiUser, FiUserPlus, FiX, FiTrendingUp } from "react-icons/fi";
 import { useAuth } from "../AuthContext";
 import { LiveUpdatesProvider } from "../liveUpdates";
 import "../liveUpdates.css";
@@ -22,7 +22,7 @@ export default function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [compact, setCompact] = useState(() => localStorage.getItem("erp-sidebar-compact") === "true");
+  const [compact] = useState(() => localStorage.getItem("erp-sidebar-compact") === "true");
   const [sidebarPreview, setSidebarPreview] = useState(false);
   const role = user?.role || "UNKNOWN";
   const isOwnerAdmin = role === "OWNER" || role === "ADMIN";
@@ -51,7 +51,6 @@ export default function AppLayout() {
   }, [drawerOpen]);
 
   async function doLogout() { await logout(); navigate("/", { replace: true }); }
-  function toggleCompact() { setCompact((current) => { localStorage.setItem("erp-sidebar-compact", String(!current)); return !current; }); }
   const roleLabel = role.replaceAll("_", " ");
   const visuallyCompact = compact && !sidebarPreview;
 
@@ -63,7 +62,6 @@ export default function AppLayout() {
         <NavLink className="erp-user-card" to="/profile" title={visuallyCompact ? user?.name || roleLabel : undefined}><span className="erp-user-avatar">{(user?.name || roleLabel).charAt(0).toUpperCase()}</span>{!visuallyCompact && <span><strong>{user?.name || "Pengguna ERP"}</strong><small>{roleLabel}</small></span>}</NavLink>
         <button className="erp-logout" onClick={doLogout} title={visuallyCompact ? "Keluar" : undefined} data-testid="logout-btn"><FiLogOut />{!visuallyCompact && <span>Keluar</span>}</button>
       </div>
-      <button className="erp-sidebar-toggle" onClick={toggleCompact} aria-label={compact ? "Perluas sidebar" : "Perkecil sidebar"}>{compact ? <FiChevronRight /> : <FiChevronLeft />}</button>
     </aside>
     <header className="erp-mobile-header" data-testid="mobile-header">
       <button onClick={() => setDrawerOpen(true)} aria-label="Buka menu" data-testid="mobile-menu-btn"><FiMenu /></button>
