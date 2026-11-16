@@ -30,18 +30,17 @@ import "./TripProofFix.css";
 // THEME (match Orders / Maintenance)
 //////////////////////
 const pageBg = {
-  minHeight: "100vh",
-  color: "#101728",
+  color: "var(--ms-fg)",
 };
 
-const container = { maxWidth: 1180, margin: "0 auto" };
+const container = { width: "100%", margin: 0 };
 
 const panel = {
-  background: "#FFFFFF",
-  borderRadius: 14,
-  padding: 24,
-  border: "1px solid #dfe5ed",
-  boxShadow: "0 8px 30px rgba(21,31,53,0.06)",
+  background: "transparent",
+  borderRadius: 0,
+  padding: 0,
+  border: 0,
+  boxShadow: "none",
 };
 
 const headerRow = {
@@ -53,36 +52,36 @@ const headerRow = {
 };
 
 const title = {
-  fontSize: 30,
-  fontWeight: 700,
-  letterSpacing: -0.6,
+  fontSize: 20,
+  fontWeight: 600,
+  letterSpacing: "-0.015em",
   margin: 0,
-  lineHeight: 1.05,
+  lineHeight: 1.3,
 };
 
 const subTitle = {
-  marginTop: 10,
+  marginTop: 4,
   fontWeight: 400,
-  color: "#536a8a",
+  color: "var(--ms-muted-fg)",
   fontSize: 14,
 };
 
 const btnGhost = {
-  height: 40,
-  padding: "0 16px",
-  borderRadius: 999,
-  border: "1px solid rgba(22,31,53,0.18)",
-  background: "#FFFFFF",
-  color: "#0f1626",
-  fontWeight: 600,
+  height: 36,
+  padding: "0 14px",
+  borderRadius: 6,
+  border: "1px solid var(--ms-input)",
+  background: "var(--ms-surface)",
+  color: "var(--ms-fg)",
+  fontWeight: 500,
   cursor: "pointer",
-  boxShadow: "0 10px 22px rgba(15,21,36,0.06)",
+  boxShadow: "var(--ms-shadow-xs)",
 };
 
 const btnDanger = {
   ...btnGhost,
-  border: "1px solid rgba(244,63,94,0.35)",
-  color: "#9F1239",
+  border: "1px solid var(--ms-danger-border)",
+  color: "var(--ms-danger-fg)",
 };
 
 const divider = {
@@ -108,25 +107,25 @@ const badgeBase = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  height: 30,
-  padding: "0 12px",
-  borderRadius: 8,
-  fontWeight: 600,
+  height: 22,
+  padding: "0 7px",
+  borderRadius: 6,
+  fontWeight: 500,
   fontSize: 11,
-  letterSpacing: 0.4,
-  border: "1px solid rgba(22,31,53,0.16)",
-  background: "#eafaf3",
-  color: "#0f1626",
+  letterSpacing: 0,
+  border: "1px solid transparent",
+  background: "var(--ms-muted)",
+  color: "var(--ms-fg-2)",
   width: "fit-content",
 };
 
 function tripBadgeStyle(status) {
   const s = String(status || "").toUpperCase();
-  if (s === "COMPLETED") return { ...badgeBase, background: "#ddfbed", borderColor: "rgba(24,177,106,0.35)" };
-  if (s === "ARRIVED") return { ...badgeBase, background: "#EAF7FF", borderColor: "rgba(59,130,246,0.25)" };
-  if (s === "DISPATCHED") return { ...badgeBase, color: "#B45309", background: "#FFF3D6", borderColor: "#F4C76A" };
-  if (s === "CANCELLED") return { ...badgeBase, background: "#FFF1F2", borderColor: "rgba(244,63,94,0.25)" };
-  return { ...badgeBase, background: "#F1F5F9", borderColor: "rgba(22,31,53,0.12)" };
+  if (s === "COMPLETED") return { ...badgeBase, background: "var(--ms-success-bg)", color: "var(--ms-success-fg)" };
+  if (s === "ARRIVED") return { ...badgeBase, background: "var(--ms-warning-bg)", color: "var(--ms-warning-fg)" };
+  if (s === "DISPATCHED") return { ...badgeBase, background: "var(--ms-info-bg)", color: "var(--ms-info-fg)" };
+  if (s === "CANCELLED") return { ...badgeBase, background: "var(--ms-muted)", color: "var(--ms-muted-fg)" };
+  return { ...badgeBase, background: "var(--ms-neutral-bg)", color: "var(--ms-neutral-fg)" };
 }
 
 const STATUS_STEPS = [
@@ -629,7 +628,7 @@ export default function TripDetail() {
           {/* Header */}
           <div className="trip-detail-v3-head" style={headerRow}>
             <div style={{ minWidth: 0 }}>
-              <div className="trip-detail-v3-eyebrow" style={{ color: "#107948", fontSize: 12, fontWeight: 650, letterSpacing: 1, marginBottom: 7 }}>Trip control</div>
+              <div className="trip-detail-v3-eyebrow" style={{ color: "var(--ms-muted-fg)", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Trip control</div>
               <h1 style={title}>{headline}</h1>
 
               <div className="trip-detail-v3-subtitle" style={subTitle}>
@@ -652,10 +651,10 @@ export default function TripDetail() {
                 <span style={tripBadgeStyle(trip.status)}>{String(trip.status).replaceAll("_", " ")}</span>
                 {trip.purpose === "EMPTY_RETURN" && <span style={{ ...badgeBase, background: "#FFF7ED", color: "#C2410C" }}>Kembali kosong · pendapatan RP0</span>}
                 {trip.purpose === "SINGLE_TRIP" && <span style={{ ...badgeBase, background: "#EEF7FF", color: "#1769AA" }}>{trip.tripNo || "TRIP TANPA PESANAN"} · BERAT DI TAGIHAN</span>}
-                <span style={{ ...badgeBase, background: "#FFFFFF" }}>{role}</span>
+                <span style={{ ...badgeBase, background: "var(--ms-surface)", borderColor: "var(--ms-border)" }}>{role}</span>
 
                 {trip.qtyPlanned != null ? (
-                  <span style={{ ...badgeBase, background: "#FFFFFF" }}>
+                  <span style={{ ...badgeBase, background: "var(--ms-surface)", borderColor: "var(--ms-border)" }}>
                     Qty: {trip.qtyPlanned} {trip.unitSnap || order?.unit || ""}
                   </span>
                 ) : null}

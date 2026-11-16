@@ -1763,13 +1763,13 @@ export default function Maintenance() {
           <div className="maintenance-detail-layout" style={{ display: "grid", gridTemplateColumns: "minmax(320px, 0.8fr) minmax(620px, 1.6fr)", gap: 20 }}>
             <section className="maintenance-detail-hero">
               <div className="maintenance-detail-hero-main">
-                <div><small>DETAIL PEKERJAAN SERVIS · {activeJob.number}</small><h2>{activeJob.title}</h2><p><b>{activeJob.truck?.plateNumber || "—"}</b><span>•</span><FiCalendar /> Masuk {fmtDateTime(activeJob.createdAt)}</p></div>
+                <div><small>Detail pekerjaan servis · {activeJob.number}</small><h2>{activeJob.title}</h2><p><b>{activeJob.truck?.plateNumber || "—"}</b><span>•</span><FiCalendar /> Masuk {fmtDateTime(activeJob.createdAt)}</p></div>
                 <div className="maintenance-hero-side"><StatusBadge status={activeJob.status} />{allowed && <div className="maintenance-hero-actions"><Button variant="primary" icon={FiCheck} onClick={() => setJobStatus("DONE")} disabled={activeJob.status !== "OPEN" || cannotCompleteService} title={completionBlockTitle} data-testid="mark-done-hero-btn">Selesaikan</Button><Button variant="secondary" icon={FiRefreshCw} onClick={refreshDetail}>Muat Ulang</Button></div>}</div>
               </div>
               {hasPendingParts && <div className="maintenance-pending-parts-warning"><FiClock /><span><strong>Servis belum dapat diselesaikan</strong><small>Sparepart dari {pendingPartsRequests.map(request => request.number).join(", ")} belum diterima dan dipasang seluruhnya.</small></span></div>}
               {hasPendingRepairs && <div className="maintenance-pending-parts-warning"><FiTool /><span><strong>Barang perbaikan belum kembali</strong><small>{pendingRepairs.join(", ")} masih berada di tempat perbaikan. Terima dahulu melalui Penerimaan Barang → Barang Perbaikan.</small></span></div>}
               <div className="maintenance-detail-metrics">
-                <article><small>DURASI {activeJob.status === "OPEN" ? "BERJALAN" : "TOTAL"}</small><strong>{fmtDuration((activeJob.status === "OPEN" ? Date.now() : activeJob.doneAt ? new Date(activeJob.doneAt).getTime() : Date.now()) - new Date(activeJob.createdAt).getTime())}</strong><span><FiClock /> Waktu pengerjaan bengkel</span></article>
+                <article><small>Durasi {activeJob.status === "OPEN" ? "berjalan" : "total"}</small><strong>{fmtDuration((activeJob.status === "OPEN" ? Date.now() : activeJob.doneAt ? new Date(activeJob.doneAt).getTime() : Date.now()) - new Date(activeJob.createdAt).getTime())}</strong><span><FiClock /> Waktu pengerjaan bengkel</span></article>
                 <article><small>Biaya sparepart</small><strong>{fmtMoney(activeJob.totalCost || 0, activeJob.currency || "IDR")}</strong><span><FiTool /> Akumulasi pemakaian stok</span></article>
                 <article><small>Dokumentasi</small><strong>{(activeJob.photos || []).length} foto</strong><span><FiActivity /> Kondisi dan hasil servis</span></article>
               </div>

@@ -838,3 +838,125 @@ html.erp-app .erp-content .users-pagination { gap: 12px; padding-block: 14px !im
   html.erp-app .erp-content .users-search-row .users-search-field { max-width: none; }
   html.erp-app .erp-content .users-search-row > select { flex: 1 1 140px; }
 }
+
+/* Fleet directory: compact controls, readable columns, and consistent row spacing. */
+html.erp-app .erp-content .fleet-v2-card .fleet-v2-toolbar { padding: 16px 18px !important; gap: 16px; border: 0 !important; border-radius: 0 !important; border-bottom: 1px solid var(--ms-border) !important; }
+html.erp-app .erp-content .fleet-v2-search { width: min(100%, 340px); min-width: 0; }
+html.erp-app .erp-content .fleet-v2-search > div { box-sizing: border-box; display: flex; align-items: center; gap: 8px; width: 100%; height: 38px; padding: 0 10px !important; }
+html.erp-app .erp-content .fleet-v2-search input { flex: 1; width: 100% !important; min-width: 0 !important; height: 100% !important; min-height: 0 !important; padding: 0 !important; border: 0 !important; box-shadow: none !important; background: transparent !important; }
+html.erp-app .erp-content .fleet-v2-pagination { padding: 12px 18px !important; gap: 12px; flex-wrap: wrap; background: var(--ms-surface) !important; }
+html.erp-app .erp-content .fleet-v2-card select { box-sizing: border-box; height: 34px !important; min-height: 34px !important; padding: 0 30px 0 10px !important; border: 1px solid var(--ms-input) !important; border-radius: var(--ms-radius-md); background: var(--ms-surface); color: var(--ms-fg); appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none'%3E%3Cpath d='m4 5 3 3 3-3' stroke='%2364758b' stroke-width='1.5'/%3E%3C/svg%3E"); background-position: right 9px center; background-repeat: no-repeat; }
+html.erp-app .erp-content .fleet-v2-table :is(th,td) { padding: 12px 14px !important; vertical-align: top; }
+html.erp-app .erp-content .fleet-v2-table th { font-size: 11px !important; }
+html.erp-app .erp-content .fleet-v2-table td { font-size: 12px !important; }
+html.erp-app .erp-content .fleet-v2-table tbody tr:hover { background: var(--ms-accent); }
+html.erp-app .erp-content .fleet-v2-table input[type="date"] { box-sizing: border-box; width: 100%; max-width: 170px; height: 34px !important; min-height: 34px !important; padding: 0 8px !important; font-size: 12px !important; }
+
+/* The map has one outer frame; the toolbar and moving rows are flat sections. */
+html.erp-app .erp-content .google-map-card { overflow: hidden; }
+html.erp-app .erp-content .google-map-card > .fleet-map-toolbar {
+  margin: 0 !important; border: 0 !important; border-bottom: 1px solid var(--ms-border) !important;
+  border-radius: 0 !important; box-shadow: none !important; background: var(--ms-surface) !important;
+}
+html.erp-app .erp-content .moving-fleet-panel .moving-fleet-list > button {
+  border: 0 !important; border-bottom: 1px solid var(--ms-border-soft) !important;
+  border-radius: 0 !important; box-shadow: none !important; margin: 0 !important;
+}
+html.erp-app .erp-content .moving-fleet-panel .moving-fleet-list > button:last-child { border-bottom: 0 !important; }
+@media(max-width:600px) { html.erp-app .erp-content .fleet-v2-search { width: 100%; } }
+
+/* =====================================================================
+   §19 Detail pages — Detail Pesanan, Detail Perjalanan, Detail Servis
+   ===================================================================== */
+/* Detail Pesanan: plain header, actions as normal buttons (no floating box). */
+html.erp-app .erp-content .order-detail-v3 { max-width: none !important; padding: 0 !important; }
+html.erp-app .erp-content .order-detail-v3-head { margin-bottom: 12px !important; }
+html.erp-app .erp-content .order-detail-v3-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+html.erp-app .erp-content .order-detail-v3-title-row > span { height: 22px; padding: 0 7px !important; border-radius: var(--ms-radius-md) !important; font-size: var(--ms-text-2xs) !important; font-weight: var(--ms-weight-medium) !important; line-height: 22px; letter-spacing: 0 !important; }
+html.erp-app .erp-content .order-detail-v3-customer { margin: 4px 0 0 !important; color: var(--ms-fg-2) !important; font-size: var(--ms-text-base) !important; font-weight: var(--ms-weight-medium) !important; letter-spacing: 0 !important; }
+html.erp-app .erp-content .order-detail-v3-route-line { margin-top: 8px !important; gap: 8px 16px !important; }
+html.erp-app .erp-content .order-detail-v3-route-line small { color: var(--ms-muted-fg) !important; font-size: var(--ms-text-2xs) !important; font-weight: 400 !important; }
+html.erp-app .erp-content .order-detail-v3-route-line b { font-size: var(--ms-text-sm) !important; font-weight: var(--ms-weight-medium) !important; }
+html.erp-app .erp-content .order-detail-v3-actions { align-self: flex-start !important; max-width: none !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; backdrop-filter: none !important; }
+html.erp-app .erp-content .order-detail-v3-actions :is(.order-detail-back,.order-detail-cancel) { min-height: var(--ms-control) !important; padding: 0 12px !important; border: 1px solid var(--ms-input) !important; border-radius: var(--ms-radius-md) !important; background: var(--ms-surface) !important; color: var(--ms-fg) !important; box-shadow: var(--ms-shadow-xs) !important; font-size: var(--ms-text-base) !important; font-weight: var(--ms-weight-medium) !important; }
+html.erp-app .erp-content .order-detail-v3-actions .order-detail-cancel { color: var(--ms-danger-fg) !important; }
+html.erp-app .erp-content .order-detail-v3-actions .order-detail-cancel:hover { border-color: var(--ms-danger-border) !important; background: var(--ms-danger-bg) !important; }
+html.erp-app .erp-content .order-detail-v3-actions .order-detail-create-trip { min-width: 0 !important; min-height: var(--ms-control) !important; padding: 0 14px !important; border: 1px solid var(--ms-primary) !important; border-radius: var(--ms-radius-md) !important; background: var(--ms-primary) !important; color: var(--ms-primary-fg) !important; box-shadow: none !important; font-size: var(--ms-text-base) !important; font-weight: var(--ms-weight-medium) !important; }
+html.erp-app .erp-content .order-detail-v3-actions .order-detail-create-trip:hover { background: var(--ms-primary-hover) !important; }
+html.erp-app .erp-content :is(.order-detail-v3-chips,.order-detail-v3-meta) > * { height: 24px; padding: 0 8px !important; border: 1px solid var(--ms-border) !important; border-radius: var(--ms-radius-md) !important; background: var(--ms-surface) !important; color: var(--ms-muted-fg) !important; font-size: var(--ms-text-2xs) !important; font-weight: var(--ms-weight-medium) !important; letter-spacing: 0 !important; }
+html.erp-app .erp-content .order-detail-v3-overview > * :is(i,span):first-child:has(svg) { width: 32px !important; height: 32px !important; border-radius: var(--ms-radius-md) !important; background: var(--ms-muted) !important; color: var(--ms-muted-fg) !important; }
+html.erp-app .erp-content .order-detail-v3-overview > * small { color: var(--ms-muted-fg) !important; font-size: var(--ms-text-xs) !important; font-weight: var(--ms-weight-medium) !important; }
+html.erp-app .erp-content .order-detail-v3-overview > * strong { font-size: var(--ms-text-md) !important; font-weight: var(--ms-weight-semibold) !important; }
+
+/* Detail Perjalanan: no outer frame; header aligned with the rest of the app. */
+html.erp-app .erp-content :is(.trip-detail-v3,.trip-detail-v3-container,.trip-detail-v3-shell) { max-width: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }
+html.erp-app .erp-content .trip-detail-v3-head { margin-bottom: 12px !important; }
+html.erp-app .erp-content .trip-detail-v3-head > :last-child:not(:first-child) { align-self: flex-start; }
+html.erp-app .erp-content .trip-detail-v3-badges { margin-top: 10px !important; gap: 6px !important; }
+html.erp-app .erp-content :is(.trip-detail-v3-card,.trip-detail-progress,.trip-detail-v3-shell > section, .trip-detail-v3-shell > div:not(.trip-detail-v3-head)) { border-radius: var(--ms-radius) !important; box-shadow: none !important; }
+html.erp-app .erp-content .trip-detail-step { border-radius: var(--ms-radius) !important; box-shadow: none !important; }
+
+/* Detail Servis dialog: flat summary like a page header + stat cards. */
+html.erp-app .erp-content .maintenance-detail-hero { border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; overflow: visible !important; }
+html.erp-app .erp-content .maintenance-detail-hero-main { padding: 0 0 14px !important; border: 0 !important; background: transparent !important; align-items: flex-start !important; }
+html.erp-app .erp-content .maintenance-detail-hero-main small { color: var(--ms-muted-fg) !important; font-size: var(--ms-text-xs) !important; font-weight: var(--ms-weight-medium) !important; letter-spacing: 0 !important; text-transform: none !important; }
+html.erp-app .erp-content .maintenance-detail-hero-main h2 { margin: 2px 0 0 !important; color: var(--ms-fg) !important; font-size: var(--ms-text-xl) !important; font-weight: var(--ms-weight-semibold) !important; line-height: 1.3 !important; letter-spacing: var(--ms-tracking-tight) !important; }
+html.erp-app .erp-content .maintenance-detail-hero-main p { margin-top: 4px !important; color: var(--ms-muted-fg) !important; font-size: var(--ms-text-sm) !important; }
+html.erp-app .erp-content .maintenance-detail-hero-main p b { color: var(--ms-fg) !important; font-weight: var(--ms-weight-medium) !important; }
+html.erp-app .erp-content .maintenance-hero-side { display: flex !important; flex-direction: row !important; flex-wrap: wrap; align-items: center !important; justify-content: flex-end; gap: 8px !important; }
+html.erp-app .erp-content .maintenance-hero-actions { display: flex !important; flex-wrap: wrap; gap: 8px !important; max-width: none !important; width: auto !important; }
+html.erp-app .erp-content .maintenance-hero-actions button { min-height: var(--ms-control) !important; border-radius: var(--ms-radius-md) !important; font-size: var(--ms-text-base) !important; font-weight: var(--ms-weight-medium) !important; box-shadow: none !important; }
+html.erp-app .erp-content .maintenance-pending-parts-warning { margin: 0 0 12px !important; border: 1px solid var(--ms-warning-border) !important; border-radius: var(--ms-radius) !important; background: var(--ms-warning-bg) !important; }
+html.erp-app .erp-content .maintenance-detail-metrics { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: var(--ms-gap) !important; border: 0 !important; background: transparent !important; }
+html.erp-app .erp-content .maintenance-detail-metrics > article { padding: 14px !important; border: 1px solid var(--ms-border) !important; border-radius: var(--ms-radius) !important; background: var(--ms-surface) !important; }
+html.erp-app .erp-content .maintenance-detail-metrics small { color: var(--ms-muted-fg) !important; font-size: var(--ms-text-xs) !important; font-weight: var(--ms-weight-medium) !important; letter-spacing: 0 !important; text-transform: none !important; }
+html.erp-app .erp-content .maintenance-detail-metrics strong { display: block; margin-top: 6px; color: var(--ms-fg) !important; font-size: var(--ms-text-xl) !important; font-weight: var(--ms-weight-semibold) !important; }
+html.erp-app .erp-content .maintenance-detail-metrics span { color: var(--ms-muted-fg) !important; font-size: var(--ms-text-2xs) !important; }
+html.erp-app .erp-content .maintenance-detail-tabs { margin: 4px 0 0 !important; }
+@media (max-width: 743px) {
+  html.erp-app .erp-content .maintenance-detail-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  html.erp-app .erp-content .maintenance-detail-metrics > article:last-child { grid-column: 1 / -1; }
+  html.erp-app .erp-content :is(.maintenance-hero-side,.maintenance-hero-actions) { justify-content: flex-start; width: 100% !important; }
+  html.erp-app .erp-content .maintenance-hero-actions > * { flex: 1 1 auto; }
+  html.erp-app .erp-content .order-detail-v3-actions { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; width: 100% !important; }
+}
+html.erp-app .erp-content .trip-detail-v3-shell > :not(.trip-detail-v3-head) { margin-left: 0 !important; margin-right: 0 !important; }
+html.erp-app .erp-content .trip-detail-v3-divider { display: none !important; }
+html.erp-app .erp-content .trip-detail-v3-progress { margin-top: 0 !important; padding: 16px !important; border: 1px solid var(--ms-border) !important; border-radius: var(--ms-radius) !important; background: var(--ms-surface) !important; box-shadow: none !important; }
+html.erp-app .erp-content .trip-detail-v3-back { height: var(--ms-control) !important; border: 1px solid var(--ms-input) !important; border-radius: var(--ms-radius-md) !important; background: var(--ms-surface) !important; box-shadow: var(--ms-shadow-xs) !important; color: var(--ms-fg) !important; }
+html.erp-app .erp-content .order-detail-v3 :is(.order-trip-card,[class*="trip-row"]) > * > span:first-child:is([style]) { border-radius: var(--ms-radius-md) !important; }
+
+/* Profit Armada: compact Citra table rows. */
+html.erp-app .erp-content .fp-panel-head { align-items: flex-end !important; padding: 14px 16px !important; border-bottom: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+html.erp-app .erp-content .fp-panel-title > span { display: none !important; }
+html.erp-app .erp-content .fp-panel-title h2 { margin: 0 !important; font-size: var(--ms-text-base) !important; font-weight: var(--ms-weight-semibold) !important; }
+html.erp-app .erp-content .fp-panel-title p { margin: 2px 0 0 !important; font-size: var(--ms-text-xs) !important; color: var(--ms-muted-fg) !important; }
+html.erp-app .erp-content .fp-panel-controls { align-items: flex-end !important; gap: 8px !important; }
+html.erp-app .erp-content .fp-panel-controls > span { height: var(--ms-control); padding: 0 10px !important; border: 1px solid var(--ms-border) !important; border-radius: var(--ms-radius-md) !important; background: var(--ms-surface) !important; color: var(--ms-muted-fg) !important; font-size: var(--ms-text-xs) !important; font-weight: var(--ms-weight-medium) !important; }
+html.erp-app .erp-content .fp-panel-controls label { color: var(--ms-muted-fg) !important; font-size: var(--ms-text-xs) !important; }
+html.erp-app .erp-content .fp-panel-controls select { height: var(--ms-control) !important; min-height: var(--ms-control) !important; background-color: var(--ms-surface) !important; background-image: none; font-size: var(--ms-text-sm) !important; font-weight: var(--ms-weight-medium) !important; }
+html.erp-app .erp-content .fp-table-wrap { border: 0 !important; border-radius: 0 !important; }
+html.erp-app .erp-content .fp-table-wrap td { padding: 10px 12px !important; vertical-align: middle !important; }
+html.erp-app .erp-content .fp-table-wrap td b { display: block; font-size: var(--ms-text-sm) !important; font-weight: var(--ms-weight-semibold) !important; line-height: 1.35; }
+html.erp-app .erp-content .fp-table-wrap td small { display: block; margin-top: 1px; color: var(--ms-muted-fg); font-size: var(--ms-text-2xs) !important; line-height: 1.35; }
+html.erp-app .erp-content .fp-table-wrap td.positive b { color: var(--ms-success-fg) !important; }
+html.erp-app .erp-content .fp-table-wrap td.negative b { color: var(--ms-danger-fg) !important; }
+html.erp-app .erp-content .fp-truck-cell { gap: 10px !important; }
+html.erp-app .erp-content .fp-truck-cell > span { width: 32px !important; height: 32px !important; min-width: 32px; border-radius: var(--ms-radius-md) !important; background: var(--ms-muted) !important; color: var(--ms-muted-fg) !important; }
+html.erp-app .erp-content .fp-truck-cell > span svg { width: 15px !important; height: 15px !important; }
+html.erp-app .erp-content .fp-table-wrap .fp-badge { display: inline-flex !important; height: 20px; align-items: center; padding: 0 6px !important; }
+html.erp-app .erp-content .fp-table-wrap :is([class*="fp-bar"],[class*="bar"]) { height: 4px !important; margin-top: 6px !important; }
+html.erp-app .erp-content .fp-action-cell { border-left: 0 !important; }
+html.erp-app .erp-content .fp-row-actions { gap: 6px !important; }
+html.erp-app .erp-content .fp-row-actions .fp-icon { width: 32px !important; height: 32px !important; min-height: 32px !important; padding: 0 !important; border: 1px solid var(--ms-input) !important; border-radius: var(--ms-radius-md) !important; background: var(--ms-surface) !important; color: var(--ms-fg-2) !important; box-shadow: var(--ms-shadow-xs) !important; }
+html.erp-app .erp-content .fp-row-actions .fp-icon:hover { background: var(--ms-accent) !important; color: var(--ms-primary) !important; }
+html.erp-app .erp-content .fp-row-actions .fp-icon svg { width: 15px !important; height: 15px !important; }
+
+/* Detail Servis dialog: content aligned to the dialog's padding. */
+html.erp-app .erp-content .maintenance-detail-hero { padding: 16px 24px 0 !important; }
+html.erp-app .erp-content .maintenance-detail-tabs { padding: 0 24px !important; margin-top: 12px !important; border: 0 !important; background: transparent !important; }
+@media (max-width: 743px) {
+  html.erp-app .erp-content .maintenance-detail-hero { padding: 14px 16px 0 !important; }
+  html.erp-app .erp-content .maintenance-detail-tabs { padding: 0 16px !important; }
+}
+html.erp-app .erp-content .order-detail-v3-overview > * small { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
