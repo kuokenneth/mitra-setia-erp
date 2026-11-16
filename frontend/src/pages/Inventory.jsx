@@ -11,11 +11,11 @@ import useDialogLifecycle from "../components/useDialogLifecycle";
 
 // Corporate Green Color Palette (matching Landing/Dashboard)
 const BRAND = {
-  primary: "#0D7C3D",
-  primaryDark: "#0A6331",
-  primaryLight: "#10A050",
-  secondary: "#F5F9F7",
-  accent: "#D4E8DC",
+  primary: "#107948",
+  primaryDark: "#0d6039",
+  primaryLight: "#159b5c",
+  secondary: "#f4f7fa",
+  accent: "#d1ebdf",
   text: "#1A1A1A",
   textMuted: "#6B7280",
   white: "#FFFFFF",
@@ -210,7 +210,7 @@ function ItemSearchSelect({ items, value, onChange }) {
         overflowY: "auto",
         background: BRAND.white,
         border: `1px solid ${BRAND.border}`,
-        boxShadow: "0 14px 34px rgba(12, 42, 25, 0.18)",
+        boxShadow: "0 14px 34px rgba(16,22,38,0.18)",
         borderRadius: 8,
         zIndex: 1200,
       });
@@ -358,7 +358,7 @@ const th = {
   background: BRAND.secondary,
   borderBottom: `1px solid ${BRAND.border}`,
   fontWeight: 600,
-  textTransform: "uppercase",
+  textTransform: "none",
   letterSpacing: "0.5px",
 };
 
@@ -1237,7 +1237,7 @@ export default function Inventory() {
         {/* Header */}
         <div className="inventory-hero">
           <div className="inventory-hero-copy">
-            <span className="inventory-eyebrow">GUDANG & SUKU CADANG</span>
+            <span className="inventory-eyebrow">Gudang & suku cadang</span>
             <h1>Inventory</h1>
             <p>Pantau ketersediaan barang, penerimaan, dan pemakaian stok dalam satu tempat.</p>
             <div className="inventory-hero-meta"><span><FiBox /> {totalItems} jenis barang</span><span><FiMapPin /> {locations.length} lokasi stok</span></div>
@@ -1421,7 +1421,7 @@ export default function Inventory() {
           onClose={() => setItemFlowTarget(null)}
         >
           {itemFlowLoading ? <LoadingState compact label="Memuat riwayat barang" note="Menelusuri tujuan pemakaian dan perpindahan stok…" rows={5} /> : <div className="inventory-item-flow">
-            <div className="inventory-item-flow-summary"><span><small>TOTAL RIWAYAT</small><strong>{itemFlowPagination.total}</strong></span><span><small>STOK SAAT INI</small><strong>{sumStocks(itemFlowTarget?.stocks)} {itemFlowTarget?.unit || ""}</strong></span></div>
+            <div className="inventory-item-flow-summary"><span><small>Total riwayat</small><strong>{itemFlowPagination.total}</strong></span><span><small>Stok saat ini</small><strong>{sumStocks(itemFlowTarget?.stocks)} {itemFlowTarget?.unit || ""}</strong></span></div>
             {itemFlowTarget?.isSerialized && (() => {
               const numberedUnits = itemFlowStockUnits.filter((unit) => unit.serialNumber || unit.barcode);
               const unnumberedByLocation = [...itemFlowStockUnits.filter((unit) => !unit.serialNumber && !unit.barcode).reduce((groups, unit) => {
@@ -1431,7 +1431,7 @@ export default function Inventory() {
                 groups.set(key, current);
                 return groups;
               }, new Map()).values()];
-              return <section className="inventory-item-flow-units"><div className="inventory-item-flow-section-head"><span><small>UNIT TERSEDIA DI STOK</small><strong>{itemFlowStockUnits.length} unit tersedia</strong></span><p>Unit tanpa nomor seri diringkas berdasarkan lokasi.</p></div>{itemFlowStockUnits.length ? <div className="inventory-item-flow-unit-grid">{unnumberedByLocation.map((group) => <article className="inventory-item-flow-unit-group" key={`unnumbered-${group.key}`}><span>Belum diberi nomor seri</span><strong>{group.count} unit</strong><small>{group.location} · nomor seri diisi saat dipasang</small></article>)}{numberedUnits.map((unit) => <article key={unit.id}><span>Nomor seri</span><strong>{unit.serialNumber || unit.barcode}</strong><small>{unit.location?.name || "Lokasi belum ditentukan"}{unit.barcode && unit.serialNumber ? ` · Barcode ${unit.barcode}` : ""}</small></article>)}</div> : <div className="inventory-item-flow-unit-empty">Tidak ada unit serial yang tersedia di stok.</div>}</section>;
+              return <section className="inventory-item-flow-units"><div className="inventory-item-flow-section-head"><span><small>Unit tersedia di stok</small><strong>{itemFlowStockUnits.length} unit tersedia</strong></span><p>Unit tanpa nomor seri diringkas berdasarkan lokasi.</p></div>{itemFlowStockUnits.length ? <div className="inventory-item-flow-unit-grid">{unnumberedByLocation.map((group) => <article className="inventory-item-flow-unit-group" key={`unnumbered-${group.key}`}><span>Belum diberi nomor seri</span><strong>{group.count} unit</strong><small>{group.location} · nomor seri diisi saat dipasang</small></article>)}{numberedUnits.map((unit) => <article key={unit.id}><span>Nomor seri</span><strong>{unit.serialNumber || unit.barcode}</strong><small>{unit.location?.name || "Lokasi belum ditentukan"}{unit.barcode && unit.serialNumber ? ` · Barcode ${unit.barcode}` : ""}</small></article>)}</div> : <div className="inventory-item-flow-unit-empty">Tidak ada unit serial yang tersedia di stok.</div>}</section>;
             })()}
             {itemFlowMovements.length ? <><div className="inventory-item-flow-table" style={tableWrap}><table style={table}><colgroup><col className="flow-type"/><col className="flow-qty"/><col className="flow-from"/><col className="flow-destination"/><col className="flow-unit"/><col className="flow-user"/><col className="flow-date"/></colgroup><thead><tr><th style={th}>Jenis</th><th style={th}>Jumlah</th><th style={th}>Dari</th><th style={th}>Ke / Tujuan</th><th style={th}>No. Seri / Servis</th><th style={th}>Petugas</th><th style={th}>Tanggal</th></tr></thead><tbody>{itemFlowMovements.map((movement) => { const assignmentTruck = movement.stockUnit?.assignments?.[0]?.truck; const destination = movement.toLocation?.name || movement.toTruck?.plateNumber || movement.maintenance?.truck?.plateNumber || assignmentTruck?.plateNumber || (movement.type === "OUT" ? "Pemakaian stok" : "—"); return <tr key={movement.id}><td style={td}><Pill variant={movement.type === "IN" ? "green" : movement.type === "OUT" ? "red" : "grey"}>{movement.type}</Pill></td><td style={td}>{movement.qty} {itemFlowTarget?.unit || ""}</td><td style={tdSoft}>{movement.fromLocation?.name || movement.fromTruck?.plateNumber || "—"}</td><td style={td}><strong>{destination}</strong>{movement.note && <small className="inventory-item-flow-note">{movement.note}</small>}</td><td style={tdSoft}><strong className="inventory-item-flow-serial">{movement.stockUnit?.serialNumber || movement.stockUnit?.barcode || "—"}</strong>{movement.maintenance?.title && <small className="inventory-item-flow-note">{movement.maintenance.title}</small>}</td><td style={tdSoft}>{movement.createdBy?.name || movement.createdBy?.email || "—"}</td><td style={tdSoft}>{fmtDate(movement.createdAt)}</td></tr>; })}</tbody></table></div><Pagination pagination={itemFlowPagination} onChange={(page) => itemFlowTarget && loadItemFlow(itemFlowTarget, page)} /></> : <div className="inventory-item-flow-empty">Belum ada riwayat pergerakan untuk barang ini.</div>}
           </div>}

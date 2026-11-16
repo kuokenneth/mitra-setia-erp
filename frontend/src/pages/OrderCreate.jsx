@@ -9,11 +9,11 @@ import { FiArrowLeft, FiSave, FiCheck } from "react-icons/fi";
 //////////////////////
 
 const BRAND = {
-  primary: "#0D7C3D",
-  primaryDark: "#0A6331",
-  primaryLight: "#10A050",
-  secondary: "#F5F9F7",
-  accent: "#D4E8DC",
+  primary: "#107948",
+  primaryDark: "#0d6039",
+  primaryLight: "#159b5c",
+  secondary: "#f4f7fa",
+  accent: "#d1ebdf",
   text: "#1A1A1A",
   textLight: "#4A4A4A",
   textMuted: "#6B7280",

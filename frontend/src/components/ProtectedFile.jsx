@@ -85,9 +85,9 @@ export function ProtectedImage({ url, alt, style }) {
       aria-modal="true"
       aria-label={`Pratinjau ${alt}`}
       onMouseDown={event => { event.stopPropagation(); if (event.target === event.currentTarget) closeViewer(); }}
-      style={{ position: "fixed", inset: 0, zIndex: 10000, display: "grid", gridTemplateRows: "auto minmax(0,1fr)", background: "rgba(7,18,12,.92)", backdropFilter: "blur(8px)" }}
+      style={{ position: "fixed", inset: 0, zIndex: 10000, display: "grid", gridTemplateRows: "auto minmax(0,1fr)", background: "rgba(15,21,36,.92)", backdropFilter: "blur(8px)" }}
     >
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "12px 16px", color: "white", background: "rgba(10,25,16,.82)", borderBottom: "1px solid rgba(255,255,255,.14)" }}>
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "12px 16px", color: "white", background: "rgba(15,21,36,.82)", borderBottom: "1px solid rgba(255,255,255,.14)" }}>
         <strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13 }}>{alt}</strong>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button type="button" aria-label="Perkecil gambar" onClick={() => zoom(scale - .25)} disabled={scale <= 1} style={viewerButtonStyle}>−</button>
@@ -128,7 +128,7 @@ export function ProtectedFilePreview({ url, mimeType, fileName = "Lampiran", ima
     <button
       type="button"
       onClick={() => openProtectedFile(url).catch((error) => onError?.(error))}
-      style={{ minHeight: 58, padding: "10px 14px", borderRadius: 8, border: "1px solid #D4E8DC", background: "#F5F9F7", color: "#0D7C3D", fontWeight: 700, cursor: "pointer" }}
+      style={{ minHeight: 58, padding: "10px 14px", borderRadius: 8, border: "1px solid #d1ebdf", background: "#f4f7fa", color: "#107948", fontWeight: 700, cursor: "pointer" }}
     >
       PDF · {fileName}
     </button>

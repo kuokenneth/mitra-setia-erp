@@ -122,6 +122,7 @@ router.get("/", authRequired, async (req, res) => {
       where,
       orderBy: [{ plannedAt: "desc" }, { createdAt: "desc" }],
       include: {
+        invoices: { where: { sourceType: "ORDER", status: { not: "VOID" } }, select: { billableQuantity: true, deliveredQuantity: true } },
         customer: true,
         pickupLocation: true,
         destinationLocation: true,
@@ -166,7 +167,9 @@ router.get("/", authRequired, async (req, res) => {
       const remaining = total == null ? null : Math.max(0, total - tripped);
 
       // remove trips payload from list (optional)
-      const { trips, tripAllocations, ...rest } = o;
+      const { trips, tripAllocations, invoices, ...rest } = o;
+      const unitFactor = String(o.unit || "").toUpperCase() === "TON" ? 1000 : String(o.unit || "").toUpperCase() === "KG" ? 1 : null;
+      const billed = unitFactor ? Math.min(delivered, invoices.reduce((sum, invoice) => sum + Number(invoice.billableQuantity ?? invoice.deliveredQuantity ?? 0), 0) / unitFactor) : null;
 
       return {
         ...rest,
@@ -176,6 +179,8 @@ router.get("/", authRequired, async (req, res) => {
         qtyTripped: tripped,
         qtyRemaining: remaining,
         qtyDelivered: delivered,
+        qtyBilled: billed,
+        qtyReadyToBill: billed == null ? null : Math.max(0, delivered - billed),
         qtyInProgress: inProgress,
         qtyCargoLoss: cargoLoss,
       };

@@ -55,20 +55,20 @@ export default function MaterialStock(){
   async function allocate(event){event.preventDefault();setBusy(true);setError("");try{const selectedStocks=available.filter(stock=>allocation.selected[stock.key]?.checked);const trip=data.trips.find(x=>x.id===allocation.tripId);if(!selectedStocks.length)throw new Error("Pilih minimal satu material");const lines=selectedStocks.map(stock=>({itemName:stock.itemName,unit:stock.unit,locationId:stock.locationId,qty:Number(allocation.selected[stock.key]?.qty)}));if(lines.some(line=>!(line.qty>0)))throw new Error("Jumlah setiap material terpilih wajib diisi");await api("/material-stock/allocate",{method:"POST",body:JSON.stringify({customerId:allocation.customerId,tripId:allocation.tripId,orderId:trip?.order?.cargoCategory==="MATERIAL"?trip.orderId:null,destinationLocationId:allocation.destinationLocationId,notes:allocation.notes,lines})});setAllocateOpen(false);await load()}catch(e){setError(e.message)}finally{setBusy(false)}}
 
   return <div className="material-stock-page">
-    <header><div><span>OPERASIONAL</span><h1>Ambang / Material</h1><p>Stok titipan customer berdasarkan bukti penerimaan.</p></div><div className="material-head-actions"><button className="secondary" onClick={openAllocation}><FiPackage/> Alokasikan ke Trip</button><button onClick={openReceipt}><FiPlus/> Material Masuk</button></div></header>
+    <header><div><span>Operasional</span><h1>Ambang / Material</h1><p>Stok titipan customer berdasarkan bukti penerimaan.</p></div><div className="material-head-actions"><button className="secondary" onClick={openAllocation}><FiPackage/> Alokasikan ke Trip</button><button onClick={openReceipt}><FiPlus/> Material Masuk</button></div></header>
     {error&&!open&&!allocateOpen&&<div className="material-error">{error}</div>}
-    <section className="material-summary"><article><FiArchive/><span><small>JENIS STOK CUSTOMER</small><strong>{rows.length}</strong></span></article><article><FiPackage/><span><small>SALDO TERSEDIA</small><strong>{totalAvailable.toLocaleString("id-ID")}</strong></span></article><article><FiCamera/><span><small>BUKTI TERSIMPAN</small><strong>{data.receipts.filter(x=>x.proofUrl).length}</strong></span></article></section>
+    <section className="material-summary"><article><FiArchive/><span><small>Jenis stok customer</small><strong>{rows.length}</strong></span></article><article><FiPackage/><span><small>Saldo tersedia</small><strong>{totalAvailable.toLocaleString("id-ID")}</strong></span></article><article><FiCamera/><span><small>Bukti tersimpan</small><strong>{data.receipts.filter(x=>x.proofUrl).length}</strong></span></article></section>
     <div className="material-board"><div className="material-tools"><label><FiSearch/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari customer, barang, atau nomor penerimaan"/></label></div>
       <table><thead><tr><th>Customer / Penerimaan</th><th>Material</th><th>Total Masuk</th><th>Sudah diangkut</th><th>Sisa</th><th>Lokasi</th><th>Bukti</th></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td><b>{row.customer.name}</b><small>{row.receipts.length} penerimaan · terakhir {new Date(row.receipts[0].receivedAt).toLocaleDateString("id-ID")}</small></td><td><b>{row.itemName}</b><small>{row.unit} · saldo digabung</small></td><td>{row.qtyReceived.toLocaleString("id-ID")} {row.unit}</td><td>{(row.qtyReceived-row.qtyRemaining).toLocaleString("id-ID")} {row.unit}</td><td><strong className="material-balance">{row.qtyRemaining.toLocaleString("id-ID")} {row.unit}</strong></td><td>{row.location?.name||"—"}</td><td><div className={`material-proof-menu ${openProofMenu===row.id?"is-open":""}`} onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))setOpenProofMenu("")}}><button className="material-proof-trigger" type="button" aria-expanded={openProofMenu===row.id} onClick={()=>setOpenProofMenu(current=>current===row.id?"":row.id)}><FiCamera/> {row.proofs.length} bukti</button><div>{row.proofs.map(proof=><button type="button" key={proof.id} onClick={()=>openProtectedFile(proof.proofUrl).catch(e=>setError(e.message))}><span><b>{proof.number}</b><small>{new Date(proof.receivedAt).toLocaleDateString("id-ID")}</small></span><FiArrowRight/></button>)}</div></div></td></tr>)}</tbody></table>
       {!rows.length&&<div className="material-empty">Belum ada material masuk.</div>}
     </div>
 
     {open&&<div className="material-overlay" onMouseDown={()=>setOpen(false)}><form className="material-entry-modal material-modal-shell" onSubmit={save} onMouseDown={e=>e.stopPropagation()}>
-      <div className="material-modal-head"><span><FiPackage/></span><div><small>PENERIMAAN INVENTORY</small><h2>Material Masuk</h2><p>Catat pemilik, lokasi penyimpanan, rincian barang, dan bukti penerimaan.</p></div><button type="button" onClick={()=>setOpen(false)} aria-label="Tutup"><FiX/></button></div>
+      <div className="material-modal-head"><span><FiPackage/></span><div><small>Penerimaan inventory</small><h2>Material Masuk</h2><p>Catat pemilik, lokasi penyimpanan, rincian barang, dan bukti penerimaan.</p></div><button type="button" onClick={()=>setOpen(false)} aria-label="Tutup"><FiX/></button></div>
       <div className="material-form-body">
         <div className="material-modal-guide"><span className="active"><b>1</b><em>Informasi penerimaan</em></span><i/><span><b>2</b><em>Rincian material</em></span><i/><span><b>3</b><em>Bukti & catatan</em></span></div>
         <section className="material-entry-meta">
-          <div className="material-section-heading"><span><FiFileText/></span><div><small>LANGKAH 1</small><h3>Informasi penerimaan</h3><p>Tentukan kepemilikan dan posisi stok.</p></div></div>
+          <div className="material-section-heading"><span><FiFileText/></span><div><small>Langkah 1</small><h3>Informasi penerimaan</h3><p>Tentukan kepemilikan dan posisi stok.</p></div></div>
           <div className="material-entry-meta-grid">
             <label><span><FiUser/> Customer pemilik <b>Wajib</b></span><select required value={form.customerId} onChange={e=>setForm({...form,customerId:e.target.value})}><option value="">Pilih dari Master Customer</option>{data.customers.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
             <label><span><FiMapPin/> Lokasi penyimpanan <b>Wajib</b></span><select required value={form.locationId} onChange={e=>setForm({...form,locationId:e.target.value})}><option value="">Pilih Lokasi Inventory</option>{data.locations.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
@@ -77,7 +77,7 @@ export default function MaterialStock(){
           </div>
         </section>
         <section className="material-entry-document">
-          <div className="material-entry-title"><div><small>LANGKAH 2 · RINCIAN BARANG</small><h3>Daftar material diterima</h3><p>Tambahkan satu baris untuk setiap jenis dan satuan barang.</p></div><span>{entryLines.length} baris</span></div>
+          <div className="material-entry-title"><div><small>Langkah 2 · rincian barang</small><h3>Daftar material diterima</h3><p>Tambahkan satu baris untuk setiap jenis dan satuan barang.</p></div><span>{entryLines.length} baris</span></div>
           <div className="material-entry-line-head"><span>Nama material</span><span>Jumlah</span><span>Satuan</span><span/></div>
           {entryLines.map((line,index)=><div className="material-entry-line" key={index}>
             <input required value={line.itemName} onChange={e=>updateLine(index,"itemName",e.target.value)} placeholder="Contoh: Tabung oksigen"/>
@@ -88,7 +88,7 @@ export default function MaterialStock(){
           <button className="material-add-line" type="button" onClick={()=>setEntryLines(lines=>[...lines,emptyLine()])}><FiPlus/> Tambah barang</button>
         </section>
         <div className="material-entry-bottom">
-          <label className={`material-upload ${file?"has-file":""}`}><input required type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e=>setFile(e.target.files?.[0]||null)}/><i><FiCamera/></i><span><small>LANGKAH 3 · BUKTI WAJIB</small><b>{file?file.name:"Ambil foto bukti penerimaan"}</b><em>{file?"Bukti siap disimpan":"JPG, PNG, atau WEBP · satu bukti untuk seluruh barang"}</em></span></label>
+          <label className={`material-upload ${file?"has-file":""}`}><input required type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e=>setFile(e.target.files?.[0]||null)}/><i><FiCamera/></i><span><small>Langkah 3 · bukti wajib</small><b>{file?file.name:"Ambil foto bukti penerimaan"}</b><em>{file?"Bukti siap disimpan":"JPG, PNG, atau WEBP · satu bukti untuk seluruh barang"}</em></span></label>
           <label className="material-notes-field"><span><FiFileText/> Catatan penerimaan</span><textarea rows="3" value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Tambahkan kondisi barang atau keterangan lain (opsional)"/></label>
         </div>
         {error&&<div className="material-error">{error}</div>}
@@ -97,7 +97,7 @@ export default function MaterialStock(){
     </form></div>}
 
     {allocateOpen&&<div className="material-overlay" onMouseDown={()=>setAllocateOpen(false)}><form className="material-allocation-modal material-modal-shell" onSubmit={allocate} onMouseDown={e=>e.stopPropagation()}>
-      <div className="material-modal-head allocation"><span><FiTruck/></span><div><small>PENGELUARAN INVENTORY</small><h2>Alokasikan ke Trip</h2><p>Pilih stok customer, armada tujuan, dan jumlah material yang akan dimuat.</p></div><button type="button" onClick={()=>setAllocateOpen(false)} aria-label="Tutup"><FiX/></button></div>
+      <div className="material-modal-head allocation"><span><FiTruck/></span><div><small>Pengeluaran inventory</small><h2>Alokasikan ke Trip</h2><p>Pilih stok customer, armada tujuan, dan jumlah material yang akan dimuat.</p></div><button type="button" onClick={()=>setAllocateOpen(false)} aria-label="Tutup"><FiX/></button></div>
       <div className="material-form-body allocation-body">
         <div className="material-allocation-grid">
           <section className="material-allocation-section">

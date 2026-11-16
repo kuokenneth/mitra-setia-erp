@@ -111,14 +111,14 @@
     right:0;
     z-index:2;
     background:#fff;
-    box-shadow:-1px 0 0 #dfe7e2,-10px 0 18px -18px rgba(25,55,36,.7);
+    box-shadow:-1px 0 0 #dbe2eb,-10px 0 18px -18px rgba(23,33,57,.7);
   }
   .erp-content :is(.table-wrap,.expense-table-wrap,.inventory-table-wrap,.maintenance-table-wrap,.fleet-v2-table-wrap,.fleet-movement-table-wrap,.ar-table-wrap,.acct-table,.fp-table-wrap,.fp-detail-table,.users-table-wrap) > table:has(tbody td:last-child button) thead th:last-child{
     z-index:4;
-    background:#f7faf8;
+    background:#f6f8fb;
   }
   .erp-content :is(.table-wrap,.expense-table-wrap,.inventory-table-wrap,.maintenance-table-wrap,.fleet-v2-table-wrap,.fleet-movement-table-wrap,.ar-table-wrap,.acct-table,.fp-table-wrap,.fp-detail-table,.users-table-wrap) > table:has(tbody td:last-child button) tbody tr:hover td:last-child{
-    background:#f8fbf9;
+    background:#f8f9fb;
   }
 }
 

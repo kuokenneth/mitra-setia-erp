@@ -23,11 +23,11 @@ import {
 
 // Corporate Green Color Palette (matching Landing Page)
 const BRAND = {
-  primary: "#0D7C3D",
-  primaryDark: "#0A6331",
-  primaryLight: "#10A050",
-  secondary: "#F5F9F7",
-  accent: "#D4E8DC",
+  primary: "#107948",
+  primaryDark: "#0d6039",
+  primaryLight: "#159b5c",
+  secondary: "#f4f7fa",
+  accent: "#d1ebdf",
   text: "#1A1A1A",
   textLight: "#4A4A4A",
   textMuted: "#6B7280",
@@ -35,8 +35,8 @@ const BRAND = {
   border: "#E5E7EB",
   warning: "#F59E0B",
   warningBg: "#FFFBEB",
-  success: "#10B981",
-  successBg: "#ECFDF5",
+  success: "#10b96a",
+  successBg: "#ecfdf5",
   error: "#EF4444",
   errorBg: "#FEF2F2",
   blue: "#3B82F6",
@@ -417,7 +417,7 @@ export default function Trucks() {
       {/* Header */}
       <div style={s.headerRow} className="fleet-v2-header">
         <div>
-          <span className="fleet-v2-eyebrow">FLEET OPERATIONS</span>
+          <span className="fleet-v2-eyebrow">Fleet operations</span>
           <h1 style={s.title}>Armada</h1>
           <p style={s.subtitle}>Pantau kendaraan, lokasi GPS, pengemudi, dan dokumen dalam satu tampilan.</p>
         </div>
@@ -437,10 +437,10 @@ export default function Trucks() {
       {err && <div style={s.alertErr}>{err}</div>}
 
       <div className="fleet-v2-summary">
-        <article><span><FiTruck /></span><div><small>TOTAL ARMADA</small><strong>{allItems.length}</strong><p>Kendaraan terdaftar</p></div></article>
-        <article><span><FiMapPin /></span><div><small>ARMADA AKTIF</small><strong>{fleetSummary.active}</strong><p>Siap dan berjalan</p></div></article>
-        <article className={fleetSummary.warnings ? "attention" : ""}><span><FiAlertTriangle /></span><div><small>WARNING</small><strong>{fleetSummary.warnings}</strong><p>Perlu diperhatikan</p></div></article>
-        <article><span><FiCalendar /></span><div><small>GPS TERDETEKSI</small><strong>{fleetSummary.gps}</strong><p>{fleetSummary.maintenance} dalam servis</p></div></article>
+        <article><span><FiTruck /></span><div><small>Total armada</small><strong>{allItems.length}</strong><p>Kendaraan terdaftar</p></div></article>
+        <article><span><FiMapPin /></span><div><small>Armada aktif</small><strong>{fleetSummary.active}</strong><p>Siap dan berjalan</p></div></article>
+        <article className={fleetSummary.warnings ? "attention" : ""}><span><FiAlertTriangle /></span><div><small>Warning</small><strong>{fleetSummary.warnings}</strong><p>Perlu diperhatikan</p></div></article>
+        <article><span><FiCalendar /></span><div><small>GPS terdeteksi</small><strong>{fleetSummary.gps}</strong><p>{fleetSummary.maintenance} dalam servis</p></div></article>
       </div>
 
       {/* Fleet Card */}
@@ -765,7 +765,7 @@ export default function Trucks() {
               <div className="fleet-add-title">
                 <span className="fleet-add-title-icon"><FiTruck /></span>
                 <div>
-                  <small>DATA ARMADA</small>
+                  <small>Data armada</small>
                   <h3 style={s.modalTitle}>Tambah Kendaraan</h3>
                   <p style={s.modalSubtitle}>Masukkan identitas kendaraan dan penanggung jawab armada.</p>
                 </div>
@@ -1007,7 +1007,7 @@ function statusPill(status) {
     borderRadius: 4,
     fontSize: 12,
     fontWeight: 600,
-    textTransform: "uppercase",
+    textTransform: "none",
     letterSpacing: "0.3px",
   };
   if (status === "READY") return { ...base, background: BRAND.successBg, color: BRAND.success };
@@ -1146,7 +1146,7 @@ const s = {
     padding: "12px 16px",
     background: BRAND.secondary,
     borderBottom: `1px solid ${BRAND.border}`,
-    textTransform: "uppercase",
+    textTransform: "none",
     letterSpacing: "0.5px",
   },
 

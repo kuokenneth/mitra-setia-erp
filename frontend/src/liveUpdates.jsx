@@ -3,7 +3,7 @@ import { API_BASE, getAccessToken } from "./api";
 
 const LiveContext = createContext({ status: "connecting", lastUpdate: null });
 
-export function LiveUpdatesProvider({ children }) {
+export function LiveUpdatesProvider({ children, showIndicator = true }) {
   const [status, setStatus] = useState(navigator.onLine ? "connecting" : "offline");
   const [lastUpdate, setLastUpdate] = useState(null);
 
@@ -59,7 +59,7 @@ export function LiveUpdatesProvider({ children }) {
     return () => { stopped = true; clearTimeout(retry); controller?.abort(); window.removeEventListener("online", online); window.removeEventListener("offline", offline); };
   }, []);
 
-  return <LiveContext.Provider value={{ status, lastUpdate }}>{children}<LiveIndicator status={status}/></LiveContext.Provider>;
+  return <LiveContext.Provider value={{ status, lastUpdate }}>{children}{showIndicator && <LiveIndicator status={status}/>}</LiveContext.Provider>;
 }
 
 // This module intentionally exports hooks together with their provider.

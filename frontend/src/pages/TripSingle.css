@@ -1,11 +1,11 @@
 .empty-return-details select {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid #d8e2db;
+  border: 1px solid #d3dce7;
   border-radius: 9px;
   padding: 10px 11px;
   background: #fff;
-  color: #26362c;
+  color: #1b2641;
   font: inherit;
   font-size: 10px;
 }
@@ -76,7 +76,7 @@
 .single-trip-field-label {
   display: block;
   margin-bottom: 6px;
-  color: #59685f;
+  color: #485c79;
   font-size: 9px;
   font-weight: 800;
 }
@@ -93,27 +93,27 @@
   gap: 8px;
   min-height: 52px;
   padding: 9px;
-  border: 1px solid #dfe7e1;
+  border: 1px solid #dbe2eb;
   border-radius: 10px;
   background: #fff;
-  color: #405148;
+  color: #36455b;
   text-align: left;
   cursor: pointer;
 }
 
 .single-trip-categories > button:hover,
 .single-trip-categories > button.active {
-  border-color: #63a57d;
-  background: #edf7f0;
-  color: #276d47;
-  box-shadow: 0 5px 14px rgba(31, 91, 54, 0.07);
+  border-color: #27e18a;
+  background: #eef1f6;
+  color: #12824e;
+  box-shadow: 0 5px 14px rgba(15,107,64,0.07);
 }
 
 .single-trip-categories > button > svg { flex: none; }
 .single-trip-categories span strong,
 .single-trip-categories span small { display: block; }
 .single-trip-categories span strong { font-size: 10px; }
-.single-trip-categories span small { margin-top: 2px; color: #89958d; font-size: 8px; }
+.single-trip-categories span small { margin-top: 2px; color: #7d8ca1; font-size: 8px; }
 
 @media (max-width: 480px) {
   .single-trip-categories { grid-template-columns: 1fr; }

@@ -79,11 +79,11 @@
   background: #fff;
   box-sizing: border-box;
   height: 44px;
-  box-shadow: inset 0 0 0 1px #dce5df;
+  box-shadow: inset 0 0 0 1px #d8dfe9;
   transition: box-shadow .18s ease;
 }
 .date-placeholder-wrap:focus-within {
-  box-shadow: inset 0 0 0 1px #0d7c3d,0 0 0 3px rgba(13,124,61,.1);
+  box-shadow: inset 0 0 0 1px #107948,0 0 0 3px rgba(16,121,72,.1);
 }
 .date-placeholder-wrap::after {
   content: attr(data-placeholder);
@@ -92,7 +92,7 @@
   top: 50%;
   transform: translateY(-50%);
   z-index: 1;
-  color: #8a968f;
+  color: #7e8da2;
   font-size: 13px;
   font-weight: 500;
   pointer-events: none;

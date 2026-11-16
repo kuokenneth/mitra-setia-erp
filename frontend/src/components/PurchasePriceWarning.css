@@ -7,13 +7,13 @@
 .ppw > svg { flex: none; }
 .ppw > span { flex: 1 1 220px; min-width: 0; }
 .ppw b { font-variant-numeric: tabular-nums; }
-.ppw-quiet { background: #f5f7f6; color: #5f6e66; }
-.ppw-dot { width: 7px; height: 7px; border-radius: 50%; background: #8fb59f; animation: ppw-pulse 1s ease-in-out infinite; }
+.ppw-quiet { background: #f3f6f9; color: #4d6280; }
+.ppw-dot { width: 7px; height: 7px; border-radius: 50%; background: #93a0b1; animation: ppw-pulse 1s ease-in-out infinite; }
 @keyframes ppw-pulse { 50% { opacity: .3; } }
-.ppw-ref { background: #f0f7f3; color: #24533a; }
-.ppw-ok { background: #f0f7f3; color: #0a5a36; }
-.ppw-good { background: #ebf6ef; color: #0a5a36; }
-.ppw-link { display: inline-flex; flex: none; align-items: center; gap: 4px; color: #0d7142; font-weight: 750; text-decoration: none; white-space: nowrap; }
+.ppw-ref { background: #f0f3f7; color: #0e693f; }
+.ppw-ok { background: #f0f3f7; color: #1d2a47; }
+.ppw-good { background: #ecf0f5; color: #1d2a47; }
+.ppw-link { display: inline-flex; flex: none; align-items: center; gap: 4px; color: #0f6f42; font-weight: 750; text-decoration: none; white-space: nowrap; }
 .ppw-link:hover { text-decoration: underline; }
 .ppw-alert { display: grid; gap: 8px; padding: 11px 12px; border: 1px solid; }
 .ppw-alert .ppw-head { display: flex; gap: 8px; align-items: flex-start; }

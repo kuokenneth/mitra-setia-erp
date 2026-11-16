@@ -105,7 +105,7 @@ export default function ImageAnnotationEditor({ file, open, onClose, onSave }) {
   if (!open || !file) return null;
   return <div className="image-annotator-overlay" onPointerDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="image-annotator-dialog" role="dialog" aria-modal="true" aria-label="Tandai kerusakan pada foto">
-      <header><div><span>TANDAI BUKTI KERUSAKAN</span><h3>Gambar pada bagian yang bermasalah</h3><p>Gunakan jari atau stylus untuk mencoret, menggarisbawahi, atau melingkari area kerusakan.</p></div><button type="button" onClick={onClose}>Tutup</button></header>
+      <header><div><span>Tandai bukti kerusakan</span><h3>Gambar pada bagian yang bermasalah</h3><p>Gunakan jari atau stylus untuk mencoret, menggarisbawahi, atau melingkari area kerusakan.</p></div><button type="button" onClick={onClose}>Tutup</button></header>
       <div className="image-annotator-stage"><canvas ref={canvasRef} onPointerDown={beginMark} onPointerMove={moveMark} onPointerUp={finishMark} onPointerCancel={finishMark} /></div>
       <footer><div><button type="button" disabled={!strokes.length || saving} onClick={() => setStrokes((current) => current.slice(0, -1))}>Urungkan</button><button type="button" disabled={!strokes.length || saving} onClick={() => setStrokes([])}>Hapus semua</button></div><button className="image-annotator-save" type="button" disabled={!ready || saving} onClick={saveImage}>{saving ? "Menyimpan..." : strokes.length ? "Simpan Foto Bertanda" : "Gunakan Tanpa Tanda"}</button></footer>
     </section>

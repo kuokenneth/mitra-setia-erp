@@ -8,11 +8,11 @@ import LoadingState from "../components/LoadingState";
 
 // Corporate Green Color Palette (matching Landing Page)
 const BRAND = {
-  primary: "#0D7C3D",
-  primaryDark: "#0A6331",
-  primaryLight: "#10A050",
-  secondary: "#F5F9F7",
-  accent: "#D4E8DC",
+  primary: "#107948",
+  primaryDark: "#0d6039",
+  primaryLight: "#159b5c",
+  secondary: "#f4f7fa",
+  accent: "#d1ebdf",
   text: "#1A1A1A",
   textLight: "#4A4A4A",
   textMuted: "#6B7280",
@@ -20,8 +20,8 @@ const BRAND = {
   border: "#E5E7EB",
   warning: "#F59E0B",
   warningBg: "#FFFBEB",
-  success: "#10B981",
-  successBg: "#ECFDF5",
+  success: "#10b96a",
+  successBg: "#ecfdf5",
   error: "#EF4444",
   errorBg: "#FEF2F2",
 };
@@ -165,8 +165,8 @@ export default function Users() {
       <div className="users-card" style={s.card}>
         {/* Toolbar */}
         <div className="users-toolbar" style={s.toolbar}>
-          <div style={s.searchRow}>
-            <div style={s.inputWrap}>
+          <div className="users-search-row" style={s.searchRow}>
+            <div className="users-search-field" style={s.inputWrap}>
               <FiSearch size={16} color={BRAND.textMuted} style={{ marginRight: 8 }} />
               <input
                 style={s.input}
@@ -212,7 +212,7 @@ export default function Users() {
               </tr>
             </thead>
             <tbody>
-              {loading && items.length === 0 && <tr><td colSpan={6} style={{ padding: 14 }}><LoadingState compact label="Memuat pengguna" note="Menyiapkan akun, peran, dan status akses…" rows={5} /></td></tr>}
+              {loading && items.length === 0 && <tr><td colSpan={6} style={{ padding: 14 }}><LoadingState compact label="Memuat pengguna" note="Menyiapkan akun, peran, dan status akses…" rows={3} /></td></tr>}
               {items.map((u) => (
                 <tr key={u.id} style={s.tr}>
                   <td style={s.td}>
@@ -303,14 +303,14 @@ function rolePill(role) {
     borderRadius: 4,
     fontSize: 12,
     fontWeight: 600,
-    textTransform: "uppercase",
+    textTransform: "none",
     letterSpacing: "0.3px",
   };
 
   if (role === "ADMIN")
     return { ...base, background: "#EFF6FF", color: "#1D4ED8" };
   if (role === "SPAREPART_ADMIN")
-    return { ...base, background: "#ECFDF5", color: BRAND.primary };
+    return { ...base, background: "#eefbf5", color: BRAND.primary };
   if (role === "STAFF")
     return { ...base, background: BRAND.warningBg, color: BRAND.warning };
   return { ...base, background: BRAND.accent, color: BRAND.primary };
@@ -427,7 +427,7 @@ const s = {
     padding: "12px 16px",
     background: BRAND.secondary,
     borderBottom: `1px solid ${BRAND.border}`,
-    textTransform: "uppercase",
+    textTransform: "none",
     letterSpacing: "0.5px",
   },
 
@@ -475,7 +475,7 @@ const s = {
     fontWeight: 600,
     cursor: "pointer",
     outline: "none",
-    textTransform: "uppercase",
+    textTransform: "none",
     letterSpacing: "0.3px",
   },
 

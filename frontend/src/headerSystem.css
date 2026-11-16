@@ -17,14 +17,14 @@
 .erp-page-header-eyebrow {
   display: block;
   margin-bottom: 7px;
-  color: #188149;
+  color: #128750;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: .17em;
 }
 
-.erp-page-header h1 { margin: 0; color: #1f3026; font-size: clamp(29px, 2.15vw, 36px); line-height: 1.08; letter-spacing: -.04em; }
-.erp-page-header p { max-width: 680px; margin: 7px 0 0; color: #748078; font-size: 14px; line-height: 1.5; }
+.erp-page-header h1 { margin: 0; color: #172138; font-size: clamp(29px, 2.15vw, 36px); line-height: 1.08; letter-spacing: -.04em; }
+.erp-page-header p { max-width: 680px; margin: 7px 0 0; color: #66778e; font-size: 14px; line-height: 1.5; }
 
 .erp-action-toolbar {
   position: relative;
@@ -52,7 +52,7 @@
 .erp-action-group select,
 .erp-action-group button { box-sizing: border-box; min-height: 42px; }
 .erp-action-group button { white-space: nowrap; }
-.erp-action-group input[type="month"] { width: 164px !important; min-width: 164px !important; max-width: 164px !important; padding: 0 12px; border: 1px solid #d7e2da; border-radius: 10px; background: #fff; color: #304238; font: inherit; }
+.erp-action-group input[type="month"] { width: 164px !important; min-width: 164px !important; max-width: 164px !important; padding: 0 12px; border: 1px solid #d3dbe6; border-radius: 10px; background: #fff; color: #2b3747; font: inherit; }
 
 /* Normalize geometry of existing authenticated page headers without erasing module styling. */
 :is(.d3-header,.orders-v3-head,.trips-v3-head,.fleet-v2-header,.fleet-map-head,.location-master-head,.inventory-hero,.maintenance-head,.p-head,.ar-head,.acct-hero,.fp-head,.audit-hero,.staff-page-header) {
@@ -113,22 +113,22 @@
   align-items: center;
   justify-content: center;
   padding: 0 16px !important;
-  border: 1px solid #d6e1da;
+  border: 1px solid #d2dae5;
   border-radius: 9px;
   background: #fff;
-  color: #526159;
+  color: #435670;
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
 }
 
 .erp-content .maintenance-modal-header > .maintenance-modal-close:hover {
-  border-color: #9fbdab;
-  background: #f3f8f5;
-  color: #176f43;
+  border-color: #a1acbb;
+  background: #f2f5f9;
+  color: #107646;
 }
 
 .erp-content .maintenance-modal-header > .maintenance-modal-close:focus-visible {
-  outline: 3px solid rgba(32, 132, 76, .2);
+  outline: 3px solid rgba(20,144,86,.2);
   outline-offset: 2px;
 }

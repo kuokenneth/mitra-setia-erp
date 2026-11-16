@@ -14,14 +14,14 @@
   height: 6px;
   margin-top: 7px;
   border-radius: 999px;
-  background: #e7ede9;
+  background: #e4e9f0;
 }
 
 .orders-v3-load i b {
   display: block;
   height: 100%;
   border-radius: 0;
-  background: linear-gradient(90deg, #3c8b5d, #70ad84);
+  background: linear-gradient(90deg, #18af69, #39e494);
   transition: width 0.3s ease;
 }
 
@@ -34,20 +34,20 @@
   flex-wrap: wrap;
   gap: 3px 8px;
   margin-top: 5px;
-  color: #7d8981;
+  color: #6f8097;
   font-size: 8px;
   font-style: normal;
   font-weight: 650;
 }
 
 .orders-v3-load em span { white-space: nowrap; }
-.orders-progress-completed { color: #2f7d4f; }
+.orders-progress-completed { color: #278559; }
 .orders-progress-processing { color: #a96d05; }
 
 .order-load-progress { display: flex !important; overflow: hidden; }
 .order-load-progress b { display: block; height: 100%; border-radius: 0 !important; transition: width .3s ease; }
-.order-load-progress b.completed { background: linear-gradient(90deg, #3b895b, #72ae86) !important; }
+.order-load-progress b.completed { background: linear-gradient(90deg, #2c9866, #53cd94) !important; }
 .order-load-progress b.processing { background: linear-gradient(90deg, #f2b84b, #f6cf72) !important; }
 .order-load-progress b:first-child { border-radius: 999px 0 0 999px !important; }
 .order-load-progress b:last-child { border-radius: 0 999px 999px 0 !important; }
-.order-load-progress-large { height: 9px; border-radius: 999px; background: #dce9e1; }
+.order-load-progress-large { height: 9px; border-radius: 999px; background: #d7eee3; }

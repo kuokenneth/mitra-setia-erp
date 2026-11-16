@@ -200,13 +200,13 @@ const s = {
   hTitle: {
     fontWeight: 1000,
     fontSize: 22,
-    color: "#053a2f",
+    color: "#121a2d",
     letterSpacing: -0.2,
   },
   hSub: {
     marginTop: 4,
     fontSize: 12,
-    color: "rgba(4,120,87,0.85)",
+    color: "rgba(15,109,65,0.85)",
     fontWeight: 700,
   },
 
@@ -216,19 +216,19 @@ const s = {
     padding: "7px 10px",
     borderRadius: 999,
     background: "#ffffff",
-    border: "1px solid rgba(6,95,70,0.10)",
-    color: "#065f46",
+    border: "1px solid rgba(29,42,72,0.10)",
+    color: "#1d2a48",
     whiteSpace: "nowrap",
   },
 
   loadingCard: {
     borderRadius: 18,
-    background: "linear-gradient(180deg, #ffffff 0%, #fbfffd 100%)",
+    background: "linear-gradient(180deg, #ffffff 0%, #fcfefd 100%)",
     boxShadow: "0 12px 30px rgba(0,0,0,0.06)",
-    border: "1px solid rgba(6,95,70,0.08)",
+    border: "1px solid rgba(29,42,72,0.08)",
     padding: 18,
     fontWeight: 800,
-    color: "rgba(4,120,87,0.85)",
+    color: "rgba(15,109,65,0.85)",
   },
 
   grid: {
@@ -240,9 +240,9 @@ const s = {
 
   card: {
     borderRadius: 18,
-    background: "linear-gradient(180deg, #ffffff 0%, #fbfffd 100%)",
+    background: "linear-gradient(180deg, #ffffff 0%, #fcfefd 100%)",
     boxShadow: "0 12px 30px rgba(0,0,0,0.06)",
-    border: "1px solid rgba(6,95,70,0.08)",
+    border: "1px solid rgba(29,42,72,0.08)",
     padding: 18,
     minWidth: 0,
   },
@@ -250,12 +250,12 @@ const s = {
   cardTitle: {
     fontWeight: 1000,
     fontSize: 14,
-    color: "#053a2f",
+    color: "#121a2d",
   },
   cardSub: {
     marginTop: 4,
     fontSize: 12,
-    color: "rgba(4,120,87,0.78)",
+    color: "rgba(15,109,65,0.78)",
     fontWeight: 700,
   },
 
@@ -273,9 +273,9 @@ const s = {
   alertOk: {
     marginTop: 12,
     borderRadius: 14,
-    border: "1px solid rgba(34,197,94,0.26)",
-    background: "rgba(34,197,94,0.10)",
-    color: "#065f46",
+    border: "1px solid rgba(28,203,121,0.26)",
+    background: "rgba(28,203,121,0.10)",
+    color: "#1d2a48",
     padding: "10px 12px",
     fontWeight: 900,
     fontSize: 12,
@@ -285,38 +285,38 @@ const s = {
   label: {
     fontSize: 12,
     fontWeight: 900,
-    color: "rgba(4,120,87,0.85)",
+    color: "rgba(15,109,65,0.85)",
     marginBottom: 6,
   },
 
   input: {
     width: "100%",
     borderRadius: 14,
-    border: "1px solid rgba(6,95,70,0.12)",
+    border: "1px solid rgba(29,42,72,0.12)",
     background: "white",
     padding: "11px 12px",
     outline: "none",
     fontWeight: 800,
-    color: "#053a2f",
+    color: "#121a2d",
     boxSizing: "border-box",
   },
 
   inputDisabled: {
     width: "100%",
     borderRadius: 14,
-    border: "1px solid rgba(6,95,70,0.10)",
-    background: "rgba(6,95,70,0.03)",
+    border: "1px solid rgba(29,42,72,0.10)",
+    background: "rgba(29,42,72,0.03)",
     padding: "11px 12px",
     outline: "none",
     fontWeight: 800,
-    color: "rgba(4,120,87,0.8)",
+    color: "rgba(15,109,65,0.8)",
     boxSizing: "border-box",
   },
 
   help: {
     marginTop: 6,
     fontSize: 11,
-    color: "rgba(4,120,87,0.65)",
+    color: "rgba(15,109,65,0.65)",
     fontWeight: 700,
   },
 
@@ -334,8 +334,8 @@ const s = {
     fontWeight: 1000,
     cursor: "pointer",
     color: "white",
-    background: "linear-gradient(135deg, #22c55e, #16a34a)",
-    boxShadow: "0 14px 30px rgba(34,197,94,0.22)",
+    background: "linear-gradient(135deg, #1ccb79, #16a361)",
+    boxShadow: "0 14px 30px rgba(28,203,121,0.22)",
   },
 
   secondaryBtn: {
@@ -343,15 +343,15 @@ const s = {
     padding: "11px 14px",
     fontWeight: 1000,
     cursor: "pointer",
-    color: "#065f46",
-    background: "rgba(34,197,94,0.10)",
-    border: "1px solid rgba(34,197,94,0.18)",
+    color: "#1d2a48",
+    background: "rgba(28,203,121,0.10)",
+    border: "1px solid rgba(28,203,121,0.18)",
   },
 
   tip: {
     marginTop: 12,
     fontSize: 11,
-    color: "rgba(4,120,87,0.7)",
+    color: "rgba(15,109,65,0.7)",
     fontWeight: 700,
   },
 
@@ -359,9 +359,9 @@ const s = {
 
   summaryCard: {
     borderRadius: 18,
-    background: "linear-gradient(180deg, #ffffff 0%, #fbfffd 100%)",
+    background: "linear-gradient(180deg, #ffffff 0%, #fcfefd 100%)",
     boxShadow: "0 12px 30px rgba(0,0,0,0.06)",
-    border: "1px solid rgba(6,95,70,0.08)",
+    border: "1px solid rgba(29,42,72,0.08)",
     padding: 18,
   },
 
@@ -373,16 +373,16 @@ const s = {
     display: "grid",
     placeItems: "center",
     fontWeight: 1000,
-    color: "#065f46",
-    background: "rgba(34,197,94,0.12)",
-    border: "1px solid rgba(34,197,94,0.18)",
+    color: "#1d2a48",
+    background: "rgba(28,203,121,0.12)",
+    border: "1px solid rgba(28,203,121,0.18)",
     userSelect: "none",
   },
-  summaryName: { fontWeight: 1000, color: "#053a2f" },
+  summaryName: { fontWeight: 1000, color: "#121a2d" },
   summaryEmail: {
     marginTop: 2,
     fontSize: 12,
-    color: "rgba(4,120,87,0.85)",
+    color: "rgba(15,109,65,0.85)",
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
@@ -392,7 +392,7 @@ const s = {
 
   divider: {
     height: 1,
-    background: "rgba(6,95,70,0.08)",
+    background: "rgba(29,42,72,0.08)",
     margin: "14px 0",
   },
 
@@ -403,13 +403,13 @@ const s = {
     gap: 10,
     padding: "8px 0",
   },
-  k: { fontSize: 12, fontWeight: 900, color: "rgba(4,120,87,0.75)" },
-  v: { fontSize: 12, fontWeight: 1000, color: "#053a2f" },
+  k: { fontSize: 12, fontWeight: 900, color: "rgba(15,109,65,0.75)" },
+  v: { fontSize: 12, fontWeight: 1000, color: "#121a2d" },
 
   note: {
     marginTop: 10,
     fontSize: 11,
-    color: "rgba(4,120,87,0.7)",
+    color: "rgba(15,109,65,0.7)",
     fontWeight: 700,
     lineHeight: 1.35,
   },
@@ -417,14 +417,14 @@ const s = {
   miniCard: {
     borderRadius: 18,
     background: "rgba(255,255,255,0.75)",
-    border: "1px solid rgba(6,95,70,0.08)",
+    border: "1px solid rgba(29,42,72,0.08)",
     padding: 16,
   },
-  miniTitle: { fontWeight: 1000, color: "#053a2f", fontSize: 13 },
+  miniTitle: { fontWeight: 1000, color: "#121a2d", fontSize: 13 },
   miniText: {
     marginTop: 6,
     fontSize: 12,
-    color: "rgba(4,120,87,0.75)",
+    color: "rgba(15,109,65,0.75)",
     fontWeight: 750,
     lineHeight: 1.35,
   },

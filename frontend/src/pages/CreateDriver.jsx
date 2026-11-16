@@ -7,11 +7,11 @@ import { FiUser, FiMail, FiLock, FiPhone, FiArrowLeft, FiCheck, FiInfo } from "r
 
 // Corporate Green Color Palette (matching Landing Page)
 const BRAND = {
-  primary: "#0D7C3D",
-  primaryDark: "#0A6331",
-  primaryLight: "#10A050",
-  secondary: "#F5F9F7",
-  accent: "#D4E8DC",
+  primary: "#107948",
+  primaryDark: "#0d6039",
+  primaryLight: "#159b5c",
+  secondary: "#f4f7fa",
+  accent: "#d1ebdf",
   text: "#1A1A1A",
   textLight: "#4A4A4A",
   textMuted: "#6B7280",
@@ -19,8 +19,8 @@ const BRAND = {
   border: "#E5E7EB",
   warning: "#F59E0B",
   warningBg: "#FFFBEB",
-  success: "#10B981",
-  successBg: "#ECFDF5",
+  success: "#10b96a",
+  successBg: "#ecfdf5",
   error: "#EF4444",
   errorBg: "#FEF2F2",
 };
@@ -95,7 +95,7 @@ export default function CreateDriver() {
           <h1 style={s.title}>Tambah Pengemudi</h1>
           <p style={s.subtitle}>Tambahkan akun pengemudi baru untuk kebutuhan operasional.</p>
         </div>
-        <span style={s.badge}>ALAT STAF</span>
+        <span style={s.badge}>Alat staf</span>
       </div>
 
       <div className="staff-form-layout" style={s.grid}>
@@ -252,7 +252,7 @@ const s = {
     borderRadius: 4,
     background: BRAND.accent,
     color: BRAND.primary,
-    textTransform: "uppercase",
+    textTransform: "none",
     letterSpacing: "0.5px",
   },
 

@@ -12,11 +12,11 @@ import "./Expenses.css";
 
 // Corporate Green Color Palette (matching Landing/Dashboard)
 const BRAND = {
-  primary: "#0D7C3D",
-  primaryDark: "#0A6331",
-  primaryLight: "#10A050",
-  secondary: "#F5F9F7",
-  accent: "#D4E8DC",
+  primary: "#107948",
+  primaryDark: "#0d6039",
+  primaryLight: "#159b5c",
+  secondary: "#f4f7fa",
+  accent: "#d1ebdf",
   text: "#1A1A1A",
   textMuted: "#6B7280",
   white: "#FFFFFF",
@@ -763,7 +763,7 @@ export default function Expenses() {
       </PageHeader>
 
       {/* Stats */}
-      <div style={s.statsRow}>
+      <div style={s.statsRow} className="expense-stats">
         <div style={s.statCard} className="expense-stat-card expense-stat-waiting">
           <span className="expense-stat-icon"><FiClock /></span>
           <div style={s.statLabel}>Diajukan</div>
@@ -793,7 +793,7 @@ export default function Expenses() {
       {/* Main Panel */}
       <div style={s.panel} className="expense-panel">
         <div className="expense-panel-heading">
-          <div><div className="expense-eyebrow">DAFTAR TRANSAKSI</div><h2>Riwayat pengeluaran</h2></div>
+          <div><div className="expense-eyebrow">Daftar transaksi</div><h2>Riwayat pengeluaran</h2></div>
           <div className="expense-panel-heading-actions">{canApprove && pendingApprovalTotal > 0 && <button type="button" className="expense-approve-all" disabled={approveAllBusy} onClick={onApproveAll} title={`Hanya menyetujui pengeluaran pada ${expenseMonthLabel(reportMonth)}`}><FiCheckCircle /> {approveAllBusy ? "Menyetujui…" : `Setujui ${expenseMonthLabel(reportMonth)} (${pendingApprovalTotal})`}</button>}<button type="button" className="expense-print-all" disabled={!total || !reportMonth} onClick={printAllCashVouchers} title="Cetak seluruh bukti kas pada bulan yang dipilih di atas"><FiPrinter /> Cetak Semua Kas per Bulan</button><span className="expense-result-count">{total ? `${total} transaksi` : "0 transaksi"}</span></div>
         </div>
         {/* Filters */}
@@ -838,7 +838,7 @@ export default function Expenses() {
               </tr>
             </thead>
             <tbody>
-              {loading && items.length === 0 && <tr><td colSpan={7} style={{ padding: 14 }}><LoadingState compact label="Memuat pengeluaran" note="Mengambil transaksi dan status pembayaran…" rows={5} /></td></tr>}
+              {loading && items.length === 0 && <tr><td colSpan={7} style={{ padding: 14 }}><LoadingState compact label="Memuat pengeluaran" note="Mengambil transaksi dan status pembayaran…" rows={3} /></td></tr>}
               {items.map((x, index) => {
                 const dateKey = expenseDateKey(x);
                 const dateGroup = expenseDateGroups.get(dateKey);
@@ -933,7 +933,7 @@ export default function Expenses() {
             autoFocus
           >
             <div style={s.modalHeader}>
-              <div className="expense-modal-heading"><span className="expense-modal-icon"><FiClipboard /></span><div><div className="expense-eyebrow">BUKTI PEMBAYARAN</div><div style={s.modalTitle}>{pasteTarget.proofUrl ? "Ganti bukti pembayaran" : "Tambahkan bukti pembayaran"}</div><p>{pasteTarget.reason}</p></div></div>
+              <div className="expense-modal-heading"><span className="expense-modal-icon"><FiClipboard /></span><div><div className="expense-eyebrow">Bukti pembayaran</div><div style={s.modalTitle}>{pasteTarget.proofUrl ? "Ganti bukti pembayaran" : "Tambahkan bukti pembayaran"}</div><p>{pasteTarget.reason}</p></div></div>
               <button style={s.closeBtn} disabled={pasteBusy} onClick={() => setPasteTarget(null)} aria-label="Tutup"><FiX /></button>
             </div>
             <div className={`expense-paste-zone ${pasteBusy ? "is-busy" : ""}`}>
@@ -951,7 +951,7 @@ export default function Expenses() {
       {returnOpen && (
         <div style={s.modalOverlay} onClick={() => setReturnOpen(false)}>
           <div ref={returnDialogRef} role="dialog" aria-modal="true" aria-labelledby={returnTitleId} tabIndex={-1} style={{ ...s.modalCard, width: "min(820px, calc(100vw - 28px))" }} className="expense-return-modal" onClick={(e) => e.stopPropagation()}>
-            <div style={s.modalHeader}><div className="expense-modal-heading"><span className="expense-modal-icon expense-return-icon"><FiCornerUpLeft /></span><div><div className="expense-eyebrow">PENGEMBALIAN DANA</div><div id={returnTitleId} style={s.modalTitle}>Retur Pengeluaran / Panjar</div><p>Catat uang panjar atau uang jalan yang dikembalikan supir.</p></div></div><button style={s.closeBtn} onClick={() => setReturnOpen(false)} aria-label="Tutup"><FiX /></button></div>
+            <div style={s.modalHeader}><div className="expense-modal-heading"><span className="expense-modal-icon expense-return-icon"><FiCornerUpLeft /></span><div><div className="expense-eyebrow">Pengembalian dana</div><div id={returnTitleId} style={s.modalTitle}>Retur Pengeluaran / Panjar</div><p>Catat uang panjar atau uang jalan yang dikembalikan supir.</p></div></div><button style={s.closeBtn} onClick={() => setReturnOpen(false)} aria-label="Tutup"><FiX /></button></div>
             <form onSubmit={createReturn} className="expense-return-form">
               <div className="expense-return-notice"><FiCheckCircle /><span><strong>Retur akan mengurangi biaya armada</strong><small>Kas atau bank bertambah dan pengeluaran operasional berkurang secara otomatis.</small></span></div>
               <div className="expense-return-grid">
@@ -964,7 +964,7 @@ export default function Expenses() {
               </div>
               <div className="expense-return-actions"><button type="button" style={s.secondaryBtn} onClick={() => setReturnOpen(false)}>Tutup</button><button style={s.primaryBtn} disabled={returnSaving}><FiCornerUpLeft /> {returnSaving ? "Menyimpan…" : "Simpan Retur"}</button></div>
             </form>
-            <div className="expense-return-history"><div className="expense-eyebrow">RETUR TERAKHIR</div>{expenseReturns.length ? <div className="expense-return-list">{expenseReturns.slice(0, 6).map(item => <div key={item.id}><span><strong>{item.truck?.plateNumber}</strong><small>{new Date(item.returnDate).toLocaleDateString("id-ID")} · {item.reason}</small></span><b>{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(item.amount)}</b></div>)}</div> : <p className="expense-return-empty">Belum ada retur pengeluaran.</p>}</div>
+            <div className="expense-return-history"><div className="expense-eyebrow">Retur terakhir</div>{expenseReturns.length ? <div className="expense-return-list">{expenseReturns.slice(0, 6).map(item => <div key={item.id}><span><strong>{item.truck?.plateNumber}</strong><small>{new Date(item.returnDate).toLocaleDateString("id-ID")} · {item.reason}</small></span><b>{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(item.amount)}</b></div>)}</div> : <p className="expense-return-empty">Belum ada retur pengeluaran.</p>}</div>
           </div>
         </div>
       )}
@@ -972,7 +972,7 @@ export default function Expenses() {
       {financeDebtOpen && (
         <div style={s.modalOverlay} onClick={() => setFinanceDebtOpen(false)}>
           <div style={{ ...s.modalCard, width: "min(920px, calc(100vw - 28px))" }} onClick={(e) => e.stopPropagation()}>
-            <div style={s.modalHeader}><div><div className="expense-eyebrow">KEWAJIBAN LEASING</div><div style={s.modalTitle}>Utang Usaha Finance</div><p>Catat pokok utang awal per leasing. Pembayaran dibuat melalui Pengeluaran.</p></div><button style={s.closeBtn} onClick={() => setFinanceDebtOpen(false)}><FiX /></button></div>
+            <div style={s.modalHeader}><div><div className="expense-eyebrow">Kewajiban leasing</div><div style={s.modalTitle}>Utang Usaha Finance</div><p>Catat pokok utang awal per leasing. Pembayaran dibuat melalui Pengeluaran.</p></div><button style={s.closeBtn} onClick={() => setFinanceDebtOpen(false)}><FiX /></button></div>
             <div style={{ padding: 22, display: "grid", gap: 18 }}>
               <form onSubmit={createFinanceDebt} style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, padding: 16, background: BRAND.secondary, borderRadius: 12 }}>
                 <label style={s.label}>Nama Leasing<input required style={{ ...s.input, marginTop: 6 }} value={financeDebtForm.leasingName} onChange={(e) => setFinanceDebtForm((form) => ({ ...form, leasingName: e.target.value }))} placeholder="Contoh: BCA Finance" /></label>
@@ -993,7 +993,7 @@ export default function Expenses() {
             <div style={s.modalHeader} className="expense-create-header">
               <div className="expense-modal-heading">
                 <span className="expense-modal-icon"><FiCreditCard /></span>
-                <div><div className="expense-eyebrow">PENCATATAN BIAYA</div><div style={s.modalTitle}>Pengeluaran baru</div><p>Pilih alokasi biaya, lengkapi pembayaran, lalu simpan untuk diajukan.</p></div>
+                <div><div className="expense-eyebrow">Pencatatan biaya</div><div style={s.modalTitle}>Pengeluaran baru</div><p>Pilih alokasi biaya, lengkapi pembayaran, lalu simpan untuk diajukan.</p></div>
               </div>
               <button style={s.closeBtn} onClick={() => setShowModal(false)} aria-label="Close">
                 <FiX />
@@ -1049,9 +1049,9 @@ export default function Expenses() {
                     </select>
                   </div>
                   {emptyReturnOpen && (
-                    <div className="expense-empty-return" style={{ marginTop: 12, padding: isMobile ? 14 : 16, border: `1px solid #CFE1D5`, borderRadius: 12, background: "#F7FBF8" }}>
+                    <div className="expense-empty-return" style={{ marginTop: 12, padding: isMobile ? 14 : 16, border: `1px solid #c8e8d9`, borderRadius: 12, background: "#f7f9fb" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 12 }}>
-                        <div><div style={{ color: BRAND.primary, fontWeight: 750, fontSize: 13 }}>PERJALANAN KEMBALI KOSONG</div><div style={{ color: BRAND.textMuted, fontSize: 11, marginTop: 3 }}>Hanya menampilkan truk yang menunggu backhaul di luar Medan.</div></div>
+                        <div><div style={{ color: BRAND.primary, fontWeight: 750, fontSize: 13 }}>Perjalanan kembali kosong</div><div style={{ color: BRAND.textMuted, fontSize: 11, marginTop: 3 }}>Hanya menampilkan truk yang menunggu backhaul di luar Medan.</div></div>
                         <button type="button" onClick={() => setEmptyReturnOpen(false)} style={{ border: 0, background: "transparent", color: BRAND.textMuted, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
                       </div>
                       {emptyReturnLoading ? <div style={{ color: BRAND.textMuted, fontSize: 12 }}>Memuat truk…</div> : eligibleTrucks.length === 0 ? (
@@ -1477,7 +1477,7 @@ function makeStyles(isMobile) {
       fontSize: 12,
       fontWeight: 500,
       color: BRAND.textMuted,
-      textTransform: "uppercase",
+      textTransform: "none",
     },
     statValue: {
       fontSize: 24,
@@ -1557,7 +1557,7 @@ function makeStyles(isMobile) {
       background: BRAND.secondary,
       borderBottom: `1px solid ${BRAND.border}`,
       fontWeight: 600,
-      textTransform: "uppercase",
+      textTransform: "none",
       letterSpacing: "0.5px",
     },
     td: {
@@ -1724,7 +1724,7 @@ function makeStyles(isMobile) {
     detailLabel: {
       fontSize: 12,
       color: BRAND.textMuted,
-      textTransform: "uppercase",
+      textTransform: "none",
       letterSpacing: "0.4px",
       marginBottom: 4,
     },

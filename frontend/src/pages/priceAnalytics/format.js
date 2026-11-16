@@ -68,7 +68,7 @@ export const LEVEL = {
 };
 
 // Consistent supplier colours: index in the item's supplier order.
-export const SUPPLIER_COLORS = ["#0d7142", "#2f6fa8", "#c0702a", "#8a4fb3", "#b23b5e", "#23867c", "#7c6a17", "#55616b"];
+export const SUPPLIER_COLORS = ["#0f6f42", "#2f6fa8", "#c0702a", "#8a4fb3", "#b23b5e", "#149559", "#7c6a17", "#55616b"];
 export const supplierColor = (order, supplierId) => {
   const index = order.findIndex((s) => s.id === supplierId);
   return SUPPLIER_COLORS[(index < 0 ? order.length : index) % SUPPLIER_COLORS.length];

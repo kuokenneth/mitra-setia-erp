@@ -126,7 +126,7 @@ function GoogleLocationPicker({ position, radius, warning, onPick, onError }) {
       return;
     }
 
-    const color = warning ? "#dc2626" : "#0d7c3d";
+    const color = warning ? "#dc2626" : "#107948";
     if (!markerRef.current) {
       const marker = document.createElement("div");
       marker.className = "google-location-pin";
@@ -234,7 +234,7 @@ export default function OperationalLocations() {
   return (
     <main className="location-master-page location-master-v3">
       <header className="location-master-head">
-        <div><span>LOCATION CONTROL</span><h1>Master Lokasi</h1><p>Kelola titik operasional, radius GPS, dan area yang membutuhkan perhatian.</p></div>
+        <div><span>Location control</span><h1>Master Lokasi</h1><p>Kelola titik operasional, radius GPS, dan area yang membutuhkan perhatian.</p></div>
         <button onClick={load} disabled={loading}><FiRefreshCw className={loading ? "spinning" : ""} /> Sinkronkan</button>
       </header>
       {error && <div className="location-master-error">{error}<button onClick={() => setError("")}><FiX /></button></div>}
@@ -248,7 +248,7 @@ export default function OperationalLocations() {
 
       <div className="location-master-grid">
         <section className="location-editor-card">
-          <div className="location-card-title"><div><span>LOCATION EDITOR</span><h2>{form.id ? "Ubah Lokasi" : "Tambah Lokasi Baru"}</h2><p>Cari alamat atau tentukan titik langsung pada Google Maps.</p></div>{form.id && <button onClick={() => setForm(EMPTY)}><FiPlus /> Lokasi baru</button>}</div>
+          <div className="location-card-title"><div><span>Location editor</span><h2>{form.id ? "Ubah Lokasi" : "Tambah Lokasi Baru"}</h2><p>Cari alamat atau tentukan titik langsung pada Google Maps.</p></div>{form.id && <button onClick={() => setForm(EMPTY)}><FiPlus /> Lokasi baru</button>}</div>
           <form onSubmit={save}>
             <div className="location-form-caption"><span>01</span><div><strong>Informasi lokasi</strong><small>Nama, fungsi, dan jangkauan titik.</small></div></div>
             <div className="location-form-row"><label>Nama lokasi<input required value={form.name} onChange={(e) => setForm((v) => ({ ...v, name: e.target.value }))} placeholder="Contoh: Base Medan" /></label><label>Jenis<select value={form.type} onChange={(e) => setForm((v) => ({ ...v, type: e.target.value }))}>{Object.entries(TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
@@ -262,7 +262,7 @@ export default function OperationalLocations() {
         </section>
 
         <section className="location-list-card">
-          <div className="location-card-title"><div><span>DIRECTORY</span><h2>Lokasi Tersimpan</h2><p>{filteredItems.length} dari {items.length} lokasi ditampilkan.</p></div></div>
+          <div className="location-card-title"><div><span>Directory</span><h2>Lokasi Tersimpan</h2><p>{filteredItems.length} dari {items.length} lokasi ditampilkan.</p></div></div>
           <label className="location-list-search"><FiSearch /><input value={listQuery} onChange={(event) => setListQuery(event.target.value)} placeholder="Cari nama, alamat, atau jenis…" />{listQuery && <button type="button" onClick={() => setListQuery("")}><FiX /></button>}</label>
           <div className="location-list">
             {loading && !items.length && <LoadingState compact label="Memuat master lokasi" note="Mengambil titik dan radius GPS…" rows={4} />}

@@ -18,11 +18,11 @@ import useDialogLifecycle from "../components/useDialogLifecycle";
 //////////////////////
 
 const BRAND = {
-  primary: "#0D7C3D",
-  primaryDark: "#0A6331",
-  primaryLight: "#10A050",
-  secondary: "#F5F9F7",
-  accent: "#D4E8DC",
+  primary: "#107948",
+  primaryDark: "#0d6039",
+  primaryLight: "#159b5c",
+  secondary: "#f4f7fa",
+  accent: "#d1ebdf",
   text: "#1A1A1A",
   textLight: "#4A4A4A",
   textMuted: "#6B7280",
@@ -30,8 +30,8 @@ const BRAND = {
   border: "#E5E7EB",
   warning: "#F59E0B",
   warningBg: "#FFFBEB",
-  success: "#10B981",
-  successBg: "#ECFDF5",
+  success: "#10b96a",
+  successBg: "#ecfdf5",
   danger: "#EF4444",
   dangerBg: "#FEF2F2",
   info: "#3B82F6",
@@ -76,7 +76,7 @@ function StatusBadge({ status }) {
         color: c.fg,
         fontWeight: 600,
         fontSize: 12,
-        textTransform: "uppercase",
+        textTransform: "none",
         letterSpacing: "0.3px",
       }}
     >
@@ -212,7 +212,7 @@ function MasterLocationPicker({ label, locations, locationId, text, onChange, ex
       <div className={locationId ? "selected" : ""}>
         <FiMapPin />
         <input value={text} onFocus={() => setOpen(true)} onBlur={() => window.setTimeout(() => setOpen(false), 150)} onChange={(event) => { onChange({ id: null, name: event.target.value }); setOpen(true); }} placeholder={placeholder} autoComplete="off" />
-        {locationId && <b>MASTER</b>}
+        {locationId && <b>Master</b>}
       </div>
       {open && (
         <section>
@@ -473,15 +473,15 @@ export default function Orders() {
   return (
     <div className="orders-v3-page" data-testid="orders-page">
       <header className="orders-v3-head">
-        <div><span>ORDER CONTROL</span><h1 data-testid="orders-title">Pesanan</h1><p>Kelola permintaan angkutan, pembagian trip, dan surat jalan dari satu tempat.</p></div>
+        <div><span>Order control</span><h1 data-testid="orders-title">Pesanan</h1><p>Kelola permintaan angkutan, pembagian trip, dan surat jalan dari satu tempat.</p></div>
         {allowed ? <div className="orders-v3-head-actions"><button className="orders-v3-customer-create" onClick={() => { setCreateErr(""); setNewCustomer({ name: "", phone: "", address: "" }); setShowCustomerForm(true); }}><FiPlus /> Customer</button><button className="orders-v3-create" onClick={() => { resetCreate(); setShowCreate(true); }} data-testid="new-order-btn"><FiPlus /> Pesanan Baru</button></div> : <span className="orders-v3-readonly">Akses hanya-baca</span>}
       </header>
 
       <section className="orders-v3-summary">
-        <article><span><FiFileText /></span><div><small>TOTAL PESANAN</small><strong>{summary.total}</strong><p>Hasil sesuai filter</p></div></article>
-        <article><span><FiPackage /></span><div><small>DRAFT</small><strong>{summary.draft}</strong><p>Belum dikonfirmasi</p></div></article>
-        <article className="active"><span><FiRefreshCw /></span><div><small>SEDANG DIPROSES</small><strong>{summary.active}</strong><p>Confirmed & in progress</p></div></article>
-        <article className="done"><span><FiArrowRight /></span><div><small>SELESAI</small><strong>{summary.completed}</strong><p>Pesanan completed</p></div></article>
+        <article><span><FiFileText /></span><div><small>Total pesanan</small><strong>{summary.total}</strong><p>Hasil sesuai filter</p></div></article>
+        <article><span><FiPackage /></span><div><small>Draft</small><strong>{summary.draft}</strong><p>Belum dikonfirmasi</p></div></article>
+        <article className="active"><span><FiRefreshCw /></span><div><small>Sedang diproses</small><strong>{summary.active}</strong><p>Confirmed & in progress</p></div></article>
+        <article className="done"><span><FiArrowRight /></span><div><small>Selesai</small><strong>{summary.completed}</strong><p>Pesanan completed</p></div></article>
       </section>
 
       {err && <div className="orders-v3-error">{err}</div>}
@@ -496,9 +496,10 @@ export default function Orders() {
       </section>
 
       <section className="orders-v3-board">
-        <header><div><span>DAFTAR OPERASIONAL</span><h2>Pesanan Aktif & Riwayat</h2></div><b>{items.length} pesanan</b></header>
+        <header><div><span>Daftar operasional</span><h2>Pesanan Aktif & Riwayat</h2></div><b>{items.length} pesanan</b></header>
+        <div className="orders-v3-columns" aria-hidden="true"><span>Pesanan & Customer</span><span>Rute Pengiriman</span><span>Muatan & Jadwal</span><span>Dokumen</span></div>
         <div className="orders-v3-list">
-          {loading && !items.length && <LoadingState label="Memuat pesanan" note="Menyiapkan alokasi, rute, dan progres terbaru…" rows={4} />}
+          {loading && !items.length && <LoadingState label="Memuat pesanan" note="Menyiapkan alokasi, rute, dan progres terbaru…" rows={3} compact />}
           {!items.length && !loading && <div className="orders-v3-empty"><FiFileText /><strong>Tidak ada pesanan ditemukan</strong><p>Coba ubah kata pencarian atau filter yang digunakan.</p></div>}
           {items.map((order) => {
             const customerName = order.customer?.name || order.customerName || "Tanpa customer";
@@ -508,14 +509,17 @@ export default function Orders() {
             const completed = Number(order.qtyDelivered || 0);
             const inProgress = Number(order.qtyInProgress || 0);
             const completedPercent = total > 0 ? Math.min(100, Math.max(0, (completed / total) * 100)) : 0;
+            const billed = Math.min(completed, Math.max(0, Number(order.qtyBilled || 0)));
+            const readyToBill = Math.max(0, completed - billed);
+            const billedPercent = total > 0 ? Math.min(completedPercent, billed / total * 100) : 0;
             const inProgressPercent = total > 0 ? Math.min(100 - completedPercent, Math.max(0, (inProgress / total) * 100)) : 0;
             const unit = order.unit || "";
-            return <article key={order.id} onClick={() => nav(`/orders/${order.id}`)} data-testid={`order-row-${order.id}`}>
-              <div className="orders-v3-identity"><StatusBadge status={order.status} /><div className="orders-v3-primary-do"><small>NO. DO</small><h3>{order.deliveryOrderNo || "DO belum tersedia"}</h3></div><p>{customerName}</p><div className="orders-v3-docrefs"><span><b>ID PESANAN</b>{order.orderNo}</span><span><b>SPK</b>{order.spkNo || "—"}</span></div><small>Dibuat oleh {order.createdBy?.name || order.createdBy?.email || "Data lama"}</small></div>
-              <div className="orders-v3-route"><span><FiMapPin /></span><div><small>RUTE PENGIRIMAN</small><p><b>{order.fromText || "Asal belum diisi"}</b><FiArrowRight /><b>{order.toText || "Tujuan belum diisi"}</b></p></div></div>
+            return <article key={order.id} role="link" tabIndex={0} aria-label={`Buka pesanan ${order.orderNo}`} onKeyDown={event => { if (event.key === "Enter") nav(`/orders/${order.id}`); }} onClick={() => nav(`/orders/${order.id}`)} data-testid={`order-row-${order.id}`}>
+              <div className="orders-v3-identity"><StatusBadge status={order.status} /><div className="orders-v3-primary-do"><small>NO. DO</small><h3>{order.deliveryOrderNo || "DO belum tersedia"}</h3></div><p>{customerName}</p><div className="orders-v3-docrefs"><span><b>ID pesanan</b>{order.orderNo}</span><span><b>SPK</b>{order.spkNo || "—"}</span></div><small>Dibuat oleh {order.createdBy?.name || order.createdBy?.email || "Data lama"}</small></div>
+              <div className="orders-v3-route"><span><FiMapPin /></span><div><small>Rute pengiriman</small><p><b>{order.fromText || "Asal belum diisi"}</b><FiArrowRight /><b>{order.toText || "Tujuan belum diisi"}</b></p></div></div>
               <div className="orders-v3-meta">
-                <div className="orders-v3-load"><FiPackage /><span><small>PROGRES MUATAN</small>{total == null ? <><strong>{order.cargoName || "Muatan material"}</strong><em>Jumlah mengikuti faktur muatan</em></> : <><strong>{completed} dari {total} {unit} selesai</strong><i><b className="completed" style={{ width: `${completedPercent}%` }} /><b className="processing" style={{ width: `${inProgressPercent}%` }} /></i><em><span className="orders-progress-completed">{completed} {unit} selesai</span>{inProgress > 0 && <span className="orders-progress-processing">{inProgress} {unit} sedang diproses</span>}<span>{remaining ?? Math.max(0, total - allocated)} {unit} belum dibuatkan trip</span></em></>}</span></div>
-                <div><FiCalendar /><span><small>RENCANA</small><strong>{fmtDate(order.plannedAt)}</strong></span></div>
+                <div className="orders-v3-load"><FiPackage /><span><small>Progres muatan</small>{total == null ? <><strong>{order.cargoName || "Muatan material"}</strong><em>Jumlah mengikuti faktur muatan</em></> : <><strong>{completed} dari {total} {unit} selesai</strong><i><b className="billed" style={{ width: `${billedPercent}%` }} /><b className="completed" style={{ width: `${completedPercent - billedPercent}%` }} /><b className="processing" style={{ width: `${inProgressPercent}%` }} /></i><em>{order.qtyBilled == null ? <span className="orders-progress-completed">{completed} {unit} selesai</span> : <><span className="orders-progress-billed">{billed} {unit} masuk tagihan</span><span className="orders-progress-completed">{readyToBill} {unit} selesai · belum ditagih</span></>}{inProgress > 0 && <span className="orders-progress-processing">{inProgress} {unit} sedang diproses</span>}<span>{remaining ?? Math.max(0, total - allocated)} {unit} belum dibuatkan trip</span></em></>}</span></div>
+                <div><FiCalendar /><span><small>Rencana</small><strong>{fmtDate(order.plannedAt)}</strong></span></div>
               </div>
               <div className="orders-v3-counts"><span><b>{order._count?.trips ?? 0}</b> Trip</span><span><b>{order._count?.proofs ?? 0}</b> Bukti</span></div>
             </article>;
@@ -648,9 +652,9 @@ export default function Orders() {
             <div style={{ marginBottom: 10, color: BRAND.danger, fontWeight: 500, fontSize: 14 }}>{uploadErr}</div>
           )}
 
-          <div style={{ borderRadius: 10, border: `1.5px dashed ${uploading ? BRAND.primary : "#B7D8C5"}`, background: "linear-gradient(135deg, #F7FBF8 0%, #EEF7F1 100%)", overflow: "hidden" }}>
+          <div style={{ borderRadius: 10, border: `1.5px dashed ${uploading ? BRAND.primary : "#b1dec9"}`, background: "linear-gradient(135deg, #f7f9fb 0%, #eef2f6 100%)", overflow: "hidden" }}>
           <label style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", cursor: creating || uploading ? "not-allowed" : "pointer", opacity: creating ? 0.65 : 1, borderBottom: proofs.length ? `1px solid ${BRAND.border}` : "none" }}>
-            <span style={{ width: 42, height: 42, borderRadius: 10, display: "grid", placeItems: "center", flex: "0 0 auto", color: BRAND.primary, background: BRAND.white, boxShadow: "0 3px 10px rgba(13,124,61,.10)" }}><FiUploadCloud size={21}/></span>
+            <span style={{ width: 42, height: 42, borderRadius: 10, display: "grid", placeItems: "center", flex: "0 0 auto", color: BRAND.primary, background: BRAND.white, boxShadow: "0 3px 10px rgba(16,121,72,.10)" }}><FiUploadCloud size={21}/></span>
             <span style={{ display: "grid", gap: 3 }}>
               <strong style={{ fontSize: 14, color: BRAND.text }}>{uploading ? "Sedang mengunggah..." : "Pilih gambar atau PDF"}</strong>
               <span style={{ fontSize: 12, color: BRAND.textMuted }}>Bisa memilih beberapa file · maksimal 15 MB per file</span>
@@ -712,7 +716,7 @@ export default function Orders() {
                     }}
                   >
                     {isPdf ? (
-                      <div style={{ height: 112, display: "grid", placeItems: "center", gap: 4, borderRadius: 8, background: "#F3F7F4" }}>
+                      <div style={{ height: 112, display: "grid", placeItems: "center", gap: 4, borderRadius: 8, background: "#f2f5f8" }}>
                         <FiFileText size={30} color={BRAND.primary}/>
                         <div>
                           <button type="button" onClick={() => openProtectedFile(p.url).catch((e) => setErr(e.message))} style={{ border: 0, background: "transparent", cursor: "pointer", fontSize: 12, color: BRAND.primary, fontWeight: 600 }}>Buka PDF</button>

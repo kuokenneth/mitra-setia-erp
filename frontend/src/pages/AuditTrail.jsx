@@ -80,7 +80,7 @@ export default function AuditTrail() {
 
   return <div className="audit-page">
     <header className="audit-hero">
-      <div><span className="audit-kicker">ADMINISTRASI & KEAMANAN</span><h1>Audit Trail</h1><p>Telusuri siapa yang melakukan perubahan, kapan terjadi, dan data apa yang terpengaruh.</p></div>
+      <div><span className="audit-kicker">Administrasi & keamanan</span><h1>Audit Trail</h1><p>Telusuri siapa yang melakukan perubahan, kapan terjadi, dan data apa yang terpengaruh.</p></div>
       <div className="audit-hero-badge"><FiShield/><span><strong>Owner only</strong><small>Catatan tidak dapat diubah</small></span></div>
     </header>
 
@@ -92,7 +92,7 @@ export default function AuditTrail() {
     </section>
 
     <section className="audit-workspace">
-      <div className="audit-workspace-head"><div><span className="audit-kicker">LOG AKTIVITAS</span><h2>Riwayat perubahan sistem</h2></div></div>
+      <div className="audit-workspace-head"><div><span className="audit-kicker">Log aktivitas</span><h2>Riwayat perubahan sistem</h2></div></div>
       <section className="audit-filters">
         <label className="audit-search"><FiSearch/><input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Cari nama, email, endpoint, atau ID data..." /></label>
         <select aria-label="Filter modul" value={resource} onChange={(e) => { setResource(e.target.value); setPage(1); }}><option value="">Semua modul</option>{data.resources.map((item) => <option key={item} value={item}>{resourceNames[item] || item}</option>)}</select>
@@ -104,15 +104,15 @@ export default function AuditTrail() {
       </section>
       <div className="audit-filter-footer"><span><FiFilter/> {activeFilters ? `${activeFilters} filter aktif` : "Menampilkan seluruh aktivitas"}</span>{activeFilters > 0 && <button type="button" onClick={resetFilters}>Reset semua filter</button>}</div>
       {error && <div className="audit-error">{error}</div>}
-      <section className="audit-table-wrap">{loading && !data.items.length && <LoadingState label="Memuat audit trail" note="Mengambil aktivitas dan perubahan sistem…" rows={6} />}<table className="audit-table"><thead><tr><th>Waktu</th><th>Aktor</th><th>Aktivitas</th><th>Modul & target</th><th>Endpoint</th><th>Respons</th></tr></thead><tbody>
+      <section className="audit-table-wrap">{loading && !data.items.length && <LoadingState compact label="Memuat audit trail" note="Mengambil aktivitas dan perubahan sistem…" rows={3} />}{(!loading || data.items.length > 0) && <table className="audit-table"><thead><tr><th>Waktu</th><th>Aktor</th><th>Aktivitas</th><th>Modul & target</th><th>Endpoint</th><th>Respons</th></tr></thead><tbody>
         {!loading && !data.items.length && <tr><td colSpan="6" className="audit-empty"><FiSearch/><strong>Tidak ada aktivitas ditemukan</strong><span>Coba ubah kata kunci atau reset filter.</span></td></tr>}
         {data.items.map((log) => { const displayAction = resolvedAction(log); const time = shortDate(log.createdAt); return <tr key={log.id} onClick={() => setSelected(log)}><td><strong className="audit-time-date">{time.date}</strong><small>{time.time}</small></td><td><strong>{actorLabel(log)}</strong><small>{log.actorRole || "Sistem"}</small></td><td><span className={`audit-action ${displayAction.toLowerCase()}`}>{actionLabel[displayAction] || displayAction}</span></td><td><strong>{resourceLabel(log)}</strong><small className="audit-entity">{log.entityId || "Tanpa ID target"}</small></td><td><code>{log.method} {log.path}</code></td><td><span className="audit-response">{log.statusCode}</span><small>Berhasil</small></td></tr>; })}
-      </tbody></table></section>
-      <footer className="audit-pagination"><span>Menampilkan {data.items.length} dari {data.total} aktivitas</span><div><button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}><FiChevronLeft/></button><span>Halaman <strong>{page}</strong> dari {pages}</span><button disabled={page >= pages} onClick={() => setPage((p) => p + 1)}><FiChevronRight/></button></div></footer>
+      </tbody></table>}</section>
+      {(!loading || data.items.length > 0) && <footer className="audit-pagination"><span>Menampilkan {data.items.length} dari {data.total} aktivitas</span><div><button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}><FiChevronLeft/></button><span>Halaman <strong>{page}</strong> dari {pages}</span><button disabled={page >= pages} onClick={() => setPage((p) => p + 1)}><FiChevronRight/></button></div></footer>}
     </section>
 
     {selected && <div className="audit-overlay" onMouseDown={() => setSelected(null)}><article className="audit-detail" onMouseDown={(e) => e.stopPropagation()}>
-      <header><div><small>DETAIL AKTIVITAS</small><h2>{actionLabel[resolvedAction(selected)] || resolvedAction(selected)} {resourceLabel(selected)}</h2><p>{formatDate(selected.createdAt)}</p></div><button onClick={() => setSelected(null)} aria-label="Tutup"><FiX/></button></header>
+      <header><div><small>Detail aktivitas</small><h2>{actionLabel[resolvedAction(selected)] || resolvedAction(selected)} {resourceLabel(selected)}</h2><p>{formatDate(selected.createdAt)}</p></div><button onClick={() => setSelected(null)} aria-label="Tutup"><FiX/></button></header>
       <div className="audit-detail-summary"><div><span>Aktor</span><strong>{actorLabel(selected)}</strong><small>{selected.actorRole || "Sistem"}</small></div><div><span>Target</span><strong>{selected.entityId || "Tanpa ID"}</strong><small>{resourceLabel(selected)}</small></div><div><span>Respons</span><strong>{selected.statusCode}</strong><small>Berhasil diproses</small></div></div>
       <section className="audit-request"><div><span>Endpoint</span><code>{selected.method} {selected.path}</code></div><button onClick={() => copyText(`${selected.method} ${selected.path}`, "endpoint")}><FiCopy/>{copied === "endpoint" ? "Tersalin" : "Salin"}</button></section>
       <section className="audit-technical"><div><span>Alamat IP</span><strong>{selected.ipAddress || "—"}</strong></div><div><span>Perangkat</span><strong>{selected.userAgent || "—"}</strong></div></section>

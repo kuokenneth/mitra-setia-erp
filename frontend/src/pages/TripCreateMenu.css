@@ -6,8 +6,8 @@
 .trip-create-actions > b {
   padding: 7px 10px;
   border-radius: 99px;
-  background: #edf3ef;
-  color: #587061;
+  background: #ebeff5;
+  color: #4b607d;
   font-size: 9px;
 }
 .trip-create-menu { position: relative; }
@@ -18,7 +18,7 @@
   padding: 10px 14px;
   border: 0;
   border-radius: 10px;
-  background: #0d7c3d;
+  background: #107948;
   color: #fff;
   font-weight: 750;
   cursor: pointer;
@@ -30,10 +30,10 @@
   z-index: 30;
   width: 230px;
   padding: 13px 6px 6px;
-  border: 1px solid #dbe5de;
+  border: 1px solid #d7dfe9;
   border-radius: 12px;
   background: #fff;
-  box-shadow: 0 18px 45px rgba(26, 53, 34, .18);
+  box-shadow: 0 18px 45px rgba(23,33,56,.18);
 }
 .trip-create-menu > div > button {
   display: flex;
@@ -44,23 +44,23 @@
   border: 0;
   border-radius: 8px;
   background: #fff;
-  color: #34453a;
+  color: #2d3a4c;
   text-align: left;
   cursor: pointer;
 }
-.trip-create-menu > div > button:hover { background: #edf6f0; color: #176f3d; }
+.trip-create-menu > div > button:hover { background: #edf1f6; color: #107646; }
 .trip-create-menu > div span strong,
 .trip-create-menu > div span small { display: block; }
 .trip-create-menu > div span strong { font-size: 10px; }
-.trip-create-menu > div span small { margin-top: 2px; color: #849088; font-size: 8px; }
+.trip-create-menu > div span small { margin-top: 2px; color: #77879d; font-size: 8px; }
 .empty-return-details select {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid #d8e2db;
+  border: 1px solid #d3dce7;
   border-radius: 9px;
   padding: 10px 11px;
   background: #fff;
-  color: #26362c;
+  color: #1b2641;
   font: inherit;
   font-size: 10px;
 }

@@ -38,11 +38,11 @@ import useDialogLifecycle from "../components/useDialogLifecycle";
 //////////////////////
 
 const BRAND = {
-  primary: "#0D7C3D",
-  primaryDark: "#0A6331",
-  primaryLight: "#10A050",
-  secondary: "#F5F9F7",
-  accent: "#D4E8DC",
+  primary: "#107948",
+  primaryDark: "#0d6039",
+  primaryLight: "#159b5c",
+  secondary: "#f4f7fa",
+  accent: "#d1ebdf",
   text: "#1A1A1A",
   textLight: "#4A4A4A",
   textMuted: "#6B7280",
@@ -50,8 +50,8 @@ const BRAND = {
   border: "#E5E7EB",
   warning: "#F59E0B",
   warningBg: "#FFFBEB",
-  success: "#10B981",
-  successBg: "#ECFDF5",
+  success: "#10b96a",
+  successBg: "#ecfdf5",
   danger: "#EF4444",
   dangerBg: "#FEF2F2",
   info: "#3B82F6",
@@ -126,7 +126,7 @@ function StatusBadge({ status, type = "order" }) {
         color: c.fg,
         fontWeight: 600,
         fontSize: 12,
-        textTransform: "uppercase",
+        textTransform: "none",
         letterSpacing: "0.3px",
       }}
     >
@@ -299,7 +299,7 @@ function Modal({ open, title, subtitle, onClose, children, width = 1100 }) {
           }}
         >
           <div>
-            <span className="order-trip-modal-eyebrow">TRIP OPERASIONAL</span>
+            <span className="order-trip-modal-eyebrow">Trip operasional</span>
             <h3 id={titleId} style={{ margin: 0, fontSize: 18, fontWeight: 600, color: BRAND.text }}>{title}</h3>
             {subtitle && <p style={{ margin: "4px 0 0", fontSize: 13, color: BRAND.textMuted }}>{subtitle}</p>}
           </div>
@@ -676,7 +676,7 @@ export default function OrderDetail() {
         }}
       >
         <div className="order-detail-v3-title">
-          <span className="order-detail-v3-eyebrow">PESANAN ANGKUTAN</span>
+          <span className="order-detail-v3-eyebrow">Pesanan angkutan</span>
           <div className="order-detail-v3-title-row">
             <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: BRAND.text }}>{order.orderNo}</h1>
             <StatusBadge status={order.status} />
@@ -697,9 +697,9 @@ export default function OrderDetail() {
           </div>
           <h2 className="order-detail-v3-customer">{customerName}</h2>
           <div className="order-detail-v3-route-line">
-            <span><FiMapPin /><small>MUAT</small><b>{order.fromText || "Belum dipilih"}</b></span>
+            <span><FiMapPin /><small>Muat</small><b>{order.fromText || "Belum dipilih"}</b></span>
             <i>→</i>
-            <span><FiMapPin /><small>BONGKAR</small><b>{order.toText || "Belum dipilih"}</b></span>
+            <span><FiMapPin /><small>Bongkar</small><b>{order.toText || "Belum dipilih"}</b></span>
           </div>
           <div className="order-detail-v3-meta-line">
             <span><FiPackage /> {order.cargoName || "Muatan belum diisi"}{hasPlannedQty ? ` · ${fmtNum(order.qty)} ${order.unit || ""}` : ""}</span>
@@ -742,10 +742,10 @@ export default function OrderDetail() {
       </div>
 
       <div className="order-detail-v3-overview">
-        <article><span><FiPackage /></span><div><small>PROGRES MUATAN</small><strong>{hasPlannedQty ? `${fmtNum(completedQty)} / ${fmtNum(order.qty)} ${order.unit || ""} selesai` : `${trips.length} trip`}</strong><i className="order-load-progress"><b className="completed" style={{ width: `${completionPct}%` }} /><b className="processing" style={{ width: `${processingPct}%` }} /></i><em>{hasPlannedQty ? `${fmtNum(processingQty)} ${order.unit || ""} sedang diproses · ${fmtNum(remaining)} ${order.unit || ""} belum dialokasikan` : "Jumlah mengikuti faktur muatan"}</em></div></article>
-        <article><span><FiMapPin /></span><div><small>LOKASI MUAT</small><strong>{order.pickupLocation?.name || order.fromText || "Belum dipilih"}</strong><em>{order.pickupLocation?.address || "Master Lokasi"}</em></div></article>
-        <article><span><FiMapPin /></span><div><small>TUJUAN BONGKAR</small><strong>{order.destinationLocation?.name || order.toText || "Belum dipilih"}</strong><em>{order.destinationLocation?.address || "Master Lokasi"}</em></div></article>
-        <article><span><FiActivity /></span><div><small>PROGRES TRIP</small><strong>{completedTrips} / {trips.length} selesai</strong><em>{trips.filter((trip) => ["PLANNED", "DISPATCHED", "ARRIVED"].includes(trip.status)).length} masih aktif</em></div></article>
+        <article><span><FiPackage /></span><div><small>Progres muatan</small><strong>{hasPlannedQty ? `${fmtNum(completedQty)} / ${fmtNum(order.qty)} ${order.unit || ""} selesai` : `${trips.length} trip`}</strong><i className="order-load-progress"><b className="completed" style={{ width: `${completionPct}%` }} /><b className="processing" style={{ width: `${processingPct}%` }} /></i><em>{hasPlannedQty ? `${fmtNum(processingQty)} ${order.unit || ""} sedang diproses · ${fmtNum(remaining)} ${order.unit || ""} belum dialokasikan` : "Jumlah mengikuti faktur muatan"}</em></div></article>
+        <article><span><FiMapPin /></span><div><small>Lokasi muat</small><strong>{order.pickupLocation?.name || order.fromText || "Belum dipilih"}</strong><em>{order.pickupLocation?.address || "Master Lokasi"}</em></div></article>
+        <article><span><FiMapPin /></span><div><small>Tujuan bongkar</small><strong>{order.destinationLocation?.name || order.toText || "Belum dipilih"}</strong><em>{order.destinationLocation?.address || "Master Lokasi"}</em></div></article>
+        <article><span><FiActivity /></span><div><small>Progres trip</small><strong>{completedTrips} / {trips.length} selesai</strong><em>{trips.filter((trip) => ["PLANNED", "DISPATCHED", "ARRIVED"].includes(trip.status)).length} masih aktif</em></div></article>
       </div>
 
       <Card style={{ borderRadius: 16 }}>
@@ -769,10 +769,10 @@ export default function OrderDetail() {
         <div className="order-detail-v3-content" style={{ padding: 20 }}>
           {tab === "INFO" && (
             <div>
-              <div style={{ padding: isNarrow ? 18 : 22, borderRadius: 12, background: "linear-gradient(135deg, #F5FAF7 0%, #EDF6F1 100%)", border: "1px solid #DFEBE4" }}>
+              <div style={{ padding: isNarrow ? 18 : 22, borderRadius: 12, background: "linear-gradient(135deg, #f5f7fa 0%, #edf1f6 100%)", border: "1px solid #dbefe6" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
                   <div>
-                    <div style={{ color: BRAND.primary, fontSize: 11, fontWeight: 700, letterSpacing: 1 }}>RINGKASAN PESANAN</div>
+                    <div style={{ color: BRAND.primary, fontSize: 11, fontWeight: 700, letterSpacing: 1 }}>Ringkasan pesanan</div>
                     <div style={{ color: BRAND.text, fontSize: 20, fontWeight: 650, marginTop: 7 }}>{isMaterialShipment ? materialCargoLabel : (order.cargoName || "Muatan belum diisi")}</div>
                     <div style={{ color: BRAND.textMuted, fontSize: 13, marginTop: 5 }}>{route}</div>
                   </div>
@@ -824,8 +824,8 @@ export default function OrderDetail() {
             <div>
               {canWrite && (
                 <div style={{ marginBottom: 18 }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", borderRadius: 10, border: `1.5px dashed ${uploadingProofs ? BRAND.primary : "#B7D8C5"}`, background: "linear-gradient(135deg, #F7FBF8 0%, #EEF7F1 100%)", cursor: uploadingProofs ? "not-allowed" : "pointer", opacity: uploadingProofs ? 0.7 : 1 }}>
-                    <span style={{ width: 42, height: 42, borderRadius: 10, display: "grid", placeItems: "center", flex: "0 0 auto", color: BRAND.primary, background: BRAND.white, boxShadow: "0 3px 10px rgba(13,124,61,.10)" }}><FiUploadCloud size={21}/></span>
+                  <label style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", borderRadius: 10, border: `1.5px dashed ${uploadingProofs ? BRAND.primary : "#b1dec9"}`, background: "linear-gradient(135deg, #f7f9fb 0%, #eef2f6 100%)", cursor: uploadingProofs ? "not-allowed" : "pointer", opacity: uploadingProofs ? 0.7 : 1 }}>
+                    <span style={{ width: 42, height: 42, borderRadius: 10, display: "grid", placeItems: "center", flex: "0 0 auto", color: BRAND.primary, background: BRAND.white, boxShadow: "0 3px 10px rgba(16,121,72,.10)" }}><FiUploadCloud size={21}/></span>
                     <span style={{ display: "grid", gap: 3 }}><strong style={{ fontSize: 14, color: BRAND.text }}>{uploadingProofs ? "Sedang mengunggah..." : "Tambah gambar atau PDF"}</strong><span style={{ fontSize: 12, color: BRAND.textMuted }}>Bisa memilih beberapa file · maksimal 15 MB per file</span></span>
                     <input
                       type="file"
@@ -895,7 +895,7 @@ export default function OrderDetail() {
                         }}
                       >
                         {isPdf ? (
-                          <div style={{ height: 112, display: "grid", placeItems: "center", gap: 4, borderRadius: 8, background: "#F3F7F4" }}>
+                          <div style={{ height: 112, display: "grid", placeItems: "center", gap: 4, borderRadius: 8, background: "#f2f5f8" }}>
                             <FiFile size={30} color={BRAND.primary} />
                             <button type="button" onClick={() => openProtectedFile(p.url).catch((e) => setErr(e.message))} style={{ border: 0, background: "transparent", cursor: "pointer", color: BRAND.primary, fontSize: 12, fontWeight: 600 }}>Buka PDF</button>
                           </div>
@@ -976,7 +976,7 @@ export default function OrderDetail() {
 
           {tab === "MATERIAL_INVOICES" && (
             <div className="material-invoice-page">
-              <div className="material-invoice-hero"><div><span>FAKTUR MUATAN</span><h2>Muatan tambahan & tujuan bongkar</h2><p>Catat pemilik tagihan, tujuan, urutan pemberhentian, barang, dan nilai muatan.</p></div>{materialInvoices.length > 0 && <Button type="button" variant="secondary" size="small" icon={FiPrinter} onClick={() => openPrintDocument(`/orders/${id}/material-invoices/print`).catch((error) => setErr(error.message))}>Cetak Semua Faktur</Button>}</div>
+              <div className="material-invoice-hero"><div><span>Faktur muatan</span><h2>Muatan tambahan & tujuan bongkar</h2><p>Catat pemilik tagihan, tujuan, urutan pemberhentian, barang, dan nilai muatan.</p></div>{materialInvoices.length > 0 && <Button type="button" variant="secondary" size="small" icon={FiPrinter} onClick={() => openPrintDocument(`/orders/${id}/material-invoices/print`).catch((error) => setErr(error.message))}>Cetak Semua Faktur</Button>}</div>
               {canWrite && (trips.length ? (
                 <form className="material-invoice-form" onSubmit={createMaterialInvoice}>
                   <div className="material-invoice-section-title"><span>1</span><div><strong>Customer dan tujuan</strong><small>Customer adalah pihak yang ditagih; tujuan adalah lokasi fisik bongkar.</small></div></div>
@@ -1038,7 +1038,7 @@ export default function OrderDetail() {
           {/* LEFT - Truck Picker */}
           <Card>
             <div className="order-trip-picker" style={{ padding: 16 }}>
-              <div className="order-trip-section-title"><div><span>LANGKAH 1</span><strong>Pilih Armada</strong></div><b>{filteredTrucks.length}</b></div>
+              <div className="order-trip-section-title"><div><span>Langkah 1</span><strong>Pilih Armada</strong></div><b>{filteredTrucks.length}</b></div>
               <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>Armada READY dan MAINTENANCE dapat dipilih untuk pencatatan trip yang terlambat. Armada di luar radius <strong>{order?.fromText || "lokasi muat"}</strong> akan diberi warning.</div>
               <label className="order-trip-search"><FiSearch/><Input placeholder="Cari BK atau nomor polisi…" value={truckQ} onChange={(e) => setTruckQ(e.target.value)} /></label>
 
@@ -1086,10 +1086,10 @@ export default function OrderDetail() {
           {/* RIGHT - Informasi Perjalanan */}
           <Card>
             <div className="order-trip-details" style={{ padding: 16 }}>
-              <div className="order-trip-section-title"><div><span>LANGKAH 2</span><strong>Informasi Perjalanan</strong></div></div>
+              <div className="order-trip-section-title"><div><span>Langkah 2</span><strong>Informasi Perjalanan</strong></div></div>
               <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>Tentukan muatan setiap order. Total kilogram dihitung dari jumlah sak × berat per sak.</div>
 
-              {order?.cargoCategory !== "MATERIAL" && <div style={{ border: `1px solid ${BRAND.border}`, borderRadius: 10, padding: 12, marginBottom: 14, background: "#FAFCFB" }}>
+              {order?.cargoCategory !== "MATERIAL" && <div style={{ border: `1px solid ${BRAND.border}`, borderRadius: 10, padding: 12, marginBottom: 14, background: "#fafbfc" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10 }}><strong style={{ fontSize: 13 }}>Alokasi order dalam trip</strong><span style={{ fontSize: 12, color: BRAND.primary, fontWeight: 700 }}>{tripLoadRows.reduce((sum, row) => sum + Number(row.sackCount || 0) * Number(row.kgPerSack || 0), 0).toLocaleString("id-ID")} kg</span></div>
                 <div style={{ display: "grid", gap: 8 }}>
                   {tripLoadRows.map((row, index) => {
@@ -1134,7 +1134,7 @@ export default function OrderDetail() {
                   onChange={(e) => setPlannedDepartAt(e.target.value)}
                 />
 
-                {selectedTruckId && <div className="order-trip-route-summary"><span>RUTE TRIP</span><strong>{selectedTruck?.gpsLocation?.name || selectedTruck?.currentLocation || "Posisi armada"} <b>→</b> {order?.fromText || "Lokasi muat"} <b>→</b> {order?.toText || "Tujuan"}</strong><small>{selectedTruck?.atPickup ? "Armada sudah berada di lokasi muat" : "Perjalanan kosong ke lokasi muat akan tercatat dalam trip yang sama"}</small></div>}
+                {selectedTruckId && <div className="order-trip-route-summary"><span>Rute trip</span><strong>{selectedTruck?.gpsLocation?.name || selectedTruck?.currentLocation || "Posisi armada"} <b>→</b> {order?.fromText || "Lokasi muat"} <b>→</b> {order?.toText || "Tujuan"}</strong><small>{selectedTruck?.atPickup ? "Armada sudah berada di lokasi muat" : "Perjalanan kosong ke lokasi muat akan tercatat dalam trip yang sama"}</small></div>}
                 {selectedTruck && !selectedTruck.atPickup && <div style={{ padding: "11px 12px", border: "1px solid #F0D29A", borderRadius: 8, background: "#FFF8E8", color: "#8A5600", fontSize: 13, lineHeight: 1.45 }}><strong>Armada tidak berada di lokasi asal.</strong><span style={{ display: "block", marginTop: 3 }}>Trip tetap dapat dibuat. Setelah bergerak, GPS akan mencatat perjalanan menuju {order?.fromText || "lokasi muat"} terlebih dahulu.</span></div>}
               </div>
 

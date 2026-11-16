@@ -1,0 +1,840 @@
+/* =====================================================================
+   Unified module layer — Citra Jaya design language for every existing
+   ERP module. Loaded last. Selectors are prefixed with html.erp-app so
+   they win over the legacy layers without touching any page logic.
+
+   §1 base · §2 page headers · §3 KPI groups · §4 surfaces · §5 tabs
+   §6 toolbars & inputs · §7 buttons · §8 badges · §9 tables
+   §10 dialogs · §11 forms · §12 empty states · §13 tablet · §14 phone
+   ===================================================================== */
+
+/* ---------- §1 Base ---------- */
+html.erp-app, html.erp-app body { background: var(--ms-bg); color: var(--ms-fg); font-family: var(--ms-font); }
+html.erp-app body { font-size: var(--ms-text-base); line-height: var(--ms-leading); -webkit-font-smoothing: antialiased; }
+html.erp-app .erp-content { font-size: var(--ms-text-base); }
+html.erp-app .erp-content :where(h1, h2, h3, h4) { font-family: var(--ms-font); }
+html.erp-app .erp-content :where(h2) { letter-spacing: -.01em; }
+html.erp-app .erp-content :where(code, kbd, pre) { font-family: var(--ms-font-mono); }
+html.erp-app .erp-content :where(a) { color: var(--ms-primary); }
+html.erp-app .erp-content :focus-visible { outline: 2px solid var(--ms-primary-ring); outline-offset: 2px; }
+
+/* Page wrappers: no decorative canvases, one rhythm (Citra space-y-3). */
+html.erp-app .erp-content > :is(main, div, section, form):first-child { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; }
+html.erp-app .erp-content :is(.d3-page,.db-page,.orders-v3-page,.trips-v3-page,.trip-detail-v3-shell,.fleet-page-v2,.fleet-map-page,.location-master-page,.material-stock-page,.inventory-page,.inventory-shell,.maintenance-page,.purchasing,.expense-page,.ar-page,.acct-page,.fp-page,.audit-page,.pa-page,.staff-form-page,.profile-page,.users-page,.order-create-page,.material-invoice-page,.google-map-page) { gap: var(--ms-gap) !important; background: transparent !important; }
+
+html.erp-app .erp-content > :first-child > * { min-width: 0; max-width: 100%; }
+html.erp-app .erp-content :is(.inventory-shell,.maintenance-shell,[class$="-shell"]:not(.trip-detail-v3-shell)) { width: 100%; max-width: none !important; margin: 0 !important; }
+
+/* ---------- §2 Page headers (Citra PageHeader: 20px semibold, muted description) ---------- */
+html.erp-app .erp-content :is(.db-header,.orders-v3-head,.trips-v3-head,.fleet-v2-header,.fleet-map-head,.location-master-head,.material-stock-page>header,.inventory-hero,.maintenance-head,.p-head,.expense-hero,.expense-page-header,.ar-head,.acct-hero,.fp-head,.audit-hero,.pa-header,.staff-page-header,.trip-detail-v3-head,.order-detail-v3-head,.material-invoice-hero,.erp-page-header) {
+  position: relative; display: flex; flex-wrap: wrap; align-items: flex-end !important; justify-content: space-between; gap: 12px !important;
+  min-height: 0 !important; margin: 0 0 4px !important; padding: 0 !important; overflow: visible !important;
+  border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important;
+}
+html.erp-app .erp-content :is(.db-header,.orders-v3-head,.trips-v3-head,.fleet-v2-header,.fleet-map-head,.location-master-head,.material-stock-page>header,.inventory-hero,.maintenance-head,.p-head,.expense-hero,.expense-page-header,.ar-head,.acct-hero,.fp-head,.audit-hero,.pa-header,.staff-page-header,.trip-detail-v3-head,.order-detail-v3-head,.material-invoice-hero,.erp-page-header)::before,
+html.erp-app .erp-content :is(.db-header,.orders-v3-head,.trips-v3-head,.fleet-v2-header,.fleet-map-head,.location-master-head,.inventory-hero,.maintenance-head,.p-head,.expense-hero,.ar-head,.acct-hero,.fp-head,.audit-hero,.pa-header,.trip-detail-v3-head,.order-detail-v3-head,.material-invoice-hero,.erp-page-header)::after { display: none !important; }
+html.erp-app .erp-content h1 { margin: 0 !important; color: var(--ms-fg) !important; font-family: var(--ms-font) !important; font-size: var(--ms-text-xl) !important; font-weight: var(--ms-weight-semibold) !important; line-height: 1.3 !important; letter-spacing: var(--ms-tracking-tight) !important; }
+html.erp-app .erp-content :is(.db-header,.orders-v3-head,.trips-v3-head,.fleet-v2-header,.fleet-map-head,.location-master-head,.material-stock-page>header,.inventory-hero,.maintenance-head,.p-head,.expense-hero,.ar-head,.acct-hero,.fp-head,.audit-hero,.pa-header,.staff-page-header,.trip-detail-v3-head,.order-detail-v3-head,.material-invoice-hero,.erp-page-header) p { max-width: 760px; margin: 2px 0 0 !important; color: var(--ms-muted-fg) !important; font-size: var(--ms-text-base) !important; font-weight: 400 !important; line-height: 1.45 !important; }
+/* Eyebrows / kickers are replaced by breadcrumbs in the header. */
+html.erp-app .erp-content :is(.inventory-eyebrow,.maintenance-eyebrow,.trip-detail-v3-eyebrow,.order-detail-v3-eyebrow,.erp-page-header-eyebrow,.audit-kicker,.ar-eyebrow,.eyebrow,.order-trip-modal-eyebrow):not(.keep),
+html.erp-app .erp-content :is(.orders-v3-head,.trips-v3-head,.fleet-v2-header,.fleet-map-head,.location-master-head,.material-stock-page>header,.p-head,.ar-head,.acct-hero,.fp-head,.pa-header,.expense-hero)>div:first-child>span:first-child:not(:only-child) { display: none !important; }
+html.erp-app .erp-content .db-header .db-date { display: block; margin-bottom: 2px; color: var(--ms-muted-fg); font-size: var(--ms-text-xs); font-weight: var(--ms-weight-medium); letter-spacing: 0; text-transform: none; }
+html.erp-app .erp-content :is(.p-head-actions,.inventory-hero-actions,.orders-v3-head-actions,.maintenance-head-actions,.maintenance-hero-actions,.fp-head-actions,.material-head-actions,.order-detail-v3-actions,.trip-create-actions,.expense-header-toolbar,.ar-head-side,.pa-header-tools,.erp-action-toolbar,.db-tools) { display: flex !important; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px !important; width: auto !important; margin: 0 !important; }
+html.erp-app .erp-content :is(.p-head-actions,.inventory-hero-actions,.orders-v3-head-actions,.maintenance-head-actions,.maintenance-hero-actions,.fp-head-actions,.material-head-actions,.order-detail-v3-actions,.trip-create-actions,.expense-header-toolbar,.ar-head-side,.pa-header-tools,.erp-action-toolbar,.db-tools) > * { width: auto !important; min-width: 0 !important; flex: 0 0 auto !important; }
+html.erp-app .erp-content :is(.db-header,.orders-v3-head,.trips-v3-head,.fleet-v2-header,.fleet-map-head,.location-master-head,.material-stock-page>header,.inventory-hero,.maintenance-head,.p-head,.expense-hero,.ar-head,.acct-hero,.fp-head,.audit-hero,.pa-header,.staff-page-header,.trip-detail-v3-head,.order-detail-v3-head,.material-invoice-hero,.erp-page-header) > :first-child { flex: 1 1 320px; min-width: 0; max-width: none !important; }
+html.erp-app .erp-content .inventory-hero-meta { gap: 6px !important; margin-top: 8px !important; }
+html.erp-app .erp-content .inventory-hero-meta > * { min-height: 24px !important; padding: 2px 8px !important; border: 1px solid var(--ms-border) !important; border-radius: var(--ms-radius-md) !important; background: var(--ms-surface) !important; color: var(--ms-muted-fg) !important; font-size: var(--ms-text-2xs) !important; font-weight: var(--ms-weight-medium) !important; }
+
+/* ---------- §3 KPI groups → Citra StatCard grid ---------- */
+html.erp-app .erp-content :is(.db-kpis,.orders-v3-summary,.trips-v3-summary,.fleet-v2-summary,.fleet-map-stats,.material-summary,.material-stock-summary,.inventory-summary,.maintenance-stats,.maintenance-summary,.p-stats,.expense-stats,.ar-stats,.ar-employee-stats,.acct-overview,.fp-summary,.fp-stats,.audit-summary,.pa-kpis,.location-summary-strip,.order-detail-v3-overview) {
+  display: grid !important; grid-template-columns: repeat(auto-fit, minmax(176px, 1fr)) !important; gap: var(--ms-gap) !important; padding: 0 !important; overflow: visible !important;
+  border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important;
+}
+html.erp-app .erp-content :is(.db-kpis,.orders-v3-summary,.trips-v3-summary,.fleet-v2-summary,.fleet-map-stats,.material-summary,.material-stock-summary,.inventory-summary,.maintenance-stats,.maintenance-summary,.p-stats,.expense-stats,.ar-stats,.ar-employee-stats,.acct-overview,.fp-summary,.fp-stats,.audit-summary,.pa-kpis,.location-summary-strip,.order-detail-v3-overview) > :is(article,div,button,section,li,.expense-stat-card) {
+  min-width: 0; min-height: 0 !important; margin: 0 !important; padding: 14px !important;
+  border: 1px solid var(--ms-border) !important; border-radius: var(--ms-radius) !important; background: var(--ms-surface) !important; box-shadow: none !important; color: var(--ms-fg);
+}
+html.erp-app .erp-content :is(.db-kpis,.orders-v3-summary,.trips-v3-summary,.fleet-v2-summary,.fleet-map-stats,.material-summary,.inventory-summary,.maintenance-stats,.p-stats,.expense-stats,.ar-stats,.acct-overview,.fp-summary,.audit-summary,.pa-kpis,.location-summary-strip) > * :is(strong,b,.value,[class*="value"]) { font-variant-numeric: tabular-nums; letter-spacing: var(--ms-tracking-tight); }
+html.erp-app .erp-content :is(.orders-v3-summary,.trips-v3-summary,.fleet-v2-summary,.fleet-map-stats,.material-summary,.inventory-summary,.maintenance-stats,.p-stats,.expense-stats,.ar-stats,.ar-employee-stats,.acct-overview,.fp-summary,.audit-summary,.pa-kpis,.location-summary-strip) > * strong { font-size: var(--ms-text-xl) !important; font-weight: var(--ms-weight-semibold) !important; line-height: 1.2 !important; color: var(--ms-fg) !important; }
+html.erp-app .erp-content :is(.orders-v3-summary,.trips-v3-summary,.fleet-v2-summary,.fleet-map-stats,.material-summary,.inventory-summary,.maintenance-stats,.p-stats,.expense-stats,.ar-stats,.acct-overview,.fp-summary,.audit-summary,.pa-kpis,.location-summary-strip) > * :is(small,p,span:not(:has(svg)):not([class*="icon"])) { font-size: var(--ms-text-xs); letter-spacing: 0; text-transform: none; }
+html.erp-app .erp-content :is(.orders-v3-summary,.trips-v3-summary,.fleet-v2-summary,.fleet-map-stats,.material-summary,.inventory-summary,.maintenance-stats,.p-stats,.expense-stats,.ar-stats,.acct-overview,.fp-summary,.audit-summary,.pa-kpis,.location-summary-strip) > * :is(i,[class*="icon"]):has(svg) { width: 32px !important; height: 32px !important; min-width: 32px; border-radius: var(--ms-radius-md) !important; background: var(--ms-muted) !important; color: var(--ms-muted-fg) !important; box-shadow: none !important; }
+html.erp-app .erp-content :is(.orders-v3-summary,.trips-v3-summary,.fleet-v2-summary,.fleet-map-stats,.material-summary,.inventory-summary,.maintenance-stats,.p-stats,.expense-stats,.ar-stats,.acct-overview,.fp-summary,.audit-summary,.pa-kpis,.location-summary-strip) > * :is(i,[class*="icon"]) svg { width: 16px !important; height: 16px !important; }
+
+/* ---------- §4 Surfaces: cards, panels, boards (Citra Card) ---------- */
+html.erp-app .erp-content :is(.db-panel,.orders-v3-board,.trips-v3-board,.fleet-v2-card,.fleet-map-card,.google-map-card,.fleet-city-section,.location-master-workspace,.location-list-card,.location-editor-card,.material-stock-card,.material-board,.inventory-workspace,.maintenance-card,.p-panel,.receipt-card,.supplier-bill-card,.direct-order-card,.expense-panel,.ar-panel,.ar-employee-panel,.acct-panel,.acct-ledger,.acct-period-card,.fp-panel,.fp-period-card,.audit-workspace,.audit-card,.trip-detail-v3-card,.trip-allocation-card,.trip-expense-panel,.staff-form-card,.staff-side-card,.users-card,.order-create-card,.maintenance-request-card,.maintenance-proof-card,.moving-fleet-panel,[class^="pa-panel"]:not(.pa-panel-foot):not(.pa-panel-head)) {
+  border: 1px solid var(--ms-border) !important; border-radius: var(--ms-radius) !important; background: var(--ms-surface) !important; box-shadow: none !important;
+}
+html.erp-app .erp-content :is(.po-card,.fleet-city-grid>article,.acct-groups>article,.fp-detail-section) { border: 1px solid var(--ms-border) !important; border-radius: var(--ms-radius) !important; background: var(--ms-surface) !important; box-shadow: none !important; }
+html.erp-app .erp-content :is(.db-panel-head,.p-panel>header,.expense-panel-heading,.ar-panel-heading,.fp-panel-head,.audit-workspace-head,.acct-ledger-head) :is(h2,h3) { margin: 0; color: var(--ms-fg) !important; font-size: var(--ms-text-base) !important; font-weight: var(--ms-weight-semibold) !important; line-height: 1.35 !important; letter-spacing: 0 !important; }
+html.erp-app .erp-content :is(.db-panel-head,.expense-panel-heading,.ar-panel-heading,.fp-panel-head,.audit-workspace-head,.acct-ledger-head) p { margin: 2px 0 0 !important; color: var(--ms-muted-fg) !important; font-size: var(--ms-text-xs) !important; }
+html.erp-app .erp-content :is(h2,h3) { color: var(--ms-fg); }
+html.erp-app .erp-content h2 { font-size: max(15px, min(1em, 18px)); font-weight: var(--ms-weight-semibold); }
+
+/* ---------- §5 Tabs (Citra TabsList / TabsTrigger) ---------- */
+html.erp-app .erp-content :is(.inventory-tabs,.p-tabs,.receipt-subtabs,.acct-tabs,.ar-tabs,.maintenance-tabs,.maintenance-detail-tabs,.trip-detail-tabs,.fp-tabs,.trips-view-tabs,.fleet-movement-type-tabs,.order-detail-v3-tabs,.db-segment,.p-status-filters,.audit-tabs) {
+  display: inline-flex !important; max-width: 100%; min-height: var(--ms-control) !important; align-items: center; gap: 2px !important; padding: 3px !important; overflow-x: auto; scrollbar-width: none;
+  border: 0 !important; border-radius: var(--ms-radius) !important; background: var(--ms-muted) !important; box-shadow: none !important;
+}
+html.erp-app .erp-content :is(.inventory-tabs,.p-tabs,.receipt-subtabs,.acct-tabs,.ar-tabs,.maintenance-tabs,.maintenance-detail-tabs,.trip-detail-tabs,.fp-tabs,.trips-view-tabs,.fleet-movement-type-tabs,.order-detail-v3-tabs,.db-segment,.p-status-filters,.audit-tabs)::-webkit-scrollbar { display: none; }
+html.erp-app .erp-content :is(.inventory-tabs,.p-tabs,.receipt-subtabs,.acct-tabs,.ar-tabs,.maintenance-tabs,.maintenance-detail-tabs,.trip-detail-tabs,.fp-tabs,.trips-view-tabs,.fleet-movement-type-tabs,.order-detail-v3-tabs,.db-segment,.p-status-filters,.audit-tabs) > button {
+  display: inline-flex !important; height: auto !important; min-height: 30px !important; flex: 0 0 auto; align-items: center; justify-content: center; gap: 6px; padding: 4px 12px !important;
+  border: 0 !important; border-radius: var(--ms-radius-md) !important; background: transparent !important; box-shadow: none !important; color: var(--ms-muted-fg) !important;
+  font-size: var(--ms-text-xs) !important; font-weight: var(--ms-weight-medium) !important; letter-spacing: 0 !important; text-transform: none !important; white-space: nowrap;
+}
+html.erp-app .erp-content :is(.inventory-tabs,.p-tabs,.receipt-subtabs,.acct-tabs,.ar-tabs,.maintenance-tabs,.maintenance-detail-tabs,.trip-detail-tabs,.fp-tabs,.trips-view-tabs,.fleet-movement-type-tabs,.order-detail-v3-tabs,.db-segment,.p-status-filters,.audit-tabs) > button:is(.active,.is-active,[aria-selected="true"],[aria-pressed="true"]) { background: var(--ms-surface) !important; color: var(--ms-fg) !important; box-shadow: var(--ms-shadow-sm) !important; }
+html.erp-app .erp-content :is(.inventory-tabs,.p-tabs,.receipt-subtabs,.p-status-filters,.ar-tabs) > button :is(span,b,em,small):last-child:not(:first-child) { min-width: 18px; padding: 0 5px !important; border-radius: var(--ms-radius-full) !important; background: var(--ms-border) !important; color: var(--ms-fg-2) !important; font-size: 10px !important; line-height: 16px !important; text-align: center; }
+html.erp-app .erp-content .p-tabs > button.refresh { margin-left: auto; }
+
+/* ---------- §6 Toolbars, search, inputs ---------- */
+html.erp-app .erp-content :is(.orders-v3-tools,.trips-filter-grid,.fleet-map-toolbar,.fleet-v2-toolbar,.inventory-toolbar,.inventory-movement-filters,.maintenance-filter-grid,.p-list-tools,.expense-filter-bar,.expense-filters,.ar-tools,.acct-toolbar,.fp-filters,.audit-filters,.pa-filters,.fleet-movement-filters,.users-toolbar,.supplier-billing-toolbar,.repair-receipt-toolbar) {
+  gap: 8px !important; border-radius: var(--ms-radius) !important; box-shadow: none !important; background: transparent !important;
+}
+html.erp-app .erp-content :is(.orders-v3-tools,.trips-filter-grid,.maintenance-filter-grid,.audit-filters,.expense-filter-bar,.ar-tools,.users-toolbar) { padding: 10px !important; border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+html.erp-app .erp-content :where(input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]):not([type=color]), select, textarea) {
+  border-color: var(--ms-input); border-radius: var(--ms-radius-md); background-color: var(--ms-surface); color: var(--ms-fg); font-family: var(--ms-font);
+}
+html.erp-app .erp-content :is(input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]):not([type=color]), select, textarea) { border-radius: var(--ms-radius-md) !important; box-shadow: var(--ms-shadow-xs); }
+html.erp-app .erp-content :is(input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]), select):not([class*="search"] input) { min-height: var(--ms-control); }
+html.erp-app .erp-content :is(input, select, textarea):focus { border-color: var(--ms-primary) !important; outline: 0 !important; box-shadow: 0 0 0 3px var(--ms-primary-ring) !important; }
+html.erp-app .erp-content :is(input, select, textarea)::placeholder { color: var(--ms-subtle-fg); }
+html.erp-app .erp-content :is(input[type=checkbox], input[type=radio]) { accent-color: var(--ms-primary); }
+html.erp-app .erp-content :is([class*="search-box"],.orders-v3-search,.inventory-search,.expense-search-wrap,.fleet-v2-search,.audit-search,.ar-search,.location-list-search,.order-trip-search,.p-list-tools>label,.fleet-map-toolbar>label) { border-color: var(--ms-input) !important; border-radius: var(--ms-radius-md) !important; background: var(--ms-surface) !important; box-shadow: var(--ms-shadow-xs) !important; }
+
+html.erp-app .erp-content :is([class*="search-box"],.orders-v3-search,.inventory-search,.expense-search-wrap,.fleet-v2-search,.audit-search,.ar-search,.location-list-search,.order-trip-search,.p-list-tools>label,.fleet-map-toolbar>label) input { border: 0 !important; background: transparent !important; box-shadow: none !important; min-height: 0; }
+html.erp-app .erp-content :is([class*="search-box"],.orders-v3-search,.inventory-search,.expense-search-wrap,.fleet-v2-search,.audit-search,.ar-search,.location-list-search,.order-trip-search,.p-list-tools>label,.fleet-map-toolbar>label):focus-within { border-color: var(--ms-primary) !important; box-shadow: 0 0 0 3px var(--ms-primary-ring) !important; }
+
+/* ---------- §7 Buttons (Citra buttonVariants) ---------- */
+html.erp-app .erp-content :is(.orders-v3-create,.trips-v3-create,.inventory-action--in,.maintenance-primary,.p-new-request,.ar-primary,.expense-primary,.expense-new-button,button.primary,.pa-btn.primary,.btn-primary) {
+  min-height: var(--ms-control) !important; padding: 0 14px !important; border: 1px solid var(--ms-primary) !important; border-radius: var(--ms-radius-md) !important; background: var(--ms-primary) !important; color: var(--ms-primary-fg) !important; box-shadow: none !important;
+  font-size: var(--ms-text-base) !important; font-weight: var(--ms-weight-medium) !important; letter-spacing: 0 !important;
+}
+html.erp-app .erp-content :is(.orders-v3-create,.trips-v3-create,.inventory-action--in,.maintenance-primary,.p-new-request,.ar-primary,.expense-primary,.expense-new-button,button.primary,.btn-primary):hover { background: var(--ms-primary-hover) !important; border-color: var(--ms-primary-hover) !important; }
+html.erp-app .erp-content :is(.orders-v3-customer-create,.inventory-action--soft,.inventory-action--out,.inventory-action:not(.inventory-action--in),.p-direct-order,button.secondary,.secondary-btn,.expense-secondary,.expense-report-button,.expense-finance-button,.expense-return-button,.expense-paste-button,.ar-manual-button,.fp-print-button,.pa-btn:not(.primary),.view-po-btn,.btn-secondary,.db-icon-btn) {
+  min-height: var(--ms-control) !important; border: 1px solid var(--ms-input) !important; border-radius: var(--ms-radius-md) !important; background: var(--ms-surface) !important; color: var(--ms-fg) !important; box-shadow: var(--ms-shadow-xs) !important;
+  font-size: var(--ms-text-base) !important; font-weight: var(--ms-weight-medium) !important; letter-spacing: 0 !important;
+}
+html.erp-app .erp-content :is(.orders-v3-customer-create,.inventory-action--soft,.inventory-action--out,.inventory-action:not(.inventory-action--in),.p-direct-order,button.secondary,.secondary-btn,.expense-secondary,.expense-report-button,.expense-finance-button,.expense-return-button,.expense-paste-button,.ar-manual-button,.fp-print-button,.pa-btn:not(.primary),.view-po-btn,.btn-secondary,.db-icon-btn):hover { background: var(--ms-accent) !important; color: var(--ms-fg) !important; border-color: var(--ms-input) !important; }
+html.erp-app .erp-content :is(.orders-v3-create,.trips-v3-create,.inventory-action,.maintenance-primary,.p-new-request,.p-direct-order,.ar-primary,.ar-manual-button,.secondary,.secondary-btn,button.primary,.expense-new-button,.expense-report-button,.expense-finance-button) svg { width: 16px !important; height: 16px !important; }
+html.erp-app .erp-content :is(.danger,.btn-danger,.expense-action-reject,[class*="-danger"]:is(button)) { border-radius: var(--ms-radius-md) !important; }
+/* Unstyled buttons inside content get the Citra outline look (pages that style their own are unaffected). */
+html.erp-app .erp-content button:not([class]):not([style]) { min-height: var(--ms-control-sm); padding: 0 12px; border: 1px solid var(--ms-input); border-radius: var(--ms-radius-md); background: var(--ms-surface); color: var(--ms-fg); font-size: var(--ms-text-sm); font-weight: var(--ms-weight-medium); box-shadow: var(--ms-shadow-xs); }
+html.erp-app .erp-content button:not([class]):not([style]):hover { background: var(--ms-accent); border-color: var(--ms-input); }
+
+/* ---------- §8 Status pills → Citra badges ---------- */
+html.erp-app .erp-content :is(.status,.urg,.fp-badge,.audit-action,.ar-status,.db-chip,.db-tag,.direct-use-badge,.audit-hero-badge,[class*="status-pill"],[class*="statusPill"],[class$="-badge"]:not(.trip-detail-v3-badges),[class*="-badge "],.badge,.chip,.pill) {
+  border-radius: var(--ms-radius-md) !important; font-size: var(--ms-text-2xs) !important; font-weight: var(--ms-weight-medium) !important; letter-spacing: 0 !important; text-transform: none !important; box-shadow: none !important; line-height: 1.45 !important;
+}
+
+/* ---------- §9 Tables (Citra Table) ---------- */
+html.erp-app .erp-content :is(.table-wrap,.acct-table,.audit-table-wrap,.ar-table-wrap,.inventory-table-wrap,.maintenance-table-wrap,.fp-table-wrap,.users-table-wrap,.fleet-v2-table-wrap,.fleet-movement-table-wrap,.expense-table-wrap,.pa-table-wrap) { border: 1px solid var(--ms-border) !important; border-radius: var(--ms-radius) !important; background: var(--ms-surface) !important; box-shadow: none !important; }
+html.erp-app .erp-content table thead { background: color-mix(in srgb, var(--ms-muted) 70%, transparent) !important; }
+html.erp-app .erp-content table th { height: var(--ms-table-head-h) !important; padding: 0 var(--ms-table-cell-x) !important; border-bottom: 1px solid var(--ms-border) !important; background: transparent !important; color: var(--ms-muted-fg) !important; font-size: var(--ms-text-xs) !important; font-weight: var(--ms-weight-medium) !important; letter-spacing: 0 !important; text-transform: none !important; }
+html.erp-app .erp-content table td { padding: var(--ms-table-cell-y) var(--ms-table-cell-x) !important; border-bottom: 1px solid var(--ms-border) !important; color: var(--ms-fg); font-size: var(--ms-text-sm) !important; line-height: 1.45; }
+html.erp-app .erp-content table tbody tr:last-child td { border-bottom: 0 !important; }
+html.erp-app .erp-content table tbody tr:hover td { background: color-mix(in srgb, var(--ms-muted) 55%, transparent) !important; }
+html.erp-app .erp-content table td :is(small) { color: var(--ms-muted-fg); }
+html.erp-app .erp-content table td :is(button):not(.primary):not([class*="primary"]) { min-height: 30px; border-radius: var(--ms-radius-md) !important; font-size: var(--ms-text-xs) !important; }
+html.erp-app .erp-content :is(.audit-pagination,.p-list-pager,.fleet-movement-pagination,.inventory-pagination,.ar-pagination,.users-pagination,.pa-panel-foot) { min-height: 0 !important; padding: 8px 12px !important; border-color: var(--ms-border) !important; background: transparent !important; color: var(--ms-muted-fg) !important; font-size: var(--ms-text-xs) !important; }
+
+/* ---------- §10 Dialogs: centred card on desktop/tablet, bottom sheet on phones ---------- */
+html.erp-app .erp-content :is(.overlay,.inventory-modal-overlay,.orders-v3-modal-overlay,.maintenance-modal-overlay,.ar-overlay,.audit-overlay,.fp-overlay,.trip-action-overlay,.trip-expense-overlay,.trip-material-overlay,.material-overlay,.fleet-v2-overlay,.order-trip-overlay,.supplier-bill-overlay,[class*="modal-overlay"]) {
+  background: rgba(15, 23, 41, .42) !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+}
+html.erp-app .erp-content :is(.modal,.inventory-modal,.orders-v3-modal,.maintenance-modal,.maintenance-detail-modal,.maintenance-return-modal,.ar-modal,.audit-detail,.fp-modal,.fp-detail-modal,.trip-action-modal,.trip-expense-modal,.trip-material-modal,.material-modal-shell,.fleet-add-modal,.fleet-movement-modal,.order-trip-modal,.supplier-bill-modal,.purchase-request-modal,.transaction-modal,.repair-batch-modal,.expense-create-modal,.expense-return-modal,.expense-paste-modal) {
+  border: 1px solid var(--ms-border) !important; border-radius: var(--ms-radius) !important; background: var(--ms-surface) !important; box-shadow: var(--ms-shadow-lg) !important;
+}
+html.erp-app .erp-content :is(.modal-heading,.inventory-modal-head,.orders-v3-modal-head,.maintenance-modal-header,.ar-modal-head,.audit-detail>header,.fp-modal>header,.fp-detail-modal>header,.trip-action-modal>header,.trip-expense-modal>header,.trip-material-modal>header,.material-modal-head,.fleet-add-header,.fleet-modal-hero,.order-trip-modal-head,.supplier-bill-head,.request-modal-heading,.expense-create-header) {
+  min-height: 0 !important; padding: 16px 20px 12px !important; border-bottom: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; backdrop-filter: none !important;
+}
+html.erp-app .erp-content :is(.modal-heading,.inventory-modal-head,.orders-v3-modal-head,.maintenance-modal-header,.ar-modal-head,.audit-detail>header,.fp-modal>header,.trip-action-modal>header,.trip-expense-modal>header,.trip-material-modal>header,.material-modal-head,.fleet-add-header,.order-trip-modal-head,.supplier-bill-head,.request-modal-heading,.expense-create-header) :is(h2,h3) { margin: 0 !important; color: var(--ms-fg) !important; font-size: var(--ms-text-lg) !important; font-weight: var(--ms-weight-semibold) !important; line-height: 1.35 !important; letter-spacing: 0 !important; }
+html.erp-app .erp-content :is(.modal-heading,.inventory-modal-head,.orders-v3-modal-head,.maintenance-modal-header,.ar-modal-head,.trip-action-modal>header,.material-modal-head,.order-trip-modal-head,.supplier-bill-head,.request-modal-heading,.expense-create-header) p { color: var(--ms-muted-fg) !important; font-size: var(--ms-text-sm) !important; }
+html.erp-app .erp-content :is(.modal-actions,.orders-v3-modal-actions,.maintenance-modal-actions,.maintenance-return-actions,.ar-modal-actions,.trip-action-modal footer,.trip-expense-modal footer,.material-modal-actions,.fleet-add-actions,.order-trip-actions,.supplier-bill-actions,.expense-create-actions,.request-decision-actions,.staff-form-actions) {
+  min-height: 0 !important; gap: 8px !important; padding: 12px 20px !important; border-top: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; backdrop-filter: none !important;
+}
+html.erp-app .erp-content :is(.inventory-modal-close,.orders-v3-modal-close,.maintenance-modal-close,.maintenance-modal-header>button,.ar-modal-head>button,.audit-detail>header>button,.fp-modal>header>button,.trip-action-modal>header>button,.trip-expense-modal>header>button,.trip-material-modal>header>button,.material-modal-head>button,.order-trip-modal-close,.supplier-bill-head>button) {
+  width: 32px !important; height: 32px !important; min-height: 32px !important; border: 0 !important; border-radius: var(--ms-radius-md) !important; background: transparent !important; color: var(--ms-muted-fg) !important; box-shadow: none !important;
+}
+
+/* ---------- §11 Forms ---------- */
+html.erp-app .erp-content form label, html.erp-app .erp-content :is(.field,.form-field,[class*="-field"]) > :is(label,span:first-child) { color: color-mix(in srgb, var(--ms-fg) 80%, transparent); font-size: var(--ms-text-xs) !important; font-weight: var(--ms-weight-medium) !important; letter-spacing: 0 !important; text-transform: none !important; }
+html.erp-app .erp-content :is(.form-error,.orders-v3-error,.audit-error,.ar-error,.trip-action-error,.error,.p-error) { border-color: var(--ms-danger-border) !important; border-radius: var(--ms-radius) !important; background: var(--ms-danger-bg) !important; color: var(--ms-danger-fg) !important; font-size: var(--ms-text-sm) !important; }
+html.erp-app .erp-content :is(.receipt-upload,.emergency-proof-upload,.material-upload,.upload-box,[class*="upload-zone"],[class*="dropzone"]) { border: 1px dashed var(--ms-input) !important; border-radius: var(--ms-radius) !important; background: var(--ms-muted) !important; }
+
+/* ---------- §12 Empty / loading states ---------- */
+html.erp-app .erp-content :is(.empty,.acct-empty,.orders-v3-empty,.d3-empty,.db-empty,.fleet-map-empty,.fleet-city-empty,.inventory-empty,.maintenance-empty,.ar-empty,.audit-empty,.location-empty,.material-empty,.trip-control-empty,.expense-empty-return) { min-height: 140px !important; color: var(--ms-muted-fg) !important; font-size: var(--ms-text-sm) !important; }
+html.erp-app .erp-content :is(.empty,.acct-empty,.orders-v3-empty,.inventory-empty,.maintenance-empty,.ar-empty,.audit-empty) :is(h3,strong) { color: var(--ms-fg) !important; font-size: var(--ms-text-base) !important; font-weight: var(--ms-weight-medium) !important; }
+
+/* =====================================================================
+   §13 Tablet (744–1199): roomy touch targets, two-column layouts
+   ===================================================================== */
+@media (max-width: 1199px) {
+  html.erp-app .erp-content :is(button, select, input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range])):not(table *) { min-height: var(--ms-touch); }
+  html.erp-app .erp-content :is(input:not([type=checkbox]):not([type=radio]), select, textarea) { font-size: 16px !important; }
+  html.erp-app .erp-content table td :is(button,select,input:not([type=checkbox]):not([type=radio])) { min-height: 40px; }
+  html.erp-app .erp-content :is(.inventory-tabs,.p-tabs,.receipt-subtabs,.acct-tabs,.ar-tabs,.maintenance-detail-tabs,.trip-detail-tabs,.fp-tabs,.trips-view-tabs,.fleet-movement-type-tabs,.order-detail-v3-tabs,.db-segment,.p-status-filters) > button { min-height: 38px !important; }
+}
+
+/* =====================================================================
+   §14 Phone (< 744): iPhone 16 Pro Max is the reference (440 × 956)
+   ===================================================================== */
+@media (max-width: 743px) {
+  html.erp-app .erp-content h1 { font-size: 19px !important; }
+  html.erp-app .erp-content :is(.db-header,.orders-v3-head,.trips-v3-head,.fleet-v2-header,.fleet-map-head,.location-master-head,.material-stock-page>header,.inventory-hero,.maintenance-head,.p-head,.expense-hero,.ar-head,.acct-hero,.fp-head,.audit-hero,.pa-header,.staff-page-header,.trip-detail-v3-head,.order-detail-v3-head,.material-invoice-hero,.erp-page-header) {
+    flex-direction: column !important; align-items: stretch !important; gap: 10px !important;
+  }
+  html.erp-app .erp-content :is(.db-header,.orders-v3-head,.trips-v3-head,.fleet-v2-header,.fleet-map-head,.location-master-head,.inventory-hero,.maintenance-head,.p-head,.expense-hero,.ar-head,.acct-hero,.fp-head,.audit-hero,.pa-header,.staff-page-header,.erp-page-header) p { font-size: var(--ms-text-sm) !important; }
+  html.erp-app .erp-content :is(.db-header,.orders-v3-head,.trips-v3-head,.fleet-v2-header,.fleet-map-head,.location-master-head,.material-stock-page>header,.inventory-hero,.maintenance-head,.p-head,.expense-hero,.ar-head,.acct-hero,.fp-head,.audit-hero,.pa-header,.staff-page-header,.trip-detail-v3-head,.order-detail-v3-head,.material-invoice-hero,.erp-page-header) > :first-child { flex: 0 0 auto !important; }
+  /* Workspace panels go flat so record cards sit directly on the canvas (no card-in-card). */
+  html.erp-app .erp-content :is(.inventory-workspace,.p-panel,.orders-v3-board,.trips-v3-board,.fleet-v2-card,.expense-panel,.ar-panel,.audit-workspace,.maintenance-card,.users-card,.acct-ledger,.fp-panel):has(table.ms-cardtable) { padding: 0 !important; border: 0 !important; background: transparent !important; }
+  /* Header actions: compact 2-up grid, primary action spans full width last. */
+  html.erp-app .erp-content :is(.p-head-actions,.inventory-hero-actions,.orders-v3-head-actions,.maintenance-head-actions,.maintenance-hero-actions,.fp-head-actions,.material-head-actions,.order-detail-v3-actions,.trip-create-actions,.expense-header-toolbar,.ar-head-side,.erp-action-toolbar) {
+    display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; width: 100% !important;
+  }
+  html.erp-app .erp-content :is(.p-head-actions,.inventory-hero-actions,.orders-v3-head-actions,.maintenance-head-actions,.maintenance-hero-actions,.fp-head-actions,.material-head-actions,.order-detail-v3-actions,.trip-create-actions,.expense-header-toolbar,.ar-head-side,.erp-action-toolbar) > * { width: 100% !important; min-width: 0 !important; margin: 0 !important; }
+  html.erp-app .erp-content :is(.p-head-actions,.inventory-hero-actions,.orders-v3-head-actions,.maintenance-head-actions,.maintenance-hero-actions,.fp-head-actions,.material-head-actions,.order-detail-v3-actions,.trip-create-actions,.expense-header-toolbar,.ar-head-side,.erp-action-toolbar) > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  html.erp-app .erp-content :is(.p-head-actions,.inventory-hero-actions,.orders-v3-head-actions,.maintenance-head-actions,.fp-head-actions,.material-head-actions,.order-detail-v3-actions,.trip-create-actions) button { padding: 0 10px !important; font-size: var(--ms-text-sm) !important; }
+
+  /* KPI groups: two compact columns instead of tall single cards. */
+  html.erp-app .erp-content :is(.db-kpis,.orders-v3-summary,.trips-v3-summary,.fleet-v2-summary,.fleet-map-stats,.material-summary,.material-stock-summary,.inventory-summary,.maintenance-stats,.maintenance-summary,.p-stats,.expense-stats,.ar-stats,.ar-employee-stats,.acct-overview,.fp-summary,.fp-stats,.audit-summary,.pa-kpis,.location-summary-strip,.order-detail-v3-overview) { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; }
+  html.erp-app .erp-content :is(.orders-v3-summary,.trips-v3-summary,.fleet-v2-summary,.fleet-map-stats,.material-summary,.inventory-summary,.maintenance-stats,.p-stats,.expense-stats,.ar-stats,.ar-employee-stats,.acct-overview,.fp-summary,.audit-summary,.pa-kpis,.location-summary-strip,.order-detail-v3-overview) > * { display: flex !important; flex-direction: column !important; align-items: flex-start !important; justify-content: flex-start !important; gap: 4px !important; padding: 12px !important; text-align: left !important; }
+  html.erp-app .erp-content :is(.orders-v3-summary,.trips-v3-summary,.fleet-v2-summary,.fleet-map-stats,.material-summary,.inventory-summary,.maintenance-stats,.p-stats,.expense-stats,.ar-stats,.acct-overview,.fp-summary,.audit-summary,.pa-kpis,.location-summary-strip) > * > * { margin: 0 !important; }
+  html.erp-app .erp-content :is(.orders-v3-summary,.trips-v3-summary,.fleet-v2-summary,.fleet-map-stats,.material-summary,.inventory-summary,.maintenance-stats,.p-stats,.expense-stats,.ar-stats,.acct-overview,.fp-summary,.audit-summary,.pa-kpis,.location-summary-strip) > * :is(i,[class*="icon"]):has(svg) { width: 28px !important; height: 28px !important; min-width: 28px; }
+  html.erp-app .erp-content :is(.orders-v3-summary,.trips-v3-summary,.fleet-v2-summary,.fleet-map-stats,.material-summary,.inventory-summary,.maintenance-stats,.p-stats,.expense-stats,.ar-stats,.acct-overview,.fp-summary,.audit-summary,.pa-kpis,.location-summary-strip) > * strong { font-size: 18px !important; }
+  html.erp-app .erp-content :is(.orders-v3-summary,.trips-v3-summary,.fleet-v2-summary,.fleet-map-stats,.material-summary,.inventory-summary,.maintenance-stats,.p-stats,.expense-stats,.ar-stats,.acct-overview,.fp-summary,.audit-summary,.pa-kpis,.location-summary-strip) > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+  /* Tabs scroll horizontally inside their pill; never the page. */
+  html.erp-app .erp-content :is(.inventory-tabs,.p-tabs,.receipt-subtabs,.acct-tabs,.ar-tabs,.maintenance-detail-tabs,.trip-detail-tabs,.fp-tabs,.trips-view-tabs,.fleet-movement-type-tabs,.order-detail-v3-tabs,.p-status-filters) { display: flex !important; width: 100% !important; }
+
+  /* ---- Phone tables → stacked cards (labels injected by useResponsiveTables) ---- */
+  html.erp-app .erp-content :is(.table-wrap,.acct-table,.audit-table-wrap,.ar-table-wrap,.inventory-table-wrap,.maintenance-table-wrap,.fp-table-wrap,.users-table-wrap,.fleet-v2-table-wrap,.fleet-movement-table-wrap,.expense-table-wrap,.pa-table-wrap,.purchase-request-table-wrap,[class*="table-wrap"]):has(> table.ms-cardtable) { overflow: visible !important; border: 0 !important; background: transparent !important; }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable { display: block !important; width: 100% !important; min-width: 0 !important; max-width: 100% !important; border: 0 !important; table-layout: auto !important; background: transparent !important; }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > colgroup, html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > thead { display: none !important; }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody { display: grid !important; gap: 8px; }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tfoot { display: block !important; margin-top: 8px; }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tfoot > tr { display: flex !important; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; padding: 12px 14px; border: 1px solid var(--ms-border); border-radius: var(--ms-radius); background: var(--ms-muted); }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tfoot td { display: block !important; width: auto !important; padding: 0 !important; border: 0 !important; font-size: var(--ms-text-base) !important; }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr {
+    display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; width: 100% !important; padding: 12px 14px !important;
+    border: 1px solid var(--ms-border) !important; border-radius: var(--ms-radius) !important; background: var(--ms-surface) !important; box-shadow: none !important;
+  }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr:hover > td { background: transparent !important; }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td {
+    display: block !important; width: auto !important; min-width: 0 !important; max-width: none !important; height: auto !important; min-height: 0 !important; padding: 0 !important;
+    border: 0 !important; background: transparent !important; color: var(--ms-fg); font-size: var(--ms-text-sm) !important; text-align: left !important; white-space: normal !important; overflow: visible !important; overflow-wrap: anywhere;
+    position: static !important;
+  }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td[data-label]:not([data-label=""])::before {
+    content: attr(data-label); display: block; margin-bottom: 2px; color: var(--ms-muted-fg); font-size: var(--ms-text-2xs); font-weight: var(--ms-weight-medium); letter-spacing: 0; line-height: 1.3; text-transform: none;
+  }
+  /* First cell is the record's identifier: full width, prominent. */
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td:first-child { grid-column: 1 / -1; font-size: var(--ms-text-md) !important; font-weight: var(--ms-weight-semibold); }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td:first-child::before { display: none !important; }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td:first-child:has(> input[type=checkbox]:only-child) { grid-column: auto; }
+  /* Cells with inputs, long text or actions take the full row. */
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td:is([data-full],[data-actions]),
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td:has(> :is(select, textarea, input:not([type=checkbox]):not([type=radio])), > div > :is(select, input:not([type=checkbox]):not([type=radio]))) { grid-column: 1 / -1; }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td[data-full] { text-align: center !important; }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td[data-actions] { display: flex !important; flex-wrap: wrap; gap: 8px; padding-top: 10px !important; border-top: 1px solid var(--ms-border-soft) !important; }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td[data-actions]::before { display: none !important; }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td[data-actions] > * { flex: 1 1 auto; }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td[data-actions] :is(div,span):has(> button) { display: flex !important; flex: 1 1 100%; flex-wrap: wrap; gap: 8px; }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td :is(button,select,input:not([type=checkbox]):not([type=radio])) { min-height: var(--ms-touch) !important; max-width: 100%; }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td[data-actions] button { flex: 1 1 auto; justify-content: center; }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td :is(input:not([type=checkbox]):not([type=radio]), select, textarea) { width: 100% !important; min-width: 0 !important; font-size: 16px !important; }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td.is-right, html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td.number { text-align: left !important; }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr[class*="empty"] { display: block !important; }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr:has(> td[data-full]:only-child) { display: block !important; text-align: center; color: var(--ms-muted-fg); }
+
+  /* ---- Dialogs → bottom sheets with pinned header/footer ---- */
+  html.erp-app .erp-content :is(.overlay,.inventory-modal-overlay,.orders-v3-modal-overlay,.maintenance-modal-overlay,.ar-overlay,.audit-overlay,.fp-overlay,.trip-action-overlay,.trip-expense-overlay,.trip-material-overlay,.material-overlay,.fleet-v2-overlay,.order-trip-overlay,.supplier-bill-overlay,[class*="modal-overlay"]) {
+    align-items: flex-end !important; justify-content: center !important; padding: var(--ms-safe-top) 0 0 !important; z-index: 130 !important;
+  }
+  html.erp-app .erp-content :is(.modal,.inventory-modal,.orders-v3-modal,.maintenance-modal,.maintenance-detail-modal,.maintenance-return-modal,.ar-modal,.audit-detail,.fp-modal,.fp-detail-modal,.trip-action-modal,.trip-expense-modal,.trip-material-modal,.material-modal-shell,.fleet-add-modal,.fleet-movement-modal,.order-trip-modal,.supplier-bill-modal,.purchase-request-modal,.transaction-modal,.repair-batch-modal,.expense-create-modal,.expense-return-modal,.expense-paste-modal) {
+    width: 100% !important; max-width: 100% !important; max-height: calc(100dvh - var(--ms-safe-top) - 8px) !important; margin: 0 !important;
+    border-bottom: 0 !important; border-radius: var(--ms-radius-xl) var(--ms-radius-xl) 0 0 !important;
+  }
+  html.erp-app .erp-content :is(.modal-heading,.inventory-modal-head,.orders-v3-modal-head,.maintenance-modal-header,.ar-modal-head,.audit-detail>header,.fp-modal>header,.fp-detail-modal>header,.trip-action-modal>header,.trip-expense-modal>header,.trip-material-modal>header,.material-modal-head,.fleet-add-header,.fleet-modal-hero,.order-trip-modal-head,.supplier-bill-head,.request-modal-heading,.expense-create-header) { position: sticky !important; top: 0; z-index: 6; padding: 14px 16px 10px !important; }
+  html.erp-app .erp-content :is(.modal-actions,.orders-v3-modal-actions,.maintenance-modal-actions,.maintenance-return-actions,.ar-modal-actions,.trip-action-modal footer,.trip-expense-modal footer,.material-modal-actions,.fleet-add-actions,.order-trip-actions,.supplier-bill-actions,.expense-create-actions) {
+    position: sticky !important; bottom: 0; z-index: 6; display: grid !important; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)) !important; padding: 10px 16px calc(10px + var(--ms-safe-bottom)) !important;
+  }
+  html.erp-app .erp-content :is(.modal-actions,.orders-v3-modal-actions,.maintenance-modal-actions,.maintenance-return-actions,.ar-modal-actions,.trip-action-modal footer,.trip-expense-modal footer,.material-modal-actions,.fleet-add-actions,.order-trip-actions,.supplier-bill-actions,.expense-create-actions) > * { width: 100% !important; min-height: var(--ms-touch) !important; }
+  html.erp-app .erp-content :is(.po-form-body,.inventory-modal-body,.orders-v3-modal-body,.maintenance-modal-body,.ar-form,.trip-expense-form,.material-entry-body,.order-trip-modal-body,.request-modal-body) { padding: 14px 16px !important; }
+  html.erp-app .erp-content :is(.inventory-modal-close,.orders-v3-modal-close,.maintenance-modal-close,.maintenance-modal-header>button,.ar-modal-head>button,.audit-detail>header>button,.fp-modal>header>button,.trip-action-modal>header>button,.trip-expense-modal>header>button,.trip-material-modal>header>button,.material-modal-head>button,.order-trip-modal-close,.supplier-bill-head>button) { width: 44px !important; height: 44px !important; }
+
+  /* Forms: one column, full-width controls. */
+  html.erp-app .erp-content :is(.grid2,.grid3,.ar-grid2,.payment-form-grid,.orders-v3-form-grid,.expense-form-grid,.orders-customer-modal-fields,.trip-action-fields) { grid-template-columns: 1fr !important; }
+  html.erp-app .erp-content :is(.orders-v3-tools,.trips-filter-grid,.maintenance-filter-grid,.audit-filters,.expense-filter-bar,.ar-tools,.users-toolbar,.inventory-movement-filters,.fleet-movement-filters) { display: grid !important; grid-template-columns: 1fr !important; }
+  html.erp-app .erp-content :is(.orders-v3-tools,.trips-filter-grid,.maintenance-filter-grid,.audit-filters,.expense-filter-bar,.ar-tools,.users-toolbar,.inventory-movement-filters,.fleet-movement-filters) > * { width: 100% !important; min-width: 0 !important; max-width: none !important; }
+}
+
+/* Small phones (≤ 389px): single-column KPIs only where two would truncate values. */
+@media (max-width: 389px) {
+  html.erp-app .erp-content :is(.p-stats,.ar-stats,.acct-overview,.fp-summary) { grid-template-columns: 1fr !important; }
+  html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr { grid-template-columns: 1fr; }
+}
+
+/* Utility used by DataTable column priorities. */
+@media (min-width: 744px) and (max-width: 1023px) { .ui-hide-tablet { display: none !important; } }
+/* ---------- §15 Sentence case (Citra uses no all-caps eyebrows/labels) ---------- */
+html.erp-app .erp-content :is(
+.acct-table th,
+.ar-batch-summary small,
+.ar-invoice-table .ar-receipt-number small,
+.ar-invoice-table tbody td:before,
+.ar-manual-row.heading,
+.ar-page th,
+.ar-source-choice small,
+.ar-view-grid small,
+.ar-view-notes small,
+.ar-view-summary small,
+.audit-changes span,
+.audit-date span,
+.audit-date>span:first-child,
+.audit-detail-summary span,
+.audit-period>span,
+.audit-request span,
+.audit-summary article small,
+.audit-table th,
+.audit-technical span,
+.bill-item-row.heading,
+.erp-content :is(.d3-header,.orders-v3-head,.trips-v3-head,.fleet-v2-head,.fleet-map-head,.location-master-head,.material-stock-head,.inventory-hero,.maintenance-head,.p-head,.expense-page-header,.ar-head,.acct-hero,.fp-head,.audit-head)>div:first-child>span,
+.erp-content :is(.inventory-eyebrow,.eyebrow,.ar-eyebrow),
+.erp-content :where(th),
+.fp-detail-table th,
+.fp-table-wrap th,
+.inventory-item-flow-unit-grid article span,
+.inventory-nonserial-head,
+.inventory-serial-head,
+.legacy-tire-table-head,
+.location-info span,
+.location-summary-strip small,
+.maintenance-detail-history th,
+.maintenance-detail-summary>div>div:nth-child(2)>div:first-child,
+.maintenance-detail-summary>div>div:nth-child(3)>div:first-child,
+.maintenance-duration span,
+.material-allocation-picker-row.heading,
+.material-entry-line-head,
+.material-picker-quantity em,
+.material-quantity-input em,
+.order-material-picker-row.heading,
+.pa-doc-title,
+.pa-eyebrow,
+.pa-table th,
+.purchasing .transaction-modal:not(.payment-modal) .receipt-serial-rows input,
+.purchasing th,
+.receipt-goods-heading,
+.receipt-goods>header span,
+.receipt-info small,
+.receipt-remaining small,
+.receipt-table-head,
+.supplier-bill-flat-columns,
+.trip-material-picker-row.heading
+) { text-transform: none !important; letter-spacing: 0 !important; }
+
+/* KPI text colours are always readable on the white stat surface (featured dark cards included). */
+html.erp-app .erp-content :is(.orders-v3-summary,.trips-v3-summary,.fleet-v2-summary,.fleet-map-stats,.material-summary,.inventory-summary,.maintenance-stats,.p-stats,.expense-stats,.ar-stats,.ar-employee-stats,.acct-overview,.fp-summary,.audit-summary,.pa-kpis,.location-summary-strip) > * :is(small,em,p,span:not([class*="icon"]):not(:has(svg))) { color: var(--ms-muted-fg) !important; }
+html.erp-app .erp-content :is(.fp-summary,.acct-overview) > * > svg { width: 16px; height: 16px; color: var(--ms-muted-fg) !important; }
+html.erp-app .erp-content .fp-summary > .net.loss strong, html.erp-app .erp-content .acct-overview > .negative strong { color: var(--ms-danger-fg) !important; }
+html.erp-app .erp-content .fp-summary > .net.profit strong { color: var(--ms-success-fg) !important; }
+html.erp-app .erp-content .acct-performance-item.emphasis { border: 1px solid var(--ms-border) !important; background: var(--ms-muted) !important; color: var(--ms-fg) !important; }
+html.erp-app .erp-content .acct-performance-item.emphasis :is(small,strong,span) { color: var(--ms-fg) !important; }
+
+/* Profile + staff forms (inline-styled): neutral labels, Citra inputs. */
+html.erp-app .erp-content :is(.profile-page,.staff-form-page,.order-create-page,.users-page) :is(label,h2,h3,strong) { color: var(--ms-fg) !important; }
+html.erp-app .erp-content :is(.profile-page,.staff-form-page,.order-create-page) label { font-size: var(--ms-text-xs) !important; font-weight: var(--ms-weight-medium) !important; }
+html.erp-app .erp-content :is(.profile-page,.staff-form-page,.order-create-page,.users-page) :is(input,select,textarea) { border-color: var(--ms-input) !important; font-weight: 400 !important; }
+html.erp-app .erp-content :is(.profile-page,.staff-form-page,.users-page) [class*="side-card"] { box-shadow: none !important; }
+
+@media (max-width: 743px) {
+  html.erp-app .erp-content .erp-action-toolbar > .erp-action-group { grid-column: 1 / -1; display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100% !important; padding: 0 !important; border: 0 !important; }
+  html.erp-app .erp-content .erp-action-toolbar > .erp-action-group > * { width: 100% !important; min-width: 0 !important; max-width: none !important; }
+  html.erp-app .erp-content .erp-action-toolbar > .erp-action-group > :only-child { grid-column: 1 / -1; }
+  html.erp-app .erp-content .erp-action-group button { justify-content: center; padding: 0 8px !important; font-size: var(--ms-text-sm) !important; }
+  html.erp-app .erp-content .erp-action-group input[type="month"] { width: 100% !important; min-width: 0 !important; max-width: none !important; }
+}
+
+/* §16 Normal tracking for former eyebrow/kicker text */
+html.erp-app .erp-content :is(
+.acct-hero-copy>span,
+.acct-ledger-head>div>span,
+.acct-performance-title small,
+.acct-period-card small,
+.acct-print-controls label small,
+.acct-reference span,
+.acct-table th,
+.ar-eyebrow,
+.ar-invoice-modal .ar-total>span small,
+.ar-invoice-table .ar-receipt-number small,
+.ar-invoice-table tbody td:before,
+.ar-invoice-table thead th,
+.ar-manual-row.heading,
+.ar-manual-total span small,
+.ar-material-picker-head small,
+.ar-page th,
+.ar-panel-heading>div>span,
+.ar-source-choice small,
+.ar-stats article>i,
+.ar-view-grid small,
+.ar-view-notes small,
+.ar-view-section>header span,
+.ar-view-summary small,
+.audit-changes span,
+.audit-date span,
+.audit-date>span:first-child,
+.audit-detail-summary span,
+.audit-detail>header small,
+.audit-kicker,
+.audit-period>span,
+.audit-request span,
+.audit-table th,
+.audit-technical span,
+.batch-receipt-orders>header small,
+.bill-item-row.heading,
+.bill-receipt-section>header small,
+.bill-summary>header small,
+.direct-order-header>div:nth-child(2)>span,
+.direct-receipt-notice strong,
+.direct-use-badge,
+.empty-return-section-title span,
+.empty-return-summary>span,
+.erp-content :is(.d3-header,.orders-v3-head,.trips-v3-head,.fleet-v2-head,.fleet-map-head,.location-master-head,.material-stock-head,.inventory-hero,.maintenance-head,.p-head,.expense-page-header,.ar-head,.acct-hero,.fp-head,.audit-head)>div:first-child>span,
+.erp-content :is(.inventory-eyebrow,.eyebrow,.ar-eyebrow),
+.erp-content table th,
+.erp-page-header-eyebrow,
+.expense-eyebrow,
+.eyebrow,
+.fleet-add-title small,
+.fleet-city-section>header span,
+.fleet-city-title small,
+.fleet-map-head span,
+.fleet-v2-eyebrow,
+.fleet-v2-summary small,
+.fleet-v2-table th,
+.fp-detail-head-metric small,
+.fp-detail-modal>header span,
+.fp-detail-table th,
+.fp-head span,
+.fp-head-copy>span,
+.fp-modal header span,
+.fp-panel-title>span,
+.fp-period-card label small,
+.fp-result small,
+.fp-table-wrap th,
+.google-map-page .fleet-map-head span,
+.google-map-page .fleet-map-stats small,
+.google-popup-eyebrow,
+.inventory-eyebrow,
+.inventory-item-flow-section-head span small,
+.inventory-item-flow-summary small,
+.inventory-modal-heading > span,
+.inventory-nonserial-head,
+.inventory-serial-head,
+.legacy-tire-table-head,
+.location-card-title>div>span,
+.location-info span,
+.location-master-head>div>span,
+.location-summary-strip small,
+.maintenance-create-intro small,
+.maintenance-detail-hero-main small,
+.maintenance-detail-metrics small,
+.maintenance-detail-section-heading>span,
+.maintenance-detail-summary>div>div:nth-child(2)>div:first-child,
+.maintenance-detail-summary>div>div:nth-child(3)>div:first-child,
+.maintenance-duration span,
+.maintenance-eyebrow,
+.maintenance-last-service small,
+.maintenance-request-card-title>span,
+.maintenance-request-head>em,
+.maintenance-return-summary>span,
+.maintenance-selected-summary small,
+.maintenance-stats small,
+.material-allocation-picker-row.heading,
+.material-allocation-section>label>span b,
+.material-board th,
+.material-destination-field>span b,
+.material-entry-line-head,
+.material-entry-meta-grid label>span b,
+.material-entry-title small,
+.material-invoice-hero span,
+.material-load-grid label>span b,
+.material-modal-shell .material-modal-head>div>small,
+.material-section-heading small,
+.material-stock-page header span,
+.material-stock-summary small,
+.material-summary small,
+.material-upload span small,
+.order-detail-v3-eyebrow,
+.order-detail-v3-overview small,
+.order-detail-v3-route-line small,
+.order-detail-v3-title .order-detail-v3-eyebrow,
+.order-trip-modal-eyebrow,
+.order-trip-route-summary > span,
+.order-trip-section-title span,
+.orders-location-picker b,
+.orders-v3-board>header span,
+.orders-v3-docrefs b,
+.orders-v3-head>div>span,
+.orders-v3-meta small,
+.orders-v3-primary-do>small,
+.orders-v3-route small,
+.orders-v3-summary small,
+.pa-eyebrow,
+.po-supplier-change-summary small,
+.purchasing th,
+.receipt-card-date small,
+.receipt-goods-heading,
+.receipt-goods>header span,
+.receipt-lines > small,
+.receipt-proof small,
+.receipt-serial-heading strong,
+.receipt-summary-row small,
+.receipt-table-head,
+.receipt-table-title small,
+.section-label,
+.serialized-badge,
+.supplier-bill-flat-columns,
+.supplier-bill-flat-head small,
+.supplier-bill-items-step>header small,
+.trip-action-context small,
+.trip-action-history>div>span,
+.trip-action-modal>header span,
+.trip-allocation-head span,
+.trip-control-center>header span,
+.trip-detail-v3-eyebrow,
+.trip-expense-modal>header span,
+.trip-expense-panel>header>div:first-child>span,
+.trip-material-destinations-panel>header>div>span,
+.trip-material-modal>header span,
+.trip-material-picker-row.heading,
+.trip-proof-heading>span,
+.trips-v3-board>header span,
+.trips-v3-head>div>span,
+.trips-v3-list small,
+.trips-v3-summary small
+) { letter-spacing: 0 !important; }
+
+@media (max-width: 743px) {
+  /* Compact phone KPIs: icon tucked top-right like Citra StatCard. */
+  html.erp-app .erp-content :is(.orders-v3-summary,.trips-v3-summary,.fleet-v2-summary,.fleet-map-stats,.material-summary,.inventory-summary,.maintenance-stats,.p-stats,.expense-stats,.ar-stats,.ar-employee-stats,.acct-overview,.fp-summary,.audit-summary,.pa-kpis,.location-summary-strip,.order-detail-v3-overview) > * { position: relative !important; padding-right: 40px !important; }
+  html.erp-app .erp-content :is(.orders-v3-summary,.trips-v3-summary,.fleet-v2-summary,.fleet-map-stats,.material-summary,.inventory-summary,.maintenance-stats,.p-stats,.expense-stats,.ar-stats,.ar-employee-stats,.acct-overview,.fp-summary,.audit-summary,.pa-kpis,.location-summary-strip,.order-detail-v3-overview) > * > :is(i,span,div,b,em)[class*="icon"]:has(svg),
+  html.erp-app .erp-content :is(.orders-v3-summary,.trips-v3-summary,.fleet-v2-summary,.fleet-map-stats,.material-summary,.inventory-summary,.maintenance-stats,.p-stats,.expense-stats,.ar-stats,.ar-employee-stats,.acct-overview,.fp-summary,.audit-summary,.pa-kpis,.location-summary-strip,.order-detail-v3-overview) > * > :is(i,span,b,em):first-child:has(> svg:only-child),
+  html.erp-app .erp-content :is(.orders-v3-summary,.trips-v3-summary,.fleet-v2-summary,.fleet-map-stats,.material-summary,.inventory-summary,.maintenance-stats,.p-stats,.expense-stats,.ar-stats,.ar-employee-stats,.acct-overview,.fp-summary,.audit-summary,.pa-kpis,.location-summary-strip,.order-detail-v3-overview) > * > svg:first-child {
+    position: absolute !important; top: 10px; right: 10px; width: 26px !important; height: 26px !important; min-width: 0 !important; margin: 0 !important; padding: 5px !important; border-radius: var(--ms-radius-md) !important;
+  }
+  html.erp-app .erp-content :is(.trips-v3-summary,.maintenance-stats,.orders-v3-summary,.fleet-v2-summary,.expense-stats,.ar-stats,.material-summary,.location-summary-strip,.audit-summary,.fleet-map-stats,.p-stats) > * > svg:first-child { padding: 0 !important; width: 16px !important; height: 16px !important; top: 14px; right: 14px; color: var(--ms-muted-fg); }
+  html.erp-app .erp-content :is(.orders-v3-summary,.fleet-v2-summary) > * > div { display: flex !important; flex-direction: column; align-items: flex-start; gap: 2px; }
+  html.erp-app .erp-content :is(.orders-v3-summary,.fleet-v2-summary) > * > div > strong { order: 1; }
+  html.erp-app .erp-content :is(.orders-v3-summary,.fleet-v2-summary) > * > div > p { order: 2; margin: 0 !important; }
+
+  /* Filters: search on its own row, other controls two-up. */
+  html.erp-app .erp-content :is(.orders-v3-tools,.trips-filter-grid,.maintenance-filter-grid,.audit-filters,.inventory-movement-filters,.fleet-movement-filters) { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  html.erp-app .erp-content :is(.orders-v3-tools,.trips-filter-grid,.maintenance-filter-grid,.audit-filters,.inventory-movement-filters,.fleet-movement-filters) > :first-child,
+  html.erp-app .erp-content :is(.orders-v3-tools,.trips-filter-grid,.maintenance-filter-grid,.audit-filters,.inventory-movement-filters,.fleet-movement-filters) > :last-child:nth-child(even),
+  html.erp-app .erp-content :is(.orders-v3-tools,.trips-filter-grid,.maintenance-filter-grid,.audit-filters,.inventory-movement-filters,.fleet-movement-filters) > :is(button,select):last-child { grid-column: 1 / -1; }
+  html.erp-app .erp-content :is(.orders-v3-tools,.trips-filter-grid,.maintenance-filter-grid) input[type="date"] { font-size: 15px !important; }
+}
+/* Users: role/status selects keep their colour cue on a white control. */
+html.erp-app .erp-content .users-page td select { background-color: var(--ms-surface) !important; border-color: var(--ms-input) !important; font-weight: var(--ms-weight-medium) !important; }
+
+/* ---------- §17 Modal close buttons (some sat on former dark heroes) ---------- */
+html.erp-app .erp-content :is(.fleet-add-header,.fleet-modal-hero,.expense-create-header,.request-modal-heading,.supplier-bill-heading,.modal-heading) > button:last-child,
+html.erp-app .erp-content :is([class*="modal"],[class*="overlay"]) > header > button:last-child { border: 0 !important; background: transparent !important; color: var(--ms-muted-fg) !important; box-shadow: none !important; }
+html.erp-app .erp-content :is(.fleet-add-header,.fleet-modal-hero,.expense-create-header) > button:last-child svg { color: var(--ms-muted-fg) !important; stroke: currentColor; }
+
+/* ---------- §18 Phone forms inside dialogs: single column; line items as 2-up cards ---------- */
+@media (max-width: 743px) {
+  html.erp-app .erp-content :is(.expense-create-fields,.maintenance-create-grid,.maintenance-request-fields,.maintenance-external-repair-fields,.location-form-row,.material-entry-meta,.material-entry-meta-grid,.material-form-body .grid2,.material-form-body .grid3,.purchasing .direct-order-detail-fields,.purchasing .direct-order-product-fields,.purchase-request-modal .grid2,.direct-order-details>.grid2,.request-modal-body,.trip-material-form,.expense-return-grid,.material-allocation-grid,.material-load-grid,.pa-settings-row,.ar-grid2,.grid3) { grid-template-columns: minmax(0, 1fr) !important; }
+  html.erp-app .erp-content :is([class*="modal"],[class*="overlay"],form) :is([style*="grid-template-columns: 1fr 1fr"],[style*="grid-template-columns: repeat(2"],[style*="grid-template-columns: repeat(3"],[style*="grid-template-columns: repeat(4"]) { grid-template-columns: minmax(0, 1fr) !important; }
+  html.erp-app .erp-content :is(.receipt-item-row,.receipt-goods-row,.po-price-row,.bill-item-row,.supplier-bill-flat-row,.serialized-receipt-row,.material-entry-line,.inventory-nonserial-row,.inventory-serial-row,.legacy-tire-row,.retread-result-row,.trip-allocation-row,.ar-manual-row) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px 10px !important; padding: 12px !important; border: 1px solid var(--ms-border) !important; border-radius: var(--ms-radius) !important; background: var(--ms-surface) !important;
+  }
+  html.erp-app .erp-content :is(.receipt-item-row,.receipt-goods-row,.po-price-row,.bill-item-row,.supplier-bill-flat-row,.serialized-receipt-row,.material-entry-line,.inventory-nonserial-row,.inventory-serial-row,.legacy-tire-row,.retread-result-row,.trip-allocation-row,.ar-manual-row) > :first-child { grid-column: 1 / -1; }
+  html.erp-app .erp-content :is(.receipt-item-row,.receipt-goods-row,.po-price-row,.bill-item-row,.supplier-bill-flat-row,.serialized-receipt-row,.material-entry-line,.inventory-nonserial-row,.inventory-serial-row,.legacy-tire-row,.retread-result-row,.trip-allocation-row,.ar-manual-row) :is(input,select) { width: 100% !important; min-width: 0 !important; }
+  html.erp-app .erp-content :is(.material-entry-line-head,.material-allocation-picker-row.heading,.trip-material-picker-row.heading) { display: none !important; }
+}
+/* Icon-only buttons sized inline (e.g. 36×36 close buttons) must not inherit the global text padding. */
+html.erp-app .erp-content :is(button[style*="width: 2"][style*="height: 2"],button[style*="width: 3"][style*="height: 3"],button[style*="width: 4"][style*="height: 4"]),
+html.erp-app .erp-content :is(.fleet-add-header,.fleet-modal-hero,.expense-create-header,.request-modal-heading,.supplier-bill-heading,.modal-heading) > button:last-child,
+html.erp-app .erp-content :is([class*="modal"],[class*="overlay"]) > header > button:last-child { display: inline-grid !important; place-items: center; padding: 0 !important; }
+
+/* Tablet (744–1199): headers stay a left-aligned row; actions wrap beneath when space runs out. */
+@media (min-width: 744px) and (max-width: 1199px) {
+  html.erp-app .erp-content :is(.db-header,.orders-v3-head,.trips-v3-head,.fleet-v2-header,.fleet-map-head,.location-master-head,.material-stock-page>header,.inventory-hero,.maintenance-head,.p-head,.expense-hero,.ar-head,.acct-hero,.fp-head,.audit-hero,.pa-header,.staff-page-header,.trip-detail-v3-head,.order-detail-v3-head,.material-invoice-hero,.erp-page-header) {
+    flex-direction: row !important; align-items: flex-end !important; text-align: left !important;
+  }
+  html.erp-app .erp-content :is(.db-header,.orders-v3-head,.trips-v3-head,.fleet-v2-header,.fleet-map-head,.location-master-head,.material-stock-page>header,.inventory-hero,.maintenance-head,.p-head,.expense-hero,.ar-head,.acct-hero,.fp-head,.audit-hero,.pa-header,.staff-page-header,.erp-page-header) > :first-child { align-self: auto !important; text-align: left !important; margin: 0 !important; }
+}
+@media (min-width: 744px) and (max-width: 1199px) {
+  html.erp-app .erp-content .inventory-toolbar { flex-direction: row !important; flex-wrap: wrap; align-items: center !important; justify-content: space-between !important; }
+  html.erp-app .erp-content .inventory-toolbar .inventory-search { flex: 1 1 260px; max-width: 360px; }
+  html.erp-app .erp-content :is(.p-stats,.maintenance-stats,.inventory-summary,.trips-v3-summary,.expense-stats) > * { text-align: left !important; }
+}
+/* Orders filter row wraps instead of pushing "Reset" past the edge (iPad landscape / small laptops). */
+@media (min-width: 744px) {
+  html.erp-app .erp-content .orders-v3-tools { display: flex !important; flex-wrap: wrap !important; }
+  html.erp-app .erp-content .orders-v3-tools > * { flex: 1 1 150px !important; min-width: 0 !important; max-width: none !important; }
+  html.erp-app .erp-content .orders-v3-tools > :first-child { flex: 2 1 260px !important; }
+  html.erp-app .erp-content .orders-v3-tools > button:last-child { flex: 0 0 auto !important; }
+  html.erp-app .erp-content .orders-v3-tools input { width: 100% !important; min-width: 0 !important; }
+}
+@media (max-width: 743px) { html.erp-app .erp-content .expense-stats > * > .expense-stat-icon { position: absolute !important; top: 10px !important; right: 10px !important; left: auto !important; width: 28px !important; height: 28px !important; margin: 0 !important; } html.erp-app .erp-content .expense-stats > * { padding-right: 44px !important; } }
+
+/* Trip views share the full bar equally; only the count uses a badge. */
+html.erp-app .erp-content nav.trips-view-tabs {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+  align-items: stretch;
+}
+html.erp-app .erp-content nav.trips-view-tabs > button {
+  width: 100%;
+  min-width: 0;
+  justify-content: flex-start;
+  padding: 10px 14px !important;
+  white-space: normal;
+}
+html.erp-app .erp-content nav.trips-view-tabs > button > span {
+  flex: 1;
+  text-align: left;
+}
+
+/* Expense counters reserve a separate column for the icon at every width. */
+html.erp-app .erp-content .expense-page .expense-stats > .expense-stat-card {
+  position: relative !important;
+  padding: 16px 66px 16px 16px !important;
+  text-align: left !important;
+}
+html.erp-app .erp-content .expense-page .expense-stats > .expense-stat-card > .expense-stat-icon {
+  position: absolute !important;
+  inset: 16px 16px auto auto !important;
+  display: grid !important;
+  place-items: center;
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+html.erp-app .erp-content .expense-page .expense-stats > .expense-stat-card > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Keep the audit filter panel inset with the heading and results table. */
+html.erp-app .erp-content .audit-workspace > .audit-filters {
+  box-sizing: border-box;
+  width: auto !important;
+  min-width: 0;
+  margin: 0 24px 12px !important;
+}
+@media (max-width: 720px) {
+  html.erp-app .erp-content .audit-workspace > .audit-filters {
+    margin-inline: 16px !important;
+  }
+}
+
+/* Keep header controls aligned with their neighboring action buttons. */
+html.erp-app .erp-content .fp-head-actions .fp-period-card,
+html.erp-app .erp-content .fp-head-actions .fp-print-button,
+html.erp-app .erp-content .ar-head-side > span,
+html.erp-app .erp-content .ar-head-side > button {
+  box-sizing: border-box;
+  height: 42px !important;
+  min-height: 42px !important;
+  padding: 0 12px !important;
+  border-radius: var(--ms-radius-md) !important;
+}
+html.erp-app .erp-content .fp-head-actions .fp-period-card { gap: 8px; }
+html.erp-app .erp-content .fp-period-card > svg { width: 16px; height: 16px; padding: 0; background: transparent; }
+html.erp-app .erp-content .fp-period-card label { min-width: 0; }
+html.erp-app .erp-content .fp-period-card label small {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+}
+html.erp-app .erp-content .fp-period-card input {
+  height: 32px !important; min-height: 0 !important; margin: 0 !important;
+  padding: 0 !important; border: 0 !important; box-shadow: none !important;
+  background: transparent !important; font-size: var(--ms-text-base) !important;
+}
+html.erp-app .erp-content .ar-head-side > span { display: flex; align-items: center; gap: 12px; }
+html.erp-app .erp-content .ar-head-side > span small { font-size: var(--ms-text-sm); }
+html.erp-app .erp-content .ar-head-side > span strong { margin: 0; font-size: var(--ms-text-base); }
+html.erp-app .erp-content .expense-header-toolbar > .erp-action-group {
+  align-items: center; align-self: center; border: 0 !important;
+  padding: 0 !important; margin: 0 !important;
+}
+html.erp-app .erp-content .expense-header-toolbar .erp-action-group > :is(input,button) {
+  box-sizing: border-box; height: 42px !important; min-height: 42px !important;
+  margin-block: 0 !important; padding-block: 0 !important;
+}
+
+/* Compact price search with room for suggestions below. */
+html.erp-app .erp-content .pa-header .pa-hero { width: 100%; max-width: 600px; min-width: 0; }
+html.erp-app .erp-content .pa-page .pa-search .pa-search-box {
+  box-sizing: border-box; height: 40px !important; min-height: 40px !important;
+  padding: 0 10px !important; gap: 8px; border-radius: var(--ms-radius-md);
+  box-shadow: var(--ms-shadow-xs);
+}
+html.erp-app .erp-content .pa-page .pa-search-box input {
+  height: 100% !important; min-height: 0 !important; padding: 0 !important;
+  border: 0 !important; box-shadow: none !important; font-size: 13px !important;
+  font-weight: 400;
+}
+html.erp-app .erp-content .pa-search-icon { width: 16px; height: 16px; flex: 0 0 16px; }
+html.erp-app .erp-content .pa-page .pa-search-clear { width: 28px; height: 28px; min-height: 0; }
+html.erp-app .erp-content .pa-page .pa-header-tools .pa-icon-btn {
+  width: 36px !important; height: 36px !important; min-width: 36px !important;
+  min-height: 36px !important; padding: 0 !important; display: grid; place-items: center;
+}
+html.erp-app .erp-content .pa-hero-hint { font-size: 12px; line-height: 1.5; }
+
+/* Orders: aligned columns and a quiet loading surface within one board. */
+html.erp-app .erp-content .orders-v3-board > header {
+  padding: 18px 20px !important;
+  background: var(--ms-surface) !important;
+}
+html.erp-app .erp-content .orders-v3-columns,
+html.erp-app .erp-content .orders-v3-list > article {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1.15fr) 110px;
+  gap: 20px;
+  padding: 18px 20px;
+}
+html.erp-app .erp-content .orders-v3-columns {
+  padding-block: 10px;
+  border-bottom: 1px solid var(--ms-border);
+  background: var(--ms-muted);
+  color: var(--ms-muted-fg);
+  font-size: 11px;
+  font-weight: 600;
+}
+html.erp-app .erp-content .orders-v3-list > article > div { min-width: 0; grid-column: auto; grid-row: auto; }
+html.erp-app .erp-content .orders-v3-list > article:focus-visible { outline: 2px solid var(--ms-primary); outline-offset: -2px; }
+html.erp-app .erp-content .orders-v3-list .orders-v3-counts { flex-wrap: wrap; }
+html.erp-app .erp-content .orders-v3-list > .erp-loading {
+  border: 0; border-radius: 0; padding: 18px 20px; background: var(--ms-surface);
+}
+html.erp-app .erp-content .orders-v3-list .erp-loading-brand { justify-content: flex-start; }
+html.erp-app .erp-content .orders-v3-list .erp-loading-row {
+  border: 0; border-bottom: 1px solid var(--ms-border-soft); border-radius: 0;
+  padding: 14px 0; background: transparent;
+}
+@media (max-width: 1000px) {
+  html.erp-app .erp-content .orders-v3-columns { display: none; }
+  html.erp-app .erp-content .orders-v3-list > article { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+}
+@media (max-width: 600px) {
+  html.erp-app .erp-content .orders-v3-list > article { grid-template-columns: minmax(0, 1fr); padding: 16px; }
+}
+
+/* Trip list follows the compact order board. */
+html.erp-app .erp-content .trips-v3-board > header { padding: 18px 20px !important; background: var(--ms-surface) !important; }
+html.erp-app .erp-content .trips-v3-columns,
+html.erp-app .erp-content .trips-v3-list > article {
+  display: grid;
+  grid-template-columns: minmax(0,1.1fr) minmax(0,.9fr) minmax(0,1.3fr) minmax(0,1fr) 110px;
+  gap: 18px; padding: 18px 20px;
+}
+html.erp-app .erp-content .trips-v3-columns { padding-block: 10px; border-bottom: 1px solid var(--ms-border); background: var(--ms-muted); color: var(--ms-muted-fg); font-size: 11px; font-weight: 600; }
+html.erp-app .erp-content .trips-v3-list > article > div { min-width: 0; grid-column: auto; grid-row: auto; }
+html.erp-app .erp-content .trips-v3-list > .erp-loading { border: 0; border-radius: 0; padding: 18px 20px; background: var(--ms-surface); }
+html.erp-app .erp-content .trips-v3-list .erp-loading-brand { justify-content: flex-start; }
+html.erp-app .erp-content .trips-v3-list .erp-loading-row { border: 0; border-bottom: 1px solid var(--ms-border-soft); border-radius: 0; padding: 14px 0; background: transparent; }
+@media(max-width:1100px) {
+  html.erp-app .erp-content .trips-v3-columns { display: none; }
+  html.erp-app .erp-content .trips-v3-list > article { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+}
+@media(max-width:600px) {
+  html.erp-app .erp-content .trips-v3-list > article { grid-template-columns: minmax(0,1fr); padding: 16px; }
+}
+
+/* Compact status switch, sized to its two choices. */
+html.erp-app .erp-content .purchasing .p-status-filters {
+  display: inline-flex !important; width: fit-content !important;
+  max-width: 100%; align-self: flex-start;
+}
+/* Lists share one surface instead of nested loading cards. */
+html.erp-app .erp-content :is(.ar-panel,.expense-panel,.fp-panel,.maintenance-jobs-board) .erp-loading {
+  border: 0 !important; border-radius: 0 !important;
+  background: var(--ms-surface) !important; padding: 18px 20px !important;
+}
+html.erp-app .erp-content :is(.ar-panel,.expense-panel,.fp-panel,.maintenance-jobs-board) .erp-loading-brand { justify-content: flex-start; }
+html.erp-app .erp-content :is(.ar-panel,.expense-panel,.fp-panel,.maintenance-jobs-board) .erp-loading-row {
+  border: 0; border-bottom: 1px solid var(--ms-border-soft);
+  border-radius: 0; padding: 12px 0; background: transparent;
+}
+html.erp-app .erp-content :is(.ar-invoice-table,.expense-table,.fp-table-wrap table) :is(th,td) { padding-block: 12px !important; }
+html.erp-app .erp-content :is(.ar-invoice-table,.expense-table,.fp-table-wrap table) tbody tr:hover { background: var(--ms-accent); }
+html.erp-app .erp-content .ar-invoice-table .ar-money-cell { text-align: right; font-variant-numeric: tabular-nums; }
+html.erp-app .erp-content .ar-actions { gap: 6px; }
+html.erp-app .erp-content .orders-v3-load i b.billed { background: #5886d8; }
+html.erp-app .erp-content .orders-v3-load .orders-progress-billed { color: #3565ae !important; }
+html.erp-app .erp-content .orders-v3-load .orders-progress-completed { color: #168451 !important; }
+
+/* Ledger: balanced header, one loading surface, and aligned journal amounts. */
+html.erp-app .erp-content .acct-ledger .acct-ledger-head {
+  align-items: center; padding: 18px 20px !important; gap: 20px;
+  background: var(--ms-surface) !important;
+}
+html.erp-app .erp-content .acct-ledger .acct-panel {
+  margin-top: 0; min-height: 0; border: 0 !important;
+  border-top: 1px solid var(--ms-border) !important; border-radius: 0 !important;
+}
+html.erp-app .erp-content .acct-ledger .erp-loading {
+  padding: 18px 20px !important; border: 0 !important; border-radius: 0 !important;
+  background: var(--ms-surface) !important;
+}
+html.erp-app .erp-content .acct-ledger .erp-loading-brand { justify-content: flex-start; }
+html.erp-app .erp-content .acct-ledger .erp-loading-row {
+  padding: 12px 0; border: 0; border-bottom: 1px solid var(--ms-border-soft);
+  border-radius: 0; background: transparent;
+}
+html.erp-app .erp-content .acct-ledger .acct-table {
+  border: 0 !important; border-radius: 0 !important;
+}
+html.erp-app .erp-content .acct-ledger .acct-table :is(th,td) { padding: 12px 16px !important; }
+html.erp-app .erp-content .acct-ledger .acct-table td.number { text-align: right; font-variant-numeric: tabular-nums; }
+html.erp-app .erp-content .acct-ledger .acct-table .entry-start td { border-top: 1px solid var(--ms-border); }
+html.erp-app .erp-content .acct-ledger .acct-table tbody tr:hover { background: var(--ms-accent); }
+@media(max-width:760px) {
+  html.erp-app .erp-content .acct-ledger .acct-ledger-head { align-items: stretch; padding: 16px !important; }
+}
+
+/* User and audit lists use the same compact loading rows as the ledger. */
+html.erp-app .erp-content :is(.users-card,.audit-workspace) .erp-loading {
+  border: 0 !important; border-radius: 0 !important;
+  padding: 18px 20px !important; background: var(--ms-surface) !important;
+}
+html.erp-app .erp-content :is(.users-card,.audit-workspace) .erp-loading-brand { justify-content: flex-start; }
+html.erp-app .erp-content :is(.users-card,.audit-workspace) .erp-loading-row {
+  border: 0; border-bottom: 1px solid var(--ms-border-soft);
+  border-radius: 0; padding: 12px 0; background: transparent;
+}
+html.erp-app .erp-content .users-card .users-toolbar {
+  display: flex !important; align-items: center; flex-wrap: wrap; gap: 12px;
+}
+html.erp-app .erp-content .users-toolbar .users-search-row {
+  display: flex !important; flex: 1; align-items: center;
+  flex-wrap: wrap; gap: 10px; min-width: 0;
+}
+html.erp-app .erp-content .users-search-row .users-search-field {
+  display: flex; align-items: center; flex: 1 1 240px;
+  min-width: 0; max-width: 480px; height: 38px; padding: 0 10px;
+  border: 1px solid var(--ms-input); border-radius: var(--ms-radius-md);
+  background: var(--ms-surface);
+}
+html.erp-app .erp-content .users-search-field input {
+  width: 100% !important; min-width: 0; height: 100% !important;
+  min-height: 0 !important; padding: 0 !important;
+  border: 0 !important; background: transparent !important; box-shadow: none !important;
+}
+html.erp-app .erp-content .users-search-row > select {
+  width: 180px !important; min-width: 0; height: 38px !important; padding: 0 10px;
+}
+html.erp-app .erp-content :is(.users-table-wrap,.audit-table-wrap) table :is(th,td) { padding: 12px 14px !important; }
+html.erp-app .erp-content .users-table-wrap tbody tr:hover { background: var(--ms-accent); }
+html.erp-app .erp-content .users-pagination { gap: 12px; padding-block: 14px !important; }
+@media(max-width:600px) {
+  html.erp-app .erp-content .users-toolbar .users-search-row { flex-basis: 100%; }
+  html.erp-app .erp-content .users-search-row .users-search-field { max-width: none; }
+  html.erp-app .erp-content .users-search-row > select { flex: 1 1 140px; }
+}

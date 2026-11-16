@@ -3,6 +3,8 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./index.css";
 import "./designSystem.css";
+import "./ui/tokens.css";
+import "./ui/components.css";
 
 import { AuthProvider } from "./AuthContext";
 import ProtectedRoute from "./ProtectedRoute";
@@ -42,9 +44,9 @@ import PageErrorBoundary from "./components/PageErrorBoundary";
 import "./enterpriseOverrides.css";
 import "./geometryPolish.css";
 import "./tableResponsive.css";
-import "./workspaceFluid.css";
 import "./headerSystem.css";
-import "./tabletFit.css"; // iPad / tablet adjustments, loaded last
+import "./tabletFit.css"; // iPad / tablet adjustments
+import "./styles/modules.css"; // unified Citra Jaya module layer — loaded last
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

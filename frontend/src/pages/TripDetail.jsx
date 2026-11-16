@@ -31,7 +31,7 @@ import "./TripProofFix.css";
 //////////////////////
 const pageBg = {
   minHeight: "100vh",
-  color: "#17211C",
+  color: "#101728",
 };
 
 const container = { maxWidth: 1180, margin: "0 auto" };
@@ -40,8 +40,8 @@ const panel = {
   background: "#FFFFFF",
   borderRadius: 14,
   padding: 24,
-  border: "1px solid #E2EAE5",
-  boxShadow: "0 8px 30px rgba(18, 56, 39, 0.06)",
+  border: "1px solid #dfe5ed",
+  boxShadow: "0 8px 30px rgba(21,31,53,0.06)",
 };
 
 const headerRow = {
@@ -63,7 +63,7 @@ const title = {
 const subTitle = {
   marginTop: 10,
   fontWeight: 400,
-  color: "#68756E",
+  color: "#536a8a",
   fontSize: 14,
 };
 
@@ -71,12 +71,12 @@ const btnGhost = {
   height: 40,
   padding: "0 16px",
   borderRadius: 999,
-  border: "1px solid rgba(15, 60, 45, 0.18)",
+  border: "1px solid rgba(22,31,53,0.18)",
   background: "#FFFFFF",
-  color: "#0B2A1F",
+  color: "#0f1626",
   fontWeight: 600,
   cursor: "pointer",
-  boxShadow: "0 10px 22px rgba(10, 40, 30, 0.06)",
+  boxShadow: "0 10px 22px rgba(15,21,36,0.06)",
 };
 
 const btnDanger = {
@@ -87,7 +87,7 @@ const btnDanger = {
 
 const divider = {
   height: 1,
-  background: "rgba(20, 80, 60, 0.10)",
+  background: "rgba(29,42,71,0.10)",
   marginTop: 14,
 };
 
@@ -114,19 +114,19 @@ const badgeBase = {
   fontWeight: 600,
   fontSize: 11,
   letterSpacing: 0.4,
-  border: "1px solid rgba(15, 60, 45, 0.16)",
-  background: "#E9FBF1",
-  color: "#0B2A1F",
+  border: "1px solid rgba(22,31,53,0.16)",
+  background: "#eafaf3",
+  color: "#0f1626",
   width: "fit-content",
 };
 
 function tripBadgeStyle(status) {
   const s = String(status || "").toUpperCase();
-  if (s === "COMPLETED") return { ...badgeBase, background: "#DDFBEA", borderColor: "rgba(16,185,129,0.35)" };
+  if (s === "COMPLETED") return { ...badgeBase, background: "#ddfbed", borderColor: "rgba(24,177,106,0.35)" };
   if (s === "ARRIVED") return { ...badgeBase, background: "#EAF7FF", borderColor: "rgba(59,130,246,0.25)" };
   if (s === "DISPATCHED") return { ...badgeBase, color: "#B45309", background: "#FFF3D6", borderColor: "#F4C76A" };
   if (s === "CANCELLED") return { ...badgeBase, background: "#FFF1F2", borderColor: "rgba(244,63,94,0.25)" };
-  return { ...badgeBase, background: "#F1F5F9", borderColor: "rgba(15, 60, 45, 0.12)" };
+  return { ...badgeBase, background: "#F1F5F9", borderColor: "rgba(22,31,53,0.12)" };
 }
 
 const STATUS_STEPS = [
@@ -164,10 +164,10 @@ const EXPENSE_LABELS = Object.fromEntries(EXPENSE_CATEGORIES);
 
 function InfoRow({ label, value, icon: Icon }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "28px minmax(105px, .7fr) 1.4fr", gap: 8, alignItems: "center", minHeight: 38, borderBottom: "1px solid #F0F3F1" }}>
-      <span style={{ color: "#88A095", display: "inline-flex" }}>{Icon ? <Icon size={15} /> : null}</span>
-      <span style={{ color: "#718078", fontSize: 13 }}>{label}</span>
-      <span style={{ color: "#213A2F", fontSize: 13, fontWeight: 500 }}>{value || "—"}</span>
+    <div style={{ display: "grid", gridTemplateColumns: "28px minmax(105px, .7fr) 1.4fr", gap: 8, alignItems: "center", minHeight: 38, borderBottom: "1px solid #edf1f6" }}>
+      <span style={{ color: "#8391a5", display: "inline-flex" }}>{Icon ? <Icon size={15} /> : null}</span>
+      <span style={{ color: "#65758c", fontSize: 13 }}>{label}</span>
+      <span style={{ color: "#1a2641", fontSize: 13, fontWeight: 500 }}>{value || "—"}</span>
     </div>
   );
 }
@@ -177,8 +177,8 @@ function StatusStep({ step, index, currentIndex, currentStatus, enabled, saving,
   const done = currentStatus !== "CANCELLED" && index < currentIndex;
   const active = currentStatus !== "CANCELLED" && index === currentIndex;
   const actionable = enabled && !active && !saving;
-  const color = done || active ? "#0D7C3D" : "#8C9A93";
-  const background = active ? "#EAF6EF" : done ? "#F5FBF7" : "#FFFFFF";
+  const color = done || active ? "#0d7c48" : "#8290a4";
+  const background = active ? "#ebeff5" : done ? "#f6f8fa" : "#FFFFFF";
 
   return (
     <button
@@ -191,7 +191,7 @@ function StatusStep({ step, index, currentIndex, currentStatus, enabled, saving,
         zIndex: 1,
         flex: "1 1 150px",
         minWidth: 135,
-        border: `1px solid ${active ? "#8AC6A3" : "#DCE5E0"}`,
+        border: `1px solid ${active ? "#85cbaa" : "#d8dfe9"}`,
         borderRadius: 12,
         background,
         padding: "13px 14px",
@@ -207,20 +207,20 @@ function StatusStep({ step, index, currentIndex, currentStatus, enabled, saving,
       onMouseEnter={(e) => {
         if (!actionable) return;
         e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = "0 8px 20px rgba(13,124,61,.12)";
-        e.currentTarget.style.borderColor = "#78BA94";
+        e.currentTarget.style.boxShadow = "0 8px 20px rgba(16,121,72,.12)";
+        e.currentTarget.style.borderColor = "#70c29c";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "translateY(0)";
         e.currentTarget.style.boxShadow = "none";
-        e.currentTarget.style.borderColor = active ? "#8AC6A3" : "#DCE5E0";
+        e.currentTarget.style.borderColor = active ? "#85cbaa" : "#d8dfe9";
       }}
     >
-      <span style={{ width: 32, height: 32, borderRadius: 9, display: "inline-flex", alignItems: "center", justifyContent: "center", background: done || active ? "#DCEFE4" : "#F2F5F3" }}>
+      <span style={{ width: 32, height: 32, borderRadius: 9, display: "inline-flex", alignItems: "center", justifyContent: "center", background: done || active ? "#d7f4e6" : "#f0f3f7" }}>
         {done ? <FiCheck size={16} /> : <Icon size={16} />}
       </span>
       <span>
-        <span style={{ display: "block", fontSize: 11, color: "#849189", marginBottom: 2 }}>Tahap {index + 1}</span>
+        <span style={{ display: "block", fontSize: 11, color: "#78879d", marginBottom: 2 }}>Tahap {index + 1}</span>
         <span style={{ display: "block", fontSize: 13, fontWeight: active ? 650 : 550 }}>{saving && enabled ? "Memproses…" : step.label}</span>
       </span>
     </button>
@@ -629,7 +629,7 @@ export default function TripDetail() {
           {/* Header */}
           <div className="trip-detail-v3-head" style={headerRow}>
             <div style={{ minWidth: 0 }}>
-              <div className="trip-detail-v3-eyebrow" style={{ color: "#0D7C3D", fontSize: 12, fontWeight: 650, letterSpacing: 1, marginBottom: 7 }}>TRIP CONTROL</div>
+              <div className="trip-detail-v3-eyebrow" style={{ color: "#107948", fontSize: 12, fontWeight: 650, letterSpacing: 1, marginBottom: 7 }}>Trip control</div>
               <h1 style={title}>{headline}</h1>
 
               <div className="trip-detail-v3-subtitle" style={subTitle}>
@@ -650,7 +650,7 @@ export default function TripDetail() {
 
               <div className="trip-detail-v3-badges" style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 <span style={tripBadgeStyle(trip.status)}>{String(trip.status).replaceAll("_", " ")}</span>
-                {trip.purpose === "EMPTY_RETURN" && <span style={{ ...badgeBase, background: "#FFF7ED", color: "#C2410C" }}>KEMBALI KOSONG · PENDAPATAN RP0</span>}
+                {trip.purpose === "EMPTY_RETURN" && <span style={{ ...badgeBase, background: "#FFF7ED", color: "#C2410C" }}>Kembali kosong · pendapatan RP0</span>}
                 {trip.purpose === "SINGLE_TRIP" && <span style={{ ...badgeBase, background: "#EEF7FF", color: "#1769AA" }}>{trip.tripNo || "TRIP TANPA PESANAN"} · BERAT DI TAGIHAN</span>}
                 <span style={{ ...badgeBase, background: "#FFFFFF" }}>{role}</span>
 
@@ -676,11 +676,11 @@ export default function TripDetail() {
           ) : null}
 
           {(canWrite || isDriver) && currentStatus !== "CANCELLED" ? (
-            <section className="trip-detail-v3-progress" style={{ marginTop: 20, padding: 18, background: "#F8FBF9", border: "1px solid #E2EAE5", borderRadius: 13 }}>
+            <section className="trip-detail-v3-progress" style={{ marginTop: 20, padding: 18, background: "#f8f9fb", border: "1px solid #dfe5ed", borderRadius: 13 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 13, flexWrap: "wrap" }}>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 650, color: "#243A30" }}>Progress perjalanan</div>
-                  <div style={{ fontSize: 12, color: "#7A8780", marginTop: 3 }}>Keberangkatan dan kedatangan diperbarui otomatis dari GPS. Penyelesaian trip tetap dikonfirmasi manual.</div>
+                  <div style={{ fontSize: 14, fontWeight: 650, color: "#1b2743" }}>Progress perjalanan</div>
+                  <div style={{ fontSize: 12, color: "#6c7d95", marginTop: 3 }}>Keberangkatan dan kedatangan diperbarui otomatis dari GPS. Penyelesaian trip tetap dikonfirmasi manual.</div>
                 </div>
                 {canWrite ? (
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -695,15 +695,15 @@ export default function TripDetail() {
                 ) : null}
               </div>
               {trip.purpose !== "EMPTY_RETURN" && (
-                <div style={{ marginBottom: 16, padding: 14, borderRadius: 12, border: "1px solid #DDE9E1", background: "#FFFFFF" }}>
+                <div style={{ marginBottom: 16, padding: 14, borderRadius: 12, border: "1px solid #dbe2eb", background: "#FFFFFF" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
-                    <div><strong style={{ display: "block", fontSize: 13 }}>Tahap perjalanan</strong><span style={{ color: "#7A8780", fontSize: 11 }}>Satu trip · perjalanan kosong dan pengiriman tercatat dalam satu rangkaian.</span></div>
+                    <div><strong style={{ display: "block", fontSize: 13 }}>Tahap perjalanan</strong><span style={{ color: "#6c7d95", fontSize: 11 }}>Satu trip · perjalanan kosong dan pengiriman tercatat dalam satu rangkaian.</span></div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      {currentPhase === "AT_PICKUP" && <span style={{ padding: "8px 11px", borderRadius: 8, background: "#EAF7EF", color: "#176C40", fontSize: 11, fontWeight: 700 }}>Menunggu GPS keluar radius lokasi muat</span>}
-                      {role === "OWNER" && ((currentStatus === "PLANNED" && currentPhase === "PLANNED") || (currentStatus === "DISPATCHED" && currentPhase === "TO_PICKUP")) && <button type="button" style={{ ...btnGhost, height: 34, display: "inline-flex", alignItems: "center", gap: 7, borderColor: "#B7CDBF", background: "#FFFFFF", color: "#355C46", boxShadow: "none", fontSize: 11 }} onClick={arriveAtPickupManually} disabled={saving}><FiMapPin size={14}/> Tiba & proses muat</button>}
-                      {role === "OWNER" && currentStatus === "DISPATCHED" && ["TO_PICKUP", "AT_PICKUP"].includes(currentPhase) && <button type="button" style={{ ...btnGhost, height: 34, display: "inline-flex", alignItems: "center", gap: 7, borderColor: "#75B58C", background: "#EAF7EF", color: "#176C40", boxShadow: "none", fontSize: 11 }} onClick={startDeliveryManually} disabled={saving}><FiTruck size={14}/> Langsung mengantar muatan</button>}
-                      {(canWrite || isDriver) && canMarkDestinationArrival && <button type="button" style={{ ...btnGhost, height: 34, display: "inline-flex", alignItems: "center", gap: 7, borderColor: "#75B58C", background: "#EAF7EF", color: "#176C40", boxShadow: "none", fontSize: 11 }} onClick={arriveAtDestinationManually} disabled={saving}><FiMapPin size={14}/> Tiba di tujuan</button>}
-                      {currentStatus === "DISPATCHED" && currentPhase === "TO_DESTINATION" && activeDestinationArrived && <span style={{ padding: "8px 11px", borderRadius: 8, background: "#EAF7EF", color: "#176C40", fontSize: 11, fontWeight: 700 }}>Tujuan aktif sudah tiba · menunggu selesai bongkar</span>}
+                      {currentPhase === "AT_PICKUP" && <span style={{ padding: "8px 11px", borderRadius: 8, background: "#ecf0f5", color: "#107345", fontSize: 11, fontWeight: 700 }}>Menunggu GPS keluar radius lokasi muat</span>}
+                      {role === "OWNER" && ((currentStatus === "PLANNED" && currentPhase === "PLANNED") || (currentStatus === "DISPATCHED" && currentPhase === "TO_PICKUP")) && <button type="button" style={{ ...btnGhost, height: 34, display: "inline-flex", alignItems: "center", gap: 7, borderColor: "#b8c0cc", background: "#FFFFFF", color: "#11804c", boxShadow: "none", fontSize: 11 }} onClick={arriveAtPickupManually} disabled={saving}><FiMapPin size={14}/> Tiba & proses muat</button>}
+                      {role === "OWNER" && currentStatus === "DISPATCHED" && ["TO_PICKUP", "AT_PICKUP"].includes(currentPhase) && <button type="button" style={{ ...btnGhost, height: 34, display: "inline-flex", alignItems: "center", gap: 7, borderColor: "#44e69a", background: "#ecf0f5", color: "#107345", boxShadow: "none", fontSize: 11 }} onClick={startDeliveryManually} disabled={saving}><FiTruck size={14}/> Langsung mengantar muatan</button>}
+                      {(canWrite || isDriver) && canMarkDestinationArrival && <button type="button" style={{ ...btnGhost, height: 34, display: "inline-flex", alignItems: "center", gap: 7, borderColor: "#44e69a", background: "#ecf0f5", color: "#107345", boxShadow: "none", fontSize: 11 }} onClick={arriveAtDestinationManually} disabled={saving}><FiMapPin size={14}/> Tiba di tujuan</button>}
+                      {currentStatus === "DISPATCHED" && currentPhase === "TO_DESTINATION" && activeDestinationArrived && <span style={{ padding: "8px 11px", borderRadius: 8, background: "#ecf0f5", color: "#107345", fontSize: 11, fontWeight: 700 }}>Tujuan aktif sudah tiba · menunggu selesai bongkar</span>}
                     </div>
                   </div>
                   {currentPhase === "SERVICE_AT_BASE" && <div style={{ marginBottom: 12, padding: "11px 12px", borderRadius: 9, background: "#FFF4E8", border: "1px solid #F2D6B5", color: "#9A541B", fontSize: 12 }}><strong>Kendaraan kembali ke base dan memerlukan tindakan.</strong><span style={{ display: "block", marginTop: 3 }}>Periksa penyebabnya, misalnya servis darurat, menunggu uang jalan, dokumen, atau instruksi. Trip, muatan, dan tujuan tetap sama; perjalanan otomatis berlanjut ketika kendaraan keluar dari radius base.</span></div>}
@@ -711,12 +711,12 @@ export default function TripDetail() {
                     {DELIVERY_PHASES.map((phase, index) => {
                       const done = currentPhase === "COMPLETED" || (currentPhaseIndex >= 0 && index < currentPhaseIndex);
                       const active = phase.value === currentPhase;
-                      return <div key={phase.value} style={{ minWidth: 105, padding: "10px 9px", borderRadius: 9, border: `1px solid ${active ? "#55A778" : done ? "#CDE5D6" : "#E4EBE6"}`, background: active ? "#EAF7EF" : done ? "#F4FAF6" : "#FAFCFB", color: active || done ? "#176C40" : "#8A958F" }}><span style={{ display: "grid", placeItems: "center", width: 20, height: 20, marginBottom: 6, borderRadius: 999, background: active || done ? "#1B8B50" : "#DCE5DF", color: "white", fontSize: 10, fontWeight: 800 }}>{done ? "✓" : index + 1}</span><strong style={{ fontSize: 10, lineHeight: 1.25, display: "block" }}>{phase.label}</strong></div>;
+                      return <div key={phase.value} style={{ minWidth: 105, padding: "10px 9px", borderRadius: 9, border: `1px solid ${active ? "#1ede84" : done ? "#c4eeda" : "#e1e7ee"}`, background: active ? "#ecf0f5" : done ? "#f4f7fa" : "#fafbfc", color: active || done ? "#176c44" : "#7e8da1" }}><span style={{ display: "grid", placeItems: "center", width: 20, height: 20, marginBottom: 6, borderRadius: 999, background: active || done ? "#1b8b57" : "#d8dfe9", color: "white", fontSize: 10, fontWeight: 800 }}>{done ? "✓" : index + 1}</span><strong style={{ fontSize: 10, lineHeight: 1.25, display: "block" }}>{phase.label}</strong></div>;
                     })}
                   </div>
-                  {currentPhase === "TO_PICKUP" && <div style={{ marginTop: 10, color: "#6E7D74", fontSize: 11 }}>GPS akan otomatis menandai tiba ketika mobil masuk radius {trip.fromText || "lokasi muat"}.</div>}
-                  {currentPhase === "AT_PICKUP" && <div style={{ marginTop: 10, color: "#6E7D74", fontSize: 11 }}>Setelah proses muat, sistem otomatis memulai pengiriman ketika mobil bergerak keluar dari radius lokasi muat.</div>}
-                  {currentPhase === "TO_DESTINATION" && <div style={{ marginTop: 10, color: "#6E7D74", fontSize: 11 }}>Muatan sedang dikirim. GPS tetap otomatis menandai tiba di {trip.toText || "tujuan"}; tombol manual tersedia jika lokasi belum terdeteksi.</div>}
+                  {currentPhase === "TO_PICKUP" && <div style={{ marginTop: 10, color: "#637288", fontSize: 11 }}>GPS akan otomatis menandai tiba ketika mobil masuk radius {trip.fromText || "lokasi muat"}.</div>}
+                  {currentPhase === "AT_PICKUP" && <div style={{ marginTop: 10, color: "#637288", fontSize: 11 }}>Setelah proses muat, sistem otomatis memulai pengiriman ketika mobil bergerak keluar dari radius lokasi muat.</div>}
+                  {currentPhase === "TO_DESTINATION" && <div style={{ marginTop: 10, color: "#637288", fontSize: 11 }}>Muatan sedang dikirim. GPS tetap otomatis menandai tiba di {trip.toText || "tujuan"}; tombol manual tersedia jika lokasi belum terdeteksi.</div>}
                 </div>
               )}
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -746,7 +746,7 @@ export default function TripDetail() {
               {trip.purpose === "SINGLE_TRIP" ? <><InfoRow label="Customer tagihan" icon={FiUser} value={trip.billingCustomerName || "Belum dicatat"} /><InfoRow label="Jenis muatan" icon={FiPackage} value={{ FERTILIZER: "Pupuk", CANGKANG: "Cangkang", AMBANG: "Ambang / Material", MATERIAL: "Ambang / Material" }[trip.cargoCategorySnap] || trip.cargoCategorySnap || "-"} /><InfoRow label="Nama muatan" icon={FiPackage} value={trip.cargoNameSnap || trip.operationalReason || "-"} /><InfoRow label="Jumlah rencana" icon={FiPackage} value={plannedWeight == null ? "Diisi setelah proses muat" : `${plannedWeight.toLocaleString("id-ID", { maximumFractionDigits: 3 })} ${weightUnit}`} /><InfoRow label="Jumlah aktual" icon={FiCheckCircle} value={trip.qtyActual == null ? "Belum tiba" : `${Number(trip.qtyActual).toLocaleString("id-ID", { maximumFractionDigits: 3 })} ${weightUnit}`} /></> : <>
                 <InfoRow label="Muatan rencana" icon={FiPackage} value={plannedWeight == null ? "Belum diisi" : `${plannedWeight.toLocaleString("id-ID", { maximumFractionDigits: 3 })} ${weightUnit}`} />
                 <InfoRow label="Berat tiba" icon={FiPackage} value={arrivalWeight == null ? "Belum dicatat" : `${arrivalWeight.toLocaleString("id-ID", { maximumFractionDigits: 3 })} ${weightUnit}`} />
-                <InfoRow label="Selisih muatan" icon={FiActivity} value={cargoDifference == null ? "Menunggu berat tiba" : <span style={{ color: cargoDifference > 0 ? "#B45309" : "#0D7C3D", fontWeight: 700 }}>{cargoDifference.toLocaleString("id-ID", { maximumFractionDigits: 3 })} {weightUnit}{cargoDifference > 0 ? " · kehilangan tercatat" : " · sesuai"}</span>} />
+                <InfoRow label="Selisih muatan" icon={FiActivity} value={cargoDifference == null ? "Menunggu berat tiba" : <span style={{ color: cargoDifference > 0 ? "#B45309" : "#107948", fontWeight: 700 }}>{cargoDifference.toLocaleString("id-ID", { maximumFractionDigits: 3 })} {weightUnit}{cargoDifference > 0 ? " · kehilangan tercatat" : " · sesuai"}</span>} />
               </>}
               <InfoRow label="Direncanakan" icon={FiClock} value={fmtDateTime(trip.plannedDepartAt)} />
               <InfoRow label="Berangkat" icon={FiTruck} value={fmtDateTime(trip.dispatchedAt)} />
@@ -776,17 +776,17 @@ export default function TripDetail() {
           </div>
 
           {trip.purpose === "SINGLE_TRIP" && trip.cargoCategorySnap !== "MATERIAL" && canWrite && !["COMPLETED", "CANCELLED"].includes(currentStatus) && <section className="trip-allocation-card">
-            <header className="trip-allocation-head"><div><span>CATAT MUATAN</span><h2>Jumlah sak dan berat per sak</h2><p>Total berat trip dihitung otomatis dalam kilogram.</p></div></header>
+            <header className="trip-allocation-head"><div><span>Catat muatan</span><h2>Jumlah sak dan berat per sak</h2><p>Total berat trip dihitung otomatis dalam kilogram.</p></div></header>
             <form onSubmit={saveSingleLoad} style={{ display: "flex", alignItems: "end", flexWrap: "wrap", gap: 10, marginTop: 14 }}>
-              <label style={{ display: "grid", gap: 5, flex: "1 1 170px", color: "#53675c", fontSize: 11, fontWeight: 700 }}>Jumlah sak<input required type="number" min="1" step="1" value={singleLoadForm.sackCount} onChange={(e) => setSingleLoadForm((form) => ({ ...form, sackCount: e.target.value }))} style={{ height: 40, border: "1px solid #DCE5E0", borderRadius: 8, padding: "0 10px" }}/></label>
-              <label style={{ display: "grid", gap: 5, flex: "1 1 170px", color: "#53675c", fontSize: 11, fontWeight: 700 }}>Berat per sak (kg)<input required type="number" min="0.01" step="any" value={singleLoadForm.kgPerSack} onChange={(e) => setSingleLoadForm((form) => ({ ...form, kgPerSack: e.target.value }))} style={{ height: 40, border: "1px solid #DCE5E0", borderRadius: 8, padding: "0 10px" }}/></label>
-              <div style={{ flex: "1 1 190px", padding: "10px 12px", borderRadius: 8, background: "#EDF7F0", color: "#176B3C", fontSize: 12 }}><strong>{(Number(singleLoadForm.sackCount || 0) * Number(singleLoadForm.kgPerSack || 0)).toLocaleString("id-ID")} kg</strong><span style={{ display: "block", marginTop: 2 }}>{(Number(singleLoadForm.sackCount || 0) * Number(singleLoadForm.kgPerSack || 0) / 1000).toLocaleString("id-ID")} ton</span></div>
-              <button disabled={allocationBusy} style={{ ...btnGhost, height: 40, background: "#0D7C3D", color: "white" }}>{allocationBusy ? "Menyimpan…" : trip.plannedWeightKg ? "Perbarui Muatan" : "Simpan Muatan"}</button>
+              <label style={{ display: "grid", gap: 5, flex: "1 1 170px", color: "#465974", fontSize: 11, fontWeight: 700 }}>Jumlah sak<input required type="number" min="1" step="1" value={singleLoadForm.sackCount} onChange={(e) => setSingleLoadForm((form) => ({ ...form, sackCount: e.target.value }))} style={{ height: 40, border: "1px solid #d8dfe9", borderRadius: 8, padding: "0 10px" }}/></label>
+              <label style={{ display: "grid", gap: 5, flex: "1 1 170px", color: "#465974", fontSize: 11, fontWeight: 700 }}>Berat per sak (kg)<input required type="number" min="0.01" step="any" value={singleLoadForm.kgPerSack} onChange={(e) => setSingleLoadForm((form) => ({ ...form, kgPerSack: e.target.value }))} style={{ height: 40, border: "1px solid #d8dfe9", borderRadius: 8, padding: "0 10px" }}/></label>
+              <div style={{ flex: "1 1 190px", padding: "10px 12px", borderRadius: 8, background: "#eef1f6", color: "#107244", fontSize: 12 }}><strong>{(Number(singleLoadForm.sackCount || 0) * Number(singleLoadForm.kgPerSack || 0)).toLocaleString("id-ID")} kg</strong><span style={{ display: "block", marginTop: 2 }}>{(Number(singleLoadForm.sackCount || 0) * Number(singleLoadForm.kgPerSack || 0) / 1000).toLocaleString("id-ID")} ton</span></div>
+              <button disabled={allocationBusy} style={{ ...btnGhost, height: 40, background: "#107948", color: "white" }}>{allocationBusy ? "Menyimpan…" : trip.plannedWeightKg ? "Perbarui Muatan" : "Simpan Muatan"}</button>
             </form>
           </section>}
 
           {trip.purpose === "DELIVERY" && <section className="trip-allocation-card">
-            <header className="trip-allocation-head"><div><span>MUATAN TERBAGI</span><h2>Alokasi Order dalam Trip</h2><p>Beberapa customer memakai kendaraan dan GPS yang sama, tetapi tonase, tujuan, dan tagihannya tetap terpisah.</p></div></header>
+            <header className="trip-allocation-head"><div><span>Muatan terbagi</span><h2>Alokasi Order dalam Trip</h2><p>Beberapa customer memakai kendaraan dan GPS yang sama, tetapi tonase, tujuan, dan tagihannya tetap terpisah.</p></div></header>
             <div className="trip-allocation-list">
               {(trip.orderAllocations || []).map((allocation) => <article className={`trip-allocation-row ${allocation.destinationCompletedAt ? "completed" : ""}`} key={allocation.id}>
                 <b>{allocation.stopSequence || 1}</b>
@@ -797,7 +797,7 @@ export default function TripDetail() {
           </section>}
 
           {trip.purpose !== "EMPTY_RETURN" && <section className="trip-material-destinations-panel">
-            <header><div><span>MUATAN MATERIAL</span><h2>Tujuan Faktur Muatan</h2><p>Tujuan material dicatat terpisah untuk pengiriman dan penagihan, serta tidak menahan penyelesaian Trip.</p></div>{canWrite && !["COMPLETED", "CANCELLED"].includes(currentStatus) && <button type="button" onClick={openSingleMaterialInvoice}><FiPlus /> Tambah Material</button>}</header>
+            <header><div><span>Muatan material</span><h2>Tujuan Faktur Muatan</h2><p>Tujuan material dicatat terpisah untuk pengiriman dan penagihan, serta tidak menahan penyelesaian Trip.</p></div>{canWrite && !["COMPLETED", "CANCELLED"].includes(currentStatus) && <button type="button" onClick={openSingleMaterialInvoice}><FiPlus /> Tambah Material</button>}</header>
             <div className="trip-material-destination-list">
               {!(trip.materialInvoices || []).length && <div className="trip-material-destination-empty"><FiPackage/><strong>Belum ada Faktur Muatan</strong><span>Tambahkan customer yang ditagih dan tujuan bongkar.</span></div>}
               {(trip.materialInvoices || []).map((invoice) => {
@@ -808,7 +808,7 @@ export default function TripDetail() {
           </section>}
 
           {singleMaterialOpen && <div className="trip-material-overlay" onMouseDown={() => setSingleMaterialOpen(false)}><form className="trip-material-modal" onSubmit={createSingleMaterialInvoice} onMouseDown={(e) => e.stopPropagation()}>
-            <header><div><span>FAKTUR MUATAN · MUATAN MATERIAL</span><h2>Pilih material yang akan diangkut</h2><p>Material dapat menjadi muatan utama atau tambahan bersama pupuk/cangkang.</p></div><button type="button" onClick={() => setSingleMaterialOpen(false)}><FiX /></button></header>
+            <header><div><span>Faktur muatan · muatan material</span><h2>Pilih material yang akan diangkut</h2><p>Material dapat menjadi muatan utama atau tambahan bersama pupuk/cangkang.</p></div><button type="button" onClick={() => setSingleMaterialOpen(false)}><FiX /></button></header>
             <div className="trip-material-form">
               <label className="wide">Customer pemilik &amp; yang ditagih<select required value={singleMaterialForm.customerId} onChange={(e) => selectMaterialCustomer(e.target.value)}><option value="">Pilih dari Master Customer</option>{materialCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
               <div className="wide trip-material-picker">
@@ -836,7 +836,7 @@ export default function TripDetail() {
 
           <section className="trip-expense-panel">
             <header>
-              <div><span>BIAYA PERJALANAN</span><h2>Pengeluaran Trip</h2><p>Semua biaya di bawah ini langsung terhubung dengan trip dan armada.</p></div>
+              <div><span>Biaya perjalanan</span><h2>Pengeluaran Trip</h2><p>Semua biaya di bawah ini langsung terhubung dengan trip dan armada.</p></div>
               <div className="trip-expense-head-actions"><strong>{money((trip.expenses || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))}</strong>{canWrite && !["COMPLETED", "CANCELLED"].includes(currentStatus) && <button type="button" onClick={() => { setExpenseErr(""); setExpenseOpen(true); }}><FiPlus/> Tambah pengeluaran</button>}</div>
             </header>
             <div className="trip-expense-list">
@@ -851,7 +851,7 @@ export default function TripDetail() {
           </section>
 
           <div className="trip-detail-v3-proof trip-loading-proof" style={{ marginTop: 14 }}>
-            <div className="trip-proof-heading"><span>BUKTI MUATAN</span><h2>Bukti Timbangan Muat</h2><p>Unggah foto atau PDF timbangan dari lokasi muat.</p></div>
+            <div className="trip-proof-heading"><span>Bukti muatan</span><h2>Bukti Timbangan Muat</h2><p>Unggah foto atau PDF timbangan dari lokasi muat.</p></div>
             {(canWrite || isDriver) && ["DISPATCHED", "ARRIVED", "COMPLETED"].includes(currentStatus) && <label className="trip-proof-upload">
               <span><FiUploadCloud size={20}/></span><span><strong>{uploadingArrivalProofs ? "Sedang mengunggah..." : "Tambah bukti timbangan muat"}</strong><small>Foto atau PDF · maksimal 15 MB per file</small></span>
               <input type="file" multiple accept="image/*,application/pdf" disabled={uploadingArrivalProofs} onChange={(event) => uploadTripProof(event, "LOADING")}/>
@@ -865,12 +865,12 @@ export default function TripDetail() {
 
           {/* Trip-specific proof that the goods reached destination. */}
           <div className="trip-detail-v3-proof" style={{ marginTop: 14 }}>
-            <div className="trip-proof-heading"><span>BUKTI KEDATANGAN</span><h2>Bukti Timbangan Sampai</h2><p>Unggah foto atau PDF timbangan dari lokasi tujuan.</p></div>
+            <div className="trip-proof-heading"><span>Bukti kedatangan</span><h2>Bukti Timbangan Sampai</h2><p>Unggah foto atau PDF timbangan dari lokasi tujuan.</p></div>
 
             {(canWrite || isDriver) && ["DISPATCHED", "ARRIVED", "COMPLETED"].includes(currentStatus) ? (
               <label className="trip-proof-upload" style={{ cursor: uploadingArrivalProofs ? "not-allowed" : "pointer" }}>
-                <span style={{ width: 40, height: 40, borderRadius: 10, display: "grid", placeItems: "center", color: "#0D7C3D", background: "#FFFFFF", boxShadow: "0 3px 10px rgba(13,124,61,.10)" }}><FiUploadCloud size={20}/></span>
-                <span><strong style={{ display: "block", color: "#173B2D", fontSize: 14 }}>{uploadingArrivalProofs ? "Sedang mengunggah..." : "Tambah bukti timbangan"}</strong><span style={{ color: "#718078", fontSize: 12 }}>Gambar atau PDF · maksimal 15 MB per file</span></span>
+                <span style={{ width: 40, height: 40, borderRadius: 10, display: "grid", placeItems: "center", color: "#107948", background: "#FFFFFF", boxShadow: "0 3px 10px rgba(16,121,72,.10)" }}><FiUploadCloud size={20}/></span>
+                <span><strong style={{ display: "block", color: "#18223a", fontSize: 14 }}>{uploadingArrivalProofs ? "Sedang mengunggah..." : "Tambah bukti timbangan"}</strong><span style={{ color: "#65758c", fontSize: 12 }}>Gambar atau PDF · maksimal 15 MB per file</span></span>
                 <input type="file" multiple accept="image/*,application/pdf" disabled={uploadingArrivalProofs} style={{ position: "absolute", width: 1, height: 1, opacity: 0 }} onChange={async (e) => {
                   try {
                     setArrivalProofErr("");
@@ -909,22 +909,22 @@ export default function TripDetail() {
                         boxSizing: "border-box",
                         overflow: "hidden",
                         borderRadius: 12,
-                        border: "1px solid rgba(15, 60, 45, 0.12)",
-                        background: "linear-gradient(180deg, #FFFFFF 0%, #FBFFFD 100%)",
-                        boxShadow: "0 12px 26px rgba(10, 40, 30, 0.06)",
+                        border: "1px solid rgba(22,31,53,0.12)",
+                        background: "linear-gradient(180deg, #FFFFFF 0%, #fcfefd 100%)",
+                        boxShadow: "0 12px 26px rgba(15,21,36,0.06)",
                         padding: 10,
                       }}
                     >
                       {isPdf ? (
-                        <div style={{ height: 112, display: "grid", placeItems: "center", borderRadius: 9, background: "#F1F7F3" }}>
-                          <button type="button" onClick={() => openProtectedFile(p.url).catch((e) => setErr(e.message))} style={{ border: 0, background: "transparent", cursor: "pointer", fontWeight: 600, color: "#0B2A1F" }}>Buka PDF</button>
+                        <div style={{ height: 112, display: "grid", placeItems: "center", borderRadius: 9, background: "#f0f4f8" }}>
+                          <button type="button" onClick={() => openProtectedFile(p.url).catch((e) => setErr(e.message))} style={{ border: 0, background: "transparent", cursor: "pointer", fontWeight: 600, color: "#0f1626" }}>Buka PDF</button>
                         </div>
                       ) : (
                         <ProtectedImage url={p.url} alt={p.fileName || "Bukti timbangan"} style={{ display: "block", width: "100%", height: 112, objectFit: "cover", borderRadius: 9 }} />
                       )}
 
-                      <div title={p.fileName || "Bukti timbangan"} style={{ marginTop: 8, fontWeight: 700, fontSize: 12, color: "#2F6B55", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.fileName || "Bukti timbangan"}</div>
-                      <div style={{ marginTop: 3, fontSize: 11, color: "#718078" }}>{fmtDateTime(p.createdAt)}</div>
+                      <div title={p.fileName || "Bukti timbangan"} style={{ marginTop: 8, fontWeight: 700, fontSize: 12, color: "#128851", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.fileName || "Bukti timbangan"}</div>
+                      <div style={{ marginTop: 3, fontSize: 11, color: "#65758c" }}>{fmtDateTime(p.createdAt)}</div>
                     </div>
                   );
                 })}
@@ -935,7 +935,7 @@ export default function TripDetail() {
           {expenseOpen && (
             <div className="trip-expense-overlay" onMouseDown={(event) => event.target === event.currentTarget && !expenseBusy && setExpenseOpen(false)}>
               <form className="trip-expense-modal" onSubmit={saveExpense}>
-                <header><div><span>PENGELUARAN TRIP</span><h2>Tambah biaya perjalanan</h2><p>{truck?.plateNumber || trip.plateNumberSnap} · {order?.orderNo || "Trip operasional"}</p></div><button type="button" disabled={expenseBusy} onClick={() => setExpenseOpen(false)}><FiX/></button></header>
+                <header><div><span>Pengeluaran trip</span><h2>Tambah biaya perjalanan</h2><p>{truck?.plateNumber || trip.plateNumberSnap} · {order?.orderNo || "Trip operasional"}</p></div><button type="button" disabled={expenseBusy} onClick={() => setExpenseOpen(false)}><FiX/></button></header>
                 <div className="trip-expense-form">
                   <label><span>Tanggal pengeluaran</span><input required type="date" value={expenseForm.expenseDate} onChange={(event) => setExpenseForm((form) => ({ ...form, expenseDate: event.target.value }))}/></label>
                   <label><span>Jenis pengeluaran</span><select value={expenseForm.category} onChange={(event) => setExpenseForm((form) => ({ ...form, category: event.target.value }))}>{EXPENSE_CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
@@ -951,18 +951,18 @@ export default function TripDetail() {
             </div>
           )}
           {arrivalEntry && (
-            <div onMouseDown={(event) => event.target === event.currentTarget && !saving && setArrivalEntry(null)} style={{ position: "fixed", inset: 0, zIndex: 1000, display: "grid", placeItems: "center", padding: 18, background: "rgba(10,30,20,.58)" }}>
+            <div onMouseDown={(event) => event.target === event.currentTarget && !saving && setArrivalEntry(null)} style={{ position: "fixed", inset: 0, zIndex: 1000, display: "grid", placeItems: "center", padding: 18, background: "rgba(15,21,36,.58)" }}>
               <form onSubmit={saveArrivalWeight} style={{ width: "min(460px, 100%)", boxSizing: "border-box", padding: 24, borderRadius: 16, background: "#FFFFFF", boxShadow: "0 25px 70px rgba(0,0,0,.25)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" }}>
-                  <div><div style={{ color: "#0D7C3D", fontSize: 11, fontWeight: 800, letterSpacing: 1.2 }}>BARANG TIBA</div><h2 style={{ margin: "5px 0", fontSize: 22 }}>Masukkan Berat Tiba</h2><p style={{ margin: 0, color: "#718078", fontSize: 13 }}>{truck?.plateNumber || trip.plateNumberSnap} · Muatan rencana {trip.qtyPlanned ?? "—"} {trip.unitSnap || order?.unit || ""}</p></div>
+                  <div><div style={{ color: "#107948", fontSize: 11, fontWeight: 800, letterSpacing: 1.2 }}>Barang tiba</div><h2 style={{ margin: "5px 0", fontSize: 22 }}>Masukkan Berat Tiba</h2><p style={{ margin: 0, color: "#65758c", fontSize: 13 }}>{truck?.plateNumber || trip.plateNumberSnap} · Muatan rencana {trip.qtyPlanned ?? "—"} {trip.unitSnap || order?.unit || ""}</p></div>
                   <button type="button" onClick={() => setArrivalEntry(null)} disabled={saving} style={{ ...btnGhost, width: 36, height: 36, padding: 0 }}><FiX/></button>
                 </div>
-                <label style={{ display: "grid", gap: 7, marginTop: 22, color: "#405148", fontSize: 13, fontWeight: 650 }}>Berat aktual di tujuan
-                  <div style={{ display: "flex", alignItems: "center", border: "1px solid #CEDBD3", borderRadius: 9, overflow: "hidden" }}><input autoFocus required type="number" min="0.001" step="0.001" value={arrivalEntry.qtyActual} onChange={(event) => setArrivalEntry((value) => ({ ...value, qtyActual: event.target.value }))} placeholder="Contoh: 29.5" style={{ flex: 1, minWidth: 0, border: 0, outline: 0, padding: "12px 13px", font: "inherit" }}/><span style={{ padding: "12px 13px", background: "#F4F8F5", color: "#647269" }}>{trip.unitSnap || order?.unit || "TON"}</span></div>
+                <label style={{ display: "grid", gap: 7, marginTop: 22, color: "#36455b", fontSize: 13, fontWeight: 650 }}>Berat aktual di tujuan
+                  <div style={{ display: "flex", alignItems: "center", border: "1px solid #c9d3e0", borderRadius: 9, overflow: "hidden" }}><input autoFocus required type="number" min="0.001" step="0.001" value={arrivalEntry.qtyActual} onChange={(event) => setArrivalEntry((value) => ({ ...value, qtyActual: event.target.value }))} placeholder="Contoh: 29.5" style={{ flex: 1, minWidth: 0, border: 0, outline: 0, padding: "12px 13px", font: "inherit" }}/><span style={{ padding: "12px 13px", background: "#f3f6f9", color: "#506786" }}>{trip.unitSnap || order?.unit || "TON"}</span></div>
                 </label>
                 {arrivalEntry.qtyActual && trip.qtyPlanned != null && Number(arrivalEntry.qtyActual) < Number(trip.qtyPlanned) && <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: "#FFF7E6", color: "#9A5B00", fontSize: 13 }}><strong>Selisih muatan: {(Number(trip.qtyPlanned) - Number(arrivalEntry.qtyActual)).toLocaleString("id-ID", { maximumFractionDigits: 3 })} {trip.unitSnap || order?.unit || ""}</strong><span style={{ display: "block", marginTop: 4 }}>Dicatat sebagai kehilangan pada tagihan/laporan. Order tetap dipenuhi berdasarkan muatan rencana.</span></div>}
                 {saveErr && <div style={{ marginTop: 12, color: "#B42318", fontSize: 13 }}>{saveErr}</div>}
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}><button type="button" style={btnGhost} disabled={saving} onClick={() => setArrivalEntry(null)}>Batal</button><button disabled={saving} style={{ ...btnGhost, border: 0, borderRadius: 9, background: "#0D7C3D", color: "white" }}>{saving ? "Menyimpan…" : arrivalEntry.nextStatus === "COMPLETED" ? "Simpan & Selesaikan" : "Simpan & Tandai Tiba"}</button></div>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}><button type="button" style={btnGhost} disabled={saving} onClick={() => setArrivalEntry(null)}>Batal</button><button disabled={saving} style={{ ...btnGhost, border: 0, borderRadius: 9, background: "#107948", color: "white" }}>{saving ? "Menyimpan…" : arrivalEntry.nextStatus === "COMPLETED" ? "Simpan & Selesaikan" : "Simpan & Tandai Tiba"}</button></div>
               </form>
             </div>
           )}

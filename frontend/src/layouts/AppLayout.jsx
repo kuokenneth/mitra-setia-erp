@@ -1,47 +1,91 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { FiBarChart2, FiBookOpen, FiBox, FiClipboard, FiCreditCard, FiDollarSign, FiFileText, FiLogOut, FiMap, FiMapPin, FiMenu, FiPieChart, FiShield, FiShoppingCart, FiTool, FiTruck, FiUser, FiUserPlus, FiX, FiTrendingUp } from "react-icons/fi";
+import { FiChevronDown, FiLogOut, FiMenu, FiMoreHorizontal, FiUser, FiX } from "react-icons/fi";
 import { useAuth } from "../AuthContext";
-import { LiveUpdatesProvider } from "../liveUpdates";
+import { LiveUpdatesProvider, useLiveStatus } from "../liveUpdates";
+import { Breadcrumbs } from "../ui";
+import useResponsiveTables from "../ui/useResponsiveTables";
+import { breadcrumbsFor, buildBottomNav, buildNavigation } from "./navigation";
 import "../liveUpdates.css";
 import "../tabletResponsive.css";
 import "./AppLayout.css";
 
-function Navigation({ groups, compact = false, onNavigate }) {
+const isActivePath = (pathname, to) => pathname === to || pathname.startsWith(`${to}/`);
+const testId = (label) => `nav-link-${label.toLowerCase().replace(/\s+/g, "-")}`;
+
+function NavItem({ item, compact, onNavigate }) {
   const location = useLocation();
-  const active = (path) => location.pathname === path || location.pathname.startsWith(`${path}/`);
-  return <nav className="erp-nav" aria-label="Navigasi utama" data-testid="app-navigation">
-    {groups.map((group) => <section className="erp-nav-group" key={group.label}>
-      {!compact && group.items && <p className="erp-nav-label">{group.label}</p>}
-      {group.items ? group.items.map((item) => <NavLink className={({ isActive }) => `erp-nav-link${isActive || active(item.to) ? " is-active" : ""}`} key={item.to} to={item.to} onClick={onNavigate} title={compact ? item.label : undefined}><item.icon aria-hidden="true" />{!compact && <span>{item.label}</span>}</NavLink>) : <NavLink className={({ isActive }) => `erp-nav-link${isActive ? " is-active" : ""}`} to={group.to} onClick={onNavigate} title={compact ? group.label : undefined} data-testid={`nav-link-${group.label.toLowerCase().replace(/\s+/g, "-")}`}><group.icon aria-hidden="true" />{!compact && <span>{group.label}</span>}</NavLink>}
-    </section>)}
-  </nav>;
+  const Icon = item.icon;
+  return (
+    <NavLink to={item.to} onClick={onNavigate} title={compact ? item.label : undefined} data-testid={testId(item.label)}
+      className={({ isActive }) => `erp-nav-link${isActive || isActivePath(location.pathname, item.to) ? " is-active" : ""}`}>
+      <Icon aria-hidden="true" />{compact ? <span className="ui-sr">{item.label}</span> : <span>{item.label}</span>}
+    </NavLink>
+  );
+}
+
+function Navigation({ groups, compact = false, onNavigate }) {
+  return (
+    <nav className={`erp-nav${compact ? " is-compact" : ""}`} aria-label="Navigasi utama" data-testid="app-navigation" style={{ "--nav-items": groups.reduce((count, group) => count + (group.items?.length || 1), 0), "--nav-groups": groups.length }}>
+      {groups.map((group) => (
+        <div className="erp-nav-group is-rail" key={group.label} role="group" aria-label={group.label}>
+          {(group.items || [group]).map((item) => <NavItem key={item.to} item={item} compact={compact} onNavigate={onNavigate} />)}
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+function LivePill() {
+  const { status } = useLiveStatus();
+  const text = status === "live" ? "Live" : status === "offline" ? "Offline" : "Menghubungkan";
+  return <span className={`erp-live is-${status}`} role="status" title="Status pembaruan data otomatis"><i aria-hidden="true" /><span>{text}</span></span>;
+}
+
+function UserMenu({ user, roleLabel, onLogout }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (event) => { if (!ref.current?.contains(event.target)) setOpen(false); };
+    const esc = (event) => event.key === "Escape" && setOpen(false);
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("pointerdown", close); document.removeEventListener("keydown", esc); };
+  }, [open]);
+  const initial = (user?.name || roleLabel).charAt(0).toUpperCase();
+  return (
+    <div className="erp-user-menu" ref={ref}>
+      <button type="button" className="erp-user-trigger" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)} data-testid="user-menu-btn">
+        <span className="erp-user-avatar" aria-hidden="true">{initial}</span>
+        <span className="erp-user-meta"><strong>{user?.name || "Pengguna ERP"}</strong><small>{roleLabel}</small></span>
+        <FiChevronDown className="erp-user-chev" aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="erp-menu" role="menu">
+          <div className="erp-menu-label">{user?.email || roleLabel}</div>
+          <button type="button" role="menuitem" onClick={() => { setOpen(false); navigate("/profile"); }}><FiUser aria-hidden="true" /> Profil Saya</button>
+          <div className="erp-menu-sep" />
+          <button type="button" role="menuitem" className="is-danger" onClick={() => { setOpen(false); onLogout(); }} data-testid="logout-btn"><FiLogOut aria-hidden="true" /> Keluar</button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [compact] = useState(() => localStorage.getItem("erp-sidebar-compact") === "true");
-  const [sidebarPreview, setSidebarPreview] = useState(false);
   const role = user?.role || "UNKNOWN";
-  const isOwnerAdmin = role === "OWNER" || role === "ADMIN";
-  const isStaff = role === "STAFF";
-  const isSparepartAdmin = role === "SPAREPART_ADMIN";
-  const canManageDrivers = isOwnerAdmin || isStaff;
-  const isDriver = role === "DRIVER";
-
-  const groups = useMemo(() => {
-    if (isDriver) return [{ label: "Driver", items: [{ to: "/driver/jobs", label: "Tugas Saya", icon: FiClipboard }] }];
-    if (isSparepartAdmin) return [{ label: "Bengkel & Pembelian", items: [{ to: "/inventory", label: "Inventory", icon: FiBox }, { to: "/maintenance", label: "Servis", icon: FiTool }, { to: "/purchasing", label: "Pembelian", icon: FiShoppingCart }, { to: "/price-analytics", label: "Analitik Harga Sparepart", icon: FiTrendingUp }] }];
-    return [
-      { to: "/dashboard", label: "Dashboard", icon: FiBarChart2 },
-      { label: "Operasional", items: [{ to: "/trucks", label: "Armada", icon: FiTruck }, { to: "/fleet-map", label: "Peta Armada", icon: FiMap }, { to: "/operational-locations", label: "Master Lokasi", icon: FiMapPin }, { to: "/material-stock", label: "Ambang / Material", icon: FiBox }, { to: "/orders", label: "Pesanan", icon: FiFileText }, { to: "/trips", label: "Trips", icon: FiMap }] },
-      { label: "Bengkel & Pembelian", items: [{ to: "/inventory", label: "Inventory", icon: FiBox }, { to: "/maintenance", label: "Servis", icon: FiTool }, { to: "/purchasing", label: "Pembelian", icon: FiShoppingCart }, { to: "/price-analytics", label: "Analitik Harga Sparepart", icon: FiTrendingUp }] },
-      { label: "Keuangan", items: [{ to: "/expenses", label: "Pengeluaran", icon: FiDollarSign }, { to: "/receivables", label: "Piutang", icon: FiCreditCard }, ...((isOwnerAdmin || isStaff) ? [{ to: "/fleet-profitability", label: "Profit Armada", icon: FiPieChart }] : []), ...(isOwnerAdmin ? [{ to: "/accounting", label: "Accounting", icon: FiBookOpen }] : [])] },
-      { label: "Administrasi", items: [...(isOwnerAdmin ? [{ to: "/users", label: "Pengguna", icon: FiUser }] : []), ...(canManageDrivers ? [{ to: "/drivers/new", label: "Tambah Pengemudi", icon: FiUserPlus }] : []), ...(role === "OWNER" ? [{ to: "/audit-trail", label: "Audit Trail", icon: FiShield }] : [])] },
-    ];
-  }, [canManageDrivers, isDriver, isOwnerAdmin, isSparepartAdmin, isStaff, role]);
+  const roleLabel = role.replaceAll("_", " ");
+  const groups = useMemo(() => buildNavigation(role), [role]);
+  const bottomNav = useMemo(() => buildBottomNav(role), [role]);
+  const crumbs = useMemo(() => breadcrumbsFor(location.pathname, groups), [location.pathname, groups]);
+  const pageLabel = crumbs.length ? crumbs[crumbs.length - 1].label : "Mitra Setia ERP";
+  const bottomActive = bottomNav.some((item) => isActivePath(location.pathname, item.to));
 
   useEffect(() => {
     const close = (event) => event.key === "Escape" && setDrawerOpen(false);
@@ -49,29 +93,67 @@ export default function AppLayout() {
     document.body.classList.toggle("erp-drawer-open", drawerOpen);
     return () => { document.removeEventListener("keydown", close); document.body.classList.remove("erp-drawer-open"); };
   }, [drawerOpen]);
+  useEffect(() => { document.documentElement.classList.add("erp-app"); return () => document.documentElement.classList.remove("erp-app"); }, []);
+
+  useResponsiveTables();
 
   async function doLogout() { await logout(); navigate("/", { replace: true }); }
-  const roleLabel = role.replaceAll("_", " ");
-  const visuallyCompact = compact && !sidebarPreview;
 
-  return <div className={`erp-shell${compact ? " is-compact" : ""}`} data-testid="app-layout">
-    <aside className={`erp-sidebar${compact && sidebarPreview ? " is-auto-expanded" : ""}`} aria-label="Sidebar aplikasi" onMouseEnter={() => compact && setSidebarPreview(true)} onMouseLeave={() => setSidebarPreview(false)} onFocusCapture={() => compact && setSidebarPreview(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setSidebarPreview(false); }}>
-      <div className="erp-brand"><img src="/logo3.png" alt="Mitra Setia" />{!visuallyCompact && <span><strong>Mitra Setia</strong><small>Logistics ERP</small></span>}</div>
-      <Navigation groups={groups} compact={visuallyCompact} />
-      <div className="erp-sidebar-footer">
-        <NavLink className="erp-user-card" to="/profile" title={visuallyCompact ? user?.name || roleLabel : undefined}><span className="erp-user-avatar">{(user?.name || roleLabel).charAt(0).toUpperCase()}</span>{!visuallyCompact && <span><strong>{user?.name || "Pengguna ERP"}</strong><small>{roleLabel}</small></span>}</NavLink>
-        <button className="erp-logout" onClick={doLogout} title={visuallyCompact ? "Keluar" : undefined} data-testid="logout-btn"><FiLogOut />{!visuallyCompact && <span>Keluar</span>}</button>
+  return (
+    <LiveUpdatesProvider showIndicator={false}>
+      <div className="erp-shell is-collapsed" data-testid="app-layout">
+        <a className="erp-skip" href="#erp-main">Lewati ke konten</a>
+
+        <aside className="erp-sidebar" aria-label="Sidebar aplikasi">
+          <div className="erp-brand">
+            <img src="/logo3.png" alt="Mitra Setia" />
+            <span className="erp-brand-copy"><strong>Mitra Setia</strong><small>Logistics ERP</small></span>
+          </div>
+          <div className="erp-sidebar-full"><Navigation groups={groups} /></div>
+          <div className="erp-sidebar-rail"><Navigation groups={groups} compact /></div>
+        </aside>
+
+        <div className="erp-frame">
+          <header className="erp-header" data-testid="mobile-header">
+            <button type="button" className="erp-icon-btn erp-menu-btn" onClick={() => setDrawerOpen(true)} aria-label="Buka menu" aria-expanded={drawerOpen} data-testid="mobile-menu-btn"><FiMenu /></button>
+            <div className="erp-header-crumbs"><Breadcrumbs items={crumbs} /></div>
+            <div className="erp-header-title"><img src="/logo3.png" alt="" /><strong>{pageLabel}</strong></div>
+            <div className="erp-header-end">
+              <LivePill />
+              <UserMenu user={user} roleLabel={roleLabel} onLogout={doLogout} />
+            </div>
+          </header>
+
+          <main className="erp-main" id="erp-main" tabIndex={-1}>
+            <div className="erp-content"><Outlet /></div>
+          </main>
+        </div>
+
+        {bottomNav.length > 0 && (
+          <nav className="erp-tabbar" aria-label="Navigasi cepat" data-testid="bottom-nav">
+            {bottomNav.map((item) => { const Icon = item.icon; return (
+              <NavLink key={item.to} to={item.to} className={({ isActive }) => `erp-tab${isActive || isActivePath(location.pathname, item.to) ? " is-active" : ""}`}><Icon aria-hidden="true" /><span>{item.label}</span></NavLink>
+            ); })}
+            <button type="button" className={`erp-tab${!bottomActive || drawerOpen ? " is-active" : ""}`} onClick={() => setDrawerOpen(true)} aria-label="Menu lengkap"><FiMoreHorizontal aria-hidden="true" /><span>Menu</span></button>
+          </nav>
+        )}
+
+        {drawerOpen && (
+          <div className="erp-drawer-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setDrawerOpen(false)} data-testid="mobile-drawer-overlay">
+            <aside className="erp-drawer" role="dialog" aria-modal="true" aria-label="Menu aplikasi" data-testid="mobile-drawer">
+              <div className="erp-drawer-head">
+                <div className="erp-brand"><img src="/logo3.png" alt="Mitra Setia" /><span className="erp-brand-copy"><strong>Mitra Setia</strong><small>Logistics ERP</small></span></div>
+                <button type="button" className="erp-icon-btn" onClick={() => setDrawerOpen(false)} aria-label="Tutup menu" data-testid="mobile-close-btn"><FiX /></button>
+              </div>
+              <Navigation groups={groups} onNavigate={() => setDrawerOpen(false)} />
+              <div className="erp-drawer-footer">
+                <NavLink className="erp-user-card" to="/profile" onClick={() => setDrawerOpen(false)}><span className="erp-user-avatar">{(user?.name || roleLabel).charAt(0).toUpperCase()}</span><span><strong>{user?.name || "Pengguna ERP"}</strong><small>{roleLabel}</small></span></NavLink>
+                <button type="button" className="erp-logout" onClick={doLogout} data-testid="mobile-logout-btn"><FiLogOut aria-hidden="true" /> Keluar</button>
+              </div>
+            </aside>
+          </div>
+        )}
       </div>
-    </aside>
-    <header className="erp-mobile-header" data-testid="mobile-header">
-      <button onClick={() => setDrawerOpen(true)} aria-label="Buka menu" data-testid="mobile-menu-btn"><FiMenu /></button>
-      <div className="erp-mobile-brand"><img src="/logo3.png" alt="" /><span><strong>Mitra Setia ERP</strong><small>Manajemen Operasional</small></span></div><span className="erp-role-badge">{roleLabel}</span>
-    </header>
-    {drawerOpen && <div className="erp-drawer-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setDrawerOpen(false)} data-testid="mobile-drawer-overlay"><aside className="erp-drawer" role="dialog" aria-modal="true" aria-label="Menu aplikasi" data-testid="mobile-drawer">
-      <div className="erp-drawer-head"><div className="erp-brand"><img src="/logo3.png" alt="Mitra Setia" /><span><strong>Mitra Setia</strong><small>Logistics ERP</small></span></div><button onClick={() => setDrawerOpen(false)} aria-label="Tutup menu" data-testid="mobile-close-btn"><FiX /></button></div>
-      <Navigation groups={groups} onNavigate={() => setDrawerOpen(false)} />
-      <div className="erp-drawer-footer"><div className="erp-user-card"><span className="erp-user-avatar">{(user?.name || roleLabel).charAt(0).toUpperCase()}</span><span><strong>{user?.name || "Pengguna ERP"}</strong><small>{roleLabel}</small></span></div><button className="erp-logout" onClick={doLogout} data-testid="mobile-logout-btn"><FiLogOut /> Keluar</button></div>
-    </aside></div>}
-    <main className="erp-main"><div className="erp-content"><LiveUpdatesProvider><Outlet /></LiveUpdatesProvider></div></main>
-  </div>;
+    </LiveUpdatesProvider>
+  );
 }

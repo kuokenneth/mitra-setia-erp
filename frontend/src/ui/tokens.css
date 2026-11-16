@@ -1,0 +1,158 @@
+/* =====================================================================
+   Mitra Setia ERP — design tokens
+   Derived from the Citra Jaya design system (shadcn / slate, Inter,
+   8px radius, 36px controls) with the Mitra Setia brand green as primary, adapted for a
+   touch-first logistics ERP. Every legacy token used by the existing
+   modules is re-pointed here so all pages inherit one visual language.
+   ===================================================================== */
+:root {
+  /* ---- Brand (Mitra Setia green) + Citra Jaya slate neutrals ---- */
+  --ms-primary: #138b53;
+  --ms-primary-hover: #0f7646;
+  --ms-primary-active: #0b603a;
+  --ms-primary-fg: #f8fafc;
+  --ms-primary-50: #f0f9f5;
+  --ms-primary-100: #def2e8;
+  --ms-primary-200: #bfe3d1;
+  --ms-primary-soft: rgba(19, 139, 83, .09);
+  --ms-primary-ring: rgba(19, 139, 83, .28);
+
+  --ms-fg: #0f1729;            /* foreground  222 47% 11% */
+  --ms-fg-2: #334155;          /* body text on dense screens */
+  --ms-muted-fg: #607085;      /* muted-foreground 215 16% 45% */
+  --ms-subtle-fg: #8a96a8;
+  --ms-bg: #f8fafc;            /* app canvas (Citra: bg-muted/30) */
+  --ms-surface: #ffffff;       /* cards, header, sidebar */
+  --ms-muted: #f3f6fa;         /* muted 210 40% 96.5% */
+  --ms-accent: #eff4fb;        /* hover surfaces */
+  --ms-border: #dde4ee;        /* border 214 32% 90% */
+  --ms-input: #d7dfea;         /* input border 214 32% 88% */
+  --ms-border-soft: #e9eef5;
+
+  /* ---- Semantic (badges use the Citra *-50 / *-700 pairs) ---- */
+  --ms-success: #1c9c4b;  --ms-success-bg: #ecfdf5; --ms-success-fg: #047857; --ms-success-border: #a7f3d0;
+  --ms-warning: #db7706;  --ms-warning-bg: #fffbeb; --ms-warning-fg: #b45309; --ms-warning-border: #fde68a;
+  --ms-danger: #db2424;   --ms-danger-bg: #fef2f2;  --ms-danger-fg: #b91c1c;  --ms-danger-border: #fecaca;
+  --ms-info: #2563eb;     --ms-info-bg: #eff4fe;    --ms-info-fg: #1d4ed8;    --ms-info-border: #c7d7fb;
+  --ms-neutral-bg: #f1f5f9; --ms-neutral-fg: #475569;
+  --ms-violet-bg: #f5f3ff;  --ms-violet-fg: #6d28d9;
+
+  /* ---- Typography ---- */
+  --ms-font: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ms-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --ms-text-2xs: 11px;  /* badges, meta */
+  --ms-text-xs: 12px;   /* labels, table headers */
+  --ms-text-sm: 13px;   /* nav, dense table cells */
+  --ms-text-base: 14px; /* body */
+  --ms-text-md: 15px;
+  --ms-text-lg: 16px;   /* card titles on mobile, form inputs on touch */
+  --ms-text-xl: 20px;   /* page title (Citra: text-xl semibold) */
+  --ms-text-2xl: 24px;  /* KPI values */
+  --ms-weight-medium: 500;
+  --ms-weight-semibold: 600;
+  --ms-weight-bold: 700;
+  --ms-leading: 1.5;
+  --ms-tracking-tight: -.015em;
+
+  /* ---- Spacing (4px grid) ---- */
+  --ms-space-1: 4px; --ms-space-2: 8px; --ms-space-3: 12px; --ms-space-4: 16px;
+  --ms-space-5: 20px; --ms-space-6: 24px; --ms-space-8: 32px;
+  --ms-page-x: 20px;          /* Citra: p-4 lg:p-5 */
+  --ms-page-max: 1600px;      /* Citra: max-w-[1600px] */
+  --ms-gap: 12px;             /* Citra grid gap-3 */
+
+  /* ---- Shape ---- */
+  --ms-radius: 8px;           /* --radius 0.5rem */
+  --ms-radius-md: 6px;
+  --ms-radius-sm: 4px;
+  --ms-radius-xl: 12px;       /* sheets / dialogs on touch */
+  --ms-radius-full: 999px;
+  --ms-shadow-xs: 0 1px 2px rgba(15, 23, 41, .05);
+  --ms-shadow-sm: 0 1px 3px rgba(15, 23, 41, .07), 0 1px 2px rgba(15, 23, 41, .04);
+  --ms-shadow-md: 0 4px 12px rgba(15, 23, 41, .08);
+  --ms-shadow-lg: 0 16px 40px rgba(15, 23, 41, .16);
+
+  /* ---- Component sizes ---- */
+  --ms-control-sm: 32px;      /* Citra size sm (h-8) */
+  --ms-control: 36px;         /* Citra default (h-9) */
+  --ms-control-lg: 44px;      /* touch / mobile minimum */
+  --ms-header-h: 56px;        /* Citra h-14 */
+  --ms-sidebar-w: 240px;      /* Citra w-60 */
+  --ms-sidebar-w-collapsed: 60px;
+  --ms-bottom-nav-h: 60px;
+  --ms-table-head-h: 36px;    /* Citra TableHead h-9 */
+  --ms-table-cell-y: 8px;     /* Citra TableCell py-2 */
+  --ms-table-cell-x: 12px;    /* Citra px-3 */
+  --ms-touch: 44px;
+
+  /* ---- Safe areas (iPhone Dynamic Island / home indicator) ---- */
+  --ms-safe-top: env(safe-area-inset-top, 0px);
+  --ms-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --ms-safe-left: env(safe-area-inset-left, 0px);
+  --ms-safe-right: env(safe-area-inset-right, 0px);
+
+  /* ---- Motion ---- */
+  --ms-ease: cubic-bezier(.2, .7, .2, 1);
+  --ms-fast: 120ms;
+  --ms-base: 180ms;
+
+  /* ---- Breakpoints (reference only; CSS media queries use literals) ----
+     phone ≤ 639 · large phone 640–743 · compact iPad 744–833 ·
+     iPad Pro portrait 834–1023 · tablet landscape 1024–1279 · laptop ≥ 1280 */
+
+  /* =================================================================
+     Legacy token bridge — existing modules read these names.
+     ================================================================= */
+  --color-primary-50: var(--ms-primary-50);
+  --color-primary-100: var(--ms-primary-100);
+  --color-primary-200: var(--ms-primary-200);
+  --color-primary-500: var(--ms-primary);
+  --color-primary-600: var(--ms-primary);
+  --color-primary-700: var(--ms-primary-hover);
+  --color-primary-800: var(--ms-primary-active);
+  --color-bg: var(--ms-bg);
+  --color-surface: var(--ms-surface);
+  --color-surface-soft: var(--ms-muted);
+  --color-text: var(--ms-fg);
+  --color-text-muted: var(--ms-muted-fg);
+  --color-text-soft: var(--ms-subtle-fg);
+  --color-border: var(--ms-border);
+  --color-border-soft: var(--ms-border-soft);
+  --color-danger: var(--ms-danger-fg);
+  --color-danger-bg: var(--ms-danger-bg);
+  --color-danger-border: var(--ms-danger-border);
+  --color-warning: var(--ms-warning-fg);
+  --color-warning-bg: var(--ms-warning-bg);
+  --color-info: var(--ms-info-fg);
+  --color-info-bg: var(--ms-info-bg);
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px;
+  --control-sm: var(--ms-control-sm);
+  --control-md: var(--ms-control);
+  --control-lg: var(--ms-control-lg);
+  --page-padding: var(--ms-page-x);
+  --card-padding: 16px;
+  --toolbar-gap: 8px;
+  --table-row-height: 44px;
+  --modal-gap: 12px;
+  --radius-sm: var(--ms-radius-md);
+  --radius-md: var(--ms-radius);
+  --radius-lg: var(--ms-radius);
+  --radius-xl: var(--ms-radius-xl);
+  --shadow-sm: var(--ms-shadow-xs);
+  --shadow-md: var(--ms-shadow-sm);
+  --shadow-lg: var(--ms-shadow-lg);
+
+  font-family: var(--ms-font);
+  color: var(--ms-fg);
+  background: var(--ms-bg);
+  font-feature-settings: "cv11" 1, "ss01" 1;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+@media (max-width: 1023px) {
+  :root { --ms-page-x: 16px; }
+}
+@media (max-width: 639px) {
+  :root { --ms-page-x: 12px; --ms-gap: 10px; }
+}

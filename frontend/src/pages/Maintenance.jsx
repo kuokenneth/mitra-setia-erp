@@ -25,11 +25,11 @@ const retreadTarget = (sourceItem, items) => {
 //////////////////////
 
 const BRAND = {
-  primary: "#0D7C3D",
-  primaryDark: "#0A6331",
-  primaryLight: "#10A050",
-  secondary: "#F5F9F7",
-  accent: "#D4E8DC",
+  primary: "#107948",
+  primaryDark: "#0d6039",
+  primaryLight: "#159b5c",
+  secondary: "#f4f7fa",
+  accent: "#d1ebdf",
   text: "#1A1A1A",
   textLight: "#4A4A4A",
   textMuted: "#6B7280",
@@ -37,8 +37,8 @@ const BRAND = {
   border: "#E5E7EB",
   warning: "#F59E0B",
   warningBg: "#FFFBEB",
-  success: "#10B981",
-  successBg: "#ECFDF5",
+  success: "#10b96a",
+  successBg: "#ecfdf5",
   danger: "#EF4444",
   dangerBg: "#FEF2F2",
 };
@@ -154,7 +154,7 @@ function StatusBadge({ status }) {
         color: c.fg,
         fontWeight: 600,
         fontSize: 12,
-        textTransform: "uppercase",
+        textTransform: "none",
         letterSpacing: "0.3px",
       }}
     >
@@ -1452,7 +1452,7 @@ export default function Maintenance() {
         }}
       >
         <div>
-          <span className="maintenance-eyebrow">BENGKEL & PERAWATAN ARMADA</span><h1
+          <span className="maintenance-eyebrow">Bengkel & perawatan armada</span><h1
             style={{
               margin: 0,
               fontSize: 28,
@@ -1493,10 +1493,10 @@ export default function Maintenance() {
       )}
 
       <section className="maintenance-stats">
-        <article><span><FiTool /></span><div><small>TOTAL SERVIS</small><strong>{maintenanceSummary.total}</strong><p>Dalam hasil pencarian</p></div></article>
-        <article className="open"><span><FiActivity /></span><div><small>SEDANG DIKERJAKAN</small><strong>{maintenanceSummary.open}</strong><p>Pekerjaan bengkel aktif</p></div></article>
-        <article className="done"><span><FiCheck /></span><div><small>SELESAI</small><strong>{maintenanceSummary.done}</strong><p>Servis telah ditutup</p></div></article>
-        <article><span><FiClock /></span><div><small>DIBATALKAN</small><strong>{maintenanceSummary.cancelled}</strong><p>Riwayat tidak dilanjutkan</p></div></article>
+        <article><span><FiTool /></span><div><small>Total servis</small><strong>{maintenanceSummary.total}</strong><p>Dalam hasil pencarian</p></div></article>
+        <article className="open"><span><FiActivity /></span><div><small>Sedang dikerjakan</small><strong>{maintenanceSummary.open}</strong><p>Pekerjaan bengkel aktif</p></div></article>
+        <article className="done"><span><FiCheck /></span><div><small>Selesai</small><strong>{maintenanceSummary.done}</strong><p>Servis telah ditutup</p></div></article>
+        <article><span><FiClock /></span><div><small>Dibatalkan</small><strong>{maintenanceSummary.cancelled}</strong><p>Riwayat tidak dilanjutkan</p></div></article>
       </section>
 
       {/* Filters Card */}
@@ -1557,7 +1557,7 @@ export default function Maintenance() {
       </Card>
 
       {/* Jobs List */}
-      <Card style={{ overflow: "hidden", borderRadius: 14 }}>
+      <Card className="maintenance-jobs-board" style={{ overflow: "hidden", borderRadius: 14 }}>
         {/* Table Header */}
         <div
           style={{
@@ -1570,7 +1570,7 @@ export default function Maintenance() {
             fontSize: 12,
             fontWeight: 600,
             color: BRAND.textMuted,
-            textTransform: "uppercase",
+            textTransform: "none",
             letterSpacing: "0.5px",
           }}
         >
@@ -1582,7 +1582,7 @@ export default function Maintenance() {
 
         {/* Job Rows */}
         <div style={{ padding: "8px 12px" }}>
-          {loading && (!jobs || jobs.length === 0) && <LoadingState compact label="Memuat bengkel" note="Mengambil pekerjaan, kendaraan, dan durasi servis…" rows={5} />}
+          {loading && (!jobs || jobs.length === 0) && <LoadingState compact label="Memuat bengkel" note="Mengambil pekerjaan, kendaraan, dan durasi servis…" rows={3} />}
           {(jobs || []).map((j) => {
             const createdMs = new Date(j.createdAt).getTime();
             const endMs = j.status === "OPEN" ? Date.now() : j.doneAt ? new Date(j.doneAt).getTime() : Date.now();
@@ -1733,7 +1733,7 @@ export default function Maintenance() {
                   data-testid="job-note-input"
                 /></label>
 
-                {selectedTruck && <><div className="maintenance-selected-summary"><FiCheck /><span><small>ARMADA TERPILIH</small><strong>{selectedTruck.plateNumber}</strong><em>{selectedTruck.brand || ""} {selectedTruck.model || ""} · {createForm.odometerKm ? `${Number(createForm.odometerKm).toLocaleString("id-ID")} km` : "Odometer belum dicatat"}</em></span></div>{selectedTruck.activeTrip&&<div className="maintenance-trip-warning"><FiTruck/><span><strong>Trip aktif akan dipause selama servis</strong><small>{selectedTruck.activeTrip.order?.orderNo||"Trip aktif"} · {selectedTruck.activeTrip.loadedAt?"Muatan tetap tercatat dan perjalanan dilanjutkan setelah servis selesai.":"Perjalanan dilanjutkan setelah servis selesai."}</small></span></div>}<div className={`maintenance-last-service ${selectedTruck.lastService ? "has-history" : "empty"}`}><FiClock /><span><small>RIWAYAT SERVIS TERAKHIR</small>{selectedTruck.lastService ? <><strong>Terakhir servis {installedDays(selectedTruck.lastService.doneAt || selectedTruck.lastService.createdAt) === 0 ? "hari ini" : `${installedDays(selectedTruck.lastService.doneAt || selectedTruck.lastService.createdAt)} hari lalu`}</strong><em>{selectedTruck.lastService.title} · {fmtDateTime(selectedTruck.lastService.doneAt || selectedTruck.lastService.createdAt)}{selectedTruck.lastService.odometerKm != null ? ` · ${Number(selectedTruck.lastService.odometerKm).toLocaleString("id-ID")} km` : ""}</em></> : <><strong>Belum ada riwayat servis</strong><em>Servis ini akan menjadi catatan pertama kendaraan.</em></>}</span></div></>}
+                {selectedTruck && <><div className="maintenance-selected-summary"><FiCheck /><span><small>Armada terpilih</small><strong>{selectedTruck.plateNumber}</strong><em>{selectedTruck.brand || ""} {selectedTruck.model || ""} · {createForm.odometerKm ? `${Number(createForm.odometerKm).toLocaleString("id-ID")} km` : "Odometer belum dicatat"}</em></span></div>{selectedTruck.activeTrip&&<div className="maintenance-trip-warning"><FiTruck/><span><strong>Trip aktif akan dipause selama servis</strong><small>{selectedTruck.activeTrip.order?.orderNo||"Trip aktif"} · {selectedTruck.activeTrip.loadedAt?"Muatan tetap tercatat dan perjalanan dilanjutkan setelah servis selesai.":"Perjalanan dilanjutkan setelah servis selesai."}</small></span></div>}<div className={`maintenance-last-service ${selectedTruck.lastService ? "has-history" : "empty"}`}><FiClock /><span><small>Riwayat servis terakhir</small>{selectedTruck.lastService ? <><strong>Terakhir servis {installedDays(selectedTruck.lastService.doneAt || selectedTruck.lastService.createdAt) === 0 ? "hari ini" : `${installedDays(selectedTruck.lastService.doneAt || selectedTruck.lastService.createdAt)} hari lalu`}</strong><em>{selectedTruck.lastService.title} · {fmtDateTime(selectedTruck.lastService.doneAt || selectedTruck.lastService.createdAt)}{selectedTruck.lastService.odometerKm != null ? ` · ${Number(selectedTruck.lastService.odometerKm).toLocaleString("id-ID")} km` : ""}</em></> : <><strong>Belum ada riwayat servis</strong><em>Servis ini akan menjadi catatan pertama kendaraan.</em></>}</span></div></>}
 
                 <div className="maintenance-create-actions">
                   <Button variant="secondary" onClick={() => setShowCreate(false)}>
@@ -1770,8 +1770,8 @@ export default function Maintenance() {
               {hasPendingRepairs && <div className="maintenance-pending-parts-warning"><FiTool /><span><strong>Barang perbaikan belum kembali</strong><small>{pendingRepairs.join(", ")} masih berada di tempat perbaikan. Terima dahulu melalui Penerimaan Barang → Barang Perbaikan.</small></span></div>}
               <div className="maintenance-detail-metrics">
                 <article><small>DURASI {activeJob.status === "OPEN" ? "BERJALAN" : "TOTAL"}</small><strong>{fmtDuration((activeJob.status === "OPEN" ? Date.now() : activeJob.doneAt ? new Date(activeJob.doneAt).getTime() : Date.now()) - new Date(activeJob.createdAt).getTime())}</strong><span><FiClock /> Waktu pengerjaan bengkel</span></article>
-                <article><small>BIAYA SPAREPART</small><strong>{fmtMoney(activeJob.totalCost || 0, activeJob.currency || "IDR")}</strong><span><FiTool /> Akumulasi pemakaian stok</span></article>
-                <article><small>DOKUMENTASI</small><strong>{(activeJob.photos || []).length} foto</strong><span><FiActivity /> Kondisi dan hasil servis</span></article>
+                <article><small>Biaya sparepart</small><strong>{fmtMoney(activeJob.totalCost || 0, activeJob.currency || "IDR")}</strong><span><FiTool /> Akumulasi pemakaian stok</span></article>
+                <article><small>Dokumentasi</small><strong>{(activeJob.photos || []).length} foto</strong><span><FiActivity /> Kondisi dan hasil servis</span></article>
               </div>
             </section>
             <nav className="maintenance-detail-tabs" aria-label="Bagian detail servis">
@@ -1981,12 +1981,12 @@ export default function Maintenance() {
 
                 <form className={`maintenance-direct-request ${detailTab !== "PURCHASE" ? "maintenance-detail-section-hidden" : ""}`} onSubmit={createMaintenancePurchaseRequest}>
                   <section className={`maintenance-request-card maintenance-proof-card ${purchasePhotoError ? "has-error" : ""}`}><div className="maintenance-request-card-title"><span>03</span><div><strong>Bukti barang rusak (opsional)</strong><small>Permintaan dapat dikirim tanpa foto bukti.</small></div></div><button type="button" className={`maintenance-damage-proof ${purchaseDamagePhotos.length ? "has-file" : ""}`} onClick={() => purchaseDamageInputRef.current?.click()}><span className="maintenance-proof-icon"><FiCamera /></span><span className="maintenance-proof-copy"><strong>{purchaseDamagePhotos.length ? `Tambah foto lagi · ${purchaseDamagePhotos.length} foto dipilih` : "Ketuk untuk tambah foto barang rusak"}</strong><small>Ambil dari kamera atau pilih beberapa foto dari galeri</small></span></button>{purchaseDamagePhotos.length > 0 && <div className="maintenance-proof-list">{purchaseDamagePhotos.map((file, index) => <div key={`${file.name}-${file.lastModified}-${index}`}><span><strong>Foto {index + 1}</strong><small>{file.name}</small></span><button type="button" onClick={() => { setPurchasePhotoEditorIndex(index); setShowPurchasePhotoEditor(true); }}>Tandai</button><button type="button" className="remove" onClick={() => setPurchaseDamagePhotos(current => current.filter((_, photoIndex) => photoIndex !== index))}>Hapus</button></div>)}</div>}{purchasePhotoError && <div className="maintenance-proof-error">{purchasePhotoError}</div>}<UploadProgress progress={purchaseUploadProgress} label="Mengunggah bukti barang rusak" /><button className="maintenance-request-submit maintenance-proof-submit" disabled={requestingPurchase || activeJob.status !== "OPEN"}>{requestingPurchase ? "Mengirim..." : purchaseRequestForm.acknowledgeAvailableStock ? "Tetap Buat Permintaan" : "Buat Permintaan"}</button></section>
-                  <div className="maintenance-request-head"><span><FiPlus /></span><div><strong>Pesan sparepart untuk servis ini</strong><small>Permintaan tetap terlacak di servis; barang masuk Inventory saat diterima.</small></div><em>UNTUK SERVIS</em></div>
+                  <div className="maintenance-request-head"><span><FiPlus /></span><div><strong>Pesan sparepart untuk servis ini</strong><small>Permintaan tetap terlacak di servis; barang masuk Inventory saat diterima.</small></div><em>Untuk servis</em></div>
                   <section className="maintenance-request-card"><div className="maintenance-request-card-title"><span>01</span><div><strong>Pilih barang</strong><small>Gunakan katalog atau daftarkan sparepart baru.</small></div></div><div className="maintenance-request-mode"><button type="button" className={!purchaseRequestForm.newItem ? "active" : ""} onClick={() => { setErr(""); setPurchaseRequestForm(form => ({ ...form, newItem: false, acknowledgeAvailableStock: false })); }}>Pilih katalog</button><button type="button" className={purchaseRequestForm.newItem ? "active" : ""} onClick={() => { setErr(""); setPurchaseRequestForm(form => ({ ...form, newItem: true, acknowledgeAvailableStock: false })); }}>Sparepart baru</button></div>
                     {!purchaseRequestForm.newItem ? <div className="maintenance-purchase-lines">{purchaseRequestLines.map((line, index) => { const selected = items.find(item => item.id === line.itemId); return <div className="maintenance-purchase-line" key={line.key}><span className="maintenance-purchase-line-number">{index + 1}</span><label>Sparepart<SearchableItemPicker items={items} value={line.itemId} onChange={itemId => { setErr(""); setPurchaseRequestForm(form => ({ ...form, acknowledgeAvailableStock: false })); setPurchaseRequestLines(current => current.map(row => row.key === line.key ? { ...row, itemId } : row)); }} disabled={requestingPurchase} placeholder="Cari SKU atau nama sparepart..." testId={`maintenance-purchase-item-search-${index}`} />{Number(selected?.qtyTotal || 0) > 0 && <span className="maintenance-stock-warning">⚠ Stok tersedia: <b>{Number(selected.qtyTotal).toLocaleString("id-ID")} {selected.unit}</b></span>}</label><label className="maintenance-purchase-line-qty">Jumlah<input required type="number" min="0.01" step="0.01" value={line.qty} onChange={event => { setPurchaseRequestForm(form => ({ ...form, acknowledgeAvailableStock: false })); setPurchaseRequestLines(current => current.map(row => row.key === line.key ? { ...row, qty: event.target.value } : row)); }} /></label>{purchaseRequestLines.length > 1 && <button type="button" className="maintenance-purchase-line-remove" onClick={() => setPurchaseRequestLines(current => current.filter(row => row.key !== line.key))}>Hapus</button>}</div>; })}<button type="button" className="maintenance-purchase-line-add" onClick={() => setPurchaseRequestLines(current => [...current, newPurchaseRequestLine()])}><FiPlus /> Tambah sparepart</button></div> : <div className="maintenance-request-new-item"><label>SKU<input required value={purchaseRequestForm.sku} onChange={event => setPurchaseRequestForm(form => ({ ...form, sku: event.target.value }))} placeholder="Contoh: BRK-HINO-02" /></label><label>Nama sparepart<input required value={purchaseRequestForm.name} onChange={event => setPurchaseRequestForm(form => ({ ...form, name: event.target.value }))} placeholder="Contoh: Master rem Hino" /></label><label>Satuan<select value={purchaseRequestForm.unit} onChange={event => setPurchaseRequestForm(form => ({ ...form, unit: event.target.value }))}><option>PCS</option><option>SET</option><option>UNIT</option><option>LITER</option></select></label><label className="maintenance-request-check"><input type="checkbox" checked={purchaseRequestForm.isSerialized} onChange={event => setPurchaseRequestForm(form => ({ ...form, isSerialized: event.target.checked }))} /> Memiliki nomor serial</label></div>}
                   </section>
                   <section className="maintenance-request-card"><div className="maintenance-request-card-title"><span>02</span><div><strong>Detail kebutuhan</strong><small>Tentukan tingkat urgensi dan alasan pemesanan.</small></div></div><div className="maintenance-request-fields">{purchaseRequestForm.newItem && <label>Jumlah<input required type="number" min="0.01" step="0.01" value={purchaseRequestForm.qty} onChange={event => setPurchaseRequestForm(form => ({ ...form, qty: event.target.value }))} /></label>}<label>Urgensi<select value={purchaseRequestForm.urgency} onChange={event => setPurchaseRequestForm(form => ({ ...form, urgency: event.target.value }))}><option value="NORMAL">Normal</option><option value="URGENT">Mendesak</option><option value="CRITICAL">Kritis</option></select></label><label>Alasan kebutuhan<input required value={purchaseRequestForm.reason} onChange={event => setPurchaseRequestForm(form => ({ ...form, reason: event.target.value }))} placeholder="Contoh: komponen rusak dan tidak tersedia di gudang" /></label></div></section>
-                  {(activeJob.purchaseRequests?.length || activeJob.partRepairs?.length) ? <section className="maintenance-request-log"><div className="maintenance-request-card-title"><span>RIWAYAT</span><div><strong>Permintaan dari servis ini</strong><small>Status pembelian, pengiriman, dan penerimaan barang.</small></div></div>{!!activeJob.purchaseRequests?.length && <div className="maintenance-request-history">{activeJob.purchaseRequests.map(request => { const progress = purchaseRequestProgress(request); const orderNumbers = (request.purchaseOrders || []).filter(order => order.status !== "CANCELLED").map(order => order.number).join(", "); return <span key={request.id}><b>{request.number}</b><small>{request.items?.map(row => `${row.item.name} · ${row.originalQty} ${row.item.unit}`).join(", ")}{orderNumbers ? ` · ${orderNumbers}` : ""}</small><em className={progress.className}>{progress.label}</em></span>; })}</div>}{!!activeJob.partRepairs?.length && <div className="maintenance-request-history">{activeJob.partRepairs.map(repair => <span key={repair.id}><b>PERBAIKAN · {repair.stockUnit?.serialNumber || repair.stockUnit?.barcode || "Tanpa serial"}</b><small>{repair.stockUnit?.item?.name}{repair.supplier?.name ? ` · ${repair.supplier.name}` : " · Vendor belum dipilih"}</small><em className={repair.status}>{repair.status === "SENT" ? "DALAM PERBAIKAN" : repair.status}</em></span>)}</div>}</section> : <div className="maintenance-request-empty">Belum ada permintaan pembelian dari servis ini.</div>}
+                  {(activeJob.purchaseRequests?.length || activeJob.partRepairs?.length) ? <section className="maintenance-request-log"><div className="maintenance-request-card-title"><span>Riwayat</span><div><strong>Permintaan dari servis ini</strong><small>Status pembelian, pengiriman, dan penerimaan barang.</small></div></div>{!!activeJob.purchaseRequests?.length && <div className="maintenance-request-history">{activeJob.purchaseRequests.map(request => { const progress = purchaseRequestProgress(request); const orderNumbers = (request.purchaseOrders || []).filter(order => order.status !== "CANCELLED").map(order => order.number).join(", "); return <span key={request.id}><b>{request.number}</b><small>{request.items?.map(row => `${row.item.name} · ${row.originalQty} ${row.item.unit}`).join(", ")}{orderNumbers ? ` · ${orderNumbers}` : ""}</small><em className={progress.className}>{progress.label}</em></span>; })}</div>}{!!activeJob.partRepairs?.length && <div className="maintenance-request-history">{activeJob.partRepairs.map(repair => <span key={repair.id}><b>PERBAIKAN · {repair.stockUnit?.serialNumber || repair.stockUnit?.barcode || "Tanpa serial"}</b><small>{repair.stockUnit?.item?.name}{repair.supplier?.name ? ` · ${repair.supplier.name}` : " · Vendor belum dipilih"}</small><em className={repair.status}>{repair.status === "SENT" ? "DALAM PERBAIKAN" : repair.status}</em></span>)}</div>}</section> : <div className="maintenance-request-empty">Belum ada permintaan pembelian dari servis ini.</div>}
                 </form>
 
                 {/* A) Serialized assign */}
@@ -2266,7 +2266,7 @@ export default function Maintenance() {
             {/* FULL WIDTH TABLES */}
             {detailTab === "PARTS" && <Card className="maintenance-detail-history" style={{ gridColumn: "1 / -1" }}>
               <div style={{ padding: 16 }}>
-                <div className="maintenance-detail-section-heading maintenance-history-heading"><span>RIWAYAT</span><div><strong>Sparepart yang sudah digunakan</strong><small>Semua unit dan stok yang tercatat pada pekerjaan servis ini.</small></div></div>
+                <div className="maintenance-detail-section-heading maintenance-history-heading"><span>Riwayat</span><div><strong>Sparepart yang sudah digunakan</strong><small>Semua unit dan stok yang tercatat pada pekerjaan servis ini.</small></div></div>
 
                 {/* Serialized Table */}
                 <div style={{ fontSize: 13, fontWeight: 600, color: BRAND.textMuted, marginBottom: 8 }}>
