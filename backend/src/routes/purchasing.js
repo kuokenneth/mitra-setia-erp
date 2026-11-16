@@ -1,3 +1,4 @@
+const { supplierPaymentDate } = require("../utils/supplierPaymentDate");
 const { roundUnitPrice } = require("../utils/unitPrice");
 const express = require("express");
 const { prisma } = require("../prisma");
@@ -792,6 +793,8 @@ router.patch("/orders/:id/cancel", requireRole("OWNER", "ADMIN"), async (req, re
   }
 });
 async function createGoodsReceipt(tx, payload, userId) {
+    if (typeof payload.deliveryNoteProofUrl !== "string" || !payload.deliveryNoteProofUrl.trim()) throw new Error("Foto bukti penerimaan barang wajib dilampirkan");
+    if (!["image/jpeg", "image/png", "image/webp"].includes(payload.deliveryNoteMimeType)) throw new Error("Bukti penerimaan harus berupa foto JPG, PNG, atau WEBP");
     const { purchaseOrderId, locationId, deliveryNote, deliveryNoteProofUrl, deliveryNoteFileName, deliveryNoteMimeType, deliveryNoteSize, notes, supplierInvoiceNumber, supplierInvoiceDate, supplierInvoiceAmount, supplierInvoiceProofUrl, supplierInvoiceFileName, supplierInvoiceMimeType, supplierInvoiceSize, items = [] } = payload;
     const po = await tx.purchaseOrder.findUnique({ where: { id: purchaseOrderId }, include: { supplier: true, request: { include: { maintenance: true } }, items: { include: { item: true, tireRetread: true, partRepair: true } } } });
     if (!po) throw new Error("Purchase Order tidak ditemukan");
@@ -1017,6 +1020,9 @@ router.post("/bills", async (req, res) => {
 });
 
 router.post("/payments", async (req, res) => {
+  let paidAt;
+  try { paidAt = supplierPaymentDate(req.body?.paymentDate ?? ""); }
+  catch (error) { return res.status(400).json({ error: error.message }); }
   const bill = await prisma.supplierBill.findUnique({ where: { id: req.body.supplierBillId }, include: { payments: true } });
   if (!bill || ["PAID", "VOID"].includes(bill.status)) return res.status(400).json({ error: "Tagihan supplier tidak tersedia untuk dibayar" });
   const committed = bill.payments.filter(p => p.status !== "UNPAID").reduce((sum, p) => sum + p.amount, 0);
@@ -1024,7 +1030,7 @@ router.post("/payments", async (req, res) => {
   if (!amount || amount <= 0 || amount > bill.amount - committed) return res.status(400).json({ error: "Jumlah pembayaran melebihi sisa tagihan supplier" });
   if (!req.body.proofUrl) return res.status(400).json({ error: "Bukti pembayaran wajib dilampirkan" });
   const payment = await prisma.$transaction(async tx => {
-    const created = await tx.purchasePayment.create({ data: { number: await nextDailyNumber(tx, "purchasePayment", "PAY"), supplierBillId: bill.id, amount, method: req.body.method, reference: req.body.reference, proofUrl: req.body.proofUrl, proofFileName: req.body.proofFileName || null, proofMimeType: req.body.proofMimeType || null, proofSize: Number.isFinite(Number(req.body.proofSize)) ? Number(req.body.proofSize) : null, createdById: req.user.id } });
+    const created = await tx.purchasePayment.create({ data: { number: await nextDailyNumber(tx, "purchasePayment", "PAY"), supplierBillId: bill.id, amount, paidAt, method: req.body.method, reference: req.body.reference, proofUrl: req.body.proofUrl, proofFileName: req.body.proofFileName || null, proofMimeType: req.body.proofMimeType || null, proofSize: Number.isFinite(Number(req.body.proofSize)) ? Number(req.body.proofSize) : null, createdById: req.user.id } });
     await tx.supplierBill.update({ where: { id: bill.id }, data: { status: "WAITING_PAYMENT_APPROVAL" } });
     return created;
   });
@@ -1032,10 +1038,12 @@ router.post("/payments", async (req, res) => {
 });
 router.patch("/payments/:id/approve", requireRole("OWNER", "ADMIN"), async (req, res) => {
   const payment = await prisma.$transaction(async tx => {
-    const current = await tx.purchasePayment.findUnique({ where: { id: req.params.id }, select: { id: true, status: true } });
+    const current = await tx.purchasePayment.findUnique({ where: { id: req.params.id }, select: { id: true, status: true, paidAt: true } });
     if (!current) throw new Error("Pembayaran supplier tidak ditemukan");
     if (current.status === "PAID") throw new Error("Pembayaran supplier sudah disetujui");
-    const updated = await tx.purchasePayment.update({ where: { id: req.params.id }, data: { status: "PAID", paidAt: new Date(), approvedAt: new Date(), approvedById: req.user.id } });
+    const claimed = await tx.purchasePayment.updateMany({ where: { id: req.params.id, status: current.status }, data: { status: "PAID", paidAt: current.paidAt || new Date(), approvedAt: new Date(), approvedById: req.user.id } });
+    if (claimed.count !== 1) throw new Error("Pembayaran supplier sudah diproses. Muat ulang halaman.");
+    const updated = await tx.purchasePayment.findUnique({ where: { id: req.params.id } });
     await postJournal(tx, { date: updated.paidAt, description: `Pembayaran supplier ${updated.number}`, sourceType: "SUPPLIER_PAYMENT", sourceId: updated.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.AP, debit: updated.amount }, { code: cashCode(updated.method), credit: updated.amount }] });
     if (updated.supplierBillId) {
       const bill = await tx.supplierBill.findUnique({ where: { id: updated.supplierBillId }, include: { payments: true } });

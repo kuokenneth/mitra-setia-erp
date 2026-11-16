@@ -5,6 +5,7 @@ import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { ProtectedFilePreview } from "../components/ProtectedFile";
 import LoadingState from "../components/LoadingState";
+import useDialogLifecycle from "../components/useDialogLifecycle";
 import PageHeader, { ActionGroup, ActionToolbar } from "../components/PageHeader";
 import { FiArrowRight, FiCalendar, FiCheckCircle, FiClipboard, FiClock, FiCornerUpLeft, FiCreditCard, FiDownload, FiFileText, FiPlus, FiPrinter, FiSearch, FiTruck, FiX } from "react-icons/fi";
 import "./Expenses.css";
@@ -120,6 +121,7 @@ export default function Expenses() {
   const [financeDebts, setFinanceDebts] = useState([]);
   const [financeDebtOpen, setFinanceDebtOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
+  const { dialogRef: returnDialogRef, titleId: returnTitleId } = useDialogLifecycle(returnOpen, () => setReturnOpen(false));
   const [returnSaving, setReturnSaving] = useState(false);
   const [expenseReturns, setExpenseReturns] = useState([]);
   const [returnForm, setReturnForm] = useState({ returnDate: todayInJakarta(), truckId: "", amount: "", paymentMethod: "BANK_TRANSFER", reason: "", notes: "" });
@@ -948,8 +950,8 @@ export default function Expenses() {
       {/* Create Modal */}
       {returnOpen && (
         <div style={s.modalOverlay} onClick={() => setReturnOpen(false)}>
-          <div style={{ ...s.modalCard, width: "min(820px, calc(100vw - 28px))" }} className="expense-return-modal" onClick={(e) => e.stopPropagation()}>
-            <div style={s.modalHeader}><div className="expense-modal-heading"><span className="expense-modal-icon expense-return-icon"><FiCornerUpLeft /></span><div><div className="expense-eyebrow">PENGEMBALIAN DANA</div><div style={s.modalTitle}>Retur Pengeluaran / Panjar</div><p>Catat uang panjar atau uang jalan yang dikembalikan supir.</p></div></div><button style={s.closeBtn} onClick={() => setReturnOpen(false)} aria-label="Tutup"><FiX /></button></div>
+          <div ref={returnDialogRef} role="dialog" aria-modal="true" aria-labelledby={returnTitleId} tabIndex={-1} style={{ ...s.modalCard, width: "min(820px, calc(100vw - 28px))" }} className="expense-return-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={s.modalHeader}><div className="expense-modal-heading"><span className="expense-modal-icon expense-return-icon"><FiCornerUpLeft /></span><div><div className="expense-eyebrow">PENGEMBALIAN DANA</div><div id={returnTitleId} style={s.modalTitle}>Retur Pengeluaran / Panjar</div><p>Catat uang panjar atau uang jalan yang dikembalikan supir.</p></div></div><button style={s.closeBtn} onClick={() => setReturnOpen(false)} aria-label="Tutup"><FiX /></button></div>
             <form onSubmit={createReturn} className="expense-return-form">
               <div className="expense-return-notice"><FiCheckCircle /><span><strong>Retur akan mengurangi biaya armada</strong><small>Kas atau bank bertambah dan pengeluaran operasional berkurang secara otomatis.</small></span></div>
               <div className="expense-return-grid">

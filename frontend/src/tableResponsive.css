@@ -26,7 +26,18 @@
 .erp-content .acct-table table{min-width:1050px}.erp-content .acct-table .number{min-width:130px}
 .erp-content .fp-table-wrap table{min-width:1200px}.erp-content .fp-table-wrap :is(th,td):nth-child(3),.erp-content .fp-table-wrap :is(th,td):nth-child(4),.erp-content .fp-table-wrap :is(th,td):nth-child(5){min-width:145px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .erp-content .fp-detail-table table{min-width:900px}.erp-content .fp-detail-table :is(th,td):nth-last-child(-n+3){min-width:140px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-.erp-content .audit-table{min-width:1040px}.erp-content .audit-table :is(th,td):first-child{min-width:155px}.erp-content .audit-table :is(th,td):last-child{min-width:90px}
+.erp-content .audit-table-wrap{width:auto;max-width:none;margin-inline:24px}
+.erp-content .audit-table{min-width:880px;table-layout:fixed}
+.erp-content .audit-table :is(th,td){min-width:0;overflow-wrap:anywhere}
+.erp-content .audit-table :is(th,td):nth-child(1){width:15%}
+.erp-content .audit-table :is(th,td):nth-child(2){width:16%}
+.erp-content .audit-table :is(th,td):nth-child(3){width:12%}
+.erp-content .audit-table :is(th,td):nth-child(4){width:23%}
+.erp-content .audit-table :is(th,td):nth-child(5){width:24%}
+.erp-content .audit-table :is(th,td):nth-child(6){width:10%}
+.erp-content .audit-table td :is(strong,small,code){max-width:100%}
+.erp-content .audit-search input{padding-left:39px}
+@media(max-width:720px){.erp-content .audit-table-wrap{margin-inline:16px}}
 .erp-content .material-board{min-width:0;overflow-x:auto}.erp-content .material-board table{min-width:980px}.erp-content .material-board :is(th,td):nth-child(3),.erp-content .material-board :is(th,td):nth-child(4),.erp-content .material-board :is(th,td):nth-child(5){min-width:135px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .erp-content .ar-table-wrap{min-width:0}.erp-content .ar-invoice-table .ar-money-cell{min-width:125px}
 .erp-content .users-table-wrap table{min-width:900px}.erp-content .users-table-wrap td:last-child{min-width:170px}

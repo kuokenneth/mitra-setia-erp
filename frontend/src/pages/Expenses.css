@@ -1,5 +1,24 @@
 @media(max-width:600px){.expense-return-grid{grid-template-columns:1fr}.expense-return-grid>label{grid-column:auto!important}.expense-return-button{flex:1 0 100%!important;width:100%}}
 
+.expense-return-modal {
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+}
+.expense-return-modal > :first-child {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #fff;
+}
+.expense-return-grid > label { min-width: 0; }
+.expense-return-grid input,
+.expense-return-grid select,
+.expense-return-grid textarea { box-sizing: border-box; max-width: 100%; }
+@media(max-width:600px) {
+  .expense-return-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
 .expense-new-button {
   transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease !important;
   will-change: transform;
