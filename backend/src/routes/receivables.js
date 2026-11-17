@@ -1,3 +1,4 @@
+const { invoiceDate, receiptDate } = require("../utils/invoiceDate");
 const express = require("express");
 const ExcelJS = require("exceljs");
 const { prisma } = require("../prisma");
@@ -40,6 +41,7 @@ router.post("/manual-invoices", async (req, res) => {
     if (!["FERTILIZER", "CANGKANG", "MATERIAL"].includes(type)) throw new Error("Jenis tagihan manual tidak valid");
     const customer = await prisma.customer.findUnique({ where: { id: String(customerId || "") } });
     if (!customer) throw new Error("Pilih customer dari Master Customer");
+    const issuedAt = invoiceDate(req.body.issuedAt);
     const dueDate = new Date(dueAt);
     if (Number.isNaN(dueDate.getTime())) throw new Error("Tanggal jatuh tempo tidak valid");
     if (!Array.isArray(lines) || !lines.length) throw new Error("Tambahkan minimal satu baris tagihan");
@@ -73,7 +75,7 @@ router.post("/manual-invoices", async (req, res) => {
     if (total <= 0) throw new Error("Total tagihan harus lebih dari nol");
     const invoiceId = await prisma.$transaction(async tx => {
       const number = await nextInvoiceNumber(tx, "INV-TGL");
-      const created = await tx.invoice.create({ data: { number, billingKey: `MANUAL:${type}:${Date.now()}`, sourceType: `MANUAL_${type}`, customerId: customer.id, customerName: customer.name, customerPhone: customer.phone || null, billingAddress: customer.address || null, dueAt: dueDate, subtotal, contractSubtotal: subtotal, materialSubtotal: type === "MATERIAL" ? subtotal : 0, tax, discount, total, notes: String(notes || "").trim() || null, manualData: { title: String(title || "").trim(), fromText: String(fromText || "").trim(), toText: String(toText || "").trim(), reference: String(reference || "").trim(), receipt: String(receipt || "").trim(), taxRate, pph23Rate, claim, type }, createdById: req.user.id, manualLines: { create: prepared } }, select: { id: true } });
+      const created = await tx.invoice.create({ data: { number, billingKey: `MANUAL:${type}:${Date.now()}`, sourceType: `MANUAL_${type}`, customerId: customer.id, customerName: customer.name, customerPhone: customer.phone || null, billingAddress: customer.address || null, issuedAt, dueAt: dueDate, subtotal, contractSubtotal: subtotal, materialSubtotal: type === "MATERIAL" ? subtotal : 0, tax, discount, total, notes: String(notes || "").trim() || null, manualData: { title: String(title || "").trim(), fromText: String(fromText || "").trim(), toText: String(toText || "").trim(), reference: String(reference || "").trim(), receipt: String(receipt || "").trim(), receiptDate: receiptDate(req.body.receiptDate), taxRate, pph23Rate, claim, type }, createdById: req.user.id, manualLines: { create: prepared } }, select: { id: true } });
       return created.id;
     });
     const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId }, include: invoiceInclude });
@@ -579,9 +581,10 @@ router.post("/invoices", async (req, res) => {
     if (!Number.isFinite(taxRate) || taxRate < 0 || taxRate > 100) throw new Error("Pajak harus antara 0 sampai 100 persen");
     if (!Number.isFinite(pph23Rate) || pph23Rate < 0 || pph23Rate > 100) throw new Error("PPH23 harus antara 0 sampai 100 persen");
     const claim = 0;
-    const adjustmentMeta = { receipt: String(receipt || "").trim(), taxRate, pph23Rate, claim };
+    const adjustmentMeta = { receipt: String(receipt || "").trim(), receiptDate: receiptDate(req.body.receiptDate), taxRate, pph23Rate, claim };
     const adjustments = subtotal => ({ tax: Math.round(subtotal * taxRate / 100), discount: Math.round(subtotal * pph23Rate / 100), total: subtotal - Math.round(subtotal * taxRate / 100) });
     const requestedTolerance = req.body.tolerancePercent === undefined || req.body.tolerancePercent === "" ? null : Number(req.body.tolerancePercent);
+    const issuedAt = invoiceDate(req.body.issuedAt);
     const dueDate = new Date(dueAt);
     if (!customerName?.trim()) throw new Error("Nama pelanggan wajib diisi");
     if (Number.isNaN(dueDate.getTime())) throw new Error("Tanggal jatuh tempo tidak valid");
@@ -601,7 +604,7 @@ router.post("/invoices", async (req, res) => {
         const total = 0;
         const number = await nextInvoiceNumber(tx, "INV");
         const sourceKey = [...materialInvoiceIds].sort().join(",");
-        const created = await tx.invoice.create({ data: { number, billingKey: `MATERIAL:${sourceKey}`, sourceType, customerId: resolvedCustomerId, customerName: customerName.trim(), customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null, dueAt: dueDate, subtotal, contractSubtotal: 0, materialSubtotal: subtotal, tax: 0, discount: 0, total, notes: notes?.trim() || null, manualData: adjustmentMeta, createdById: req.user.id }, select: { id: true } });
+        const created = await tx.invoice.create({ data: { number, billingKey: `MATERIAL:${sourceKey}`, sourceType, customerId: resolvedCustomerId, customerName: customerName.trim(), customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null, issuedAt, dueAt: dueDate, subtotal, contractSubtotal: 0, materialSubtotal: subtotal, tax: 0, discount: 0, total, notes: notes?.trim() || null, manualData: adjustmentMeta, createdById: req.user.id }, select: { id: true } });
         await tx.materialInvoice.updateMany({ where: { id: { in: materialInvoiceIds } }, data: { billedInvoiceId: created.id } }); return created.id;
       }
       if (sourceType === "SINGLE_TRIP") {
@@ -611,7 +614,7 @@ router.post("/invoices", async (req, res) => {
         const { tax, discount, total } = adjustments(contractSubtotal);
         if (total <= 0) throw new Error("Total invoice harus lebih dari nol");
         const number = await nextInvoiceNumber(tx, "INV");
-        const created = await tx.invoice.create({ data: { number, billingKey: `SINGLE_TRIP:${trip.id}`, sourceType, singleTripId: trip.id, customerName: customerName.trim(), customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null, dueAt: dueDate, subtotal: contractSubtotal, contractSubtotal, tax, discount, total, notes: notes?.trim() || null, manualData: adjustmentMeta, createdById: req.user.id }, select: { id: true } });
+        const created = await tx.invoice.create({ data: { number, billingKey: `SINGLE_TRIP:${trip.id}`, sourceType, singleTripId: trip.id, customerName: customerName.trim(), customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null, issuedAt, dueAt: dueDate, subtotal: contractSubtotal, contractSubtotal, tax, discount, total, notes: notes?.trim() || null, manualData: adjustmentMeta, createdById: req.user.id }, select: { id: true } });
         return created.id;
       }
       if (sourceType === "SINGLE_TRIP_GROUP") {
@@ -631,7 +634,7 @@ router.post("/invoices", async (req, res) => {
         const total = 0;
         const number = await nextInvoiceNumber(tx, "INV");
         const billingIds = ids.slice().sort();
-        const created = await tx.invoice.create({ data: { number, billingKey: `SINGLE_TRIP_GROUP:${billingIds.join(",")}`, sourceType, customerId: trips[0].billingCustomerId || null, customerName: customerName.trim(), customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null, dueAt: dueDate, subtotal, contractSubtotal: subtotal, plannedQuantity: lines.reduce((sum, line) => sum + Number(line.plannedWeightKg || 0), 0), deliveredQuantity: lines.reduce((sum, line) => sum + line.actualWeightKg, 0), billableQuantity: lines.reduce((sum, line) => sum + Number(line.billableWeightKg || 0), 0), cargoLossQuantity: lines.reduce((sum, line) => sum + billingWeight(line.plannedWeightKg, line.actualWeightKg, tolerancePercent).claimableLoss, 0), tolerancePercent, tax: 0, discount: 0, total, notes: notes?.trim() || null, manualData: adjustmentMeta, createdById: req.user.id, singleTripLines: { create: lines } }, select: { id: true } });
+        const created = await tx.invoice.create({ data: { number, billingKey: `SINGLE_TRIP_GROUP:${billingIds.join(",")}`, sourceType, customerId: trips[0].billingCustomerId || null, customerName: customerName.trim(), customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null, issuedAt, dueAt: dueDate, subtotal, contractSubtotal: subtotal, plannedQuantity: lines.reduce((sum, line) => sum + Number(line.plannedWeightKg || 0), 0), deliveredQuantity: lines.reduce((sum, line) => sum + line.actualWeightKg, 0), billableQuantity: lines.reduce((sum, line) => sum + Number(line.billableWeightKg || 0), 0), cargoLossQuantity: lines.reduce((sum, line) => sum + billingWeight(line.plannedWeightKg, line.actualWeightKg, tolerancePercent).claimableLoss, 0), tolerancePercent, tax: 0, discount: 0, total, notes: notes?.trim() || null, manualData: adjustmentMeta, createdById: req.user.id, singleTripLines: { create: lines } }, select: { id: true } });
         if (trips[0].billingCustomerId) await tx.customer.update({ where: { id: trips[0].billingCustomerId }, data: { cargoLossTolerancePercent: tolerancePercent } });
         return created.id;
       }
@@ -665,7 +668,7 @@ router.post("/invoices", async (req, res) => {
         data: {
           number, orderId, billingKey: `ORDER:${orderId}:${Date.now()}`, sourceType: "ORDER", customerId: order.customerId, customerName: customerName.trim(),
           customerPhone: customerPhone?.trim() || null, billingAddress: billingAddress?.trim() || null,
-          dueAt: dueDate, subtotal, contractSubtotal: 0, plannedQuantity: plannedKg || null,
+          issuedAt, dueAt: dueDate, subtotal, contractSubtotal: 0, plannedQuantity: plannedKg || null,
           deliveredQuantity: deliveredKg || null, billableQuantity: billing.billable || null, tolerancePercent,
           cargoLossQuantity: plannedKg > 0 ? billing.claimableLoss : null,
           cargoLossAmount, materialSubtotal: 0, tax: 0, discount: 0, total, notes: notes?.trim() || null,
@@ -740,7 +743,7 @@ router.patch("/invoices/:id/draft", async (req, res) => {
       const discount = Math.round(subtotal * pph23Rate / 100);
       const total = subtotal - tax;
       if (total <= 0) throw new Error("Total invoice harus lebih dari nol");
-      return tx.invoice.update({ where: { id: invoice.id }, data: { dueAt, contractSubtotal, materialSubtotal, subtotal, cargoLossAmount, tax, discount, total, notes: req.body.notes?.trim() || null, manualData: { ...(invoice.manualData && typeof invoice.manualData === "object" ? invoice.manualData : {}), receipt: String(req.body.receipt || "").trim(), taxRate, pph23Rate, claim } }, include: invoiceInclude });
+      return tx.invoice.update({ where: { id: invoice.id }, data: { issuedAt: invoiceDate(req.body.issuedAt, invoice.issuedAt), dueAt, contractSubtotal, materialSubtotal, subtotal, cargoLossAmount, tax, discount, total, notes: req.body.notes?.trim() || null, manualData: { ...(invoice.manualData && typeof invoice.manualData === "object" ? invoice.manualData : {}), receipt: String(req.body.receipt || "").trim(), receiptDate: receiptDate(req.body.receiptDate, invoice.manualData?.receiptDate || null), taxRate, pph23Rate, claim } }, include: invoiceInclude });
     });
     res.json({ ok: true, invoice: summarize(saved) });
   } catch (error) { res.status(400).json({ error: error.message || "Gagal menyimpan harga invoice" }); }
