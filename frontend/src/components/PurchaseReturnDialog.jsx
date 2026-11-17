@@ -33,17 +33,17 @@ export default function PurchaseReturnDialog({ entries, onClose, onSaved }) {
       await onSaved(result.purchaseReturn);
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   }
-  return <div className="purchase-return-overlay" onMouseDown={event => event.target === event.currentTarget && !busy && onClose()}>
-    <form className="purchase-return-dialog" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onSubmit={submit}>
-      <header><div><h2 id={titleId}>Retur Pembelian</h2><p>{entries[0]?.po.supplier.name} · {entries.map(({ gr }) => gr.number).join(", ")}</p></div><button type="button" disabled={busy} onClick={onClose} aria-label="Tutup"><FiX /></button></header>
-      <div className="purchase-return-body"><p className="purchase-return-notice">Stok berkurang setelah disimpan. Tagihan yang belum dibayar dikurangi; kelebihan pembayaran dicatat sebagai kredit supplier. Dana kas/bank belum berubah.</p>
+  return <div className="ms-dialog-overlay purchase-return-overlay" onMouseDown={event => event.target === event.currentTarget && !busy && onClose()}>
+    <form className="ms-dialog purchase-return-dialog" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onSubmit={submit}>
+      <header className="ms-dialog-head"><div><h2 id={titleId}>Retur Pembelian</h2><p>{entries[0]?.po.supplier.name} · {entries.map(({ gr }) => gr.number).join(", ")}</p></div><button type="button" disabled={busy} onClick={onClose} aria-label="Tutup"><FiX /></button></header>
+      <div className="ms-dialog-body purchase-return-body"><p className="purchase-return-notice">Stok berkurang setelah disimpan. Tagihan yang belum dibayar dikurangi; kelebihan pembayaran dicatat sebagai kredit supplier. Dana kas/bank belum berubah.</p>
         <fieldset disabled={busy}><label>Tanggal retur<input required type="date" value={date} onChange={event => setDate(event.target.value)} /></label>
         {loading ? <LoadingState compact rows={2} label="Memuat barang retur" /> : <div className="purchase-return-lines">{rows.map(row => <section key={row.id}><div><strong>{row.name}</strong><small>{row.receiptNumber} · Diterima {row.qty} {row.unit} · Sudah diretur {row.returnedQty}</small><small>{row.unavailableReason || `Tersedia untuk retur: ${row.availableQty} ${row.unit}`}</small></div>{row.serialized ? <div className="purchase-return-serials">{row.units.map(unit => <label key={unit.id}><input type="checkbox" disabled={!!row.unavailableReason} checked={(units[row.id] || []).includes(unit.id)} onChange={event => setUnits(current => ({ ...current, [row.id]: event.target.checked ? [...(current[row.id] || []), unit.id] : current[row.id].filter(id => id !== unit.id) }))} />{unit.serialNumber}</label>)}{!row.units.length && <small>Tidak ada unit tersimpan di lokasi penerimaan.</small>}</div> : <label>Jumlah retur<input aria-label={`Jumlah retur ${row.name}`} type="number" min="0" max={row.availableQty} step="any" disabled={row.availableQty <= 0} value={quantities[row.id] || ""} placeholder="0" onChange={event => setQuantities(current => ({ ...current, [row.id]: event.target.value }))} /></label>}</section>)}</div>}
         <label>Alasan retur<textarea required rows={2} value={reason} onChange={event => setReason(event.target.value)} placeholder="Contoh: barang rusak atau tidak sesuai pesanan" /></label>
         <label>Foto bukti retur (opsional)<input type="file" accept="image/jpeg,image/png,image/webp" onChange={event => setFile(event.target.files?.[0] || null)} /></label>
         <label>Catatan (opsional)<textarea rows={2} value={notes} onChange={event => setNotes(event.target.value)} /></label></fieldset>
         {error && <p role="alert" className="form-error">{error}</p>}
-      </div><footer><button type="button" disabled={busy} onClick={onClose}>Batal</button><button className="primary" disabled={busy || loading}>{busy ? "Menyimpan…" : "Konfirmasi Retur"}</button></footer>
+      </div><footer className="ms-dialog-foot"><button type="button" disabled={busy} onClick={onClose}>Batal</button><button className="primary" disabled={busy || loading}>{busy ? "Menyimpan…" : "Konfirmasi Retur"}</button></footer>
     </form>
   </div>;
 }

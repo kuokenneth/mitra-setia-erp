@@ -220,3 +220,48 @@ html.erp-app .ms-dialog.ms-dialog :is(.request-damage-proof, label:has(> input[t
 /* Headers whose title and description are direct children: stack them (title above description). */
 html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-head, .ms-dialog.ms-dialog > header, .ms-dialog.ms-dialog > form > header) { flex-wrap: wrap !important; }
 html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-head, .ms-dialog.ms-dialog > header, .ms-dialog.ms-dialog > form > header) > p { flex: 1 0 100% !important; order: 5; }
+
+/* Service form: one scroller keeps the focused field above tablet keyboards. */
+html.erp-app .ms-dialog.maintenance-detail-modal > .maintenance-modal-body {
+  flex: 0 0 auto !important;
+  overflow: visible !important;
+  max-height: none !important;
+}
+html.erp-app .maintenance-detail-modal :is(input,textarea,select) { scroll-margin-block: 80px 28px; }
+@media (max-width: 1180px) {
+  html.erp-app .maintenance-detail-modal .maintenance-request-new-item {
+    grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+  }
+  html.erp-app .maintenance-detail-modal .maintenance-request-new-item > label { min-width: 0; }
+}
+@media (hover: none) and (pointer: coarse) {
+  html.erp-app .maintenance-detail-modal :is(input,textarea,select) {
+    font-size: 16px !important;
+    line-height: 1.4 !important;
+  }
+  html.erp-app .maintenance-detail-modal :is(input,textarea):not(:disabled) {
+    color: var(--ms-fg) !important;
+    -webkit-text-fill-color: var(--ms-fg) !important;
+    caret-color: var(--ms-primary);
+  }
+}
+@media (max-width: 600px) {
+  html.erp-app .maintenance-detail-modal .maintenance-request-new-item { grid-template-columns: minmax(0,1fr) !important; }
+}
+html.erp-app .ms-dialog-overlay.maintenance-modal-overlay { min-height: 0 !important; }
+
+/* Every form overlay follows the visual viewport when the tablet keyboard opens. */
+html.erp-app .ms-dialog-overlay.ms-dialog-overlay { box-sizing: border-box; min-height: 0 !important; }
+html.erp-app .purchase-return-dialog { --ms-dialog-w: 780px; }
+html.erp-app .ui-overlay {
+  box-sizing: border-box; top: var(--ms-vv-top, 0px); bottom: auto;
+  height: var(--ms-vvh, 100dvh); min-height: 0;
+}
+html.erp-app :is(.ui-modal,.ui-drawer-panel) { max-height: calc(var(--ms-vvh, 100dvh) - 32px); }
+html.erp-app :is(.ms-dialog,.ui-modal,.ui-drawer-panel) :is(input,textarea,select) { scroll-margin-block: 80px 28px; }
+@media (max-width:1279px), (pointer:coarse) {
+  html.erp-app :is(.ui-modal,.ui-drawer-panel) :is(input:not([type=checkbox]):not([type=radio]),textarea,select) { font-size: 16px !important; }
+  html.erp-app :is(.ms-dialog,.ui-modal,.ui-drawer-panel) :is(input,textarea):not(:disabled) {
+    color: var(--ms-fg) !important; -webkit-text-fill-color: var(--ms-fg) !important; caret-color: var(--ms-primary);
+  }
+}
