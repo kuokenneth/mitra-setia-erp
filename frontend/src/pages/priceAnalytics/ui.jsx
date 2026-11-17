@@ -128,14 +128,14 @@ export function Dialog({ open, title, subtitle, onClose, children, footer, size 
   }, [open, onClose]);
   if (!open) return null;
   return createPortal(
-    <div className="pa-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <div className={`pa-dialog ${size}`} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={panelRef}>
-        <header className="pa-dialog-head">
+    <div className="ms-dialog-overlay pa-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className={`ms-dialog pa-dialog ${size}`} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={panelRef}>
+        <header className="ms-dialog-head pa-dialog-head">
           <div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>
           <button type="button" className="pa-icon-btn" onClick={onClose} aria-label="Tutup"><FiX /></button>
         </header>
-        <div className="pa-dialog-body">{children}</div>
-        {footer && <footer className="pa-dialog-foot">{footer}</footer>}
+        <div className="ms-dialog-body pa-dialog-body">{children}</div>
+        {footer && <footer className="ms-dialog-foot pa-dialog-foot">{footer}</footer>}
       </div>
     </div>,
     document.body,

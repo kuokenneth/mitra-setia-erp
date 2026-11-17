@@ -414,9 +414,9 @@ function Modal({ open, title, eyebrow = "INVENTORY", description, tone = "green"
   const { dialogRef, titleId } = useDialogLifecycle(open, onClose);
   if (!open) return null;
   return (
-    <div className="inventory-modal-overlay" onClick={(event) => { if (event.target === event.currentTarget) onClose?.(); }}>
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className={`inventory-modal inventory-modal--${tone} ${className}`.trim()}>
-        <div className="inventory-modal-head">
+    <div className="ms-dialog-overlay inventory-modal-overlay" onClick={(event) => { if (event.target === event.currentTarget) onClose?.(); }}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className={`ms-dialog inventory-modal inventory-modal--${tone} ${className}`.trim()}>
+        <div className="ms-dialog-head inventory-modal-head">
           <div className="inventory-modal-heading">
             <span>{eyebrow}</span>
             <h2 id={titleId}>{title}</h2>
@@ -424,7 +424,7 @@ function Modal({ open, title, eyebrow = "INVENTORY", description, tone = "green"
           </div>
           <button type="button" className="inventory-modal-close" onClick={onClose} aria-label="Tutup"><FiX /></button>
         </div>
-        <div className="inventory-modal-body">{children}</div>
+        <div className="ms-dialog-body inventory-modal-body">{children}</div>
       </div>
     </div>
   );

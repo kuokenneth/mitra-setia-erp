@@ -500,7 +500,7 @@ function Modal({ open, title, onClose, children, width = 900, className = "", sc
   if (!open) return null;
   return (
     <div
-      className="maintenance-modal-overlay"
+      className="ms-dialog-overlay maintenance-modal-overlay"
       style={{
         position: "fixed",
         inset: 0,
@@ -515,7 +515,7 @@ function Modal({ open, title, onClose, children, width = 900, className = "", sc
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className={`maintenance-modal ${className}`}
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className={`ms-dialog maintenance-modal ${className}`}
         style={{
           width: "100%",
           maxWidth: width,
@@ -527,7 +527,7 @@ function Modal({ open, title, onClose, children, width = 900, className = "", sc
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div
-          className="maintenance-modal-header"
+          className="ms-dialog-head maintenance-modal-header"
           style={{
             padding: "16px 20px",
             borderBottom: `1px solid ${BRAND.border}`,

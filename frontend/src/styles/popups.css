@@ -1,0 +1,221 @@
+/* =====================================================================
+   Popups — one structure for every modal, dialog, drawer and sheet.
+   Hooks (added to each popup's JSX): .ms-dialog-overlay.ms-dialog-overlay (backdrop),
+   .ms-dialog.ms-dialog (panel). Header/footer are recognised by their existing
+   classes, or by <header>/<footer>. Loaded last; visual only.
+
+   Desktop / iPad: centred card, max 92% of the visible height, header and
+   footer pinned while the body scrolls. Phone (< 744px): bottom sheet;
+   large business forms become full-screen. The visible-viewport variables
+   (--ms-vvh, --ms-vv-top) keep sheets above the iPhone keyboard.
+   ===================================================================== */
+
+/* Background scroll lock while any popup is open. */
+html.ms-dialog-open, html.ms-dialog-open body { overflow: hidden !important; overscroll-behavior: none; }
+
+/* ---------- Overlay ---------- */
+html.erp-app .ms-dialog-overlay.ms-dialog-overlay {
+  position: fixed !important; top: var(--ms-vv-top, 0px) !important; right: 0 !important; bottom: auto !important; left: 0 !important;
+  height: var(--ms-vvh, 100dvh) !important; z-index: 1000 !important;
+  display: flex !important; align-items: center !important; justify-content: center !important;
+  padding: max(16px, var(--ms-safe-top)) max(16px, var(--ms-safe-right)) max(16px, var(--ms-safe-bottom)) max(16px, var(--ms-safe-left)) !important;
+  overflow: hidden !important; overscroll-behavior: contain;
+  background: rgba(15, 23, 41, .45) !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+  animation: ms-pop-fade 150ms ease;
+}
+/* Popups opened from inside another popup stay on top. */
+html.erp-app .ms-dialog-overlay.ms-dialog-overlay .ms-dialog-overlay.ms-dialog-overlay, html.erp-app .image-annotator-overlay.ms-dialog-overlay.ms-dialog-overlay { z-index: 1100 !important; }
+
+/* ---------- Panel ---------- */
+html.erp-app .ms-dialog.ms-dialog {
+  position: relative !important; display: flex !important; flex-direction: column !important;
+  width: 100% !important; min-width: 0 !important; height: auto !important; min-height: 0 !important;
+  max-height: calc(var(--ms-vvh, 100dvh) - 2 * max(16px, var(--ms-safe-top))) !important;
+  margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; overflow-y: auto !important;
+  overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scroll-padding-block: 72px;
+  border: 1px solid var(--ms-border) !important; border-radius: var(--ms-radius) !important;
+  background: var(--ms-surface) !important; color: var(--ms-fg); box-shadow: var(--ms-shadow-lg) !important;
+  font-family: var(--ms-font); text-align: left;
+  animation: ms-pop-in 160ms var(--ms-ease);
+}
+/* Width scale: keep each popup's own max-width but never wider than the screen. */
+html.erp-app .ms-dialog.ms-dialog { max-width: min(var(--ms-dialog-w, 640px), 100%) !important; }
+html.erp-app :is(.po-cancel-modal,.po-supplier-change-modal,.payment-modal,.ar-payment-modal,.fp-modal,.trip-expense-modal,.expense-paste-modal,.pa-dialog.small) { --ms-dialog-w: 560px; }
+html.erp-app :is(.transaction-modal,.request-redesign-modal,.po-modal,.direct-order-modal,.ar-modal,.trip-action-modal,.trip-material-modal,.material-modal-shell,.fleet-add-modal,.fleet-movement-modal,.audit-detail,.expense-create-modal,.expense-return-modal,.order-trip-modal,.orders-v3-modal,.inventory-modal,.maintenance-modal,.pa-dialog) { --ms-dialog-w: 880px; }
+html.erp-app :is(.supplier-bill-modal,.batch-receipt-modal,.repair-batch-modal,.ar-invoice-modal,.ar-invoice-view-modal,.fp-detail-modal,.maintenance-detail-modal,.inventory-modal--item-flow,.single-trip-builder,.image-annotator-dialog) { --ms-dialog-w: 1120px; }
+/* Inline-sized popups (Trucks, Expenses) keep their own widths through the inline style. */
+
+/* ---------- Header: pinned, title + description + close ---------- */
+html.erp-app .ms-dialog.ms-dialog > :is(.ms-dialog-head, header):first-child,
+html.erp-app .ms-dialog.ms-dialog > form > :is(.ms-dialog-head, header):first-child {
+  position: sticky !important; top: 0 !important; z-index: 6 !important;
+  display: flex !important; flex: 0 0 auto; align-items: flex-start !important; justify-content: space-between !important; gap: 12px !important;
+  min-height: 0 !important; margin: 0 !important; padding: 16px 20px 12px !important;
+  border: 0 !important; border-bottom: 1px solid var(--ms-border) !important; border-radius: 0 !important;
+  background: var(--ms-surface) !important; box-shadow: none !important; backdrop-filter: none !important;
+}
+html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-head, .ms-dialog.ms-dialog > header, .ms-dialog.ms-dialog > form > header) :is(h2, h3, [style*="font-size: 18"], [style*="fontSize"]):not(p):not(span) { margin: 0 !important; color: var(--ms-fg) !important; font-family: var(--ms-font) !important; font-size: var(--ms-text-lg) !important; font-weight: var(--ms-weight-semibold) !important; line-height: 1.35 !important; letter-spacing: 0 !important; }
+html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-head, .ms-dialog.ms-dialog > header, .ms-dialog.ms-dialog > form > header) p { margin: 3px 0 0 !important; color: var(--ms-muted-fg) !important; font-size: var(--ms-text-sm) !important; font-weight: 400 !important; line-height: 1.45 !important; }
+/* Eyebrow kickers and decorative header icons are replaced by the clean title. */
+html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-head, .ms-dialog.ms-dialog > header, .ms-dialog.ms-dialog > form > header) :is(.eyebrow,.ar-eyebrow,.expense-eyebrow,.order-trip-modal-eyebrow,.inventory-modal-heading > span:first-child,.request-heading-icon,.expense-modal-icon,.fleet-add-icon) { display: none !important; }
+html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-head, .ms-dialog.ms-dialog > header, .ms-dialog.ms-dialog > form > header) > div:first-child { min-width: 0; flex: 1 1 auto; }
+/* Close button: same place and size everywhere. */
+html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-head, .ms-dialog.ms-dialog > header, .ms-dialog.ms-dialog > form > header) > :is(button, a):last-child {
+  display: inline-grid !important; flex: 0 0 auto; place-items: center; min-width: 32px !important; height: 32px !important; min-height: 32px !important; margin: -4px -6px 0 0 !important; padding: 0 8px !important;
+  border: 0 !important; border-radius: var(--ms-radius-md) !important; background: transparent !important; box-shadow: none !important; color: var(--ms-muted-fg) !important; font-size: var(--ms-text-sm) !important; font-weight: var(--ms-weight-medium) !important;
+}
+html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-head, .ms-dialog.ms-dialog > header, .ms-dialog.ms-dialog > form > header) > :is(button, a):last-child:hover { background: var(--ms-accent) !important; color: var(--ms-fg) !important; }
+html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-head, .ms-dialog.ms-dialog > header, .ms-dialog.ms-dialog > form > header) > :is(button, a):last-child svg { width: 18px !important; height: 18px !important; }
+
+/* ---------- Body ---------- */
+html.erp-app .ms-dialog.ms-dialog > :not(:is(.ms-dialog-head, header, .ms-dialog-foot, footer, .modal-actions, .ar-modal-actions, .material-modal-actions, form)),
+html.erp-app .ms-dialog.ms-dialog > form > :not(:is(.ms-dialog-head, header, .ms-dialog-foot, footer, .modal-actions, .ar-modal-actions, .material-modal-actions)) {
+  flex-shrink: 0; margin-inline: 0 !important; padding-inline: 20px !important;
+}
+/* The panel is the single scroller, so a form wrapper must not clip (keeps its footer sticky). */
+html.erp-app .ms-dialog.ms-dialog > form { display: flex; flex: 1 0 auto; flex-direction: column; min-height: 0; overflow: visible !important; max-height: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; box-shadow: none !important; background: transparent !important; }
+html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-head, header) + :not(.ms-dialog-foot):not(footer) { padding-top: 16px !important; }
+html.erp-app .ms-dialog.ms-dialog > :is(.ms-dialog-body,.inventory-modal-body,.maintenance-modal-body,.order-trip-modal-body,.orders-v3-modal-body,.pa-dialog-body,.material-form-body) { flex: 1 1 auto; max-height: none !important; padding-block: 16px !important; overflow: visible !important; }
+html.erp-app .ms-dialog.ms-dialog > :not(:is(.ms-dialog-head, header, .ms-dialog-foot, footer, .modal-actions, .ar-modal-actions, .material-modal-actions)):nth-last-child(1 of :not(.ms-dialog-foot, footer, .modal-actions, .ar-modal-actions, .material-modal-actions, .pa-dialog-foot)) { padding-bottom: 20px !important; }
+/* Body typography and controls follow the app's form system. */
+html.erp-app .ms-dialog.ms-dialog label { color: color-mix(in srgb, var(--ms-fg) 82%, transparent); font-size: var(--ms-text-xs); font-weight: var(--ms-weight-medium); letter-spacing: 0; text-transform: none; }
+html.erp-app .ms-dialog.ms-dialog :is(input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]):not([type=color]), select, textarea) {
+  min-height: var(--ms-control); border: 1px solid var(--ms-input) !important; border-radius: var(--ms-radius-md) !important; background-color: var(--ms-surface); color: var(--ms-fg); font-family: var(--ms-font); box-shadow: var(--ms-shadow-xs);
+}
+html.erp-app .ms-dialog.ms-dialog textarea { min-height: 72px; }
+html.erp-app .ms-dialog.ms-dialog :is(input, select, textarea):focus { border-color: var(--ms-primary) !important; outline: 0 !important; box-shadow: 0 0 0 3px var(--ms-primary-ring) !important; }
+html.erp-app .ms-dialog.ms-dialog :is(input[type=checkbox], input[type=radio]) { accent-color: var(--ms-primary); }
+html.erp-app .ms-dialog.ms-dialog :is(.form-error,.ar-error,.trip-action-error,.trip-expense-error,[class*="-error"]):not(:empty) { border: 1px solid var(--ms-danger-border) !important; border-radius: var(--ms-radius-md) !important; background: var(--ms-danger-bg) !important; color: var(--ms-danger-fg) !important; font-size: var(--ms-text-sm) !important; }
+html.erp-app .ms-dialog.ms-dialog table th { position: sticky; top: 0; z-index: 1; background: var(--ms-muted) !important; }
+html.erp-app .ms-dialog.ms-dialog :is(.table-wrap,[class*="table-wrap"],[class*="-table"]:not(table)) { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+
+/* ---------- Footer: pinned, Cancel left of the primary action ---------- */
+html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-foot, .modal-actions, .ar-modal-actions, .material-modal-actions, .pa-dialog-foot, .orders-v3-modal-actions, .maintenance-modal-actions, .maintenance-return-actions, .fleet-add-actions, .order-trip-actions, .expense-create-actions, .staff-form-actions),
+html.erp-app .ms-dialog.ms-dialog > footer, html.erp-app .ms-dialog.ms-dialog > form > footer {
+  position: sticky !important; bottom: 0 !important; z-index: 6 !important;
+  display: flex !important; flex: 0 0 auto; flex-wrap: wrap; align-items: center !important; justify-content: flex-end !important; gap: 8px !important;
+  min-height: 0 !important; margin: auto 0 0 !important; padding: 12px 20px !important;
+  border: 0 !important; border-top: 1px solid var(--ms-border) !important; border-radius: 0 !important;
+  background: var(--ms-surface) !important; box-shadow: 0 -1px 0 var(--ms-border-soft) !important; backdrop-filter: none !important;
+}
+html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-foot, .modal-actions, .ar-modal-actions, .material-modal-actions, .pa-dialog-foot, .orders-v3-modal-actions, .maintenance-modal-actions, .maintenance-return-actions, .fleet-add-actions, .order-trip-actions, .expense-create-actions, .staff-form-actions, .ms-dialog.ms-dialog > footer, .ms-dialog.ms-dialog > form > footer) > :is(span, small, p, .request-footer-note) { margin-right: auto; color: var(--ms-muted-fg) !important; font-size: var(--ms-text-xs) !important; }
+html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-foot, .modal-actions, .ar-modal-actions, .material-modal-actions, .pa-dialog-foot, .orders-v3-modal-actions, .maintenance-modal-actions, .maintenance-return-actions, .fleet-add-actions, .order-trip-actions, .expense-create-actions, .staff-form-actions, .ms-dialog.ms-dialog > footer, .ms-dialog.ms-dialog > form > footer) button {
+  min-height: var(--ms-control) !important; height: auto !important; padding: 0 14px !important; border-radius: var(--ms-radius-md) !important; font-size: var(--ms-text-base) !important; font-weight: var(--ms-weight-medium) !important; letter-spacing: 0 !important; box-shadow: none !important; transform: none !important;
+}
+/* Secondary (cancel) buttons in footers: Citra outline. Primary keep their own colour. */
+html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-foot, .modal-actions, .ar-modal-actions, .material-modal-actions, .pa-dialog-foot, .ms-dialog.ms-dialog > footer, .ms-dialog.ms-dialog > form > footer) :is(.secondary, .secondary-btn, [type="button"]:not(.primary):not(.ar-primary):not([class*="primary"]):not([class*="danger"]):not([style*="background: rgb"]):not([style*="background: #"]):not([style*="background: var(--ms-primary"])) {
+  border: 1px solid var(--ms-input) !important; background: var(--ms-surface) !important; color: var(--ms-fg) !important;
+}
+html.erp-app .ms-dialog.ms-dialog :is(.primary, .ar-primary, button[type="submit"]:not(.danger):not([class*="danger"])) { border-color: var(--ms-primary) !important; background: var(--ms-primary) !important; color: var(--ms-primary-fg) !important; }
+html.erp-app .ms-dialog.ms-dialog :is(.primary, .ar-primary, button[type="submit"]:not(.danger):not([class*="danger"])):hover:not(:disabled) { background: var(--ms-primary-hover) !important; }
+html.erp-app .ms-dialog.ms-dialog :is(.danger, [class*="-danger"]):is(button) { border-color: var(--ms-danger) !important; background: var(--ms-danger) !important; color: #fff !important; }
+html.erp-app .ms-dialog.ms-dialog button:disabled { opacity: .5 !important; cursor: not-allowed !important; }
+
+
+/* ---------- Header clean-up: decorative icon tiles and kicker lines ---------- */
+html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-head, header) > :is(div, span, i):first-child:has(> svg:only-child),
+html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-head, header) > div > :is(div, span, i):first-child:has(> svg:only-child),
+html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-head, header) :is([class*="header-icon"], [class*="heading-icon"], [class*="modal-icon"]) { display: none !important; }
+html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-head, header) :is(div, span, small):has(+ :is(h2, h3, [style*="fontSize"])):not(:has(*)) { display: none !important; }
+html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-head, header) > div:has(> :is(h2, h3)) { display: block !important; min-width: 0; flex: 1 1 auto; }
+
+/* ---------- Footer order: secondary first, primary action last (right) ---------- */
+html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-foot, .modal-actions, .ar-modal-actions, .material-modal-actions, .pa-dialog-foot, .orders-v3-modal-actions, .maintenance-modal-actions, .maintenance-return-actions, .fleet-add-actions, .order-trip-actions, .expense-create-actions, .ms-dialog > footer, .ms-dialog > form > footer) > :is(button[type="submit"], .primary, .ar-primary, [class*="primary"]) { order: 10; }
+@media (min-width: 744px) {
+  html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-foot, .modal-actions, .ar-modal-actions, .material-modal-actions, .pa-dialog-foot, .orders-v3-modal-actions, .maintenance-modal-actions, .maintenance-return-actions, .fleet-add-actions, .order-trip-actions, .expense-create-actions, .ms-dialog > footer, .ms-dialog > form > footer) > :is(button, a) { flex: 0 0 auto !important; width: auto !important; }
+}
+
+/* ---------- Dropdowns, pickers and menus stay above popups ---------- */
+html.erp-app body > div[style*="position: fixed"][style*="z-index: 1200"] { z-index: 1300 !important; }
+html.erp-app .ms-dialog.ms-dialog :is([class*="results"], [class*="dropdown"], [class*="suggest"], [class*="picker-menu"], [role="listbox"]) { z-index: 20 !important; max-height: min(320px, 50vh); overflow-y: auto; overscroll-behavior: contain; border-radius: var(--ms-radius-md) !important; box-shadow: var(--ms-shadow-md) !important; }
+
+/* ---------- Confirm / alert dialogs (ui/dialogService) ---------- */
+.ms-confirm-overlay { position: fixed; top: var(--ms-vv-top, 0px); right: 0; left: 0; height: var(--ms-vvh, 100dvh); z-index: 1400; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15, 23, 41, .45); animation: ms-pop-fade 120ms ease; font-family: var(--ms-font); }
+.ms-confirm { width: 100%; max-width: 440px; max-height: calc(var(--ms-vvh, 100dvh) - 32px); overflow-y: auto; border: 1px solid var(--ms-border); border-radius: var(--ms-radius); background: var(--ms-surface); box-shadow: var(--ms-shadow-lg); animation: ms-pop-in 140ms var(--ms-ease); }
+.ms-confirm-body { display: flex; gap: 12px; padding: 20px 20px 16px; }
+.ms-confirm-icon { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; border-radius: 50%; background: var(--ms-primary-soft); color: var(--ms-primary); }
+.ms-confirm.is-destructive .ms-confirm-icon, .ms-confirm.is-error .ms-confirm-icon { background: var(--ms-danger-bg); color: var(--ms-danger-fg); }
+.ms-confirm.is-warning .ms-confirm-icon { background: var(--ms-warning-bg); color: var(--ms-warning-fg); }
+.ms-confirm-icon svg { width: 18px; height: 18px; }
+.ms-confirm h2 { margin: 6px 0 0; color: var(--ms-fg); font-size: var(--ms-text-lg); font-weight: var(--ms-weight-semibold); line-height: 1.35; }
+.ms-confirm p { margin: 6px 0 0; color: var(--ms-muted-fg); font-size: var(--ms-text-base); line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }
+.ms-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--ms-border); background: var(--ms-muted); border-radius: 0 0 var(--ms-radius) var(--ms-radius); }
+
+/* ---------- Full-screen file / image viewer (components/ProtectedFile) ---------- */
+html.erp-app body > div[style*="z-index: 10000"] { padding-top: var(--ms-safe-top) !important; padding-bottom: var(--ms-safe-bottom) !important; }
+
+/* =====================================================================
+   iPad + touch laptops: comfortable touch targets inside popups
+   ===================================================================== */
+@media (max-width: 1279px), (pointer: coarse) {
+  html.erp-app .ms-dialog.ms-dialog :is(button:not(table *), input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]), select) { min-height: var(--ms-touch) !important; }
+  html.erp-app .ms-dialog.ms-dialog :is(input:not([type=checkbox]):not([type=radio]), select, textarea) { font-size: 16px !important; }
+  html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-head, .ms-dialog.ms-dialog > header, .ms-dialog.ms-dialog > form > header) > :is(button, a):last-child { min-width: 44px !important; height: 44px !important; min-height: 44px !important; margin: -8px -10px -4px 0 !important; }
+  html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-foot, .modal-actions, .ar-modal-actions, .material-modal-actions, .pa-dialog-foot, .orders-v3-modal-actions, .maintenance-modal-actions, .maintenance-return-actions, .fleet-add-actions, .order-trip-actions, .expense-create-actions, .ms-dialog.ms-dialog > footer, .ms-dialog.ms-dialog > form > footer) button { min-height: var(--ms-touch) !important; }
+  .ms-confirm-actions .ui-btn { min-height: var(--ms-touch); }
+}
+
+/* iPad portrait (744–1023): popups use the width; big forms keep two columns where they fit. */
+@media (min-width: 744px) and (max-width: 1023px) {
+  html.erp-app .ms-dialog-overlay.ms-dialog-overlay { padding: max(24px, var(--ms-safe-top)) 24px max(24px, var(--ms-safe-bottom)) !important; }
+  html.erp-app .ms-dialog.ms-dialog { max-height: calc(var(--ms-vvh, 100dvh) - 48px) !important; }
+}
+
+/* =====================================================================
+   Phone (< 744px): bottom sheets; complex business forms full-screen
+   ===================================================================== */
+@media (max-width: 743px) {
+  html.erp-app .ms-dialog-overlay.ms-dialog-overlay { align-items: flex-end !important; padding: var(--ms-safe-top) 0 0 !important; }
+  html.erp-app .ms-dialog.ms-dialog {
+    max-width: 100% !important; width: 100% !important;
+    max-height: calc(var(--ms-vvh, 100dvh) - var(--ms-safe-top) - 8px) !important;
+    border-bottom: 0 !important; border-radius: var(--ms-radius-xl) var(--ms-radius-xl) 0 0 !important;
+    animation: ms-pop-sheet 200ms var(--ms-ease);
+  }
+  html.erp-app .ms-dialog.ms-dialog::before { content: ""; position: sticky; top: 0; z-index: 7; display: block; flex: 0 0 auto; width: 36px; height: 4px; margin: 8px auto -4px; border-radius: 4px; background: var(--ms-border); }
+  /* Long purchasing / inventory / maintenance / receivable forms: full screen. */
+  html.erp-app :is(.transaction-modal,.request-redesign-modal,.po-modal,.direct-order-modal,.supplier-bill-modal,.batch-receipt-modal,.repair-batch-modal,.ar-invoice-modal,.ar-manual-modal,.ar-invoice-view-modal,.fp-detail-modal,.maintenance-detail-modal,.maintenance-create-modal,.inventory-modal--item-flow,.single-trip-builder,.empty-return-builder,.trip-material-modal,.material-modal-shell,.order-trip-modal,.orders-v3-create-modal,.expense-create-modal,.expense-return-modal,.audit-detail,.image-annotator-dialog).ms-dialog.ms-dialog {
+    height: calc(var(--ms-vvh, 100dvh) - var(--ms-safe-top)) !important; max-height: none !important; border-radius: 0 !important;
+  }
+  html.erp-app :is(.transaction-modal,.request-redesign-modal,.po-modal,.direct-order-modal,.supplier-bill-modal,.batch-receipt-modal,.repair-batch-modal,.ar-invoice-modal,.ar-manual-modal,.ar-invoice-view-modal,.fp-detail-modal,.maintenance-detail-modal,.maintenance-create-modal,.inventory-modal--item-flow,.single-trip-builder,.empty-return-builder,.trip-material-modal,.material-modal-shell,.order-trip-modal,.orders-v3-create-modal,.expense-create-modal,.expense-return-modal,.audit-detail,.image-annotator-dialog).ms-dialog.ms-dialog::before { display: none; }
+  html.erp-app .ms-dialog.ms-dialog > :is(.ms-dialog-head, header):first-child, html.erp-app .ms-dialog.ms-dialog > form > :is(.ms-dialog-head, header):first-child { padding: 12px 16px 10px !important; }
+  html.erp-app .ms-dialog.ms-dialog > :not(:is(.ms-dialog-head, header, .ms-dialog-foot, footer, .modal-actions, .ar-modal-actions, .material-modal-actions, form)),
+  html.erp-app .ms-dialog.ms-dialog > form > :not(:is(.ms-dialog-head, header, .ms-dialog-foot, footer, .modal-actions, .ar-modal-actions, .material-modal-actions)) { padding-inline: 16px !important; }
+  html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-foot, .modal-actions, .ar-modal-actions, .material-modal-actions, .pa-dialog-foot, .orders-v3-modal-actions, .maintenance-modal-actions, .maintenance-return-actions, .fleet-add-actions, .order-trip-actions, .expense-create-actions, .staff-form-actions),
+  html.erp-app .ms-dialog.ms-dialog > footer, html.erp-app .ms-dialog.ms-dialog > form > footer {
+    display: grid !important; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)) !important; padding: 10px 16px calc(10px + var(--ms-safe-bottom)) !important;
+  }
+  html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-foot, .modal-actions, .ar-modal-actions, .material-modal-actions, .pa-dialog-foot, .orders-v3-modal-actions, .maintenance-modal-actions, .maintenance-return-actions, .fleet-add-actions, .order-trip-actions, .expense-create-actions, .ms-dialog.ms-dialog > footer, .ms-dialog.ms-dialog > form > footer) > :is(span, small, p, .request-footer-note) { grid-column: 1 / -1; margin: 0 0 2px; }
+  html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-foot, .modal-actions, .ar-modal-actions, .material-modal-actions, .pa-dialog-foot, .orders-v3-modal-actions, .maintenance-modal-actions, .maintenance-return-actions, .fleet-add-actions, .order-trip-actions, .expense-create-actions, .ms-dialog.ms-dialog > footer, .ms-dialog.ms-dialog > form > footer) > :is(button, a, div) { width: 100% !important; min-width: 0 !important; justify-content: center; }
+  /* Forms inside popups: one column, full-width inputs. */
+  html.erp-app .ms-dialog.ms-dialog :is(.grid2,.grid3,.ar-grid2,[class*="-grid2"],[class*="fields"]:not([class*="table"]),[class*="form-grid"],[class*="-two-col"],[class$="-row"]:has(> label + label)) { grid-template-columns: minmax(0, 1fr) !important; }
+  html.erp-app .ms-dialog.ms-dialog :is([style*="grid-template-columns: 1fr 1fr"],[style*="grid-template-columns: repeat(2"],[style*="grid-template-columns: repeat(3"],[style*="grid-template-columns: repeat(4"]) { grid-template-columns: minmax(0, 1fr) !important; }
+  html.erp-app .ms-dialog.ms-dialog :is(input, select, textarea) { max-width: 100% !important; }
+  .ms-confirm-overlay { align-items: flex-end; padding: 0; }
+  .ms-confirm { max-width: none; border-bottom: 0; border-radius: var(--ms-radius-xl) var(--ms-radius-xl) 0 0; }
+  .ms-confirm-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); padding-bottom: calc(12px + var(--ms-safe-bottom)); border-radius: 0; }
+}
+
+@keyframes ms-pop-fade { from { opacity: 0; } }
+@keyframes ms-pop-in { from { opacity: 0; transform: translateY(6px) scale(.985); } }
+@keyframes ms-pop-sheet { from { opacity: .5; transform: translateY(32px); } }
+@media (prefers-reduced-motion: reduce) { html.erp-app .ms-dialog-overlay.ms-dialog-overlay, html.erp-app .ms-dialog.ms-dialog, .ms-confirm-overlay, .ms-confirm { animation: none !important; } }
+
+/* Inner scroll areas inside a form wrapper collapse into the panel scroller. */
+html.erp-app .ms-dialog.ms-dialog > form > :not(:is(.ms-dialog-head, header, .ms-dialog-foot, footer)) { max-height: none !important; }
+html.erp-app .ms-dialog.ms-dialog > form > .expense-create-fields { overflow: visible !important; }
+
+/* Goods-receipt line table: fluid columns so the price column never clips inside the dialog
+   (fixed 230/92/145/210px tracks overflowed iPad-width dialogs). Phone keeps its stacked layout. */
+@media (min-width: 721px) {
+  html.erp-app .ms-dialog.ms-dialog .receipt-entry-table :is(.receipt-table-head, .receipt-item-row) {
+    grid-template-columns: minmax(0, 1.6fr) minmax(64px, .6fr) minmax(104px, 1fr) minmax(150px, 1.4fr) !important; column-gap: 12px !important;
+  }
+  html.erp-app .ms-dialog.ms-dialog .receipt-entry-table .receipt-item-row > * { min-width: 0; }
+  html.erp-app .ms-dialog.ms-dialog .receipt-entry-table :is(.receipt-serial-table, .serial-entry) { max-width: 100%; overflow-x: auto; }
+}
+/* Upload drop-zones hide a native file input inside: keep it from widening the dialog. */
+html.erp-app .ms-dialog.ms-dialog :is(.request-damage-proof, label:has(> input[type="file"])) { position: relative; overflow: hidden; }
+/* Headers whose title and description are direct children: stack them (title above description). */
+html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-head, .ms-dialog.ms-dialog > header, .ms-dialog.ms-dialog > form > header) { flex-wrap: wrap !important; }
+html.erp-app .ms-dialog.ms-dialog :is(.ms-dialog-head, .ms-dialog.ms-dialog > header, .ms-dialog.ms-dialog > form > header) > p { flex: 1 0 100% !important; order: 5; }

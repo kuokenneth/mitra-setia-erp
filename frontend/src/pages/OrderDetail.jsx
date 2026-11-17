@@ -32,6 +32,8 @@ import "./OrderDetailHeader.css";
 import "./OrderTripModal.css";
 import "./MaterialInvoice.css";
 import useDialogLifecycle from "../components/useDialogLifecycle";
+import { StatusBadge as UiStatusBadge } from "../ui";
+import { confirmDialog } from "../ui/dialogService";
 
 //////////////////////
 // THEME - CORPORATE MINIMALIST
@@ -99,52 +101,20 @@ function useIsNarrow(breakpoint = 980) {
 // UI COMPONENTS
 //////////////////////
 
-function StatusBadge({ status, type = "order" }) {
-  const s = String(status || "").toUpperCase();
-  const orderMap = {
-    COMPLETED: { bg: BRAND.successBg, fg: BRAND.success },
-    IN_PROGRESS: { bg: BRAND.accent, fg: BRAND.primary },
-    CONFIRMED: { bg: BRAND.infoBg, fg: BRAND.info },
-    CANCELLED: { bg: "#F3F4F6", fg: BRAND.textMuted },
-    DRAFT: { bg: BRAND.secondary, fg: BRAND.textLight },
-  };
-  const tripMap = {
-    COMPLETED: { bg: BRAND.successBg, fg: BRAND.success },
-    ARRIVED: { bg: BRAND.infoBg, fg: BRAND.info },
-    DISPATCHED: { bg: "#FFF3D6", fg: "#B45309" },
-    CANCELLED: { bg: "#F3F4F6", fg: BRAND.textMuted },
-  };
-  const map = type === "trip" ? tripMap : orderMap;
-  const c = map[s] || { bg: "#F3F4F6", fg: BRAND.textMuted };
-
-  return (
-    <span
-      style={{
-        padding: "6px 12px",
-        borderRadius: 4,
-        background: c.bg,
-        color: c.fg,
-        fontWeight: 600,
-        fontSize: 12,
-        textTransform: "none",
-        letterSpacing: "0.3px",
-      }}
-    >
-      {s.replaceAll("_", " ") || "—"}
-    </span>
-  );
+function StatusBadge({ status }) {
+  return <UiStatusBadge status={String(status || "").toUpperCase() || "-"} />;
 }
 
 function Button({ variant = "secondary", children, icon: Icon, size = "default", ...props }) {
   const styles = {
     primary: { background: BRAND.primary, color: BRAND.white, border: "none" },
-    secondary: { background: BRAND.white, color: BRAND.textLight, border: `1px solid ${BRAND.border}` },
+    secondary: { background: "var(--ms-surface)", color: "var(--ms-fg)", border: "1px solid var(--ms-input)", boxShadow: "var(--ms-shadow-xs)" },
     danger: { background: BRAND.dangerBg, color: BRAND.danger, border: `1px solid ${BRAND.danger}20` },
   };
 
   const sizeStyles = {
-    small: { padding: "6px 12px", fontSize: 13 },
-    default: { padding: "10px 16px", fontSize: 14 },
+    small: { height: 32, padding: "0 12px", fontSize: 13 },
+    default: { height: 36, padding: "0 14px", fontSize: 14 },
   };
 
   const baseStyle = {
@@ -165,13 +135,11 @@ function Button({ variant = "secondary", children, icon: Icon, size = "default",
       style={baseStyle}
       onMouseEnter={(e) => {
         if (!props.disabled) {
-          e.currentTarget.style.transform = "translateY(-1px)";
-          e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";
+          e.currentTarget.style.filter = "brightness(0.97)";
         }
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.boxShadow = "none";
+        e.currentTarget.style.filter = "none";
       }}
       {...props}
     >
@@ -262,7 +230,7 @@ function Modal({ open, title, subtitle, onClose, children, width = 1100 }) {
   const { dialogRef, titleId } = useDialogLifecycle(open, onClose);
   if (!open) return null;
   return (
-    <div className="order-trip-overlay"
+    <div className="ms-dialog-overlay order-trip-overlay"
       style={{
         position: "fixed",
         inset: 0,
@@ -275,7 +243,7 @@ function Modal({ open, title, subtitle, onClose, children, width = 1100 }) {
       }}
       onMouseDown={onClose}
     >
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className="order-trip-modal"
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className="ms-dialog order-trip-modal"
         style={{
           width: "100%",
           maxWidth: width,
@@ -289,7 +257,7 @@ function Modal({ open, title, subtitle, onClose, children, width = 1100 }) {
         }}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="order-trip-modal-head"
+        <div className="ms-dialog-head order-trip-modal-head"
           style={{
             padding: "16px 20px",
             borderBottom: `1px solid ${BRAND.border}`,
@@ -595,7 +563,7 @@ export default function OrderDetail() {
   }
 
   async function patchOrderStatus(nextStatus) {
-    if (nextStatus === "CANCELLED" && !window.confirm("Batalkan pesanan ini? Semua trip aktif yang hanya terkait pesanan ini juga akan otomatis dibatalkan.")) return;
+    if (nextStatus === "CANCELLED" && !(await confirmDialog({ title: "Batalkan pesanan", message: "Batalkan pesanan ini? Semua trip aktif yang hanya terkait pesanan ini juga akan otomatis dibatalkan.", confirmLabel: "Batalkan pesanan", cancelLabel: "Kembali", destructive: true }))) return;
     try {
       await api(`/orders/${id}`, {
         method: "PATCH",
@@ -913,7 +881,7 @@ export default function OrderDetail() {
           )}
 
           {tab === "TRIPS" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {trips.length === 0 ? (
                 <div style={{ padding: 20, borderRadius: 6, border: `1px dashed ${BRAND.border}`, color: BRAND.textMuted, textAlign: "center" }}>
                   Belum ada perjalanan. Klik "Tetapkan Perjalanan" untuk membuatnya.
@@ -923,10 +891,10 @@ export default function OrderDetail() {
                   <div className="order-detail-v3-trip"
                     key={t.id}
                     style={{
-                      padding: 16,
-                      borderRadius: 6,
-                      border: `1px solid ${BRAND.border}`,
-                      background: BRAND.secondary,
+                      padding: "12px 14px",
+                      borderRadius: 8,
+                      border: "1px solid var(--ms-border)",
+                      background: "var(--ms-surface)",
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
@@ -935,35 +903,37 @@ export default function OrderDetail() {
                     }}
                   >
                     <div>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: BRAND.text }}>
-                        {t.truck?.plateNumber || t.plateNumberSnap || "-"} — {t.driverUser?.name || t.driverNameSnap || "-"}
-                      </div>
-                      <div style={{ marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--ms-fg)" }}>
+                          {t.truck?.plateNumber || t.plateNumberSnap || "-"} — {t.driverUser?.name || t.driverNameSnap || "-"}
+                        </span>
                         <StatusBadge status={t.status} type="trip" />
+                      </div>
+                      <div className="order-detail-v3-trip-meta" style={{ marginTop: 4, display: "flex", gap: "2px 12px", flexWrap: "wrap", alignItems: "center", fontSize: 12, color: "var(--ms-muted-fg)" }}>
                         {t.qtyPlanned != null && (
-                          <span style={{ fontSize: 13, color: BRAND.textMuted }}>
-                            Qty: {fmtNum(t.qtyPlanned)} {t.unitSnap || order.unit || ""}
+                          <span>
+                            Muatan {fmtNum(t.qtyPlanned)} {t.unitSnap || order.unit || ""}
                           </span>
                         )}
-                        <span style={{ fontSize: 13, color: BRAND.textMuted }}>Planned: {fmtDateTime(t.plannedDepartAt)}</span>
-                        {t.dispatchedAt && <span style={{ fontSize: 13, color: BRAND.textMuted }}>Dispatched: {fmtDateTime(t.dispatchedAt)}</span>}
+                        <span>Rencana {fmtDateTime(t.plannedDepartAt)}</span>
+                        {t.dispatchedAt && <span>Berangkat {fmtDateTime(t.dispatchedAt)}</span>}
                       </div>
 
                       {(t.dispatchDocuments || []).length ? (
-                        <div style={{ marginTop: 8, display: "grid", gap: 5, fontSize: 13 }}>
+                        <div style={{ marginTop: 6, display: "grid", gap: 3, fontSize: 12 }}>
                           {(t.dispatchDocuments || []).map((document) => <div key={document.id}><button type="button" onClick={() => openProtectedFile(document.pdfUrl).catch((e) => setErr(e.message))} style={{ border: 0, padding: 0, background: "transparent", cursor: "pointer", color: BRAND.primary, fontWeight: 600 }}>{document.number}</button><span style={{ color: BRAND.textMuted }}> · {document.recipientName || document.destination || "Muatan"}</span></div>)}
                         </div>
                       ) : (
-                        <div style={{ marginTop: 8, fontSize: 13, color: BRAND.textMuted }}>Surat jalan belum dibuat.</div>
+                        <div style={{ marginTop: 6, fontSize: 12, color: "var(--ms-muted-fg)" }}>Surat jalan belum dibuat.</div>
                       )}
                     </div>
 
-                    <div style={{ display: "flex", gap: 10 }}>
+                    <div className="order-detail-v3-trip-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                       <Button variant="secondary" size="small" icon={FiExternalLink} onClick={() => nav(`/trips/${t.id}`)}>
                         Buka Trip
                       </Button>
                       {canWrite && (
-                        <Button variant="primary" size="small" disabled={Boolean(dispatchBusyId)} onClick={() => generateDispatch(t.id)}>
+                        <Button variant={(t.dispatchDocuments || []).length ? "secondary" : "primary"} size="small" disabled={Boolean(dispatchBusyId)} onClick={() => generateDispatch(t.id)}>
                           {dispatchBusyId === t.id ? ((t.dispatchDocuments || []).length ? "Membuat ulang…" : "Membuat…") : `${(t.dispatchDocuments || []).length ? "Buat Ulang" : "Buat"} Surat Jalan`}
                         </Button>
                       )}

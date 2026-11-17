@@ -5,7 +5,7 @@
 
    §1 base · §2 page headers · §3 KPI groups · §4 surfaces · §5 tabs
    §6 toolbars & inputs · §7 buttons · §8 badges · §9 tables
-   §10 dialogs · §11 forms · §12 empty states · §13 tablet · §14 phone
+   §10 dialogs → styles/popups.css · §11 forms · §12 empty states · §13 tablet · §14 phone
    ===================================================================== */
 
 /* ---------- §1 Base ---------- */
@@ -136,25 +136,6 @@ html.erp-app .erp-content table td :is(small) { color: var(--ms-muted-fg); }
 html.erp-app .erp-content table td :is(button):not(.primary):not([class*="primary"]) { min-height: 30px; border-radius: var(--ms-radius-md) !important; font-size: var(--ms-text-xs) !important; }
 html.erp-app .erp-content :is(.audit-pagination,.p-list-pager,.fleet-movement-pagination,.inventory-pagination,.ar-pagination,.users-pagination,.pa-panel-foot) { min-height: 0 !important; padding: 8px 12px !important; border-color: var(--ms-border) !important; background: transparent !important; color: var(--ms-muted-fg) !important; font-size: var(--ms-text-xs) !important; }
 
-/* ---------- §10 Dialogs: centred card on desktop/tablet, bottom sheet on phones ---------- */
-html.erp-app .erp-content :is(.overlay,.inventory-modal-overlay,.orders-v3-modal-overlay,.maintenance-modal-overlay,.ar-overlay,.audit-overlay,.fp-overlay,.trip-action-overlay,.trip-expense-overlay,.trip-material-overlay,.material-overlay,.fleet-v2-overlay,.order-trip-overlay,.supplier-bill-overlay,[class*="modal-overlay"]) {
-  background: rgba(15, 23, 41, .42) !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
-}
-html.erp-app .erp-content :is(.modal,.inventory-modal,.orders-v3-modal,.maintenance-modal,.maintenance-detail-modal,.maintenance-return-modal,.ar-modal,.audit-detail,.fp-modal,.fp-detail-modal,.trip-action-modal,.trip-expense-modal,.trip-material-modal,.material-modal-shell,.fleet-add-modal,.fleet-movement-modal,.order-trip-modal,.supplier-bill-modal,.purchase-request-modal,.transaction-modal,.repair-batch-modal,.expense-create-modal,.expense-return-modal,.expense-paste-modal) {
-  border: 1px solid var(--ms-border) !important; border-radius: var(--ms-radius) !important; background: var(--ms-surface) !important; box-shadow: var(--ms-shadow-lg) !important;
-}
-html.erp-app .erp-content :is(.modal-heading,.inventory-modal-head,.orders-v3-modal-head,.maintenance-modal-header,.ar-modal-head,.audit-detail>header,.fp-modal>header,.fp-detail-modal>header,.trip-action-modal>header,.trip-expense-modal>header,.trip-material-modal>header,.material-modal-head,.fleet-add-header,.fleet-modal-hero,.order-trip-modal-head,.supplier-bill-head,.request-modal-heading,.expense-create-header) {
-  min-height: 0 !important; padding: 16px 20px 12px !important; border-bottom: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; backdrop-filter: none !important;
-}
-html.erp-app .erp-content :is(.modal-heading,.inventory-modal-head,.orders-v3-modal-head,.maintenance-modal-header,.ar-modal-head,.audit-detail>header,.fp-modal>header,.trip-action-modal>header,.trip-expense-modal>header,.trip-material-modal>header,.material-modal-head,.fleet-add-header,.order-trip-modal-head,.supplier-bill-head,.request-modal-heading,.expense-create-header) :is(h2,h3) { margin: 0 !important; color: var(--ms-fg) !important; font-size: var(--ms-text-lg) !important; font-weight: var(--ms-weight-semibold) !important; line-height: 1.35 !important; letter-spacing: 0 !important; }
-html.erp-app .erp-content :is(.modal-heading,.inventory-modal-head,.orders-v3-modal-head,.maintenance-modal-header,.ar-modal-head,.trip-action-modal>header,.material-modal-head,.order-trip-modal-head,.supplier-bill-head,.request-modal-heading,.expense-create-header) p { color: var(--ms-muted-fg) !important; font-size: var(--ms-text-sm) !important; }
-html.erp-app .erp-content :is(.modal-actions,.orders-v3-modal-actions,.maintenance-modal-actions,.maintenance-return-actions,.ar-modal-actions,.trip-action-modal footer,.trip-expense-modal footer,.material-modal-actions,.fleet-add-actions,.order-trip-actions,.supplier-bill-actions,.expense-create-actions,.request-decision-actions,.staff-form-actions) {
-  min-height: 0 !important; gap: 8px !important; padding: 12px 20px !important; border-top: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; backdrop-filter: none !important;
-}
-html.erp-app .erp-content :is(.inventory-modal-close,.orders-v3-modal-close,.maintenance-modal-close,.maintenance-modal-header>button,.ar-modal-head>button,.audit-detail>header>button,.fp-modal>header>button,.trip-action-modal>header>button,.trip-expense-modal>header>button,.trip-material-modal>header>button,.material-modal-head>button,.order-trip-modal-close,.supplier-bill-head>button) {
-  width: 32px !important; height: 32px !important; min-height: 32px !important; border: 0 !important; border-radius: var(--ms-radius-md) !important; background: transparent !important; color: var(--ms-muted-fg) !important; box-shadow: none !important;
-}
-
 /* ---------- §11 Forms ---------- */
 html.erp-app .erp-content form label, html.erp-app .erp-content :is(.field,.form-field,[class*="-field"]) > :is(label,span:first-child) { color: color-mix(in srgb, var(--ms-fg) 80%, transparent); font-size: var(--ms-text-xs) !important; font-weight: var(--ms-weight-medium) !important; letter-spacing: 0 !important; text-transform: none !important; }
 html.erp-app .erp-content :is(.form-error,.orders-v3-error,.audit-error,.ar-error,.trip-action-error,.error,.p-error) { border-color: var(--ms-danger-border) !important; border-radius: var(--ms-radius) !important; background: var(--ms-danger-bg) !important; color: var(--ms-danger-fg) !important; font-size: var(--ms-text-sm) !important; }
@@ -244,22 +225,6 @@ html.erp-app .erp-content :is(.empty,.acct-empty,.orders-v3-empty,.inventory-emp
   html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td.is-right, html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td.number { text-align: left !important; }
   html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr[class*="empty"] { display: block !important; }
   html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr:has(> td[data-full]:only-child) { display: block !important; text-align: center; color: var(--ms-muted-fg); }
-
-  /* ---- Dialogs → bottom sheets with pinned header/footer ---- */
-  html.erp-app .erp-content :is(.overlay,.inventory-modal-overlay,.orders-v3-modal-overlay,.maintenance-modal-overlay,.ar-overlay,.audit-overlay,.fp-overlay,.trip-action-overlay,.trip-expense-overlay,.trip-material-overlay,.material-overlay,.fleet-v2-overlay,.order-trip-overlay,.supplier-bill-overlay,[class*="modal-overlay"]) {
-    align-items: flex-end !important; justify-content: center !important; padding: var(--ms-safe-top) 0 0 !important; z-index: 130 !important;
-  }
-  html.erp-app .erp-content :is(.modal,.inventory-modal,.orders-v3-modal,.maintenance-modal,.maintenance-detail-modal,.maintenance-return-modal,.ar-modal,.audit-detail,.fp-modal,.fp-detail-modal,.trip-action-modal,.trip-expense-modal,.trip-material-modal,.material-modal-shell,.fleet-add-modal,.fleet-movement-modal,.order-trip-modal,.supplier-bill-modal,.purchase-request-modal,.transaction-modal,.repair-batch-modal,.expense-create-modal,.expense-return-modal,.expense-paste-modal) {
-    width: 100% !important; max-width: 100% !important; max-height: calc(100dvh - var(--ms-safe-top) - 8px) !important; margin: 0 !important;
-    border-bottom: 0 !important; border-radius: var(--ms-radius-xl) var(--ms-radius-xl) 0 0 !important;
-  }
-  html.erp-app .erp-content :is(.modal-heading,.inventory-modal-head,.orders-v3-modal-head,.maintenance-modal-header,.ar-modal-head,.audit-detail>header,.fp-modal>header,.fp-detail-modal>header,.trip-action-modal>header,.trip-expense-modal>header,.trip-material-modal>header,.material-modal-head,.fleet-add-header,.fleet-modal-hero,.order-trip-modal-head,.supplier-bill-head,.request-modal-heading,.expense-create-header) { position: sticky !important; top: 0; z-index: 6; padding: 14px 16px 10px !important; }
-  html.erp-app .erp-content :is(.modal-actions,.orders-v3-modal-actions,.maintenance-modal-actions,.maintenance-return-actions,.ar-modal-actions,.trip-action-modal footer,.trip-expense-modal footer,.material-modal-actions,.fleet-add-actions,.order-trip-actions,.supplier-bill-actions,.expense-create-actions) {
-    position: sticky !important; bottom: 0; z-index: 6; display: grid !important; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)) !important; padding: 10px 16px calc(10px + var(--ms-safe-bottom)) !important;
-  }
-  html.erp-app .erp-content :is(.modal-actions,.orders-v3-modal-actions,.maintenance-modal-actions,.maintenance-return-actions,.ar-modal-actions,.trip-action-modal footer,.trip-expense-modal footer,.material-modal-actions,.fleet-add-actions,.order-trip-actions,.supplier-bill-actions,.expense-create-actions) > * { width: 100% !important; min-height: var(--ms-touch) !important; }
-  html.erp-app .erp-content :is(.po-form-body,.inventory-modal-body,.orders-v3-modal-body,.maintenance-modal-body,.ar-form,.trip-expense-form,.material-entry-body,.order-trip-modal-body,.request-modal-body) { padding: 14px 16px !important; }
-  html.erp-app .erp-content :is(.inventory-modal-close,.orders-v3-modal-close,.maintenance-modal-close,.maintenance-modal-header>button,.ar-modal-head>button,.audit-detail>header>button,.fp-modal>header>button,.trip-action-modal>header>button,.trip-expense-modal>header>button,.trip-material-modal>header>button,.material-modal-head>button,.order-trip-modal-close,.supplier-bill-head>button) { width: 44px !important; height: 44px !important; }
 
   /* Forms: one column, full-width controls. */
   html.erp-app .erp-content :is(.grid2,.grid3,.ar-grid2,.payment-form-grid,.orders-v3-form-grid,.expense-form-grid,.orders-customer-modal-fields,.trip-action-fields) { grid-template-columns: 1fr !important; }
@@ -535,11 +500,6 @@ html.erp-app .erp-content :is(
 }
 /* Users: role/status selects keep their colour cue on a white control. */
 html.erp-app .erp-content .users-page td select { background-color: var(--ms-surface) !important; border-color: var(--ms-input) !important; font-weight: var(--ms-weight-medium) !important; }
-
-/* ---------- §17 Modal close buttons (some sat on former dark heroes) ---------- */
-html.erp-app .erp-content :is(.fleet-add-header,.fleet-modal-hero,.expense-create-header,.request-modal-heading,.supplier-bill-heading,.modal-heading) > button:last-child,
-html.erp-app .erp-content :is([class*="modal"],[class*="overlay"]) > header > button:last-child { border: 0 !important; background: transparent !important; color: var(--ms-muted-fg) !important; box-shadow: none !important; }
-html.erp-app .erp-content :is(.fleet-add-header,.fleet-modal-hero,.expense-create-header) > button:last-child svg { color: var(--ms-muted-fg) !important; stroke: currentColor; }
 
 /* ---------- §18 Phone forms inside dialogs: single column; line items as 2-up cards ---------- */
 @media (max-width: 743px) {
@@ -960,3 +920,18 @@ html.erp-app .erp-content .maintenance-detail-tabs { padding: 0 24px !important;
   html.erp-app .erp-content .maintenance-detail-tabs { padding: 0 16px !important; }
 }
 html.erp-app .erp-content .order-detail-v3-overview > * small { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+
+/* Detail Pesanan — trip list rows */
+html.erp-app .erp-content .order-detail-v3-trip { box-shadow: none !important; }
+html.erp-app .erp-content .order-detail-v3-trip:hover { border-color: color-mix(in srgb, var(--ms-primary) 30%, var(--ms-border)) !important; }
+html.erp-app .erp-content .order-detail-v3-trip-actions button { min-height: 32px !important; border-radius: var(--ms-radius-md) !important; font-weight: var(--ms-weight-medium) !important; white-space: nowrap; }
+@media (max-width: 743px) {
+  html.erp-app .erp-content .order-detail-v3-trip-actions { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  html.erp-app .erp-content .order-detail-v3-trip-actions button { justify-content: center; min-height: 44px !important; }
+  html.erp-app .erp-content .order-detail-v3-trip-actions > :only-child { grid-column: 1 / -1; }
+}
+/* Mouse clicks shouldn't leave the legacy 4px black focus ring; keyboard focus keeps the green ring. */
+html.erp-app :is(button, a, [role="tab"]):focus:not(:focus-visible) { outline: none !important; }
+html.erp-app :is(button, a, [role="tab"]):focus-visible { outline: 2px solid var(--ms-primary-ring) !important; outline-offset: 2px; }
+html.erp-app .erp-content :is(.order-detail-v3-chips,.order-detail-v3-meta) > * { height: 26px !important; font-size: var(--ms-text-xs) !important; }
+html.erp-app .erp-content .order-detail-v3-overview > * :is(small,span,p) { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }

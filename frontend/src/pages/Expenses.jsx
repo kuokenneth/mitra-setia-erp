@@ -9,6 +9,7 @@ import useDialogLifecycle from "../components/useDialogLifecycle";
 import PageHeader, { ActionGroup, ActionToolbar } from "../components/PageHeader";
 import { FiArrowRight, FiCalendar, FiCheckCircle, FiClipboard, FiClock, FiCornerUpLeft, FiCreditCard, FiDownload, FiFileText, FiPlus, FiPrinter, FiSearch, FiTruck, FiX } from "react-icons/fi";
 import "./Expenses.css";
+import { confirmDialog } from "../ui/dialogService";
 
 // Corporate Green Color Palette (matching Landing/Dashboard)
 const BRAND = {
@@ -580,7 +581,7 @@ export default function Expenses() {
   async function onApproveAll() {
     if (!pendingApprovalTotal || approveAllBusy) return;
     const selectedMonthLabel = expenseMonthLabel(reportMonth);
-    if (!window.confirm(`Setujui ${pendingApprovalTotal} pengeluaran yang sudah dibayar pada ${selectedMonthLabel}? Pengeluaran bulan lain tidak akan ikut disetujui.`)) return;
+    if (!(await confirmDialog({ title: "Setujui pengeluaran", message: `Setujui ${pendingApprovalTotal} pengeluaran yang sudah dibayar pada ${selectedMonthLabel}? Pengeluaran bulan lain tidak akan ikut disetujui.`, confirmLabel: "Setujui semua" }))) return;
     setApproveAllBusy(true);
     setErr("");
     try {
@@ -923,16 +924,16 @@ export default function Expenses() {
       </div>
 
       {pasteTarget && (
-        <div style={s.modalOverlay} onClick={() => !pasteBusy && setPasteTarget(null)}>
+        <div className="ms-dialog-overlay" style={s.modalOverlay} onClick={() => !pasteBusy && setPasteTarget(null)}>
           <div
             style={{ ...s.modalCard, width: "min(520px, calc(100vw - 28px))" }}
-            className="expense-paste-modal"
+            className="ms-dialog expense-paste-modal"
             onClick={(event) => event.stopPropagation()}
             onPaste={onPasteProof}
             tabIndex={0}
             autoFocus
           >
-            <div style={s.modalHeader}>
+            <div className="ms-dialog-head" style={s.modalHeader}>
               <div className="expense-modal-heading"><span className="expense-modal-icon"><FiClipboard /></span><div><div className="expense-eyebrow">Bukti pembayaran</div><div style={s.modalTitle}>{pasteTarget.proofUrl ? "Ganti bukti pembayaran" : "Tambahkan bukti pembayaran"}</div><p>{pasteTarget.reason}</p></div></div>
               <button style={s.closeBtn} disabled={pasteBusy} onClick={() => setPasteTarget(null)} aria-label="Tutup"><FiX /></button>
             </div>
@@ -949,9 +950,9 @@ export default function Expenses() {
 
       {/* Create Modal */}
       {returnOpen && (
-        <div style={s.modalOverlay} onClick={() => setReturnOpen(false)}>
-          <div ref={returnDialogRef} role="dialog" aria-modal="true" aria-labelledby={returnTitleId} tabIndex={-1} style={{ ...s.modalCard, width: "min(820px, calc(100vw - 28px))" }} className="expense-return-modal" onClick={(e) => e.stopPropagation()}>
-            <div style={s.modalHeader}><div className="expense-modal-heading"><span className="expense-modal-icon expense-return-icon"><FiCornerUpLeft /></span><div><div className="expense-eyebrow">Pengembalian dana</div><div id={returnTitleId} style={s.modalTitle}>Retur Pengeluaran / Panjar</div><p>Catat uang panjar atau uang jalan yang dikembalikan supir.</p></div></div><button style={s.closeBtn} onClick={() => setReturnOpen(false)} aria-label="Tutup"><FiX /></button></div>
+        <div className="ms-dialog-overlay" style={s.modalOverlay} onClick={() => setReturnOpen(false)}>
+          <div ref={returnDialogRef} role="dialog" aria-modal="true" aria-labelledby={returnTitleId} tabIndex={-1} style={{ ...s.modalCard, width: "min(820px, calc(100vw - 28px))" }} className="ms-dialog expense-return-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="ms-dialog-head" style={s.modalHeader}><div className="expense-modal-heading"><span className="expense-modal-icon expense-return-icon"><FiCornerUpLeft /></span><div><div className="expense-eyebrow">Pengembalian dana</div><div id={returnTitleId} style={s.modalTitle}>Retur Pengeluaran / Panjar</div><p>Catat uang panjar atau uang jalan yang dikembalikan supir.</p></div></div><button style={s.closeBtn} onClick={() => setReturnOpen(false)} aria-label="Tutup"><FiX /></button></div>
             <form onSubmit={createReturn} className="expense-return-form">
               <div className="expense-return-notice"><FiCheckCircle /><span><strong>Retur akan mengurangi biaya armada</strong><small>Kas atau bank bertambah dan pengeluaran operasional berkurang secara otomatis.</small></span></div>
               <div className="expense-return-grid">
@@ -970,9 +971,9 @@ export default function Expenses() {
       )}
 
       {financeDebtOpen && (
-        <div style={s.modalOverlay} onClick={() => setFinanceDebtOpen(false)}>
-          <div style={{ ...s.modalCard, width: "min(920px, calc(100vw - 28px))" }} onClick={(e) => e.stopPropagation()}>
-            <div style={s.modalHeader}><div><div className="expense-eyebrow">Kewajiban leasing</div><div style={s.modalTitle}>Utang Usaha Finance</div><p>Catat pokok utang awal per leasing. Pembayaran dibuat melalui Pengeluaran.</p></div><button style={s.closeBtn} onClick={() => setFinanceDebtOpen(false)}><FiX /></button></div>
+        <div className="ms-dialog-overlay" style={s.modalOverlay} onClick={() => setFinanceDebtOpen(false)}>
+          <div className="ms-dialog" style={{ ...s.modalCard, width: "min(920px, calc(100vw - 28px))" }} onClick={(e) => e.stopPropagation()}>
+            <div className="ms-dialog-head" style={s.modalHeader}><div><div className="expense-eyebrow">Kewajiban leasing</div><div style={s.modalTitle}>Utang Usaha Finance</div><p>Catat pokok utang awal per leasing. Pembayaran dibuat melalui Pengeluaran.</p></div><button style={s.closeBtn} onClick={() => setFinanceDebtOpen(false)}><FiX /></button></div>
             <div style={{ padding: 22, display: "grid", gap: 18 }}>
               <form onSubmit={createFinanceDebt} style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, padding: 16, background: BRAND.secondary, borderRadius: 12 }}>
                 <label style={s.label}>Nama Leasing<input required style={{ ...s.input, marginTop: 6 }} value={financeDebtForm.leasingName} onChange={(e) => setFinanceDebtForm((form) => ({ ...form, leasingName: e.target.value }))} placeholder="Contoh: BCA Finance" /></label>
@@ -988,9 +989,9 @@ export default function Expenses() {
       )}
 
       {showModal && (
-        <div style={s.modalOverlay} onClick={() => setShowModal(false)}>
-          <div style={s.modalCard} className="expense-create-modal" onClick={(e) => e.stopPropagation()}>
-            <div style={s.modalHeader} className="expense-create-header">
+        <div className="ms-dialog-overlay" style={s.modalOverlay} onClick={() => setShowModal(false)}>
+          <div style={s.modalCard} className="ms-dialog expense-create-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={s.modalHeader} className="ms-dialog-head expense-create-header">
               <div className="expense-modal-heading">
                 <span className="expense-modal-icon"><FiCreditCard /></span>
                 <div><div className="expense-eyebrow">Pencatatan biaya</div><div style={s.modalTitle}>Pengeluaran baru</div><p>Pilih alokasi biaya, lengkapi pembayaran, lalu simpan untuk diajukan.</p></div>
@@ -1263,9 +1264,9 @@ export default function Expenses() {
       )}
 
       {detailOpen && detailItem && (
-        <div style={s.modalOverlay} onClick={() => setDetailOpen(false)}>
-          <div style={s.modalCard} onClick={(e) => e.stopPropagation()}>
-            <div style={s.modalHeader}>
+        <div className="ms-dialog-overlay" style={s.modalOverlay} onClick={() => setDetailOpen(false)}>
+          <div className="ms-dialog" style={s.modalCard} onClick={(e) => e.stopPropagation()}>
+            <div className="ms-dialog-head" style={s.modalHeader}>
               <div style={s.modalTitle}>Detail Pengeluaran</div>
               <button style={s.closeBtn} onClick={() => setDetailOpen(false)} aria-label="Close">
                 ✕

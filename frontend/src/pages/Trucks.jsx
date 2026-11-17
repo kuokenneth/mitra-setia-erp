@@ -636,13 +636,13 @@ export default function Trucks() {
       {selectedTruck && (
         <div
           style={s.modalOverlay}
-          className="fleet-v2-overlay"
+          className="ms-dialog-overlay fleet-v2-overlay"
           onClick={() => { setSelectedTruck(null); setAssignments([]); }}
           data-testid="sparepart-movements-modal"
         >
           <div
             style={{ ...s.modalCard, width: "min(1080px, calc(100vw - 32px))", maxWidth: 1080, maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}
-            className="fleet-movement-modal"
+            className="ms-dialog fleet-movement-modal"
             onClick={(e) => e.stopPropagation()}
           >
           <div style={{ ...s.movHeader, padding: "20px 22px", borderBottom: `1px solid ${BRAND.border}` }} className="fleet-modal-hero">
@@ -759,9 +759,9 @@ export default function Trucks() {
 
       {/* Tambah Kendaraan Modal */}
       {showAdd && (
-        <div style={s.modalOverlay} className="fleet-v2-overlay" onClick={() => setShowAdd(false)} data-testid="add-truck-modal">
-          <div style={s.modalCard} className="fleet-add-modal" onClick={(e) => e.stopPropagation()}>
-            <div style={s.modalHeader} className="fleet-add-header">
+        <div style={s.modalOverlay} className="ms-dialog-overlay fleet-v2-overlay" onClick={() => setShowAdd(false)} data-testid="add-truck-modal">
+          <div style={s.modalCard} className="ms-dialog fleet-add-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={s.modalHeader} className="ms-dialog-head fleet-add-header">
               <div className="fleet-add-title">
                 <span className="fleet-add-title-icon"><FiTruck /></span>
                 <div>
@@ -835,9 +835,9 @@ export default function Trucks() {
       )}
 
       {stnkRenewal && (
-        <div style={s.modalOverlay} onClick={() => !stnkSaving && setStnkRenewal(null)} data-testid="stnk-renewal-modal">
-          <form style={{ ...s.modalCard, maxWidth: 560 }} onSubmit={saveStnkRenewal} onClick={(e) => e.stopPropagation()}>
-            <div style={s.modalHeader}>
+        <div className="ms-dialog-overlay" style={s.modalOverlay} onClick={() => !stnkSaving && setStnkRenewal(null)} data-testid="stnk-renewal-modal">
+          <form className="ms-dialog" style={{ ...s.modalCard, maxWidth: 560 }} onSubmit={saveStnkRenewal} onClick={(e) => e.stopPropagation()}>
+            <div className="ms-dialog-head" style={s.modalHeader}>
               <div>
                 <h3 style={s.modalTitle}>Perpanjangan STNK {stnkRenewal.plateNumber}</h3>
                 <p style={s.modalSubtitle}>Tanggal baru dan biayanya akan dicatat bersama sebagai pengeluaran armada.</p>
@@ -883,9 +883,9 @@ export default function Trucks() {
       )}
 
       {locationPreview && (
-        <div style={s.modalOverlay} onClick={() => setLocationPreview(null)} data-testid="truck-location-modal">
-          <div style={{ ...s.modalCard, width: "min(720px, calc(100vw - 32px))", maxWidth: 720 }} onClick={(e) => e.stopPropagation()}>
-            <div style={s.modalHeader}>
+        <div className="ms-dialog-overlay" style={s.modalOverlay} onClick={() => setLocationPreview(null)} data-testid="truck-location-modal">
+          <div className="ms-dialog" style={{ ...s.modalCard, width: "min(720px, calc(100vw - 32px))", maxWidth: 720 }} onClick={(e) => e.stopPropagation()}>
+            <div className="ms-dialog-head" style={s.modalHeader}>
               <div>
                 <h3 style={s.modalTitle}>Lokasi {locationPreview.truck.plateNumber}</h3>
                 <p style={s.modalSubtitle}>{locationPreview.truck.gpsLocation?.name || "Dalam Perjalanan"} · {locationPreview.gps.label}</p>

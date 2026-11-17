@@ -63,8 +63,8 @@ export default function MaterialStock(){
       {!rows.length&&<div className="material-empty">Belum ada material masuk.</div>}
     </div>
 
-    {open&&<div className="material-overlay" onMouseDown={()=>setOpen(false)}><form className="material-entry-modal material-modal-shell" onSubmit={save} onMouseDown={e=>e.stopPropagation()}>
-      <div className="material-modal-head"><span><FiPackage/></span><div><small>Penerimaan inventory</small><h2>Material Masuk</h2><p>Catat pemilik, lokasi penyimpanan, rincian barang, dan bukti penerimaan.</p></div><button type="button" onClick={()=>setOpen(false)} aria-label="Tutup"><FiX/></button></div>
+    {open&&<div className="ms-dialog-overlay material-overlay" onMouseDown={()=>setOpen(false)}><form className="ms-dialog material-entry-modal material-modal-shell" onSubmit={save} onMouseDown={e=>e.stopPropagation()}>
+      <div className="ms-dialog-head material-modal-head"><span><FiPackage/></span><div><small>Penerimaan inventory</small><h2>Material Masuk</h2><p>Catat pemilik, lokasi penyimpanan, rincian barang, dan bukti penerimaan.</p></div><button type="button" onClick={()=>setOpen(false)} aria-label="Tutup"><FiX/></button></div>
       <div className="material-form-body">
         <div className="material-modal-guide"><span className="active"><b>1</b><em>Informasi penerimaan</em></span><i/><span><b>2</b><em>Rincian material</em></span><i/><span><b>3</b><em>Bukti & catatan</em></span></div>
         <section className="material-entry-meta">
@@ -96,7 +96,7 @@ export default function MaterialStock(){
       <footer><span><FiArchive/><small>Saldo akan bertambah setelah penerimaan disimpan.</small></span><div><button type="button" onClick={()=>setOpen(false)}>Batal</button><button className="save" disabled={busy}>{busy?"Menyimpan...":"Simpan Penerimaan"}</button></div></footer>
     </form></div>}
 
-    {allocateOpen&&<div className="material-overlay" onMouseDown={()=>setAllocateOpen(false)}><form className="material-allocation-modal material-modal-shell" onSubmit={allocate} onMouseDown={e=>e.stopPropagation()}>
+    {allocateOpen&&<div className="ms-dialog-overlay material-overlay" onMouseDown={()=>setAllocateOpen(false)}><form className="ms-dialog material-allocation-modal material-modal-shell" onSubmit={allocate} onMouseDown={e=>e.stopPropagation()}>
       <div className="material-modal-head allocation"><span><FiTruck/></span><div><small>Pengeluaran inventory</small><h2>Alokasikan ke Trip</h2><p>Pilih stok customer, armada tujuan, dan jumlah material yang akan dimuat.</p></div><button type="button" onClick={()=>setAllocateOpen(false)} aria-label="Tutup"><FiX/></button></div>
       <div className="material-form-body allocation-body">
         <div className="material-allocation-grid">

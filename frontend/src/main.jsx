@@ -46,7 +46,8 @@ import "./geometryPolish.css";
 import "./tableResponsive.css";
 import "./headerSystem.css";
 import "./tabletFit.css"; // iPad / tablet adjustments
-import "./styles/modules.css"; // unified Citra Jaya module layer — loaded last
+import "./styles/modules.css"; // unified Citra Jaya module layer
+import "./styles/popups.css"; // unified popup / dialog layer — loaded last
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

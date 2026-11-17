@@ -5,6 +5,7 @@ import { useAuth } from "../AuthContext";
 import { LiveUpdatesProvider, useLiveStatus } from "../liveUpdates";
 import { Breadcrumbs } from "../ui";
 import useResponsiveTables from "../ui/useResponsiveTables";
+import usePopupEnvironment from "../ui/usePopupEnvironment";
 import { breadcrumbsFor, buildBottomNav, buildNavigation } from "./navigation";
 import "../liveUpdates.css";
 import "../tabletResponsive.css";
@@ -96,6 +97,7 @@ export default function AppLayout() {
   useEffect(() => { document.documentElement.classList.add("erp-app"); return () => document.documentElement.classList.remove("erp-app"); }, []);
 
   useResponsiveTables();
+  usePopupEnvironment();
 
   async function doLogout() { await logout(); navigate("/", { replace: true }); }
 

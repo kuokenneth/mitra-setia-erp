@@ -243,7 +243,7 @@ function Modal({ open, title, subtitle, onClose, children, width = 860, classNam
         padding: 20,
         zIndex: 9999,
       }}
-      className={`orders-v3-modal-overlay${className ? ` ${className}-overlay` : ""}`}
+      className={`ms-dialog-overlay orders-v3-modal-overlay${className ? ` ${className}-overlay` : ""}`}
       onMouseDown={onClose}
     >
       <div
@@ -252,7 +252,7 @@ function Modal({ open, title, subtitle, onClose, children, width = 860, classNam
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`orders-v3-modal ${className}`}
+        className={`ms-dialog orders-v3-modal ${className}`}
         style={{
           width: "100%",
           maxWidth: width,
@@ -264,7 +264,7 @@ function Modal({ open, title, subtitle, onClose, children, width = 860, classNam
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div
-          className="orders-v3-modal-head"
+          className="ms-dialog-head orders-v3-modal-head"
           style={{
             padding: "16px 20px",
             borderBottom: `1px solid ${BRAND.border}`,

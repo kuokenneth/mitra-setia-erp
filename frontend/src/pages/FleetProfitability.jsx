@@ -6,6 +6,7 @@ import { useLiveRefresh } from "../liveUpdates";
 import LoadingState from "../components/LoadingState";
 import "./FleetProfitability.css";
 import "./FleetProfitabilityPro.css";
+import { confirmDialog } from "../ui/dialogService";
 
 const money = value => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value) || 0);
 const pct = value => `${Number(value || 0).toLocaleString("id-ID", { maximumFractionDigits: 1 })}%`;
@@ -84,7 +85,7 @@ export default function FleetProfitability() {
   }
 
   async function removeManualRevenue(id) {
-    if (!window.confirm("Hapus pendapatan manual ini dari Profit Armada?")) return;
+    if (!(await confirmDialog({ title: "Hapus pendapatan manual", message: "Hapus pendapatan manual ini dari Profit Armada?", confirmLabel: "Hapus", destructive: true }))) return;
     setSaving(true); setError("");
     try { await api(`/fleet-profitability/manual-revenues/${id}`, { method: "DELETE" }); setSelected(null); await load(); }
     catch (err) { setError(err.message); }
@@ -125,7 +126,7 @@ export default function FleetProfitability() {
         </tr>)}
       </tbody></table></div>}
     </section>
-    {selected && <div className="fp-overlay" onMouseDown={event => event.target === event.currentTarget && setSelected(null)}><section className="fp-detail-modal">
+    {selected && <div className="ms-dialog-overlay fp-overlay" onMouseDown={event => event.target === event.currentTarget && setSelected(null)}><section className="ms-dialog fp-detail-modal">
       <header><div className="fp-detail-heading"><span>Rincian laba / rugi</span><h2>{selected.truck.plateNumber}</h2><p>Rekonsiliasi lengkap periode {month}. Semua angka di bawah membentuk laba/rugi akhir.</p></div><div className="fp-detail-head-actions"><div className={`fp-detail-head-metric ${selected.profit < 0 ? "loss" : "profit"}`}><small>{selected.profit < 0 ? "RUGI BERSIH" : "LABA BERSIH"}</small><strong>{money(Math.abs(selected.profit))}</strong><span>Margin {pct(selected.margin)}</span></div><button type="button" onClick={() => setSelected(null)} aria-label="Tutup rincian"><FiX/></button></div></header>
       <div className="fp-detail-body">
         <div className="fp-detail-intro"><div><span>01</span><div><h3>Rekonsiliasi Keuangan</h3><p>Pendapatan dikurangi seluruh komponen biaya pada armada ini.</p></div></div><small>{selected.trips.total} trip · {selected.activeDays} hari aktif</small></div>
@@ -154,11 +155,11 @@ export default function FleetProfitability() {
         <div className={`fp-result ${selected.profit < 0 ? "loss" : "profit"}`}><div><small>Perhitungan akhir</small><p>{money(selected.revenue)} − {money(selected.tripExpenses)} − {money(selected.vehicleExpenses)} − {money(selected.spareParts)} − {money(selected.fixedTotal)}</p></div><div><small>{selected.profit < 0 ? "RUGI" : "LABA"}</small><strong>{money(Math.abs(selected.profit))}</strong></div></div>
       </div>
     </section></div>}
-    {editing && <div className="fp-overlay" onMouseDown={event => event.target === event.currentTarget && setEditing(null)}><form className="fp-modal" onSubmit={save}><header><div><span>Biaya bulanan</span><h2>{editing.plateNumber}</h2><p>Masukkan biaya tetap untuk periode {month}.</p></div><button type="button" onClick={() => setEditing(null)}><FiX/></button></header><div className="fp-fields">
+    {editing && <div className="ms-dialog-overlay fp-overlay" onMouseDown={event => event.target === event.currentTarget && setEditing(null)}><form className="ms-dialog fp-modal" onSubmit={save}><header><div><span>Biaya bulanan</span><h2>{editing.plateNumber}</h2><p>Masukkan biaya tetap untuk periode {month}.</p></div><button type="button" onClick={() => setEditing(null)}><FiX/></button></header><div className="fp-fields">
       {Object.entries(labels).map(([key, label]) => <label key={key}>{label}<input type="number" min="0" step="1" value={editing[key]} onChange={event => setEditing({ ...editing, [key]: event.target.value })}/></label>)}
       <label className="wide">Catatan<textarea rows="3" value={editing.notes} onChange={event => setEditing({ ...editing, notes: event.target.value })} placeholder="Opsional" /></label>
     </div><footer><button type="button" className="secondary" onClick={() => setEditing(null)}>Batal</button><button disabled={saving}>{saving ? "Menyimpan…" : "Simpan Biaya"}</button></footer></form></div>}
-    {manualEntry && <div className="fp-overlay" onMouseDown={event => event.target === event.currentTarget && setManualEntry(null)}><form className="fp-modal" onSubmit={saveManualRevenue}><header><div><span>Pendapatan manual</span><h2>{manualEntry.plateNumber}</h2><p>Catatan ini menambah pendapatan pada analisis Profit Armada.</p></div><button type="button" onClick={() => setManualEntry(null)}><FiX/></button></header><div className="fp-fields">
+    {manualEntry && <div className="ms-dialog-overlay fp-overlay" onMouseDown={event => event.target === event.currentTarget && setManualEntry(null)}><form className="ms-dialog fp-modal" onSubmit={saveManualRevenue}><header><div><span>Pendapatan manual</span><h2>{manualEntry.plateNumber}</h2><p>Catatan ini menambah pendapatan pada analisis Profit Armada.</p></div><button type="button" onClick={() => setManualEntry(null)}><FiX/></button></header><div className="fp-fields">
       <label>Tanggal pendapatan<input required type="date" value={manualForm.revenueDate} onChange={event => setManualForm({ ...manualForm, revenueDate: event.target.value })}/></label>
       <label>Nominal pendapatan<input required type="number" min="1" step="1" value={manualForm.amount} onChange={event => setManualForm({ ...manualForm, amount: event.target.value })} placeholder="0"/></label>
       <label className="wide">Sumber / keterangan<input required value={manualForm.description} onChange={event => setManualForm({ ...manualForm, description: event.target.value })} placeholder="Contoh: Pendapatan angkutan lama belum memiliki invoice"/></label>

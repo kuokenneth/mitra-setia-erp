@@ -25,6 +25,7 @@ import {
 } from "react-icons/fi";
 import "./TripDetailRedesign.css";
 import "./TripProofFix.css";
+import { confirmDialog } from "../ui/dialogService";
 
 //////////////////////
 // THEME (match Orders / Maintenance)
@@ -394,7 +395,7 @@ export default function TripDetail() {
   }
 
   async function startDeliveryManually() {
-    if (!window.confirm("Langsung ubah tahap menjadi Mengantar muatan? Gunakan hanya jika mobil sudah selesai muat dan sedang berjalan ke tujuan.")) return;
+    if (!(await confirmDialog({ title: "Ubah tahap perjalanan", message: "Langsung ubah tahap menjadi Mengantar muatan? Gunakan hanya jika mobil sudah selesai muat dan sedang berjalan ke tujuan.", confirmLabel: "Ya, mengantar muatan" }))) return;
     try {
       setSaveErr("");
       setSaving(true);
@@ -411,7 +412,7 @@ export default function TripDetail() {
   }
 
   async function arriveAtPickupManually() {
-    if (!window.confirm("Tandai kendaraan sudah tiba dan sedang proses muat?")) return;
+    if (!(await confirmDialog({ title: "Tiba di lokasi muat", message: "Tandai kendaraan sudah tiba dan sedang proses muat?", confirmLabel: "Ya, tandai tiba" }))) return;
     try {
       setSaveErr("");
       setSaving(true);
@@ -429,7 +430,7 @@ export default function TripDetail() {
     const message = skipsEarlierPhase
       ? "Tahap perjalanan sebelumnya belum diperbarui. Tetap tandai kendaraan sudah tiba di tujuan aktif? Gunakan jika karyawan terlambat memperbarui trip."
       : "Tandai kendaraan sudah tiba di tujuan aktif? Gunakan jika GPS belum mendeteksi kedatangan.";
-    if (!window.confirm(message)) return;
+    if (!(await confirmDialog({ title: "Tiba di tujuan", message }))) return;
     try {
       setSaveErr("");
       setSaving(true);
@@ -685,7 +686,7 @@ export default function TripDetail() {
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <button
                       style={{ ...btnDanger, height: 36, display: "inline-flex", alignItems: "center", gap: 7, boxShadow: "none", fontSize: 12 }}
-                      onClick={() => window.confirm("Batalkan trip ini?") && setStatus("CANCELLED")}
+                      onClick={async () => { if (await confirmDialog({ title: "Batalkan trip", message: "Batalkan trip ini?", confirmLabel: "Batalkan trip", cancelLabel: "Kembali", destructive: true })) setStatus("CANCELLED"); }}
                       disabled={saving}
                     >
                       <FiX size={14} /> Batalkan trip
@@ -806,7 +807,7 @@ export default function TripDetail() {
             </div>
           </section>}
 
-          {singleMaterialOpen && <div className="trip-material-overlay" onMouseDown={() => setSingleMaterialOpen(false)}><form className="trip-material-modal" onSubmit={createSingleMaterialInvoice} onMouseDown={(e) => e.stopPropagation()}>
+          {singleMaterialOpen && <div className="ms-dialog-overlay trip-material-overlay" onMouseDown={() => setSingleMaterialOpen(false)}><form className="ms-dialog trip-material-modal" onSubmit={createSingleMaterialInvoice} onMouseDown={(e) => e.stopPropagation()}>
             <header><div><span>Faktur muatan · muatan material</span><h2>Pilih material yang akan diangkut</h2><p>Material dapat menjadi muatan utama atau tambahan bersama pupuk/cangkang.</p></div><button type="button" onClick={() => setSingleMaterialOpen(false)}><FiX /></button></header>
             <div className="trip-material-form">
               <label className="wide">Customer pemilik &amp; yang ditagih<select required value={singleMaterialForm.customerId} onChange={(e) => selectMaterialCustomer(e.target.value)}><option value="">Pilih dari Master Customer</option>{materialCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
@@ -932,8 +933,8 @@ export default function TripDetail() {
 
           </div>
           {expenseOpen && (
-            <div className="trip-expense-overlay" onMouseDown={(event) => event.target === event.currentTarget && !expenseBusy && setExpenseOpen(false)}>
-              <form className="trip-expense-modal" onSubmit={saveExpense}>
+            <div className="ms-dialog-overlay trip-expense-overlay" onMouseDown={(event) => event.target === event.currentTarget && !expenseBusy && setExpenseOpen(false)}>
+              <form className="ms-dialog trip-expense-modal" onSubmit={saveExpense}>
                 <header><div><span>Pengeluaran trip</span><h2>Tambah biaya perjalanan</h2><p>{truck?.plateNumber || trip.plateNumberSnap} · {order?.orderNo || "Trip operasional"}</p></div><button type="button" disabled={expenseBusy} onClick={() => setExpenseOpen(false)}><FiX/></button></header>
                 <div className="trip-expense-form">
                   <label><span>Tanggal pengeluaran</span><input required type="date" value={expenseForm.expenseDate} onChange={(event) => setExpenseForm((form) => ({ ...form, expenseDate: event.target.value }))}/></label>
@@ -950,7 +951,7 @@ export default function TripDetail() {
             </div>
           )}
           {arrivalEntry && (
-            <div onMouseDown={(event) => event.target === event.currentTarget && !saving && setArrivalEntry(null)} style={{ position: "fixed", inset: 0, zIndex: 1000, display: "grid", placeItems: "center", padding: 18, background: "rgba(15,21,36,.58)" }}>
+            <div className="ms-dialog ms-dialog-overlay" onMouseDown={(event) => event.target === event.currentTarget && !saving && setArrivalEntry(null)} style={{ position: "fixed", inset: 0, zIndex: 1000, display: "grid", placeItems: "center", padding: 18, background: "rgba(15,21,36,.58)" }}>
               <form onSubmit={saveArrivalWeight} style={{ width: "min(460px, 100%)", boxSizing: "border-box", padding: 24, borderRadius: 16, background: "#FFFFFF", boxShadow: "0 25px 70px rgba(0,0,0,.25)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" }}>
                   <div><div style={{ color: "#107948", fontSize: 11, fontWeight: 800, letterSpacing: 1.2 }}>Barang tiba</div><h2 style={{ margin: "5px 0", fontSize: 22 }}>Masukkan Berat Tiba</h2><p style={{ margin: 0, color: "#65758c", fontSize: 13 }}>{truck?.plateNumber || trip.plateNumberSnap} · Muatan rencana {trip.qtyPlanned ?? "—"} {trip.unitSnap || order?.unit || ""}</p></div>

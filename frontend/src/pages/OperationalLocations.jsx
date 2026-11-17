@@ -5,6 +5,7 @@ import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID, loadGoogleMaps } from "../goog
 import LoadingState from "../components/LoadingState";
 import "./OperationalLocations.css";
 import "./OperationalLocationsGoogle.css";
+import { confirmDialog } from "../ui/dialogService";
 
 const MEDAN = { lat: 3.5952, lng: 98.6722 };
 const EMPTY = { id: null, name: "", address: "", type: "OTHER", latitude: "", longitude: "", radiusM: 400, isActive: true };
@@ -223,7 +224,7 @@ export default function OperationalLocations() {
   }
 
   async function remove(item) {
-    if (!window.confirm(`Hapus lokasi “${item.name}”?`)) return;
+    if (!(await confirmDialog({ title: "Hapus lokasi", message: `Hapus lokasi “${item.name}”?`, confirmLabel: "Hapus lokasi", destructive: true }))) return;
     try {
       await api(`/operational-locations/${item.id}`, { method: "DELETE" });
       if (form.id === item.id) setForm(EMPTY);
