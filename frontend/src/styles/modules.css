@@ -961,3 +961,16 @@ html.erp-app .erp-content .inventory-movement-filters > button { flex: 0 0 auto;
 @media(max-width:600px) {
   html.erp-app .erp-content .inventory-movement-filters > label { flex: 1 1 100%; width: 100% !important; min-width: 0 !important; }
 }
+
+/* Returned receipt goods keep their original quantity visible, crossed out. */
+html.erp-app .erp-content .receipt-card .receipt-status-badges {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+html.erp-app .erp-content .receipt-card .receipt-status-badges > span { margin: 0 !important; }
+html.erp-app .erp-content .receipt-card .receipt-goods-row.is-returned { background: #f8fafc; }
+html.erp-app .erp-content .receipt-card .receipt-goods-row s {
+  color: var(--ms-muted-fg) !important;
+  text-decoration: line-through; text-decoration-thickness: 1.5px;
+}
+html.erp-app .erp-content .receipt-card .receipt-goods-quantity { display: grid; justify-items: end; gap: 5px; }
+html.erp-app .erp-content .receipt-card .receipt-remaining-quantity { font-size: 12px; color: var(--ms-primary); }
