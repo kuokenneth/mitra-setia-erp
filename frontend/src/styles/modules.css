@@ -935,3 +935,10 @@ html.erp-app :is(button, a, [role="tab"]):focus:not(:focus-visible) { outline: n
 html.erp-app :is(button, a, [role="tab"]):focus-visible { outline: 2px solid var(--ms-primary-ring) !important; outline-offset: 2px; }
 html.erp-app .erp-content :is(.order-detail-v3-chips,.order-detail-v3-meta) > * { height: 26px !important; font-size: var(--ms-text-xs) !important; }
 html.erp-app .erp-content .order-detail-v3-overview > * :is(small,span,p) { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+
+/* Center column titles in the item stock movement history. */
+html.erp-app .inventory-item-flow-table thead th {
+  text-align: center !important;
+  vertical-align: middle !important;
+  padding-block: 12px !important;
+}

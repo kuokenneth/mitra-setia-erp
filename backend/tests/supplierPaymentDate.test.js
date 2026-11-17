@@ -20,7 +20,7 @@ describe('supplier request bank statement date', () => {
       findUnique: async args => args.include ? { ...state, supplierBill: { supplier: { name: 'Test supplier' }, invoiceNumber: 'TEST', receipts: [], repairItems: [] } } : { ...state },
       updateMany: async ({ where, data }) => { if (where.status !== state.status) return { count: 0 }; state = { ...state, ...data }; writes++; return { count: 1 }; },
     },
-    supplierBill: { findUnique: async () => ({ id: 'bill', amount: 1262250, payments: [state] }), update: async () => ({}) },
+    supplierBill: { findUnique: async () => ({ id: 'bill', status: 'OPEN', amount: 1262250, payments: writes ? [state] : [] }), update: async () => ({}) },
     expense: { findFirst: async () => null, create: async ({ data }) => { expense = data; return data; } },
   };
   beforeEach(() => { state = { id: 'pay', number: 'PAY-TEST', amount: 1262250, status: 'WAITING_PAYMENT_APPROVAL', method: 'BANK_TRANSFER', supplierBillId: 'bill', createdById: 'staff' }; journal = null; expense = null; writes = 0; });

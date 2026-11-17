@@ -33,6 +33,7 @@ enum StockUnitStatus {
   REPAIRING
   SCRAPPED
   LOST
+  RETURNED_TO_SUPPLIER
 }
 
 enum EmergencyPartDispatchStatus {
@@ -547,6 +548,8 @@ model SupplierBillItem {
   bill          SupplierBill     @relation(fields: [billId], references: [id], onDelete: Cascade)
   receiptItemId String
   receiptItem   GoodsReceiptItem @relation(fields: [receiptItemId], references: [id])
+  returnedQty   Float @default(0)
+  returnedAmount Int @default(0)
   qty           Float
   unitPrice     Float
   amount        Int
@@ -561,6 +564,8 @@ model GoodsReceiptItem {
   receipt             GoodsReceipt      @relation(fields: [receiptId], references: [id], onDelete: Cascade)
   purchaseOrderItemId String
   purchaseOrderItem   PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id])
+  returnedQty         Float @default(0)
+  purchaseReturnItems PurchaseReturnItem[]
   qty                 Float
   condition           String            @default("GOOD")
   originalUnitPrice   Float?
@@ -1944,4 +1949,37 @@ model MarketPriceCheckJob {
   createdAt DateTime @default(now())
   @@index([status, availableAt])
   @@index([itemId, createdAt])
+}
+
+
+model PurchaseReturn {
+  id String @id @default(cuid())
+  number String @unique
+  supplierId String
+  returnDate DateTime
+  reason String
+  notes String?
+  proofUrl String
+  proofFileName String?
+  proofMimeType String
+  totalAmount Int
+  creditAmount Int @default(0)
+  createdById String
+  createdAt DateTime @default(now())
+  items PurchaseReturnItem[]
+  @@index([supplierId, returnDate])
+}
+
+model PurchaseReturnItem {
+  id String @id @default(cuid())
+  returnId String
+  purchaseReturn PurchaseReturn @relation(fields: [returnId], references: [id])
+  receiptItemId String
+  receiptItem GoodsReceiptItem @relation(fields: [receiptItemId], references: [id])
+  qty Float
+  unitPrice Float
+  amount Int
+  stockUnitIds Json
+  billAdjustments Json
+  @@index([receiptItemId])
 }

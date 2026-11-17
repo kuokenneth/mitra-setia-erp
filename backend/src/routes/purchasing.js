@@ -57,7 +57,7 @@ async function refreshAllocatedMovementCosts(tx, batchId) {
       where: { id: movementId },
       include: { batchAllocations: { include: { batch: { select: { unitPrice: true } } } } },
     });
-    if (!movement) continue;
+    if (!movement || movement.note?.startsWith("Retur pembelian ")) continue;
     const allocatedQty = movement.batchAllocations.reduce((sum, allocation) => sum + Number(allocation.qty), 0);
     if (allocatedQty + 0.000001 < Number(movement.qty)) continue;
     const fullyPriced = movement.batchAllocations.every(allocation => allocation.batch.unitPrice != null);
@@ -80,7 +80,7 @@ async function refreshAllocatedMovementCosts(tx, batchId) {
   }
 }
 
-const includePO = { supplier: true, request: { include: { maintenance: { include: { truck: true } } } }, requestLinks: { include: { request: { include: { maintenance: { include: { truck: true } } } } } }, cancelledBy: { select: { id: true, name: true, email: true } }, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } }, partRepair: { include: { stockUnit: true } } } }, receipts: { include: { items: { include: { purchaseOrderItem: { include: { item: true } }, supplierBillItems: { include: { bill: true } } } }, location: true, createdBy: { select: { name: true } }, supplierBillLines: { include: { bill: true } } } }, payments: { include: { createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } } } };
+const includePO = { supplier: true, request: { include: { maintenance: { include: { truck: true } } } }, requestLinks: { include: { request: { include: { maintenance: { include: { truck: true } } } } } }, cancelledBy: { select: { id: true, name: true, email: true } }, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } }, partRepair: { include: { stockUnit: true } } } }, receipts: { include: { items: { include: { purchaseOrderItem: { include: { item: true } }, purchaseReturnItems: { include: { purchaseReturn: true } }, supplierBillItems: { include: { bill: true } } } }, location: true, createdBy: { select: { name: true } }, supplierBillLines: { include: { bill: true } } } }, payments: { include: { createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } } } };
 
 async function syncSupplierPaymentExpense(tx, paymentId, approvedById) {
   const marker = `AUTO_SUPPLIER_PAYMENT:${paymentId}`;
@@ -130,6 +130,7 @@ async function syncSupplierPaymentExpense(tx, paymentId, approvedById) {
 }
 
 router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF", "SPAREPART_ADMIN"));
+router.use(require("./purchaseReturns"));
 router.get("/overview", async (_req, res) => {
   const [requests, orders, suppliers, locations, items, retreadingUnits, repairingUnits, bills, trucks, nonSerializedRepairs, nonSerializedRepairReceipts, directRetreadReceipts] = await Promise.all([
     prisma.purchaseRequest.findMany({ include: { maintenance: { include: { truck: true } }, damageProofs: true, items: { include: { item: true, tireRetread: { include: { stockUnit: true, fromItem: true, toItem: true } }, partRepair: { include: { stockUnit: true } } } }, createdBy: { select: { name: true } }, approvedBy: { select: { name: true } } }, orderBy: { createdAt: "desc" } }),
@@ -957,13 +958,13 @@ router.post("/bills", async (req, res) => {
     if (!supplierId || !String(invoiceNumber || "").trim() || !invoiceDate || (!itemIds.length && !repairMovementIds.length) || !attachments.length) throw new Error("Supplier, nomor invoice, tanggal, barang/jasa penerimaan, dan minimal satu lampiran invoice wajib diisi");
     const ids = [...new Set(receiptIds.map(String))];
     const selectedItemIds = new Set(itemIds.map(String));
-    const records = await prisma.goodsReceipt.findMany({ where: { id: { in: ids } }, include: { purchaseOrder: true, items: { include: { purchaseOrderItem: { include: { item: true } }, inventoryBatch: { include: { stockUnits: true } }, supplierBillItems: true } } } });
+    const records = await prisma.goodsReceipt.findMany({ where: { id: { in: ids } }, include: { purchaseOrder: true, items: { include: { purchaseOrderItem: { include: { item: true } }, inventoryBatch: { include: { stockUnits: true } }, supplierBillItems: { include: { bill: true } } } } } });
     if (records.length !== ids.length) throw new Error("Sebagian penerimaan barang tidak ditemukan");
     if (records.some(row => row.purchaseOrder.supplierId !== supplierId)) throw new Error("Semua penerimaan harus berasal dari supplier yang sama");
     const lines = records.flatMap(receipt => receipt.items.filter(item => selectedItemIds.has(item.id)).map(item => {
       if (item.condition === "RETURNED_TO_SUPPLIER") throw new Error(`${item.purchaseOrderItem.item.name} sudah diretur ke supplier dan tidak dapat ditagihkan`);
-      const billedQty = item.supplierBillItems.reduce((sum, line) => sum + Number(line.qty || 0), 0);
-      const availableQty = Math.max(0, Number(item.qty || 0) - billedQty);
+      const billedQty = item.supplierBillItems.filter(line => line.bill.status !== "VOID").reduce((sum, line) => sum + Number(line.qty || 0) - Number(line.returnedQty || 0), 0);
+      const availableQty = Math.max(0, Number(item.qty || 0) - Number(item.returnedQty || 0) - billedQty);
       const requestedQty = Number(itemQuantities[item.id] ?? availableQty);
       if (!Number.isFinite(requestedQty) || requestedQty <= 0 || requestedQty > availableQty) throw new Error(`Qty ditagih ${item.purchaseOrderItem.item.name} harus antara 0 dan ${availableQty}`);
       if (!Object.prototype.hasOwnProperty.call(itemPrices, item.id) || itemPrices[item.id] === "") throw new Error(`Harga ${item.purchaseOrderItem.item.name} wajib diisi`);
@@ -994,6 +995,14 @@ router.post("/bills", async (req, res) => {
     const allocations = records.map(receipt => ({ receiptId: receipt.id, amount: lines.filter(line => line.receipt.id === receipt.id).reduce((sum, line) => sum + line.amount, 0) })).filter(allocation => allocation.amount > 0);
     const previousValue = lines.reduce((sum, line) => sum + line.qty * Number(line.item.purchaseOrderItem.unitPrice || 0), 0);
     const bill = await prisma.$transaction(async tx => {
+      // Lock and recheck receipt quantities inside the transaction: a return or
+      // another supplier invoice may have changed them while this form was open.
+      for (const line of lines) {
+        const current = await tx.goodsReceiptItem.findUnique({ where: { id: line.item.id }, include: { supplierBillItems: { include: { bill: true } } } });
+        const billed = current.supplierBillItems.filter(row => row.bill.status !== "VOID").reduce((sum, row) => sum + row.qty - row.returnedQty, 0);
+        if (line.qty > current.qty - current.returnedQty - billed + 0.000001) throw new Error("Jumlah penerimaan sudah berubah karena tagihan atau retur. Muat ulang data.");
+        await tx.goodsReceiptItem.update({ where: { id: current.id }, data: { returnedQty: { increment: 0 } } });
+      }
       const primaryProof = attachments[0];
       const created = await tx.supplierBill.create({ data: { number: await nextDailyNumber(tx, "supplierBill", "BILL"), supplierId, invoiceNumber: String(invoiceNumber).trim(), invoiceDate: new Date(invoiceDate), dueDate: dueDate ? new Date(dueDate) : null, amount: total, status: total === 0 ? "PAID" : "OPEN", notes: notes || null, proofUrl: primaryProof.url, proofFileName: primaryProof.fileName || null, proofMimeType: primaryProof.mimeType || null, proofSize: Number.isFinite(Number(primaryProof.size)) ? Number(primaryProof.size) : null, createdById: req.user.id, receipts: { create: allocations }, items: { create: lines.map(line => ({ receiptItemId: line.item.id, qty: line.qty, unitPrice: line.unitPrice, amount: line.amount })) }, repairItems: { create: repairLines.map(line => ({ movementId: line.movement.id, qty: line.qty, unitPrice: line.unitPrice, amount: line.amount })) }, attachments: { create: attachments.map(file => ({ url: file.url, fileName: file.fileName || null, mimeType: file.mimeType || null, size: Number.isFinite(Number(file.size)) ? Number(file.size) : null })) } } });
       for (const line of lines) {
@@ -1014,7 +1023,7 @@ router.post("/bills", async (req, res) => {
       if (difference !== 0) await postJournal(tx, { date: new Date(invoiceDate), description: `Tagihan supplier ${invoiceNumber}`, sourceType: "SUPPLIER_BILL", sourceId: created.id, createdById: req.user.id, lines: difference > 0 ? [{ code: SYSTEM_ACCOUNTS.INVENTORY, debit: difference }, { code: SYSTEM_ACCOUNTS.AP, credit: difference }] : [{ code: SYSTEM_ACCOUNTS.AP, debit: Math.abs(difference) }, { code: SYSTEM_ACCOUNTS.INVENTORY, credit: Math.abs(difference) }] });
       if (repairTotal > 0) await postJournal(tx, { date: new Date(invoiceDate), description: `Jasa perbaikan supplier ${invoiceNumber}`, sourceType: "SUPPLIER_BILL_REPAIR", sourceId: created.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.EXPENSE, debit: repairTotal }, { code: SYSTEM_ACCOUNTS.AP, credit: repairTotal }] });
       return tx.supplierBill.findUnique({ where: { id: created.id }, include: { supplier: true, receipts: { include: { receipt: { include: { purchaseOrder: true } } } }, items: true, repairItems: true, attachments: true, payments: true } });
-    });
+    }, { isolationLevel: "Serializable", timeout: 30000 });
     res.status(201).json({ ok: true, bill });
   } catch (e) { res.status(e.code === "P2002" ? 409 : 400).json({ error: e.code === "P2002" ? "Nomor invoice supplier sudah pernah dicatat" : e.message || "Gagal mencatat tagihan supplier" }); }
 });
@@ -1030,10 +1039,13 @@ router.post("/payments", async (req, res) => {
   if (!amount || amount <= 0 || amount > bill.amount - committed) return res.status(400).json({ error: "Jumlah pembayaran melebihi sisa tagihan supplier" });
   if (!req.body.proofUrl) return res.status(400).json({ error: "Bukti pembayaran wajib dilampirkan" });
   const payment = await prisma.$transaction(async tx => {
+    const current = await tx.supplierBill.findUnique({ where: { id: bill.id }, include: { payments: true } });
+    const committedNow = current?.payments.filter(row => row.status !== "UNPAID").reduce((sum, row) => sum + row.amount, 0) || 0;
+    if (!current || ["PAID", "VOID"].includes(current.status) || amount > current.amount - committedNow) throw new Error("Sisa tagihan berubah setelah retur/pembayaran. Muat ulang tagihan.");
     const created = await tx.purchasePayment.create({ data: { number: await nextDailyNumber(tx, "purchasePayment", "PAY"), supplierBillId: bill.id, amount, paidAt, method: req.body.method, reference: req.body.reference, proofUrl: req.body.proofUrl, proofFileName: req.body.proofFileName || null, proofMimeType: req.body.proofMimeType || null, proofSize: Number.isFinite(Number(req.body.proofSize)) ? Number(req.body.proofSize) : null, createdById: req.user.id } });
     await tx.supplierBill.update({ where: { id: bill.id }, data: { status: "WAITING_PAYMENT_APPROVAL" } });
     return created;
-  });
+  }, { isolationLevel: "Serializable" });
   res.json({ ok: true, payment });
 });
 router.patch("/payments/:id/approve", requireRole("OWNER", "ADMIN"), async (req, res) => {
