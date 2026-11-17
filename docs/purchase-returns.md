@@ -1,6 +1,6 @@
 # Retur pembelian
 
-Dari **Pembelian → Penerimaan Barang → Retur Barang**, pilih jumlah barang atau nomor seri, tanggal, alasan, dan foto bukti. Penerimaan dan jumlah awal tetap tersimpan. Kartu penerimaan menampilkan Retur sebagian/penuh, jumlah retur per barang, nomor retur dan bukti foto. Penerimaan yang seluruh barangnya sudah diretur ada pada filter Selesai.
+Dari **Pembelian → Penerimaan Barang → Retur Barang**, pilih jumlah barang atau nomor seri, tanggal, alasan, dan foto bukti opsional. Penerimaan dan jumlah awal tetap tersimpan. Kartu penerimaan menampilkan Retur sebagian/penuh, jumlah retur per barang, nomor retur dan bukti foto. Penerimaan yang seluruh barangnya sudah diretur ada pada filter Selesai.
 
 - Retur hanya menggunakan stok dari batch dan lokasi penerimaan asal. Barang yang sudah dipakai, dipasang, atau dipindahkan harus dikembalikan ke lokasi/batch yang sesuai dulu.
 - Jumlah belum ditagih dikurangi terlebih dahulu. Jika retur melebihi bagian belum ditagih, sisa retur mengurangi tagihan supplier yang aktif. Invoice VOID tidak ikut dihitung.
@@ -19,5 +19,5 @@ Jalankan `npx prisma migrate deploy` di backend lalu restart backend. Client Pri
 - Build dan ESLint frontend.
 - Regression test backend: `npm test`.
 - Uji integrasi khusus, hanya database lokal disposable: `PURCHASE_RETURN_TEST_DATABASE_URL=postgresql://... node --test tests/purchaseReturn.integration.test.js`.
-- Uji mencakup stok dan tagihan, kredit setelah lunas, rollback pembayaran tertunda, provenance nomor seri, barang terpakai, bukti wajib, dan retur bersamaan.
+- Uji mencakup stok dan tagihan, kredit setelah lunas, rollback pembayaran tertunda, provenance nomor seri, barang terpakai, bukti opsional, dan retur bersamaan.
 - SQL migrasi diuji pada salinan skema lama di PostgreSQL sementara; form diperiksa pada viewport desktop dan ponsel menggunakan data contoh.

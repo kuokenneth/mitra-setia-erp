@@ -7,7 +7,12 @@ const router = express.Router();
 const includeItems = {
   purchaseOrderItem: { include: { item: true } },
   receipt: { include: { purchaseOrder: true } },
-  inventoryBatch: { include: { stockUnits: { where: { status: "IN_STOCK" } } } },
+  inventoryBatch: {
+    include: {
+      stockUnits: { where: { status: "IN_STOCK" } },
+      consumptionAllocations: { include: { movement: { select: { maintenanceId: true, note: true } } } },
+    },
+  },
   supplierBillItems: { include: { bill: { include: { payments: true } } }, orderBy: { id: "asc" } },
 };
 router.get("/returns", async (_req, res) => {
@@ -22,7 +27,7 @@ router.get("/returns/candidates", async (req, res) => {
     id: item.id, receiptNumber: item.receipt.number, name: item.purchaseOrderItem.item.name,
     unit: item.purchaseOrderItem.item.unit, serialized: item.purchaseOrderItem.item.isSerialized,
     qty: item.qty, returnedQty: item.returnedQty,
-    unavailableReason: item.purchaseOrderItem.tireRetreadId || item.purchaseOrderItem.partRepairId ? "Retur jasa perbaikan/retread belum tersedia" : null,
+    unavailableReason: item.purchaseOrderItem.tireRetreadId || item.purchaseOrderItem.partRepairId ? "Retur jasa perbaikan/retread belum tersedia" : Number(item.inventoryBatch?.remainingQty || 0) <= 0 && item.qty > item.returnedQty ? (item.inventoryBatch?.consumptionAllocations.some(line => line.movement.maintenanceId) ? "Barang tercatat dipakai di servis. Kembalikan dari riwayat pemakaian servis ke Inventory terlebih dahulu." : "Stok batch penerimaan tidak tersedia; periksa riwayat pemakaian atau perpindahan barang.") : null,
     availableQty: item.purchaseOrderItem.tireRetreadId || item.purchaseOrderItem.partRepairId ? 0 : Math.max(0, Math.min(item.qty - item.returnedQty, Number(item.inventoryBatch?.remainingQty || 0))),
     units: (item.inventoryBatch?.stockUnits || []).filter(unit => unit.locationId === item.receipt.locationId).map(unit => ({ id: unit.id, serialNumber: unit.serialNumber || unit.barcode || unit.id })),
   })) });
@@ -32,7 +37,7 @@ router.post("/returns", async (req, res) => {
     const { returnDate, reason, notes, proof, items } = req.body;
     const date = new Date(returnDate);
     if (!returnDate || Number.isNaN(date.getTime()) || !String(reason || "").trim()) throw new Error("Tanggal dan alasan retur wajib diisi");
-    if (!proof?.url || !["image/jpeg", "image/png", "image/webp"].includes(proof.mimeType)) throw new Error("Foto bukti retur JPG, PNG, atau WEBP wajib dilampirkan");
+    if (proof && (!proof.url || !["image/jpeg", "image/png", "image/webp"].includes(proof.mimeType))) throw new Error("Foto bukti retur harus JPG, PNG, atau WEBP");
     if (!Array.isArray(items) || !items.length || new Set(items.map(row => row.receiptItemId)).size !== items.length) throw new Error("Pilih barang retur tanpa duplikasi");
     const result = await prisma.$transaction(async tx => {
       const records = await tx.goodsReceiptItem.findMany({ where: { id: { in: items.map(row => row.receiptItemId) } }, include: includeItems });
@@ -78,7 +83,7 @@ router.post("/returns", async (req, res) => {
         creditAmount += Math.max(0, paid - next) - Math.max(0, paid - bill.amount);
         await tx.supplierBill.update({ where: { id: bill.id }, data: { amount: next, status: paid >= next ? "PAID" : paid > 0 ? "PARTIALLY_PAID" : "OPEN" } });
       }
-      const created = await tx.purchaseReturn.create({ data: { number, supplierId: records[0].receipt.purchaseOrder.supplierId, returnDate: date, reason: String(reason).trim(), notes: notes || null, proofUrl: proof.url, proofFileName: proof.fileName || null, proofMimeType: proof.mimeType, totalAmount: value, creditAmount, createdById: req.user.id, items: { create: lines } }, include: { items: true } });
+      const created = await tx.purchaseReturn.create({ data: { number, supplierId: records[0].receipt.purchaseOrder.supplierId, returnDate: date, reason: String(reason).trim(), notes: notes || null, proofUrl: proof?.url || "", proofFileName: proof?.fileName || null, proofMimeType: proof?.mimeType || "", totalAmount: value, creditAmount, createdById: req.user.id, items: { create: lines } }, include: { items: true } });
       if (value > 0) await postJournal(tx, { date, description: `Retur pembelian ${number}`, sourceType: "PURCHASE_RETURN", sourceId: created.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.AP, debit: value }, { code: SYSTEM_ACCOUNTS.INVENTORY, credit: value }] });
       return created;
     }, { isolationLevel: "Serializable", timeout: 30000 });

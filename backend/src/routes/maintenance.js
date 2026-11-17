@@ -1,3 +1,4 @@
+const { restoreReturnedBatches } = require("../utils/restoreReturnedBatches");
 const { roundUnitPrice } = require("../utils/unitPrice");
 // backend/src/routes/maintenance.js
 const express = require("express");
@@ -729,11 +730,11 @@ router.post("/:id/return-stock", authRequired, async (req, res) => {
       }
       const returnedItem = movement.item;
       await tx.inventoryStock.upsert({ where: { itemId_locationId: { itemId: returnedItem.id, locationId: movement.fromLocationId } }, create: { itemId: returnedItem.id, locationId: movement.fromLocationId, qty: requestedQty }, update: { qty: { increment: requestedQty } } });
-      await tx.inventoryBatch.create({ data: { itemId: returnedItem.id, locationId: movement.fromLocationId, receivedQty: requestedQty, remainingQty: requestedQty, unitPrice: movement.unitPrice, receivedAt: new Date() } });
-      const returnMovement = await tx.stockMovement.create({ data: { type: "IN", itemId: returnedItem.id, qty: requestedQty, unitPrice: movement.unitPrice, totalCost: returnCost, note: `RETURN_OF:${movement.id} · Pemakaian dibatalkan dari ${job.truck.plateNumber} · Alasan: ${reason}`, createdById: req.user.id, toLocationId: movement.fromLocationId, maintenanceId } });
+      const restoredBatches = await restoreReturnedBatches(tx, movement, requestedQty, alreadyReturned);
+      const returnMovement = await tx.stockMovement.create({ data: { type: "IN", itemId: returnedItem.id, qty: requestedQty, unitPrice: movement.unitPrice, totalCost: returnCost, batchAllocations: { create: restoredBatches }, note: `RETURN_OF:${movement.id} · Pemakaian dibatalkan dari ${job.truck.plateNumber} · Alasan: ${reason}`, createdById: req.user.id, toLocationId: movement.fromLocationId, maintenanceId } });
       if (Number(returnCost || 0) > 0) await postJournal(tx, { date: returnMovement.createdAt, description: `Pengembalian ${returnedItem.name} dari ${job.truck.plateNumber}`, sourceType: "INVENTORY_RETURN", sourceId: returnMovement.id, createdById: req.user.id, lines: [{ code: SYSTEM_ACCOUNTS.INVENTORY, debit: returnCost }, { code: SYSTEM_ACCOUNTS.EXPENSE, credit: returnCost }] });
       return returnMovement;
-    });
+    }, { isolationLevel: "Serializable" });
     res.json({ returned });
   } catch (e) {
     console.error(e);

@@ -942,3 +942,22 @@ html.erp-app .inventory-item-flow-table thead th {
   vertical-align: middle !important;
   padding-block: 12px !important;
 }
+
+/* Inventory movement dates: aligned controls with single-line placeholders. */
+html.erp-app .erp-content .inventory-movement-filters {
+  display: flex !important; flex-wrap: wrap !important; align-items: flex-end !important;
+  gap: 12px !important; padding: 12px !important;
+}
+html.erp-app .erp-content .inventory-movement-filters > label {
+  flex: 0 1 220px; width: 220px !important; min-width: 180px !important;
+  display: grid; gap: 6px; min-height: 0;
+}
+html.erp-app .erp-content .inventory-movement-filters .date-placeholder-wrap,
+html.erp-app .erp-content .inventory-movement-filters button {
+  box-sizing: border-box; height: 38px !important; min-height: 38px !important;
+}
+html.erp-app .erp-content .inventory-movement-filters .date-placeholder-wrap::after { white-space: nowrap; font-size: 13px; }
+html.erp-app .erp-content .inventory-movement-filters > button { flex: 0 0 auto; width: auto !important; align-self: flex-end; }
+@media(max-width:600px) {
+  html.erp-app .erp-content .inventory-movement-filters > label { flex: 1 1 100%; width: 100% !important; min-width: 0 !important; }
+}

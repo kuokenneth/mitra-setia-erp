@@ -1755,7 +1755,7 @@ export default function Maintenance() {
       </Modal>
 
       {/* DETAIL MODAL */}
-      <Modal open={showDetail && !showPurchasePhotoEditor} title="Detail Servis" onClose={closeDetail} width={1320} className="maintenance-detail-modal" scrollMemoryRef={detailScrollRef}>
+      <Modal open={showDetail && !showPurchasePhotoEditor} title="Detail Servis" onClose={closeDetail} width={1480} className="maintenance-detail-modal" scrollMemoryRef={detailScrollRef}>
         {err && <div role="alert" style={{ marginBottom: 16, padding: 12, borderRadius: 6, background: BRAND.dangerBg, color: BRAND.danger }}>{err}</div>}
         {detailLoading || !activeJob ? (
           <LoadingState compact label="Memuat detail servis" note="Menyiapkan pekerjaan dan penggunaan sparepart…" rows={4} />

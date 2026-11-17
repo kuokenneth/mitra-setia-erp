@@ -65,9 +65,10 @@ test('unbilled returns reduce stock without changing supplier bills', { skip: !e
   assert.equal((await prisma.supplierBill.findUnique({ where: { id: f.bill.id } })).amount, 1000);
   assert.equal(r.body.purchaseReturn.items[0].billAdjustments.length, 0);
 });
-test('used stock, missing proof, and simultaneous duplicate returns cannot overdraw inventory', { skip: !enabled }, async () => {
+test('optional proof, used stock, and simultaneous duplicate returns cannot overdraw inventory', { skip: !enabled }, async () => {
   const f = await fixture();
-  assert.equal((await submit(f, 1, { proof: null })).status, 400);
+  const optional = await fixture();
+  assert.equal((await submit(optional, 1, { proof: null })).status, 200);
   await prisma.inventoryBatch.update({ where: { id: f.batch.id }, data: { remainingQty: 1 } });
   assert.equal((await submit(f, 2)).status, 400);
   assert.equal((await prisma.goodsReceiptItem.findUnique({ where: { id: f.item.id } })).returnedQty, 0);
