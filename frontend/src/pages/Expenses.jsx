@@ -658,13 +658,15 @@ export default function Expenses() {
     }
   }
 
-  async function exportAllExpenses() {
+  async function exportPeriodExpenses() {
     setErr("");
     setReportFeedback("");
+    const month = normalizedExpenseMonth(reportMonth);
+    if (!month) { setErr("Pilih periode bulan untuk Export Excel"); return; }
     setExportBusy(true);
     try {
       const token = getAccessToken();
-      const res = await fetch(`${API_BASE}/expenses/export`, {
+      const res = await fetch(`${API_BASE}/expenses/export?${new URLSearchParams({ month })}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         credentials: "include",
       });
@@ -675,7 +677,7 @@ export default function Expenses() {
       if (!isXlsx) throw new Error("Server belum menghasilkan file XLSX yang valid. Jalankan npm install di backend lalu restart atau deploy ulang backend.");
       const blob = new Blob([data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const disposition = res.headers.get("content-disposition") || "";
-      const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || "semua-pengeluaran.xlsx";
+      const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || `pengeluaran-${month}.xlsx`;
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
@@ -746,7 +748,7 @@ export default function Expenses() {
             <button type="button" className={`expense-report-button ${reportBusy ? "is-busy" : ""}`} style={s.secondaryBtn} disabled={reportBusy || exportBusy} onClick={() => openMonthlyReport(false)} title="Buka laporan bulanan untuk dicetak">
               <FiFileText /> {reportBusy ? "Menyiapkan…" : "Cetak laporan"}
             </button>
-            <button type="button" className={`expense-report-button ${exportBusy ? "is-busy" : ""}`} style={s.secondaryBtn} disabled={reportBusy || exportBusy} onClick={exportAllExpenses} title="Unduh seluruh pengeluaran dalam Excel">
+            <button type="button" className={`expense-report-button ${exportBusy ? "is-busy" : ""}`} style={s.secondaryBtn} disabled={reportBusy || exportBusy} onClick={exportPeriodExpenses} title={`Unduh pengeluaran periode ${expenseMonthLabel(reportMonth)} dalam Excel`}>
               <FiDownload /> {exportBusy ? "Mengunduh…" : "Export Excel"}
             </button>
             <span className={`expense-report-feedback ${reportFeedback ? "visible" : ""}`} role="status" aria-live="polite">{reportFeedback}</span>

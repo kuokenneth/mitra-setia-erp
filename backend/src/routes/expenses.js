@@ -269,8 +269,12 @@ function excelDate(value) {
 // Export every expense as a native Excel workbook.
 router.get("/export", authRequired, async (req, res) => {
   if (!ensureRole(req, res)) return;
+  const month = cleanStr(req.query.month);
+  const range = /^\d{4}-\d{2}$/.test(month) ? expenseMonthRange(month) : null;
+  if (!range) return res.status(400).json({ error: "Pilih periode bulan yang valid (YYYY-MM) untuk Export Excel" });
 
   const items = await prisma.expense.findMany({
+    where: { expenseDate: range },
     orderBy: [{ expenseDate: "asc" }, { createdAt: "asc" }],
     select: {
       expenseDate: true,
@@ -297,7 +301,7 @@ router.get("/export", authRequired, async (req, res) => {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Mitra Setia ERP";
   workbook.created = new Date();
-  const sheet = workbook.addWorksheet("Semua Pengeluaran", {
+  const sheet = workbook.addWorksheet(`Pengeluaran ${month}`, {
     views: [{ state: "frozen", ySplit: 1 }],
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });
@@ -372,7 +376,7 @@ router.get("/export", authRequired, async (req, res) => {
   });
 
   const output = await workbook.xlsx.writeBuffer();
-  const filename = `semua-pengeluaran-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  const filename = `pengeluaran-${month}.xlsx`;
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
   res.setHeader("Content-Length", output.length);
