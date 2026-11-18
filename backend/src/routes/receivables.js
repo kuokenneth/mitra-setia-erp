@@ -128,16 +128,19 @@ function orderCompletedLoads(order) {
         tripNo: row.trip?.tripNo,
         plateNumber: row.trip?.truck?.plateNumber || row.trip?.plateNumberSnap,
         completedAt: row.trip?.completedAt,
-        quantityKg: quantityKg(Number(row.qtyActual ?? row.qtyPlanned ?? 0), row.unitSnap || order.unit),
+        plannedKg: quantityKg(row.qtyPlanned ?? row.qtyActual, row.unitSnap || order.unit),
+        actualKg: quantityKg(row.qtyActual ?? row.qtyPlanned, row.unitSnap || order.unit),
       }))
     : (order?.trips || []).map(trip => ({
         id: trip.id,
         tripNo: trip.tripNo,
         plateNumber: trip.truck?.plateNumber || trip.plateNumberSnap,
         completedAt: trip.completedAt,
-        quantityKg: quantityKg(Number(trip.qtyActual ?? trip.qtyPlanned ?? 0), trip.unitSnap || order.unit),
+        plannedKg: quantityKg(trip.qtyPlanned ?? trip.qtyActual, trip.unitSnap || order.unit),
+        actualKg: quantityKg(trip.qtyActual ?? trip.qtyPlanned, trip.unitSnap || order.unit),
       }));
-  return rows.filter(row => row.id && row.quantityKg > 0);
+  return rows.map(row => ({ ...row, quantityKg: billingWeight(row.plannedKg, row.actualKg, order.customer?.cargoLossTolerancePercent || 0).billable }))
+    .filter(row => row.id && row.quantityKg > 0);
 }
 
 function selectedOrderTripIds(invoice) {
@@ -655,11 +658,14 @@ router.post("/invoices", async (req, res) => {
       if (!requestedIds.length) throw new Error("Pilih minimal satu armada yang hendak ditagih");
       const selectedLoads = availableLoads.filter(load => requestedIds.includes(load.id));
       if (selectedLoads.length !== requestedIds.length) throw new Error("Sebagian armada tidak tersedia atau sudah pernah ditagih");
-      const deliveredKg = selectedLoads.reduce((sum, load) => sum + load.quantityKg, 0);
+      const deliveredKg = selectedLoads.reduce((sum, load) => sum + load.actualKg, 0);
       if (deliveredKg <= 0.000001) throw new Error("Belum ada muatan selesai yang belum ditagih");
-      const plannedKg = deliveredKg;
+      const plannedKg = selectedLoads.reduce((sum, load) => sum + load.plannedKg, 0);
       const tolerancePercent = requestedTolerance ?? Number(order.customer?.cargoLossTolerancePercent || 0);
-      const billing = billingWeight(plannedKg, deliveredKg, tolerancePercent);
+      const billing = selectedLoads.reduce((sum, load) => {
+        const weight = billingWeight(load.plannedKg, load.actualKg, tolerancePercent);
+        return { billable: sum.billable + weight.billable, claimableLoss: sum.claimableLoss + weight.claimableLoss };
+      }, { billable: 0, claimableLoss: 0 });
       const subtotal = 0;
       const cargoLossAmount = 0;
       const total = 0;

@@ -952,11 +952,11 @@ router.post("/:id/arrival-proofs", authRequired, async (req, res) => {
 
 /**
  * POST /trips/:id/arrive-pickup
- * Owner fallback when a trip is recorded after the truck has reached loading.
+ * Owner/staff fallback when a trip is recorded after the truck has reached loading.
  */
 router.post("/:id/arrive-pickup", authRequired, async (req, res) => {
   try {
-    if (req.user?.role !== "OWNER") return res.status(403).json({ error: "Hanya Owner yang dapat mengubah tahap muat secara manual" });
+    if (!["OWNER", "STAFF"].includes(req.user?.role)) return res.status(403).json({ error: "Hanya Owner atau Staff yang dapat mengubah tahap muat secara manual" });
     const id = req.params.id;
     const ts = toDate(req.body?.timestamp) || new Date();
     const saved = await prisma.$transaction(async (tx) => {

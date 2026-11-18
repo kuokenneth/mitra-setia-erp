@@ -24,9 +24,16 @@ test('owner can record loading arrival for non-READY trucks without overwriting 
     if(['MAINTENANCE','INACTIVE'].includes(status))assert.equal(truckUpdates,0);
   }
 });
-test('driver conflict on another truck and owner-only permission remain enforced',async()=>{
+test('driver conflict on another truck and loading-arrival permissions remain enforced',async()=>{
   status='DISPATCH';conflict=true;updated=null;
   assert.equal((await arrive()).code,400);assert.equal(updated,null);
-  assert.equal((await arrive('STAFF')).code,403);
+  assert.equal((await arrive('STAFF')).code,400);
+  conflict=false;
+  assert.equal((await arrive('STAFF')).code,200);
+  for (const role of ['ADMIN','DRIVER','UNKNOWN']) {
+    updated=null;
+    assert.equal((await arrive(role)).code,403);
+    assert.equal(updated,null);
+  }
 });
 after(()=>prisma.$disconnect());

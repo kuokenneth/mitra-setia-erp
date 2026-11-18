@@ -31,3 +31,14 @@
   .order-trip-actions { position:sticky; bottom:0; padding-top:10px; background:#fff; }
   .order-trip-actions button { flex:1; justify-content:center; }
 }
+
+/* Let form controls shrink within the trip builder's narrow right column. */
+.order-detail-trip-builder > div,
+.order-trip-details,
+.order-trip-load-fields > label { min-width: 0; }
+.order-trip-load-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 7px; align-items: end; }
+.order-trip-load-fields > strong { grid-column: 1 / -1; text-align: right; overflow-wrap: anywhere; white-space: normal !important; }
+.order-trip-load-fields input { min-width: 0; max-width: 100%; }
+.order-trip-add-order { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
+.order-trip-add-order > select { flex: 1 1 180px; min-width: 0; width: 0 !important; }
+.order-trip-add-order > button { flex: 0 0 auto; max-width: 100%; justify-content: center; }

@@ -326,3 +326,9 @@ html.erp-app.ms-keyboard-open .request-footer-note { display: none !important; }
 html.erp-app.ms-keyboard-open .request-redesign-modal > .ms-dialog-foot { padding: 8px 16px !important; }
 html.erp-app .ms-dialog:is(.request-redesign-modal,.maintenance-modal) :is(input,textarea,select) { scroll-margin-block: 16px; }
 @media(pointer: coarse) { html.erp-app .ms-dialog:is(.request-redesign-modal,.maintenance-modal) :is(input,textarea,select) { font-size: 16px !important; } }
+
+/* Focus belongs to the search group, not a second input box beside clear. */
+html.erp-app .ms-dialog .catalog-item-search-input { display: flex !important; align-items: center; gap: 6px; min-width: 0; }
+html.erp-app .ms-dialog .catalog-item-search-input:focus-within { border-color: var(--ms-primary, #128750) !important; box-shadow: 0 0 0 3px rgba(18,135,80,.12) !important; }
+html.erp-app .ms-dialog .catalog-item-search-input > input { flex: 1 1 0% !important; width: 0 !important; min-width: 0 !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important; outline: none !important; box-shadow: none !important; background: transparent !important; padding: 0 6px !important; }
+html.erp-app .ms-dialog .catalog-item-search-input > button { flex: 0 0 32px !important; width: 32px !important; height: 32px !important; min-height: 32px !important; margin: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 8px !important; box-shadow: none !important; }
