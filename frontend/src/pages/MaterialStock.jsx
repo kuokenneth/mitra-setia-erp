@@ -65,7 +65,7 @@ export default function MaterialStock(){
 
     {open&&<div className="ms-dialog-overlay material-overlay" onMouseDown={()=>setOpen(false)}><form className="ms-dialog material-entry-modal material-modal-shell" onSubmit={save} onMouseDown={e=>e.stopPropagation()}>
       <div className="ms-dialog-head material-modal-head"><span><FiPackage/></span><div><small>Penerimaan inventory</small><h2>Material Masuk</h2><p>Catat pemilik, lokasi penyimpanan, rincian barang, dan bukti penerimaan.</p></div><button type="button" onClick={()=>setOpen(false)} aria-label="Tutup"><FiX/></button></div>
-      <div className="material-form-body">
+      <div className="ms-dialog-body material-form-body">
         <div className="material-modal-guide"><span className="active"><b>1</b><em>Informasi penerimaan</em></span><i/><span><b>2</b><em>Rincian material</em></span><i/><span><b>3</b><em>Bukti & catatan</em></span></div>
         <section className="material-entry-meta">
           <div className="material-section-heading"><span><FiFileText/></span><div><small>Langkah 1</small><h3>Informasi penerimaan</h3><p>Tentukan kepemilikan dan posisi stok.</p></div></div>
@@ -93,12 +93,12 @@ export default function MaterialStock(){
         </div>
         {error&&<div className="material-error">{error}</div>}
       </div>
-      <footer><span><FiArchive/><small>Saldo akan bertambah setelah penerimaan disimpan.</small></span><div><button type="button" onClick={()=>setOpen(false)}>Batal</button><button className="save" disabled={busy}>{busy?"Menyimpan...":"Simpan Penerimaan"}</button></div></footer>
+      <footer className="ms-dialog-foot material-modal-actions"><span><FiArchive/><small>Saldo akan bertambah setelah penerimaan disimpan.</small></span><div><button type="button" onClick={()=>setOpen(false)}>Batal</button><button className="save" disabled={busy}>{busy?"Menyimpan...":"Simpan Penerimaan"}</button></div></footer>
     </form></div>}
 
     {allocateOpen&&<div className="ms-dialog-overlay material-overlay" onMouseDown={()=>setAllocateOpen(false)}><form className="ms-dialog material-allocation-modal material-modal-shell" onSubmit={allocate} onMouseDown={e=>e.stopPropagation()}>
-      <div className="material-modal-head allocation"><span><FiTruck/></span><div><small>Pengeluaran inventory</small><h2>Alokasikan ke Trip</h2><p>Pilih stok customer, armada tujuan, dan jumlah material yang akan dimuat.</p></div><button type="button" onClick={()=>setAllocateOpen(false)} aria-label="Tutup"><FiX/></button></div>
-      <div className="material-form-body allocation-body">
+      <div className="ms-dialog-head material-modal-head allocation"><span><FiTruck/></span><div><small>Pengeluaran inventory</small><h2>Alokasikan ke Trip</h2><p>Pilih stok customer, armada tujuan, dan jumlah material yang akan dimuat.</p></div><button type="button" onClick={()=>setAllocateOpen(false)} aria-label="Tutup"><FiX/></button></div>
+      <div className="ms-dialog-body material-form-body allocation-body">
         <div className="material-allocation-grid">
           <section className="material-allocation-section">
             <div className="material-section-heading"><span><FiUser/></span><div><small>01 · PEMILIK STOK</small><h3>Pilih customer</h3><p>Material tersedia akan difilter berdasarkan pemilik.</p></div></div>
@@ -123,7 +123,7 @@ export default function MaterialStock(){
         <label className="material-allocation-notes"><span><FiFileText/> Catatan perjalanan</span><textarea rows="2" value={allocation.notes} onChange={e=>setAllocation({...allocation,notes:e.target.value})} placeholder="Instruksi muat atau keterangan tambahan (opsional)"/></label>
         {error&&<div className="material-error">{error}</div>}
       </div>
-      <footer><span><FiTruck/><small>Faktur Muatan dan tujuan bongkar dibuat otomatis.</small></span><div><button type="button" onClick={()=>setAllocateOpen(false)}>Batal</button><button className="save" disabled={busy||!available.some(stock=>allocation.selected[stock.key]?.checked)}>{busy?"Mengalokasikan...":`Alokasikan ${available.filter(stock=>allocation.selected[stock.key]?.checked).length||""} Material`}</button></div></footer>
+      <footer className="ms-dialog-foot material-modal-actions"><span><FiTruck/><small>Faktur Muatan dan tujuan bongkar dibuat otomatis.</small></span><div><button type="button" onClick={()=>setAllocateOpen(false)}>Batal</button><button className="save" disabled={busy||!available.some(stock=>allocation.selected[stock.key]?.checked)}>{busy?"Mengalokasikan...":`Alokasikan ${available.filter(stock=>allocation.selected[stock.key]?.checked).length||""} Material`}</button></div></footer>
     </form></div>}
   </div>
 }

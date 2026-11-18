@@ -329,7 +329,7 @@ router.get("/receipts/group/print", async (req, res) => {
   const receipts = await prisma.goodsReceipt.findMany({
     where: { id: { in: ids } },
     include: { purchaseOrder: { include: { supplier: true } }, location: true, createdBy: { select: { name: true } }, items: { include: { purchaseOrderItem: { include: { item: true } } } } },
-    orderBy: [{ receivedAt: "asc" }, { createdAt: "asc" }],
+    orderBy: [{ receivedAt: "asc" }, { id: "asc" }],
   });
   if (receipts.length !== ids.length) return res.status(404).json({ error: "Sebagian penerimaan barang tidak ditemukan" });
   if (new Set(receipts.map(receipt => receipt.purchaseOrder.supplierId)).size !== 1) return res.status(400).json({ error: "Penerimaan gabungan harus berasal dari supplier yang sama" });

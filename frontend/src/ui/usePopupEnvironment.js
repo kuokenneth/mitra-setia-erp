@@ -15,6 +15,7 @@ export default function usePopupEnvironment() {
     let frame = 0;
     let focusFrame = 0;
     let focusTimer = 0;
+    let viewportTimer = 0;
 
     const revealFocusedField = () => {
       focusFrame = 0;
@@ -61,9 +62,15 @@ export default function usePopupEnvironment() {
     const syncViewport = () => {
       frame = 0;
       if (!vv) return;
+      const keyboardOpen = window.innerHeight - vv.height > 120 && vv.scale < 1.1;
+      root.classList.toggle("ms-keyboard-open", keyboardOpen);
       root.style.setProperty("--ms-vvh", `${Math.round(vv.height)}px`);
       root.style.setProperty("--ms-vv-top", `${Math.round(vv.offsetTop)}px`);
       scheduleFocus();
+      // Safari may finish panning after its final resize event. Reveal again
+      // after layout and the keyboard animation have both settled.
+      clearTimeout(viewportTimer);
+      viewportTimer = window.setTimeout(scheduleFocus, 180);
     };
     const scheduleViewport = () => { if (!frame) frame = requestAnimationFrame(syncViewport); };
 
@@ -85,10 +92,11 @@ export default function usePopupEnvironment() {
       vv?.removeEventListener("scroll", scheduleViewport);
       document.removeEventListener("focusin", onFocus);
       clearTimeout(focusTimer);
+      clearTimeout(viewportTimer);
       cancelAnimationFrame(focusFrame);
       observer?.disconnect();
       if (frame) cancelAnimationFrame(frame);
-      root.classList.remove("ms-dialog-open");
+      root.classList.remove("ms-dialog-open", "ms-keyboard-open");
       root.style.removeProperty("--ms-vvh");
       root.style.removeProperty("--ms-vv-top");
     };

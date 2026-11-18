@@ -1246,10 +1246,10 @@ export default function Inventory() {
           <div className="inventory-hero-actions">
 
             <div style={{ position: "relative", paddingBottom: printMenuOpen ? 8 : 0, marginBottom: printMenuOpen ? -8 : 0 }} onMouseEnter={() => setPrintMenuOpen(true)} onMouseLeave={() => setPrintMenuOpen(false)}>
-              <button className="inventory-action inventory-action--soft" type="button" aria-haspopup="menu" aria-expanded={printMenuOpen} onFocus={() => setPrintMenuOpen(true)}>
+              <button className="inventory-action inventory-action--soft" type="button" aria-haspopup="menu" aria-expanded={printMenuOpen} onClick={() => setPrintMenuOpen(true)} onFocus={() => setPrintMenuOpen(true)}>
                 <FiFileText /> Cetak Laporan
               </button>
-              {printMenuOpen ? <div role="menu" style={{ position: "absolute", top: "100%", right: 0, zIndex: 30, width: 310, padding: 10, borderRadius: 12, border: `1px solid ${BRAND.border}`, background: BRAND.white, boxShadow: "0 18px 45px rgba(17, 24, 39, .14)" }}>
+              {printMenuOpen ? <div className="inventory-print-menu" role="menu" style={{ position: "absolute", top: "100%", right: 0, zIndex: 30, width: 310, padding: 10, borderRadius: 12, border: `1px solid ${BRAND.border}`, background: BRAND.white, boxShadow: "0 18px 45px rgba(17, 24, 39, .14)" }}>
                 <button type="button" onClick={() => openPrintDocument("/inventory/reports/stock?scope=overall").catch((e) => setErr(e.message))} style={{ width: "100%", display: "grid", gridTemplateColumns: "38px 1fr", gap: 11, alignItems: "center", padding: 11, border: 0, borderRadius: 9, background: BRAND.secondary, textAlign: "left", cursor: "pointer" }}>
                   <span style={{ width: 38, height: 38, borderRadius: 9, display: "grid", placeItems: "center", background: BRAND.white, color: BRAND.primary, fontSize: 18 }}>▦</span>
                   <span><strong style={{ display: "block", color: BRAND.text, fontSize: 13 }}>Stok Keseluruhan</strong><small style={{ display: "block", marginTop: 3, color: BRAND.textMuted }}>Posisi stok terkini per lokasi</small></span>
@@ -1260,9 +1260,9 @@ export default function Inventory() {
                     <span style={{ width: 38, height: 38, flex: "0 0 auto", borderRadius: 9, display: "grid", placeItems: "center", background: BRAND.secondary, color: BRAND.primary, fontSize: 17 }}>◷</span>
                     <span><strong style={{ display: "block", color: BRAND.text, fontSize: 13 }}>Stok Harian</strong><small style={{ display: "block", marginTop: 3, color: BRAND.textMuted }}>Saldo dan mutasi tanggal pilihan</small></span>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 7 }}>
+                  <div className="inventory-daily-print-controls" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 7 }}>
                     <input type="date" value={stockReportDate} onChange={(e) => setStockReportDate(e.target.value)} style={{ ...inputPill, minWidth: 0, width: "100%", height: 36, padding: "0 9px", boxSizing: "border-box" }} />
-                    <Btn style={{ ...btnPrimary, height: 36, padding: "0 12px", fontSize: 12 }} onClick={() => openPrintDocument(`/inventory/reports/stock?scope=daily&date=${encodeURIComponent(stockReportDate)}`).catch((e) => setErr(e.message))}>
+                    <Btn className="inventory-daily-print-button" style={{ ...btnPrimary, height: 36, padding: "0 12px", fontSize: 12 }} onClick={() => openPrintDocument(`/inventory/reports/stock?scope=daily&date=${encodeURIComponent(stockReportDate)}`).catch((e) => setErr(e.message))}>
                       Cetak
                     </Btn>
                   </div>

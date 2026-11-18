@@ -1,5 +1,6 @@
 // src/pages/TripDetail.jsx
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, uploadFiles } from "../api";
 import { useAuth } from "../AuthContext";
@@ -950,21 +951,23 @@ export default function TripDetail() {
               </form>
             </div>
           )}
-          {arrivalEntry && (
-            <div className="ms-dialog ms-dialog-overlay" onMouseDown={(event) => event.target === event.currentTarget && !saving && setArrivalEntry(null)} style={{ position: "fixed", inset: 0, zIndex: 1000, display: "grid", placeItems: "center", padding: 18, background: "rgba(15,21,36,.58)" }}>
-              <form onSubmit={saveArrivalWeight} style={{ width: "min(460px, 100%)", boxSizing: "border-box", padding: 24, borderRadius: 16, background: "#FFFFFF", boxShadow: "0 25px 70px rgba(0,0,0,.25)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" }}>
-                  <div><div style={{ color: "#107948", fontSize: 11, fontWeight: 800, letterSpacing: 1.2 }}>Barang tiba</div><h2 style={{ margin: "5px 0", fontSize: 22 }}>Masukkan Berat Tiba</h2><p style={{ margin: 0, color: "#65758c", fontSize: 13 }}>{truck?.plateNumber || trip.plateNumberSnap} · Muatan rencana {trip.qtyPlanned ?? "—"} {trip.unitSnap || order?.unit || ""}</p></div>
-                  <button type="button" onClick={() => setArrivalEntry(null)} disabled={saving} style={{ ...btnGhost, width: 36, height: 36, padding: 0 }}><FiX/></button>
-                </div>
-                <label style={{ display: "grid", gap: 7, marginTop: 22, color: "#36455b", fontSize: 13, fontWeight: 650 }}>Berat aktual di tujuan
-                  <div style={{ display: "flex", alignItems: "center", border: "1px solid #c9d3e0", borderRadius: 9, overflow: "hidden" }}><input autoFocus required type="number" min="0.001" step="0.001" value={arrivalEntry.qtyActual} onChange={(event) => setArrivalEntry((value) => ({ ...value, qtyActual: event.target.value }))} placeholder="Contoh: 29.5" style={{ flex: 1, minWidth: 0, border: 0, outline: 0, padding: "12px 13px", font: "inherit" }}/><span style={{ padding: "12px 13px", background: "#f3f6f9", color: "#506786" }}>{trip.unitSnap || order?.unit || "TON"}</span></div>
+          {arrivalEntry && createPortal(
+            <div className="ms-dialog-overlay trip-arrival-overlay" onMouseDown={(event) => event.target === event.currentTarget && !saving && setArrivalEntry(null)} style={{ position: "fixed", inset: 0, zIndex: 1000, display: "grid", placeItems: "center", padding: 18, background: "rgba(15,21,36,.58)" }}>
+              <form className="ms-dialog trip-arrival-modal" role="dialog" aria-modal="true" aria-labelledby="trip-arrival-title" onSubmit={saveArrivalWeight}>
+                <header className="ms-dialog-head">
+                  <div><div style={{ color: "#107948", fontSize: 11, fontWeight: 800, letterSpacing: 1.2 }}>Barang tiba</div><h2 id="trip-arrival-title" style={{ margin: "5px 0", fontSize: 22 }}>Masukkan Berat Tiba</h2><p style={{ margin: 0, color: "#65758c", fontSize: 13 }}>{truck?.plateNumber || trip.plateNumberSnap} · Muatan rencana {trip.qtyPlanned ?? "—"} {trip.unitSnap || order?.unit || ""}</p></div>
+                  <button type="button" onClick={() => setArrivalEntry(null)} disabled={saving} aria-label="Tutup" style={{ ...btnGhost, width: 36, height: 36, padding: 0 }}><FiX/></button>
+                </header>
+                <div className="ms-dialog-body trip-arrival-body">
+                <label style={{ display: "grid", gap: 7, marginTop: 0, color: "#36455b", fontSize: 13, fontWeight: 650 }}>Berat aktual di tujuan
+                  <div style={{ display: "flex", alignItems: "center", border: "1px solid #c9d3e0", borderRadius: 9, overflow: "hidden" }}><input autoFocus required type="number" min="0.001" step="0.001" value={arrivalEntry.qtyActual} onChange={(event) => setArrivalEntry((value) => ({ ...value, qtyActual: event.target.value }))} inputMode="decimal" placeholder={trip.unitSnap === "KG" ? "Contoh: 30000" : "Masukkan berat tiba"} style={{ flex: 1, minWidth: 0, border: 0, outline: 0, padding: "12px 13px", font: "inherit" }}/><span style={{ padding: "12px 13px", background: "#f3f6f9", color: "#506786" }}>{trip.unitSnap || order?.unit || "TON"}</span></div>
                 </label>
                 {arrivalEntry.qtyActual && trip.qtyPlanned != null && Number(arrivalEntry.qtyActual) < Number(trip.qtyPlanned) && <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: "#FFF7E6", color: "#9A5B00", fontSize: 13 }}><strong>Selisih muatan: {(Number(trip.qtyPlanned) - Number(arrivalEntry.qtyActual)).toLocaleString("id-ID", { maximumFractionDigits: 3 })} {trip.unitSnap || order?.unit || ""}</strong><span style={{ display: "block", marginTop: 4 }}>Dicatat sebagai kehilangan pada tagihan/laporan. Order tetap dipenuhi berdasarkan muatan rencana.</span></div>}
                 {saveErr && <div style={{ marginTop: 12, color: "#B42318", fontSize: 13 }}>{saveErr}</div>}
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}><button type="button" style={btnGhost} disabled={saving} onClick={() => setArrivalEntry(null)}>Batal</button><button disabled={saving} style={{ ...btnGhost, border: 0, borderRadius: 9, background: "#107948", color: "white" }}>{saving ? "Menyimpan…" : arrivalEntry.nextStatus === "COMPLETED" ? "Simpan & Selesaikan" : "Simpan & Tandai Tiba"}</button></div>
+                </div>
+                <footer className="ms-dialog-foot"><button type="button" style={btnGhost} disabled={saving} onClick={() => setArrivalEntry(null)}>Batal</button><button disabled={saving} style={{ ...btnGhost, border: 0, borderRadius: 9, background: "#107948", color: "white" }}>{saving ? "Menyimpan…" : arrivalEntry.nextStatus === "COMPLETED" ? "Simpan & Selesaikan" : "Simpan & Tandai Tiba"}</button></footer>
               </form>
-            </div>
+            </div>, document.body
           )}
         </div>
       </div>

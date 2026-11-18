@@ -86,7 +86,16 @@ export async function openPrintDocument(path, existingPopup = null) {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     const html = await response.text();
-    if (!response.ok) throw new Error(html || `Dokumen tidak dapat dibuat (${response.status})`);
+    if (!response.ok) {
+      let message = `Dokumen tidak dapat dibuat (${response.status}). Silakan coba lagi.`;
+      try {
+        const data = JSON.parse(html);
+        message = data?.error || data?.message || message;
+      } catch {
+        if (html.trim() && !/<[^>]+>/.test(html)) message = html;
+      }
+      throw new Error(message);
+    }
     if (!html.trim()) throw new Error("Dokumen cetak kosong");
     const documentUrl = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
     popup.location.replace(documentUrl);
