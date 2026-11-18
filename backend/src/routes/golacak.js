@@ -227,8 +227,16 @@ async function findTruck(event) {
 
 async function evaluateArrival(truck, event) {
   if (!truck || !validCoordinates(event.latitude, event.longitude)) return { arrived: false };
+  const trips = await prisma.trip.findMany({ where: { truckId: truck.id, status: { in: ["PLANNED", "DISPATCHED"] } }, select: { id: true }, orderBy: { createdAt: "asc" } });
+  const results = [];
+  for (const trip of trips) results.push(await evaluateTripArrival(truck, event, trip.id));
+  return { ...(results.find(result => result.tripChanged || result.arrived) || results[0] || {}), arrived: results.some(result => result.arrived), tripChanged: results.some(result => result.tripChanged), trips: results };
+}
+
+async function evaluateTripArrival(truck, event, tripId) {
+  if (!truck || !validCoordinates(event.latitude, event.longitude)) return { arrived: false };
   const trip = await prisma.trip.findFirst({
-    where: { truckId: truck.id, status: { in: ["PLANNED", "DISPATCHED"] } },
+    where: { id: tripId, truckId: truck.id, status: { in: ["PLANNED", "DISPATCHED"] } },
     orderBy: { createdAt: "desc" },
     include: {
       serviceStops: { where: { endedAt: null }, include: { location: true }, take: 1 },

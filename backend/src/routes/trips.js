@@ -137,6 +137,14 @@ async function updateTruckOperationalState(tx, trip, nextStatus, timestamp) {
     return;
   }
 
+  if (["COMPLETED", "CANCELLED"].includes(nextStatus)) {
+    const other = await tx.trip.findFirst({ where: { truckId: trip.truckId, id: { not: trip.id }, status: { in: ["DISPATCHED", "ARRIVED"] } }, select: { purpose: true } });
+    if (other) {
+      await tx.truck.update({ where: { id: truck.id }, data: { status: other.purpose === "EMPTY_RETURN" ? "RETURNING_EMPTY" : "DISPATCH", availableForBackhaul: false, idleSince: null } });
+      return;
+    }
+  }
+
   if (nextStatus === "COMPLETED") {
     const gpsLocation = truck.currentLocation;
     const awayFromBase = Boolean(baseLocation && gpsLocation && !sameLocation(baseLocation, gpsLocation));
@@ -181,6 +189,10 @@ async function safeUpdateTruckStatus(tx, truckId, nextTruckStatus) {
   // Only auto-manage normal operational statuses
   if (!["READY", "DISPATCH", "WAITING_BACKHAUL", "RETURNING_EMPTY"].includes(t.status)) return;
 
+  if (nextTruckStatus === "READY") {
+    const other = await tx.trip.findFirst({ where: { truckId, status: { in: ["DISPATCHED", "ARRIVED"] } }, select: { id: true } });
+    if (other) return;
+  }
   if (t.status === nextTruckStatus) return;
 
   await tx.truck.update({
@@ -484,10 +496,10 @@ router.post("/single", authRequired, async (req, res) => {
       const driver = await tx.user.findUnique({ where: { id: selectedDriverId } });
       if (!driver || driver.role !== "DRIVER" || driver.status !== "ACTIVE") throw new Error("Pengemudi tidak aktif atau tidak valid");
       const busy = await tx.trip.findFirst({
-        where: { OR: [{ truckId }, { driverUserId: selectedDriverId }], status: { in: ACTIVE_TRIP_STATUSES } },
+        where: { driverUserId: selectedDriverId, truckId: { not: truckId }, status: { in: ACTIVE_TRIP_STATUSES } },
         select: { id: true },
       });
-      if (busy) throw new Error("Truk atau pengemudi masih memiliki perjalanan aktif");
+      if (busy) throw new Error("Pengemudi masih memiliki perjalanan aktif di mobil lain");
 
       const tripNo = await nextSingleTripNumber(tx);
       return tx.trip.create({
@@ -563,10 +575,10 @@ router.post("/empty-return", authRequired, async (req, res) => {
       if (!driver || driver.role !== "DRIVER" || driver.status !== "ACTIVE") throw new Error("Pengemudi tidak aktif atau tidak valid");
 
       const busy = await tx.trip.findFirst({
-        where: { OR: [{ truckId }, { driverUserId: selectedDriverId }], status: { in: ACTIVE_TRIP_STATUSES } },
+        where: { driverUserId: selectedDriverId, truckId: { not: truckId }, status: { in: ACTIVE_TRIP_STATUSES } },
         select: { id: true },
       });
-      if (busy) throw new Error("Truk atau pengemudi masih memiliki perjalanan aktif");
+      if (busy) throw new Error("Pengemudi masih memiliki perjalanan aktif di mobil lain");
 
       const trip = await tx.trip.create({
         data: {
@@ -956,13 +968,14 @@ router.post("/:id/arrive-pickup", authRequired, async (req, res) => {
       if (!fromPlanned && !fromRoad) throw new Error("Trip harus direncanakan atau sedang menuju lokasi muat");
       if (fromPlanned) {
         if (!trip.truckId || !trip.driverUserId) throw new Error("Trip harus memiliki armada dan pengemudi");
-        if (trip.truck?.status !== "READY") throw new Error("Armada harus berstatus READY");
+        // Manual arrival records the truck’s actual progress, regardless of
+        // fleet availability status. Active-trip conflicts are checked below.
         if (trip.driverUser?.status !== "ACTIVE") throw new Error("Pengemudi harus berstatus ACTIVE");
         const conflict = await tx.trip.findFirst({
-          where: { id: { not: trip.id }, status: { in: ACTIVE_TRIP_STATUSES }, OR: [{ truckId: trip.truckId }, { driverUserId: trip.driverUserId }] },
+          where: { id: { not: trip.id }, status: { in: ACTIVE_TRIP_STATUSES }, driverUserId: trip.driverUserId, truckId: { not: trip.truckId } },
           select: { id: true },
         });
-        if (conflict) throw new Error("Armada atau pengemudi memiliki trip aktif lain");
+        if (conflict) throw new Error("Pengemudi memiliki trip aktif di mobil lain");
       }
       const updated = await tx.trip.update({
         where: { id },
@@ -1176,21 +1189,13 @@ router.patch("/:id/status", authRequired, async (req, res) => {
           where: {
             id: { not: trip.id },
             driverUserId: trip.driverUserId,
+            truckId: { not: trip.truckId },
             status: { in: ACTIVE_TRIP_STATUSES },
           },
           select: { id: true },
         });
-        if (driverBusy) throw new Error("Driver already has another active trip");
+        if (driverBusy) throw new Error("Driver already has an active trip on another truck");
 
-        const truckBusy = await tx.trip.findFirst({
-          where: {
-            id: { not: trip.id },
-            truckId: trip.truckId,
-            status: { in: ACTIVE_TRIP_STATUSES },
-          },
-          select: { id: true },
-        });
-        if (truckBusy) throw new Error("Truck already has another active trip");
       }
 
       // timestamps + snapshots
@@ -1321,9 +1326,7 @@ router.patch("/:id", authRequired, async (req, res) => {
       if (body.truckId && body.truckId !== trip.truckId) {
         const t = await tx.truck.findUnique({ where: { id: body.truckId } });
         if (!t) throw new Error("Truck not found");
-        if (!["READY", "WAITING_BACKHAUL"].includes(t.status)) {
-          throw new Error("Truck must be READY or WAITING_BACKHAUL");
-        }
+        if (t.status === "INACTIVE") throw new Error("Truk nonaktif tidak tersedia untuk perjalanan");
         if (!sameLocation(t.currentLocation, trip.fromText || trip.order?.fromText)) {
           throw new Error(
             `Truk berada di ${t.currentLocation || "lokasi yang belum diatur"}, bukan di lokasi asal ${trip.fromText || trip.order?.fromText || "yang belum diatur"}`
@@ -1348,22 +1351,14 @@ router.patch("/:id", authRequired, async (req, res) => {
             where: {
               id: { not: id },
               driverUserId: nextDriverId,
+              truckId: { not: nextTruckId },
               status: { in: ACTIVE_TRIP_STATUSES },
             },
             select: { id: true },
           });
-          if (driverBusy) throw new Error("Driver already has another active trip");
+          if (driverBusy) throw new Error("Driver already has an active trip on another truck");
         }
 
-        const truckBusy = await tx.trip.findFirst({
-          where: {
-            id: { not: id },
-            truckId: nextTruckId,
-            status: { in: ACTIVE_TRIP_STATUSES },
-          },
-          select: { id: true },
-        });
-        if (truckBusy) throw new Error("Truck already has another active trip");
       }
 
       // Update snapshots if you changed driver/truck

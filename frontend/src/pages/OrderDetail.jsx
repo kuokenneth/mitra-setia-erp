@@ -437,7 +437,7 @@ export default function OrderDetail() {
     const items = data?.items || data || [];
     const normalize = (value) => String(value || "").trim().toLocaleLowerCase("id-ID");
     const origin = normalize(order?.pickupLocation?.name || order?.fromText);
-    const available = items.filter((truck) => ["READY", "MAINTENANCE"].includes(truck.status)).map((truck) => {
+    const available = items.filter((truck) => truck.status !== "INACTIVE").map((truck) => {
       const current = normalize(truck.gpsLocation?.name || truck.currentLocation);
       const atPickup = current === origin || (order?.pickupLocation?.id && truck.gpsLocation?.id === order.pickupLocation.id);
       return { ...truck, atPickup };
@@ -1009,7 +1009,7 @@ export default function OrderDetail() {
           <Card>
             <div className="order-trip-picker" style={{ padding: 16 }}>
               <div className="order-trip-section-title"><div><span>Langkah 1</span><strong>Pilih Armada</strong></div><b>{filteredTrucks.length}</b></div>
-              <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>Armada READY dan MAINTENANCE dapat dipilih untuk pencatatan trip yang terlambat. Armada di luar radius <strong>{order?.fromText || "lokasi muat"}</strong> akan diberi warning.</div>
+              <div style={{ fontSize: 13, color: BRAND.textMuted, marginBottom: 12 }}>Armada aktif dapat dipilih meskipun sudah memiliki trip lain untuk pencatatan trip yang terlambat. Armada di luar radius <strong>{order?.fromText || "lokasi muat"}</strong> akan diberi warning.</div>
               <label className="order-trip-search"><FiSearch/><Input placeholder="Cari BK atau nomor polisi…" value={truckQ} onChange={(e) => setTruckQ(e.target.value)} /></label>
 
               <div style={{ marginTop: 12, maxHeight: isNarrow ? 200 : 350, overflow: "auto" }}>
@@ -1047,7 +1047,7 @@ export default function OrderDetail() {
                 })}
 
                 {filteredTrucks.length === 0 && (
-                  <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>Tidak ada kendaraan READY atau MAINTENANCE.</div>
+                  <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>Tidak ada kendaraan aktif.</div>
                 )}
               </div>
             </div>
