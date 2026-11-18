@@ -329,9 +329,9 @@ router.get("/export", authRequired, async (req, res) => {
     { header: "Disetujui Oleh", key: "approvedBy", width: 24 },
   ];
 
-  items.forEach((item, index) => {
+  const dataRows = items.map((item, index) => {
     const trip = item.trip;
-    sheet.addRow({
+    return {
       number: index + 1,
       expenseDate: excelDate(item.expenseDate),
       category: categoryLabels[item.category] || item.category,
@@ -353,15 +353,46 @@ router.get("/export", authRequired, async (req, res) => {
       notes: item.notes || "",
       createdBy: item.createdBy?.name || item.createdBy?.email || "",
       approvedBy: item.approvedBy?.name || item.approvedBy?.email || "",
-    });
+    };
   });
+
+  const grouped = req.query.layout === "grouped";
+  const sectionRows = [], sectionHeaders = [], totalRows = [];
+  if (grouped) {
+    const headers = sheet.getRow(1).values.slice(1);
+    sheet.spliceRows(1, 1);
+    const groups = new Map();
+    dataRows.forEach(row => {
+      const key = row.category || "Lainnya";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(row);
+    });
+    for (const [category, rows] of [...groups].sort(([a], [b]) => a.localeCompare(b, "id"))) {
+      const title = sheet.addRow([category]);
+      sheet.mergeCells(title.number, 1, title.number, 21);
+      sectionRows.push(title.number);
+      sectionHeaders.push(sheet.addRow(headers).number);
+      const first = sheet.rowCount + 1;
+      rows.forEach((row, index) => sheet.addRow({ ...row, number: index + 1 }));
+      const last = sheet.rowCount;
+      for (const currency of [...new Set(rows.map(row => row.currency || "IDR"))]) {
+        const total = sheet.addRow({ reason: `Total ${category}`, currency,
+          amount: { formula: `SUMIF(P${first}:P${last},P${sheet.rowCount + 1},Q${first}:Q${last})`, result: rows.filter(row => (row.currency || "IDR") === currency).reduce((sum, row) => sum + Number(row.amount || 0), 0) } });
+        totalRows.push(total.number);
+      }
+      sheet.addRow([]);
+    }
+    if (!groups.size) sheet.addRow(["Tidak ada pengeluaran pada periode ini"]);
+  } else {
+    dataRows.forEach(row => sheet.addRow(row));
+  }
 
   const header = sheet.getRow(1);
   header.height = 28;
   header.font = { bold: true, color: { argb: "FFFFFFFF" } };
   header.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E78" } };
   header.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
-  sheet.autoFilter = { from: "A1", to: "U1" };
+  if (!grouped) sheet.autoFilter = { from: "A1", to: "U1" };
   sheet.getColumn("expenseDate").numFmt = "dd/mm/yyyy";
   sheet.getColumn("giroIssuedAt").numFmt = "dd/mm/yyyy";
   sheet.getColumn("giroDueAt").numFmt = "dd/mm/yyyy";
@@ -375,8 +406,25 @@ router.get("/export", authRequired, async (req, res) => {
     if (rowNumber % 2 === 0) row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F6F9" } };
   });
 
+  if (grouped) {
+    sheet.views = [{ state: "frozen", ySplit: 2 }];
+    for (const number of sectionHeaders) {
+      const row = sheet.getRow(number);
+      row.height = 28;
+      row.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E78" } };
+      row.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    }
+    for (const number of [...sectionRows, ...totalRows]) {
+      const row = sheet.getRow(number);
+      row.font = { bold: true, color: { argb: "FF134E35" } };
+      row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2F0D9" } };
+      row.height = 25;
+    }
+  }
+
   const output = await workbook.xlsx.writeBuffer();
-  const filename = `pengeluaran-${month}.xlsx`;
+  const filename = `pengeluaran-${month}${grouped ? "-terbagi" : ""}.xlsx`;
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
   res.setHeader("Content-Length", output.length);

@@ -7,7 +7,7 @@ import { ProtectedFilePreview } from "../components/ProtectedFile";
 import LoadingState from "../components/LoadingState";
 import useDialogLifecycle from "../components/useDialogLifecycle";
 import PageHeader, { ActionGroup, ActionToolbar } from "../components/PageHeader";
-import { FiArrowRight, FiCalendar, FiCheckCircle, FiClipboard, FiClock, FiCornerUpLeft, FiCreditCard, FiDownload, FiFileText, FiPlus, FiPrinter, FiSearch, FiTruck, FiX } from "react-icons/fi";
+import { FiChevronDown, FiArrowRight, FiCalendar, FiCheckCircle, FiClipboard, FiClock, FiCornerUpLeft, FiCreditCard, FiDownload, FiFileText, FiPlus, FiPrinter, FiSearch, FiTruck, FiX } from "react-icons/fi";
 import "./Expenses.css";
 import { confirmDialog } from "../ui/dialogService";
 
@@ -658,7 +658,7 @@ export default function Expenses() {
     }
   }
 
-  async function exportPeriodExpenses() {
+  async function exportPeriodExpenses(layout = "standard") {
     setErr("");
     setReportFeedback("");
     const month = normalizedExpenseMonth(reportMonth);
@@ -666,7 +666,7 @@ export default function Expenses() {
     setExportBusy(true);
     try {
       const token = getAccessToken();
-      const res = await fetch(`${API_BASE}/expenses/export?${new URLSearchParams({ month })}`, {
+      const res = await fetch(`${API_BASE}/expenses/export?${new URLSearchParams({ month, layout })}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         credentials: "include",
       });
@@ -748,9 +748,13 @@ export default function Expenses() {
             <button type="button" className={`expense-report-button ${reportBusy ? "is-busy" : ""}`} style={s.secondaryBtn} disabled={reportBusy || exportBusy} onClick={() => openMonthlyReport(false)} title="Buka laporan bulanan untuk dicetak">
               <FiFileText /> {reportBusy ? "Menyiapkan…" : "Cetak laporan"}
             </button>
-            <button type="button" className={`expense-report-button ${exportBusy ? "is-busy" : ""}`} style={s.secondaryBtn} disabled={reportBusy || exportBusy} onClick={exportPeriodExpenses} title={`Unduh pengeluaran periode ${expenseMonthLabel(reportMonth)} dalam Excel`}>
-              <FiDownload /> {exportBusy ? "Mengunduh…" : "Export Excel"}
-            </button>
+            <details className="expense-export-menu">
+              <summary className="expense-report-button" style={s.secondaryBtn} aria-label="Pilihan export Excel"><FiDownload /> {exportBusy ? "Mengunduh…" : "Export Excel"} <FiChevronDown /></summary>
+              <div className="expense-export-options">
+                <button type="button" disabled={reportBusy || exportBusy} onClick={(event) => { event.currentTarget.closest("details").open = false; exportPeriodExpenses("standard"); }}>Export Excel Biasa</button>
+                <button type="button" disabled={reportBusy || exportBusy} onClick={(event) => { event.currentTarget.closest("details").open = false; exportPeriodExpenses("grouped"); }}>Export Excel Terbagi</button>
+              </div>
+            </details>
             <span className={`expense-report-feedback ${reportFeedback ? "visible" : ""}`} role="status" aria-live="polite">{reportFeedback}</span>
           </ActionGroup>
           <ActionGroup purpose="secondary">
