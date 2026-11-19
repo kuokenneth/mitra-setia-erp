@@ -359,8 +359,11 @@ router.get("/receipts/monthly/print", async (req, res) => {
   if (!supplier) return res.status(404).json({ error: "Supplier tidak ditemukan." });
   if (!receipts.length) return res.status(404).json({ error: "Tidak ada barang yang diterima dari supplier ini pada periode tersebut." });
 
+  const period = useRange
+    ? `${fmtDate(start)} – ${fmtDate(lastDay)}`
+    : new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(start);
   let total = 0;
-  const sections = receipts.map(receipt => {
+  const sections = receipts.map((receipt, index) => {
     let subtotal = 0;
     const rows = receipt.items.map((line, index) => {
       const orderItem = line.purchaseOrderItem;
@@ -372,17 +375,35 @@ router.get("/receipts/monthly/print", async (req, res) => {
       return `<tr><td class="center">${index + 1}</td><td>${esc(orderItem.item.sku)}</td><td>${esc(orderItem.item.name)}</td><td class="right">${fmtNum(line.qty)}</td><td class="right">${fmtNum(returned)}</td><td>${esc(line.purchaseUnit || orderItem.item.unit)}</td><td class="right">${money(price)}</td><td class="right">${money(amount)}</td></tr>`;
     }).join("");
     total += subtotal;
-    return `<section style="margin:20px 0"><div style="break-after:avoid"><h2 style="font-size:14px;margin:0 0 4px">${esc(receipt.number)} · ${fmtDate(receipt.receivedAt)}</h2><div class="muted">Surat jalan ${esc(receipt.deliveryNote || "-")} · PO ${esc(receipt.purchaseOrder.number)} · ${esc(receipt.location?.name || "-")}</div></div><table><thead><tr><th>No</th><th>SKU</th><th>Barang</th><th class="right">Diterima</th><th class="right">Retur</th><th>Satuan</th><th class="right">Harga satuan</th><th class="right">Nilai bersih</th></tr></thead><tbody>${rows}<tr><th colspan="7" class="right">Subtotal penerimaan</th><th class="right">${money(subtotal)}</th></tr></tbody></table></section>`;
+    const periodTotal = index === receipts.length - 1
+      ? `<tr><th colspan="7" class="right">Total nilai penerimaan periode</th><th class="right">${money(total)}</th></tr>`
+      : "";
+    return `<section class="receipt-slip"><div class="receipt-slip-heading"><div class="muted">MITRA SETIA ERP · ${esc(supplier.name)} · ${index + 1}/${receipts.length}</div><h2 style="font-size:14px;margin:0 0 4px">${esc(receipt.number)} · ${fmtDate(receipt.receivedAt)}</h2><div class="muted">Surat jalan ${esc(receipt.deliveryNote || "-")} · PO ${esc(receipt.purchaseOrder.number)} · ${esc(receipt.location?.name || "-")}</div><div class="muted">Periode ${esc(period)} · Nilai bersih setelah retur, sebelum penyesuaian tagihan</div></div><table><thead><tr><th>No</th><th>SKU</th><th>Barang</th><th class="right">Diterima</th><th class="right">Retur</th><th>Satuan</th><th class="right">Harga satuan</th><th class="right">Nilai bersih</th></tr></thead><tbody>${rows}<tr><th colspan="7" class="right">Subtotal penerimaan</th><th class="right">${money(subtotal)}</th></tr>${periodTotal}</tbody></table></section>`;
   }).join("");
-  const period = useRange
-    ? `${fmtDate(start)} – ${fmtDate(lastDay)}`
-    : new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(start);
   res.type("html").send(documentHtml({
     title: "LAPORAN PENERIMAAN SPAREPART",
     subtitle: supplier.name,
     meta: `${esc(period)}<br>${receipts.length} penerimaan`,
-    landscape: true,
-    body: `<p class="muted">Nilai bersih dihitung dari jumlah diterima dikurangi retur, dengan harga saat penerimaan atau harga PO. Nilai ini sebelum penyesuaian tagihan.</p>${sections}<table><tbody><tr><th class="right">Total nilai penerimaan</th><th class="right" style="width:20%">${money(total)}</th></tr></tbody></table>`,
+    styles: `
+      .receipt-slip { margin: 20px 0; }
+      .receipt-slip-heading { break-after: avoid; line-height: 1.5; }
+      @media print {
+        body > header, .receipt-report-note { display: none; }
+        .receipt-slip {
+          box-sizing: border-box;
+          min-height: 131mm;
+          margin: 0;
+          padding: 4mm 0;
+          break-inside: avoid-page;
+        }
+        .receipt-slip:nth-child(even) { border-top: 1px dashed #85948b; }
+        .receipt-slip:nth-child(2n+3) { page-break-before: always; break-before: page; }
+        .receipt-slip table { margin-top: 6px; }
+        .receipt-slip th, .receipt-slip td { padding: 4px 5px; overflow-wrap: anywhere; }
+        .receipt-slip tr { break-inside: avoid; }
+      }
+    `,
+    body: `<p class="muted receipt-report-note">Nilai bersih dihitung dari jumlah diterima dikurangi retur, dengan harga saat penerimaan atau harga PO. Nilai ini sebelum penyesuaian tagihan.</p><div class="receipt-slips">${sections}</div>`,
   }));
 });
 router.get("/receipts/group/print", async (req, res) => {
