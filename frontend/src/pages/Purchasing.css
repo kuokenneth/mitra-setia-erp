@@ -184,3 +184,35 @@
 .repair-batch-line{display:grid;grid-template-columns:minmax(220px,1fr) 150px 170px;align-items:start;gap:12px;padding:13px;border:1px solid #dce3ec;border-radius:11px;background:#f9fafc}
 .repair-batch-line>span b,.repair-batch-line>span small{display:block}.repair-batch-line>span small{margin-top:4px;color:#697990;font-size:10px}
 @media(max-width:680px){.repair-batch-line{grid-template-columns:1fr}.repair-batch-modal{width:calc(100vw - 14px)!important}}
+
+.supplier-receipt-report {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  padding: 14px 22px;
+  border-bottom: 1px solid #e3e8ef;
+}
+
+.supplier-receipt-report label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: #43556f;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.supplier-receipt-report label:first-child {
+  flex: 0 1 280px;
+}
+
+.supplier-receipt-report :is(select, input, button) {
+  min-height: 38px;
+}
+
+.supplier-receipt-report button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}

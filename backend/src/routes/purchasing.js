@@ -323,6 +323,53 @@ router.get("/orders/:id/print", async (req, res) => {
     body: `<div class="summary"><div class="box">Supplier<b>${esc(po.supplier.name)}</b><span>${esc(po.supplier.address || "-")}</span></div><div class="box">Pengiriman<b>${esc(po.deliveryAddress || "-")}</b><span>Estimasi: ${fmtDate(po.estimatedArrival)}</span></div><div class="box">Termin<b>${esc(po.paymentTerms || "-")}</b><span>PR: ${esc((po.requestLinks?.length ? po.requestLinks.map(link => link.request.number) : [po.request?.number]).filter(Boolean).join(", ") || "-")}</span></div></div><table><thead><tr><th>No</th><th>SKU</th><th>Barang</th><th class="right">Qty</th><th>Satuan</th><th class="right">Harga</th><th class="right">Jumlah</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="6" class="right">Subtotal</td><td class="right">${money(subtotal)}</td></tr><tr><td colspan="6" class="right">Ongkir + Pajak - Diskon</td><td class="right">${money(Number(po.shippingCost) + Number(po.tax) - Number(po.discount))}</td></tr><tr><td colspan="6" class="right"><b>TOTAL</b></td><td class="right"><b>${money(total)}</b></td></tr></tfoot></table><div class="signatures"><div>Dibuat oleh</div><div>Supplier</div><div>Disetujui oleh</div></div>`,
   }));
 });
+router.get("/receipts/monthly/print", async (req, res) => {
+  const supplierId = String(req.query.supplierId || "").trim();
+  const month = String(req.query.month || "").trim();
+  const match = /^([1-9]\d{3})-(0[1-9]|1[0-2])$/.exec(month);
+  if (!supplierId || !match) return res.status(400).json({ error: "Pilih supplier dan bulan penerimaan yang valid." });
+
+  const start = new Date(`${month}-01T00:00:00+07:00`);
+  const end = new Date(Date.UTC(Number(match[1]), Number(match[2]), 1, -7));
+  const [supplier, receipts] = await Promise.all([
+    prisma.supplier.findUnique({ where: { id: supplierId }, select: { name: true } }),
+    prisma.goodsReceipt.findMany({
+      where: { receivedAt: { gte: start, lt: end }, purchaseOrder: { supplierId }, items: { some: {} } },
+      orderBy: [{ receivedAt: "asc" }, { number: "asc" }],
+      include: {
+        purchaseOrder: { select: { number: true } },
+        location: { select: { name: true } },
+        items: { orderBy: { id: "asc" }, include: { purchaseOrderItem: { include: { item: true } } } },
+      },
+    }),
+  ]);
+  if (!supplier) return res.status(404).json({ error: "Supplier tidak ditemukan." });
+  if (!receipts.length) return res.status(404).json({ error: "Tidak ada barang yang diterima dari supplier ini pada bulan tersebut." });
+
+  let total = 0;
+  const sections = receipts.map(receipt => {
+    let subtotal = 0;
+    const rows = receipt.items.map((line, index) => {
+      const orderItem = line.purchaseOrderItem;
+      const returned = line.condition === "RETURNED_TO_SUPPLIER" ? line.qty : line.returnedQty;
+      const quantity = Math.max(0, line.qty - returned);
+      const price = line.originalUnitPrice ?? orderItem.unitPrice;
+      const amount = Math.round(quantity * price);
+      subtotal += amount;
+      return `<tr><td class="center">${index + 1}</td><td>${esc(orderItem.item.sku)}</td><td>${esc(orderItem.item.name)}</td><td class="right">${fmtNum(line.qty)}</td><td class="right">${fmtNum(returned)}</td><td>${esc(line.purchaseUnit || orderItem.item.unit)}</td><td class="right">${money(price)}</td><td class="right">${money(amount)}</td></tr>`;
+    }).join("");
+    total += subtotal;
+    return `<section style="margin:20px 0"><div style="break-after:avoid"><h2 style="font-size:14px;margin:0 0 4px">${esc(receipt.number)} · ${fmtDate(receipt.receivedAt)}</h2><div class="muted">Surat jalan ${esc(receipt.deliveryNote || "-")} · PO ${esc(receipt.purchaseOrder.number)} · ${esc(receipt.location?.name || "-")}</div></div><table><thead><tr><th>No</th><th>SKU</th><th>Barang</th><th class="right">Diterima</th><th class="right">Retur</th><th>Satuan</th><th class="right">Harga satuan</th><th class="right">Nilai bersih</th></tr></thead><tbody>${rows}<tr><th colspan="7" class="right">Subtotal penerimaan</th><th class="right">${money(subtotal)}</th></tr></tbody></table></section>`;
+  }).join("");
+  const period = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(start);
+  res.type("html").send(documentHtml({
+    title: "LAPORAN PENERIMAAN SPAREPART",
+    subtitle: supplier.name,
+    meta: `${esc(period)}<br>${receipts.length} penerimaan`,
+    landscape: true,
+    body: `<p class="muted">Nilai bersih dihitung dari jumlah diterima dikurangi retur, dengan harga saat penerimaan atau harga PO. Nilai ini sebelum penyesuaian tagihan.</p>${sections}<table><tbody><tr><th class="right">Total nilai penerimaan</th><th class="right" style="width:20%">${money(total)}</th></tr></tbody></table>`,
+  }));
+});
 router.get("/receipts/group/print", async (req, res) => {
   const ids = [...new Set(String(req.query.ids || "").split(",").map(id => id.trim()).filter(Boolean))];
   if (!ids.length) return res.status(400).json({ error: "Penerimaan barang wajib dipilih" });
