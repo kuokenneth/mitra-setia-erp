@@ -326,11 +326,24 @@ router.get("/orders/:id/print", async (req, res) => {
 router.get("/receipts/monthly/print", async (req, res) => {
   const supplierId = String(req.query.supplierId || "").trim();
   const month = String(req.query.month || "").trim();
+  const from = String(req.query.from || "").trim();
+  const to = String(req.query.to || "").trim();
   const match = /^([1-9]\d{3})-(0[1-9]|1[0-2])$/.exec(month);
-  if (!supplierId || !match) return res.status(400).json({ error: "Pilih supplier dan bulan penerimaan yang valid." });
-
-  const start = new Date(`${month}-01T00:00:00+07:00`);
-  const end = new Date(Date.UTC(Number(match[1]), Number(match[2]), 1, -7));
+  const parseDay = value => {
+    if (!/^[1-9]\d{3}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(value)) return null;
+    const day = new Date(`${value}T00:00:00Z`);
+    return Number.isFinite(+day) && day.toISOString().slice(0, 10) === value
+      ? new Date(`${value}T00:00:00+07:00`)
+      : null;
+  };
+  const firstDay = parseDay(from);
+  const lastDay = parseDay(to);
+  const useRange = Boolean(from || to);
+  if (!supplierId || (useRange ? !firstDay || !lastDay || firstDay > lastDay : !match)) {
+    return res.status(400).json({ error: "Pilih supplier dan periode penerimaan yang valid." });
+  }
+  const start = useRange ? firstDay : new Date(`${month}-01T00:00:00+07:00`);
+  const end = useRange ? new Date(+lastDay + 86400000) : new Date(Date.UTC(Number(match[1]), Number(match[2]), 1, -7));
   const [supplier, receipts] = await Promise.all([
     prisma.supplier.findUnique({ where: { id: supplierId }, select: { name: true } }),
     prisma.goodsReceipt.findMany({
@@ -344,7 +357,7 @@ router.get("/receipts/monthly/print", async (req, res) => {
     }),
   ]);
   if (!supplier) return res.status(404).json({ error: "Supplier tidak ditemukan." });
-  if (!receipts.length) return res.status(404).json({ error: "Tidak ada barang yang diterima dari supplier ini pada bulan tersebut." });
+  if (!receipts.length) return res.status(404).json({ error: "Tidak ada barang yang diterima dari supplier ini pada periode tersebut." });
 
   let total = 0;
   const sections = receipts.map(receipt => {
@@ -361,7 +374,9 @@ router.get("/receipts/monthly/print", async (req, res) => {
     total += subtotal;
     return `<section style="margin:20px 0"><div style="break-after:avoid"><h2 style="font-size:14px;margin:0 0 4px">${esc(receipt.number)} · ${fmtDate(receipt.receivedAt)}</h2><div class="muted">Surat jalan ${esc(receipt.deliveryNote || "-")} · PO ${esc(receipt.purchaseOrder.number)} · ${esc(receipt.location?.name || "-")}</div></div><table><thead><tr><th>No</th><th>SKU</th><th>Barang</th><th class="right">Diterima</th><th class="right">Retur</th><th>Satuan</th><th class="right">Harga satuan</th><th class="right">Nilai bersih</th></tr></thead><tbody>${rows}<tr><th colspan="7" class="right">Subtotal penerimaan</th><th class="right">${money(subtotal)}</th></tr></tbody></table></section>`;
   }).join("");
-  const period = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(start);
+  const period = useRange
+    ? `${fmtDate(start)} – ${fmtDate(lastDay)}`
+    : new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(start);
   res.type("html").send(documentHtml({
     title: "LAPORAN PENERIMAAN SPAREPART",
     subtitle: supplier.name,

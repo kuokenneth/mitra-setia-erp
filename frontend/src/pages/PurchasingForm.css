@@ -1118,3 +1118,11 @@
     grid-column: 1 / -1;
   }
 }
+
+.bill-receipt-period > .bill-print-period {
+  grid-column: 1 / -1;
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
