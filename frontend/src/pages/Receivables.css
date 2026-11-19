@@ -200,3 +200,15 @@
 
 /* Prevent the modal grid from shrinking and clipping the detail scroller. */
 .ar-invoice-view-body{grid-auto-rows:max-content;align-content:start}.ar-view-lines-section.scrollable{min-height:calc(min(330px,40vh) + 70px)}.ar-view-lines-section .ar-view-lines:not(.scrollable){height:auto}
+
+.ar-invoice-table .ar-actions > .ar-cash-voucher {
+  grid-column: 1 / -1;
+  gap: 8px;
+  padding-inline: 12px;
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.ar-cash-voucher > svg {
+  flex: none;
+}

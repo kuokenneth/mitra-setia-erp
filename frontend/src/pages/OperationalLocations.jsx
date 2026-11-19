@@ -160,7 +160,36 @@ function GoogleLocationPicker({ position, radius, warning, onPick, onError }) {
     if (mapRef.current.getZoom() < 14) mapRef.current.setZoom(16);
   }, [position, radius, warning, ready]);
 
-  return <><label className="google-location-search-label">Cari lokasi<div className="google-location-search"><FiMapPin /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ketik minimal 3 huruf…" autoComplete="off" />{searching && <span className="google-location-searching">Mencari…</span>}</div>{suggestions.length > 0 && <div className="google-location-suggestions">{suggestions.map((prediction, index) => <button type="button" key={prediction.placeId || index} onClick={() => selectSuggestion(prediction)}><FiMapPin /><span>{prediction.text?.toString() || prediction.text?.text || "Lokasi"}</span></button>)}</div>}</label><div className="location-picker-map"><div ref={containerRef} className="google-location-map" /></div></>;
+  return (
+    <>
+      <div className="google-location-search-field">
+        <label className="google-location-search-label" htmlFor="google-location-query">Cari lokasi</label>
+        <div className="google-location-search">
+          <FiMapPin aria-hidden="true" />
+          <input id="google-location-query" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ketik minimal 3 huruf…" autoComplete="off" />
+          {searching && <span className="google-location-searching">Mencari…</span>}
+        </div>
+        {suggestions.length > 0 && (
+          <div className="google-location-suggestions">
+            {suggestions.map((prediction, index) => {
+              const name = prediction.mainText?.text;
+              const address = name && prediction.secondaryText?.text;
+              return (
+                <button type="button" key={prediction.placeId || index} onClick={() => selectSuggestion(prediction)}>
+                  <FiMapPin aria-hidden="true" />
+                  <span className="google-location-suggestion-text">
+                    <strong>{name || prediction.text?.text || "Lokasi"}</strong>
+                    {address && <small>{address}</small>}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      <div className="location-picker-map"><div ref={containerRef} className="google-location-map" /></div>
+    </>
+  );
 }
 
 export default function OperationalLocations() {

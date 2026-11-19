@@ -641,7 +641,6 @@ export default function Trucks() {
           data-testid="sparepart-movements-modal"
         >
           <div
-            style={{ ...s.modalCard, width: "min(1080px, calc(100vw - 32px))", maxWidth: 1080, maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}
             className="ms-dialog fleet-movement-modal"
             onClick={(e) => e.stopPropagation()}
           >
@@ -696,7 +695,7 @@ export default function Trucks() {
 
           {movErr && <div style={s.alertErr}>{movErr}</div>}
 
-          <div style={{ ...s.tableWrap, margin: "0 22px 22px" }} className="fleet-movement-table-wrap">
+          <div className="fleet-movement-table-wrap">
             <table className="fleet-movement-table">
               <colgroup>
                 <col className="fleet-movement-col-date" />

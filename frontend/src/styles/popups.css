@@ -41,9 +41,9 @@ html.erp-app .ms-dialog.ms-dialog {
 /* Width scale: keep each popup's own max-width but never wider than the screen. */
 html.erp-app .ms-dialog.ms-dialog { max-width: min(var(--ms-dialog-w, 640px), 100%) !important; }
 html.erp-app :is(.po-cancel-modal,.po-supplier-change-modal,.payment-modal,.ar-payment-modal,.fp-modal,.trip-expense-modal,.expense-paste-modal,.pa-dialog.small) { --ms-dialog-w: 560px; }
-html.erp-app :is(.transaction-modal,.request-redesign-modal,.po-modal,.direct-order-modal,.ar-modal,.trip-action-modal,.trip-material-modal,.material-modal-shell,.fleet-add-modal,.fleet-movement-modal,.audit-detail,.expense-create-modal,.expense-return-modal,.order-trip-modal,.orders-v3-modal,.inventory-modal,.maintenance-modal,.pa-dialog) { --ms-dialog-w: 880px; }
+html.erp-app :is(.transaction-modal,.request-redesign-modal,.po-modal,.direct-order-modal,.ar-modal,.trip-action-modal,.trip-material-modal,.material-modal-shell,.fleet-add-modal,.audit-detail,.expense-create-modal,.expense-return-modal,.order-trip-modal,.orders-v3-modal,.inventory-modal,.maintenance-modal,.pa-dialog) { --ms-dialog-w: 880px; }
 html.erp-app :is(.supplier-bill-modal,.batch-receipt-modal,.repair-batch-modal,.ar-invoice-modal,.ar-invoice-view-modal,.fp-detail-modal,.maintenance-detail-modal,.inventory-modal--item-flow,.single-trip-builder,.image-annotator-dialog) { --ms-dialog-w: 1120px; }
-html.erp-app .maintenance-detail-modal { --ms-dialog-w: 1480px; }
+html.erp-app :is(.maintenance-detail-modal,.fleet-movement-modal) { --ms-dialog-w: 1480px; }
 /* Inline-sized popups (Trucks, Expenses) keep their own widths through the inline style. */
 
 /* ---------- Header: pinned, title + description + close ---------- */

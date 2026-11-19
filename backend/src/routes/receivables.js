@@ -496,46 +496,111 @@ router.get("/export", async (req, res) => {
       balance: Number(group.balance || 0),
     }));
     const labels = { DRAFT: "Belum lunas - Draft", SENT: "Belum lunas", PARTIALLY_PAID: "Belum lunas - Sebagian", PAID: "Lunas", OVERDUE: "Belum lunas - Jatuh tempo" };
-    const rows = items.map((item, index) => ({
-      no: index + 1,
-      receipt: item.manualData?.receipt || "",
-      invoice: item.number,
-      issuedAt: excelDate(item.issuedAt),
-      dueAt: excelDate(item.dueAt),
-      customer: item.customerName,
-      status: labels[item.displayStatus] || labels[item.status] || item.displayStatus,
-      isPaid: item.status === "PAID",
-      total: Number(item.total || 0),
-      paid: Number(item.paid || 0),
-      pph23: Number(item.pph23Paid || 0),
-      claim: Number(item.claimPaid || 0),
-      adminFee: Number(item.adminFeePaid || 0),
-      cashReceived: Number(item.cashReceived || 0),
-      balance: Number(item.balance || 0),
-    }));
+    const normalizeCustomerName = name => String(name || "").trim().replace(/\s+/g, " ").toLocaleLowerCase("id-ID");
+    const customerIdsByName = new Map();
+    for (const item of items) {
+      const name = normalizeCustomerName(item.customerName);
+      if (!name || !item.customerId) continue;
+      const ids = customerIdsByName.get(name) || new Set();
+      ids.add(item.customerId);
+      customerIdsByName.set(name, ids);
+    }
+    const rows = items.map(item => {
+      const name = normalizeCustomerName(item.customerName);
+      const matchingIds = customerIdsByName.get(name);
+      const customerId = item.customerId || (matchingIds?.size === 1 ? [...matchingIds][0] : null);
+      return {
+        customerKey: customerId ? `id:${customerId}` : name ? `name:${name}` : `invoice:${item.id}`,
+        customerHeading: item.customer?.name || item.customerName?.trim() || "Pelanggan tanpa nama",
+        receipt: item.manualData?.receipt || "",
+        invoice: item.number,
+        issuedAt: excelDate(item.issuedAt),
+        dueAt: excelDate(item.dueAt),
+        customer: item.customerName,
+        status: labels[item.displayStatus] || labels[item.status] || item.displayStatus,
+        isPaid: item.status === "PAID",
+        total: Number(item.total || 0),
+        paid: Number(item.paid || 0),
+        pph23: Number(item.pph23Paid || 0),
+        claim: Number(item.claimPaid || 0),
+        adminFee: Number(item.adminFeePaid || 0),
+        cashReceived: Number(item.cashReceived || 0),
+        balance: Number(item.balance || 0),
+      };
+    });
     const workbook = new ExcelJS.Workbook();
     workbook.creator = "Mitra Setia ERP";
     workbook.created = new Date();
     const addSheet = (name, sheetRows) => {
-      const sheet = workbook.addWorksheet(name, { views: [{ state: "frozen", ySplit: 1 }], pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
-      sheet.columns = [
+      const sheet = workbook.addWorksheet(name, { pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+      const columns = [
         { header: "No", key: "no", width: 7 }, { header: "No. Kwitansi", key: "receipt", width: 28 }, { header: "No. Invoice", key: "invoice", width: 25 },
         { header: "Tanggal Invoice", key: "issuedAt", width: 16 }, { header: "Jatuh Tempo", key: "dueAt", width: 16 }, { header: "Pelanggan", key: "customer", width: 30 },
         { header: "Status", key: "status", width: 25 }, { header: "Total Tagihan", key: "total", width: 18 }, { header: "Dibayar", key: "paid", width: 18 },
         { header: "PPh 23", key: "pph23", width: 16 }, { header: "Klaim", key: "claim", width: 16 }, { header: "Biaya Administrasi", key: "adminFee", width: 19 },
         { header: "Kas Masuk", key: "cashReceived", width: 18 }, { header: "Sisa Piutang", key: "balance", width: 18 },
       ];
-      sheetRows.forEach((row, index) => sheet.addRow({ ...row, no: index + 1 }));
-      const header = sheet.getRow(1);
-      header.height = 28; header.font = { bold: true, color: { argb: "FFFFFFFF" } }; header.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF176B40" } }; header.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
-      sheet.autoFilter = { from: "A1", to: "N1" };
-      ["issuedAt", "dueAt"].forEach(key => { sheet.getColumn(key).numFmt = "dd/mm/yyyy"; });
-      ["total", "paid", "pph23", "claim", "adminFee", "cashReceived", "balance"].forEach(key => { sheet.getColumn(key).numFmt = "#,##0"; sheet.getColumn(key).alignment = { horizontal: "right" }; });
-      sheet.eachRow((row, rowNumber) => { if (rowNumber === 1) return; row.alignment = { vertical: "top", wrapText: true }; if (rowNumber % 2 === 0) row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F7F4" } }; });
-      if (sheetRows.length) {
-        const totalRow = sheet.addRow({ status: "TOTAL", total: sheetRows.reduce((sum, row) => sum + row.total, 0), paid: sheetRows.reduce((sum, row) => sum + row.paid, 0), pph23: sheetRows.reduce((sum, row) => sum + row.pph23, 0), claim: sheetRows.reduce((sum, row) => sum + row.claim, 0), adminFee: sheetRows.reduce((sum, row) => sum + row.adminFee, 0), cashReceived: sheetRows.reduce((sum, row) => sum + row.cashReceived, 0), balance: sheetRows.reduce((sum, row) => sum + row.balance, 0) });
-        totalRow.font = { bold: true }; totalRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDDEDE3" } };
+      sheet.columns = columns.map(({ key, width }) => ({ key, width }));
+      const moneyKeys = ["total", "paid", "pph23", "claim", "adminFee", "cashReceived", "balance"];
+      const fill = argb => ({ type: "pattern", pattern: "solid", fgColor: { argb } });
+      for (const key of ["issuedAt", "dueAt"]) sheet.getColumn(key).numFmt = "dd/mm/yyyy";
+      for (const key of moneyKeys) sheet.getColumn(key).numFmt = "#,##0";
+
+      const addHeader = () => {
+        const row = sheet.addRow(columns.map(column => column.header));
+        row.height = 28;
+        row.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        row.fill = fill("FF176B40");
+        row.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+      };
+      const addTotal = (label, detailRows, formulaFor) => {
+        const row = sheet.addRow({ status: label });
+        for (const key of moneyKeys) {
+          const column = sheet.getColumn(key).letter;
+          const result = detailRows.reduce((sum, item) => sum + item[key], 0);
+          row.getCell(key).value = { formula: formulaFor(column, row.number), result };
+        }
+        row.font = { bold: true };
+        row.fill = fill("FFDDEDE3");
+      };
+      if (!sheetRows.length) {
+        addHeader();
+        return;
       }
+
+      const groups = new Map();
+      for (const row of sheetRows) {
+        if (!groups.has(row.customerKey)) groups.set(row.customerKey, []);
+        groups.get(row.customerKey).push(row);
+      }
+      const sortedGroups = [...groups.values()].sort((a, b) =>
+        a[0].customerHeading.localeCompare(b[0].customerHeading, "id-ID")
+      );
+
+      for (const group of sortedGroups) {
+        const title = sheet.addRow([group[0].customerHeading]);
+        sheet.mergeCells(title.number, 1, title.number, columns.length);
+        title.height = 23;
+        title.font = { bold: true, color: { argb: "FF176B40" } };
+        title.fill = fill("FFEAF3ED");
+        title.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+        addHeader();
+
+        const firstDetail = sheet.lastRow.number + 1;
+        group.forEach((item, index) => {
+          const row = sheet.addRow({ ...item, no: index + 1 });
+          row.alignment = { vertical: "top", wrapText: true };
+          if (index % 2 === 1) row.fill = fill("FFF2F7F4");
+        });
+        const lastDetail = sheet.lastRow.number;
+        addTotal("TOTAL PELANGGAN", group, column => `SUM(${column}${firstDetail}:${column}${lastDetail})`);
+        sheet.addRow([]);
+      }
+
+      const statusColumn = sheet.getColumn("status").letter;
+      addTotal("TOTAL KESELURUHAN", sheetRows, (column, rowNumber) =>
+        `SUMIF(${statusColumn}1:${statusColumn}${rowNumber - 1},"TOTAL PELANGGAN",${column}1:${column}${rowNumber - 1})`
+      );
     };
     addSheet("Semua Piutang", rows);
     addSheet("Lunas", rows.filter(row => row.isPaid));

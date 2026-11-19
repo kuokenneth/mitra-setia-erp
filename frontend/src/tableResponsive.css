@@ -41,7 +41,7 @@
 .erp-content .material-board{min-width:0;overflow-x:auto}.erp-content .material-board table{min-width:980px}.erp-content .material-board :is(th,td):nth-child(3),.erp-content .material-board :is(th,td):nth-child(4),.erp-content .material-board :is(th,td):nth-child(5){min-width:135px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .erp-content .ar-table-wrap{min-width:0}.erp-content .ar-invoice-table .ar-money-cell{min-width:125px}
 .erp-content .users-table-wrap table{min-width:900px}.erp-content .users-table-wrap td:last-child{min-width:170px}
-.erp-content .fleet-v2-table{min-width:1120px!important}.erp-content .fleet-movement-table{min-width:980px!important}
+.erp-content .fleet-v2-table{min-width:1120px!important}
 .erp-content .inventory-workspace{min-width:0}.erp-content .inventory-workspace>div:last-child{min-width:0}.erp-content .inventory-workspace table{min-width:980px}
 .erp-content .maintenance-detail-history{min-width:0;overflow-x:auto}.erp-content .maintenance-detail-history table{min-width:820px}
 .erp-content .request-table{max-width:none}
