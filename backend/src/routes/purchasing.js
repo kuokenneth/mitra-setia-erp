@@ -5,7 +5,7 @@ const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { requireRole } = require("../middleware/requireRole");
 const { SYSTEM_ACCOUNTS, cashCode, postJournal } = require("../services/accounting");
-const { esc, num: fmtNum, money, date: fmtDate, documentHtml } = require("../utils/printDocument");
+const { esc, num: fmtNum, money, date: fmtDate, documentHtml, sendPrintable } = require("../utils/printDocument");
 const { notifyOwnerSafely } = require("../services/emailNotifications");
 const { nextDailyNumber } = require("../utils/documentNumber");
 const router = express.Router();
@@ -316,7 +316,7 @@ router.get("/orders/:id/print", async (req, res) => {
   const subtotal = po.items.reduce((sum, item) => sum + Number(item.qty) * Number(item.unitPrice), 0);
   const total = subtotal + Number(po.tax) + Number(po.shippingCost) - Number(po.discount);
   const rows = po.items.map((item, index) => `<tr><td class="center">${index + 1}</td><td>${esc(item.item.sku)}</td><td>${esc(item.item.name)}</td><td class="right">${fmtNum(item.qty)}</td><td>${esc(item.item.unit)}</td><td class="right">${money(item.unitPrice)}</td><td class="right">${money(Number(item.qty) * Number(item.unitPrice))}</td></tr>`).join("");
-  res.type("html").send(documentHtml({
+  sendPrintable(res, documentHtml({
     title: "PURCHASE ORDER",
     subtitle: po.number,
     meta: `Status: ${esc(po.status)}<br>Tanggal: ${fmtDate(po.createdAt)}${po.status === "CANCELLED" ? `<br>Dibatalkan: ${fmtDate(po.cancelledAt, true)}<br>Alasan: ${esc(po.cancellationReason || "-")}` : ""}`,
@@ -380,7 +380,7 @@ router.get("/receipts/monthly/print", async (req, res) => {
       : "";
     return `<section class="receipt-slip"><div class="receipt-slip-heading"><div class="muted">MITRA SETIA ERP · ${esc(supplier.name)} · ${index + 1}/${receipts.length}</div><h2 style="font-size:14px;margin:0 0 4px">${esc(receipt.number)} · ${fmtDate(receipt.receivedAt)}</h2><div class="muted">Surat jalan ${esc(receipt.deliveryNote || "-")} · PO ${esc(receipt.purchaseOrder.number)} · ${esc(receipt.location?.name || "-")}</div><div class="muted">Periode ${esc(period)} · Nilai bersih setelah retur, sebelum penyesuaian tagihan</div></div><table><thead><tr><th>No</th><th>SKU</th><th>Barang</th><th class="right">Diterima</th><th class="right">Retur</th><th>Satuan</th><th class="right">Harga satuan</th><th class="right">Nilai bersih</th></tr></thead><tbody>${rows}<tr><th colspan="7" class="right">Subtotal penerimaan</th><th class="right">${money(subtotal)}</th></tr>${periodTotal}</tbody></table></section>`;
   }).join("");
-  res.type("html").send(documentHtml({
+  sendPrintable(res, documentHtml({
     title: "LAPORAN PENERIMAAN SPAREPART",
     subtitle: supplier.name,
     meta: `${esc(period)}<br>${receipts.length} penerimaan`,
@@ -419,7 +419,7 @@ router.get("/receipts/group/print", async (req, res) => {
   const first = receipts[0];
   const rows = receipts.flatMap(receipt => receipt.items.map(item => ({ receipt, item }))).map((row, index) => `<tr><td class="center">${index + 1}</td><td>${esc(row.receipt.number)}<br><span class="muted">${esc(row.receipt.purchaseOrder.number)}</span></td><td>${esc(row.item.purchaseOrderItem.item.sku)}</td><td>${esc(row.item.purchaseOrderItem.item.name)}</td><td class="right">${fmtNum(row.item.qty)}</td><td>${esc(row.item.purchaseOrderItem.item.unit)}</td><td>${esc(row.item.condition)}</td></tr>`).join("");
   const receiptDetails = receipts.map(receipt => `<tr><td>${esc(receipt.number)}</td><td>${fmtDate(receipt.receivedAt, true)}</td><td>${esc(receipt.purchaseOrder.number)}</td><td>${esc(receipt.location.name)}</td><td>${esc(receipt.createdBy?.name || "-")}</td></tr>`).join("");
-  res.type("html").send(documentHtml({
+  sendPrintable(res, documentHtml({
     title: "BUKTI PENERIMAAN BARANG",
     subtitle: `Surat jalan ${esc(first.deliveryNote || "-")}`,
     meta: `Tanggal terima: ${fmtDate(first.receivedAt, true)}<br>${receipts.length} penerimaan · ${new Set(receipts.map(receipt => receipt.purchaseOrderId)).size} PO`,
@@ -433,7 +433,7 @@ router.get("/receipts/:id/print", async (req, res) => {
   });
   if (!receipt) return res.status(404).json({ error: "Penerimaan barang tidak ditemukan" });
   const rows = receipt.items.map((row, index) => `<tr><td class="center">${index + 1}</td><td>${esc(row.purchaseOrderItem.item.sku)}</td><td>${esc(row.purchaseOrderItem.item.name)}</td><td class="right">${fmtNum(row.qty)}</td><td>${esc(row.purchaseOrderItem.item.unit)}</td><td>${esc(row.condition)}</td></tr>`).join("");
-  res.type("html").send(documentHtml({
+  sendPrintable(res, documentHtml({
     title: "BUKTI PENERIMAAN BARANG",
     subtitle: receipt.number,
     meta: `Tanggal terima: ${fmtDate(receipt.receivedAt, true)}<br>PO: ${esc(receipt.purchaseOrder.number)}`,
@@ -469,7 +469,7 @@ router.get("/bills/:id/receipt-print", async (req, res) => {
   const repairRows = bill.repairItems.map((line, index) => `<tr><td class="center">${goodsRows.length + index + 1}</td><td>Jasa perbaikan<br><span class="muted">${esc(line.movement.maintenance?.number || "-")}</span></td><td>${esc(line.movement.item.sku)}</td><td>${esc(line.movement.item.name)}${line.movement.maintenance?.truck?.plateNumber ? `<br><span class="muted">${esc(line.movement.maintenance.truck.plateNumber)}</span>` : ""}</td><td class="right">${fmtNum(line.qty)}</td><td>${esc(line.movement.item.unit)}</td><td>Selesai</td></tr>`);
   const rows = [...goodsRows, ...repairRows].join("");
   const receiptDetails = receipts.map(receipt => `<tr><td>${esc(receipt.number)}</td><td>${fmtDate(receipt.receivedAt, true)}</td><td>${esc(receipt.purchaseOrder.number)}</td><td>${esc(receipt.deliveryNote || "-")}</td><td>${esc(receipt.location?.name || "-")}</td><td>${esc(receipt.notes || "-")}</td></tr>`).join("");
-  res.type("html").send(documentHtml({
+  sendPrintable(res, documentHtml({
     title: "BUKTI PENERIMAAN BARANG",
     subtitle: `${bill.number} · Invoice ${bill.invoiceNumber}`,
     meta: `Tanggal invoice: ${fmtDate(bill.invoiceDate)}<br>PO: ${esc(poNumbers.join(", ") || "-")}<br>${selectedRows.length + bill.repairItems.length} barang/jasa diterima`,

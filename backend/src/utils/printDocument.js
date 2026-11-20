@@ -27,4 +27,14 @@ function documentHtml({ title, subtitle = "", meta = "", body, landscape = false
   </style></head><body><div class="print-toolbar no-print"><button type="button" onclick="window.print()">Cetak dokumen</button></div><header><div><div class="brand">MITRA SETIA ERP</div><div class="title">${esc(title)}</div><div class="muted">${esc(subtitle)}</div></div><div class="meta">${meta}<br>Dicetak: ${esc(date(new Date(), true))}</div></header>${body}<footer>Dokumen dibuat otomatis oleh Mitra Setia ERP</footer><script>window.addEventListener('load',()=>requestAnimationFrame(()=>requestAnimationFrame(()=>setTimeout(()=>window.print(),600))))</script></body></html>`;
 }
 
-module.exports = { esc, num, money, date, documentHtml };
+function sendPrintable(res, html) {
+  const entities = { amp: "&", lt: "<", gt: ">", quot: '"', "#039": "'" };
+  const decode = value => value?.replace(/&(amp|lt|gt|quot|#039);/g, (_, key) => entities[key]).trim();
+  const title = decode(html.match(/<title>([^<]*)<\/title>/)?.[1]);
+  const subtitle = decode(html.match(/<div class="title">[^<]*<\/div><div class="muted">([^<]*)<\/div>/)?.[1]);
+  res.locals ??= {};
+  res.locals.printDocument = { title: title || "Dokumen ERP", subtitle, entityId: res.req?.params?.id };
+  return res.type("html").send(html);
+}
+
+module.exports = { esc, num, money, date, documentHtml, sendPrintable };

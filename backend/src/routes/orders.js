@@ -2,7 +2,7 @@
 const express = require("express");
 const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
-const { esc, num: fmtNum, money, date: fmtDate, documentHtml } = require("../utils/printDocument");
+const { esc, num: fmtNum, money, date: fmtDate, documentHtml, sendPrintable } = require("../utils/printDocument");
 const { nextDailyNumber } = require("../utils/documentNumber");
 
 const router = express.Router();
@@ -389,7 +389,7 @@ router.get("/:id/material-invoices/print", authRequired, async (req, res) => {
     const totalKg = allLines.reduce((sum, row) => sum + Number(row.line.totalKg || 0), 0);
     const totalAmount = allLines.reduce((sum, row) => sum + Number(row.line.totalAmount || 0), 0);
     const rows = allLines.map((row, index) => `<tr><td class="center">${index + 1}</td><td>${fmtDate(row.invoice.issuedAt)}</td><td><b>${esc(row.invoice.number)}</b><br><span class="muted">${esc(row.invoice.billingCustomerName || order.customer?.name || order.customerName || "-")} · ${esc(row.invoice.trip?.truck?.plateNumber || "-")}${row.invoice.trip?.driverUser?.name ? ` · ${esc(row.invoice.trip.driverUser.name)}` : ""}</span></td><td>${esc(row.line.ppNumber || "-")}</td><td>${esc(row.line.poNumber || "-")}</td><td>${esc(row.line.itemName || "-")}</td><td class="right">${fmtNum(row.line.qty)} ${esc(row.line.unit || "")}</td><td class="right">${row.line.totalKg == null ? "-" : fmtNum(row.line.totalKg)}</td><td class="right">${row.line.totalAmount == null ? "-" : money(row.line.totalAmount)}</td><td>${esc(row.invoice.notes || "-")}</td></tr>`).join("");
-    res.type("html").send(documentHtml({
+    sendPrintable(res, documentHtml({
       title: "REKAP FAKTUR MUATAN",
       subtitle: order.orderNo,
       landscape: true,

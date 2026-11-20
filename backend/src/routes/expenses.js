@@ -3,7 +3,7 @@ const ExcelJS = require("exceljs");
 const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { SYSTEM_ACCOUNTS, cashCode, postJournal } = require("../services/accounting");
-const { esc, money, date: fmtDate, documentHtml } = require("../utils/printDocument");
+const { esc, money, date: fmtDate, documentHtml, sendPrintable } = require("../utils/printDocument");
 const { cashVoucherHtml, cashVoucherBatchHtml } = require("../utils/cashVoucher");
 
 const router = express.Router();
@@ -492,7 +492,7 @@ router.get("/report", authRequired, async (req, res) => {
     return `<tr><td class="center">${index + 1}</td><td>${fmtDate(x.expenseDate)}</td><td>${esc(categoryLabels[x.category] || "Lainnya")}</td><td><b>${esc(x.reason || "-")}</b><br><span class="muted">${esc(tripNumber)} · ${esc(route)}</span></td><td>${esc(assignment)}</td><td>${esc(methodLabels[x.paymentMethod] || x.paymentMethod || "-")}</td><td>${esc(x.createdBy?.name || "-")}</td><td>${esc(statusLabels[x.status] || x.status || "Diajukan")}</td><td class="right">${money(x.amount)}</td></tr>`;
   }).join("");
 
-  res.type("html").send(documentHtml({
+  sendPrintable(res, documentHtml({
     title: "LAPORAN PENGELUARAN BULANAN",
     subtitle: monthLabel,
     meta: `Periode: 1–${new Date(year, mon, 0).getDate()} ${esc(monthLabel)}<br>Jumlah data: ${items.length}`,
@@ -531,7 +531,7 @@ router.get("/vouchers-print", authRequired, async (req, res) => {
     },
   });
   const monthLabel = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(start);
-  res.type("html").send(cashVoucherBatchHtml(items.map(cashOutVoucherData), `BUKTI PENGELUARAN KAS - ${monthLabel}`));
+  sendPrintable(res, cashVoucherBatchHtml(items.map(cashOutVoucherData), `BUKTI PENGELUARAN KAS - ${monthLabel}`));
 });
 
 // Dot-matrix cash-out voucher, sized for 9.5 x 5.5 inch continuous forms.
@@ -550,7 +550,7 @@ router.get("/:id/voucher-print", authRequired, async (req, res) => {
     },
   });
   if (!expense) return res.status(404).send("Pengeluaran tidak ditemukan");
-  res.type("html").send(cashVoucherHtml(cashOutVoucherData(expense)));
+  sendPrintable(res, cashVoucherHtml(cashOutVoucherData(expense)));
 });
 
 router.get("/employees", authRequired, async (req, res) => {

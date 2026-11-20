@@ -382,12 +382,14 @@
 }
 .bulk-po-requests{overflow:hidden;border:1px solid #d9e0ea;border-radius:11px;background:#fff}.bulk-po-requests>header{padding:11px 13px;border-bottom:1px solid #e2e8ef;background:#f3f6f9}.bulk-po-requests>header span,.bulk-po-requests>header strong,.bulk-po-requests>header small{display:block}.bulk-po-requests>header strong{font-size:11px}.bulk-po-requests>header small{margin-top:2px;color:#67778e;font-size:9px}.bulk-po-requests>div{display:grid;max-height:220px;overflow-y:auto;padding:8px;gap:6px;scrollbar-width:thin}.purchasing .bulk-po-requests label{display:grid;grid-template-columns:20px minmax(0,1fr);align-items:center;gap:9px;margin:0;padding:9px 10px;border:1px solid #dee4ec;border-radius:8px;background:#fff;cursor:pointer}.purchasing .bulk-po-requests label.selected{border-color:#34e391;background:#eef2f6}.purchasing .bulk-po-requests input{width:16px;height:16px;margin:0}.bulk-po-requests label span{display:grid;min-width:0;gap:2px}.bulk-po-requests label b{font-size:10px}.bulk-po-requests label small{overflow:hidden;color:#67778e;font-size:9px;text-overflow:ellipsis;white-space:nowrap}
 .purchasing .po-modal .item-mode {
-  height: 42px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  height: auto;
   padding: 3px;
   border: 1px solid #dee4ec;
   background: #edf0f5;
 }
 .purchasing .po-modal .item-mode button {
+  min-width: 0;
   min-height: 34px;
   border-radius: 7px;
   font-size: 13px;
@@ -1125,4 +1127,16 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
+}
+
+@media (max-width: 743px) {
+  .purchasing .po-modal .item-mode button {
+    min-height: 44px;
+    padding: 6px;
+    line-height: 1.25;
+  }
+
+  .purchasing .po-modal .item-mode button > svg {
+    flex: none;
+  }
 }

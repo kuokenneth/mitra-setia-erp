@@ -3,7 +3,7 @@ const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { requireRole } = require("../middleware/requireRole");
 const { SYSTEM_ACCOUNTS, cashCode, postJournal } = require("../services/accounting");
-const { documentHtml, esc, money, date } = require("../utils/printDocument");
+const { documentHtml, esc, money, date, sendPrintable } = require("../utils/printDocument");
 const router = express.Router();
 router.use(authRequired, requireRole("OWNER", "ADMIN"));
 
@@ -54,7 +54,7 @@ router.get("/report", async (req, res) => {
     const periodLabel = scope === "year"
       ? `Tahun ${year}`
       : new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(from);
-    res.type("html").send(documentHtml({
+    sendPrintable(res, documentHtml({
       title: "LAPORAN JURNAL UMUM",
       subtitle: periodLabel,
       landscape: true,

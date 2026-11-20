@@ -5,7 +5,7 @@ const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { requireRole } = require("../middleware/requireRole");
 const { SYSTEM_ACCOUNTS, cashCode, postJournal } = require("../services/accounting");
-const { esc, num, money, date, documentHtml } = require("../utils/printDocument");
+const { esc, num, money, date, documentHtml, sendPrintable } = require("../utils/printDocument");
 const { nextDailyNumber } = require("../utils/documentNumber");
 const { cashVoucherHtml, cashVoucherBatchHtml } = require("../utils/cashVoucher");
 
@@ -350,7 +350,7 @@ router.get("/payments/:id/voucher-print", async (req, res) => {
   const pph23Amount = Math.max(Number(payment.pph23Amount || 0), inferredPph23);
   const netReceived = Math.max(0, payment.amount - pph23Amount - payment.claimAmount - payment.adminFee);
   const deductions = [`Dibayar: ${money(payment.amount)}`, pph23Amount && `PPh 23: -${money(pph23Amount)}`, payment.claimAmount && `Klaim: -${money(payment.claimAmount)}`, payment.adminFee && `Biaya admin: -${money(payment.adminFee)}`].filter(Boolean).join(" · ");
-  res.type("html").send(cashVoucherHtml({ type: "IN", number: payment.number, date: payment.receivedAt, party: payment.invoice.customerName, amount: netReceived, purpose: `Pembayaran invoice ${payment.invoice.number}`, method, notes: [deductions, payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [payment.invoice.customerName, payment.createdBy?.name, payment.createdBy?.name, ""] }));
+  sendPrintable(res, cashVoucherHtml({ type: "IN", number: payment.number, date: payment.receivedAt, party: payment.invoice.customerName, amount: netReceived, purpose: `Pembayaran invoice ${payment.invoice.number}`, method, notes: [deductions, payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [payment.invoice.customerName, payment.createdBy?.name, payment.createdBy?.name, ""] }));
 });
 
 router.get("/employee-payments/:id/voucher-print", async (req, res) => {
@@ -361,7 +361,7 @@ router.get("/employee-payments/:id/voucher-print", async (req, res) => {
   if (!payment) return res.status(404).send("Penerimaan kas tidak ditemukan");
   const employeeName = payment.employee?.name || payment.employee?.email || payment.employeeParty?.name || "-";
   const method = payment.method === "CASH" ? "Tunai" : payment.method === "BANK_TRANSFER" ? "Transfer bank" : "Lainnya";
-  res.type("html").send(cashVoucherHtml({ type: "IN", number: payment.number, date: payment.receivedAt, party: employeeName, amount: payment.amount, purpose: "Pembayaran piutang karyawan", method, notes: [payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [employeeName, payment.createdBy?.name, payment.createdBy?.name, ""] }));
+  sendPrintable(res, cashVoucherHtml({ type: "IN", number: payment.number, date: payment.receivedAt, party: employeeName, amount: payment.amount, purpose: "Pembayaran piutang karyawan", method, notes: [payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [employeeName, payment.createdBy?.name, payment.createdBy?.name, ""] }));
 });
 
 router.get("/cash-receipts/vouchers-print", async (req, res) => {
@@ -385,7 +385,7 @@ router.get("/cash-receipts/vouchers-print", async (req, res) => {
       ...employeePayments.map(payment => { const name = payment.employee?.name || payment.employee?.email || payment.employeeParty?.name || "-"; return { type: "IN", number: payment.number, date: payment.receivedAt, party: name, amount: payment.amount, purpose: "Pembayaran piutang karyawan", method: methodLabel(payment.method), notes: [payment.reference && `Referensi: ${payment.reference}`, payment.notes].filter(Boolean).join(" · "), signatures: [name, payment.createdBy?.name, payment.createdBy?.name, ""] }; }),
     ].sort((a, b) => new Date(a.date) - new Date(b.date));
     const period = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", month: "long", year: "numeric" }).format(start);
-    res.type("html").send(cashVoucherBatchHtml(vouchers, `Bukti Penerimaan Kas ${period}`));
+    sendPrintable(res, cashVoucherBatchHtml(vouchers, `Bukti Penerimaan Kas ${period}`));
   } catch (error) {
     res.status(400).send(error.message || "Gagal membuat bukti penerimaan kas");
   }
@@ -449,7 +449,7 @@ router.get("/report", async (req, res) => {
       return `<tr style="break-after:avoid"><td class="center">${index + 1}</td><td>${esc(date(item.issuedAt))}</td><td><b>${esc(item.number)}</b></td><td>${esc(item.customerName)}</td><td>${esc(sourceText(item))}</td><td>${esc(date(item.dueAt))}</td><td>${esc(labels[item.displayStatus] || item.displayStatus)}</td><td class="right">${money(item.total)}</td><td class="right">${money(item.paid)}</td><td class="right"><b>${money(item.balance)}</b></td></tr>${detail}`;
     }).join("");
     const periodLabel = outstandingOnly ? "Semua periode · Belum bayar" : new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(start);
-    res.type("html").send(documentHtml({
+    sendPrintable(res, documentHtml({
       title: "LAPORAN PIUTANG PELANGGAN", subtitle: periodLabel, landscape: true,
       meta: `${outstandingOnly ? "Cakupan" : "Periode invoice"}: ${esc(periodLabel)}<br>Jumlah tagihan: ${items.length}`,
       body: `<div class="summary"><div class="box">Total ditagih<b>${money(invoiced)}</b><span>${active.length} invoice aktif</span></div><div class="box">Sudah diterima<b>${money(received)}</b><span>Pembayaran tercatat</span></div><div class="box">Sisa piutang<b>${money(outstanding)}</b><span>Jatuh tempo: ${money(overdue)}</span></div></div><table><thead><tr><th class="center">No</th><th>Tanggal</th><th>Invoice</th><th>Pelanggan</th><th>Kwitansi / Sumber</th><th>Jatuh Tempo</th><th>Status</th><th class="right">Total</th><th class="right">Dibayar</th><th class="right">Sisa</th></tr></thead><tbody>${rows || `<tr><td colspan="10" class="center">Belum ada tagihan pada periode ini.</td></tr>`}</tbody><tfoot><tr><td colspan="7" class="right"><b>TOTAL</b></td><td class="right"><b>${money(invoiced)}</b></td><td class="right"><b>${money(received)}</b></td><td class="right"><b>${money(outstanding)}</b></td></tr></tfoot></table><div class="signatures"><div>Dibuat oleh</div><div>Diperiksa oleh</div><div>Disetujui oleh</div></div>`,
@@ -927,7 +927,7 @@ router.get("/invoices/:id/print", async (req, res) => {
       <table style="width:42%;margin-left:auto"><tbody><tr><td>Subtotal (tanpa PPh 23)</td><td class="right"><b>${money(invoice.subtotal)}</b></td></tr>${invoice.tax ? `<tr><td>Pajak (${num(invoice.manualData?.taxRate ?? 0)}%)</td><td class="right">-${money(invoice.tax)}</td></tr>` : ""}${Number(invoice.manualData?.claim || 0) ? `<tr><td>Klaim</td><td class="right">-${money(invoice.manualData.claim)}</td></tr>` : ""}${invoice.discount ? `<tr><td>PPh 23 (${num(invoice.manualData?.pph23Rate ?? 2)}%)</td><td class="right">-${money(invoice.discount)}</td></tr>` : ""}<tr><td><b>TOTAL TAGIHAN</b></td><td class="right"><b>${money(Math.max(0, invoice.total - invoice.discount))}</b></td></tr></tbody></table>
       ${invoice.notes ? `<div class="box" style="margin-top:14px"><span class="muted">Catatan</span><br>${esc(invoice.notes)}</div>` : ""}
       <div class="signatures"><div>Pelanggan</div><div>Dibuat oleh</div><div>CV. Mitra Setia</div></div>${evidenceHtml}${deliveryEvidenceHtml}`;
-    res.type("html").send(documentHtml({ title: "TAGIHAN ONGKOS ANGKUT", subtitle: invoice.number, meta: `Tanggal invoice: ${esc(date(invoice.issuedAt))}<br>Customer: ${esc(invoice.customerName)}`, body, landscape: Boolean(materialRows && !shipmentRows) }));
+    sendPrintable(res, documentHtml({ title: "TAGIHAN ONGKOS ANGKUT", subtitle: invoice.number, meta: `Tanggal invoice: ${esc(date(invoice.issuedAt))}<br>Customer: ${esc(invoice.customerName)}`, body, landscape: Boolean(materialRows && !shipmentRows) }));
   } catch (error) {
     res.status(400).send(error.message || "Gagal membuat dokumen invoice");
   }

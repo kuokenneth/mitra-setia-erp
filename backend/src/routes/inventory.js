@@ -4,7 +4,7 @@ const express = require("express");
 const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { requireRole } = require("../middleware/requireRole");
-const { esc, num: fmtNum, date: fmtDate, documentHtml } = require("../utils/printDocument");
+const { esc, num: fmtNum, date: fmtDate, documentHtml, sendPrintable } = require("../utils/printDocument");
 const { SYSTEM_ACCOUNTS, postJournal } = require("../services/accounting");
 const { assertRetreadTarget } = require("../utils/tireRetread");
 
@@ -26,7 +26,7 @@ router.get("/reports/stock", authRequired, requireRole(...inventoryAccess), asyn
         `<tr><td>${esc(item.sku)}</td><td>${esc(item.name)}</td><td>${esc(stock.location?.name || "-")}</td><td class="right">${fmtNum(stock.qty)}</td><td>${esc(item.unit)}</td><td class="center">${item.isSerialized ? "Ya" : "Tidak"}</td></tr>`
       )).join("");
       const totalQty = items.reduce((sum, item) => sum + item.stocks.reduce((a, stock) => a + Number(stock.qty || 0), 0), 0);
-      return res.type("html").send(documentHtml({
+      return sendPrintable(res, documentHtml({
         title: "Laporan Stok Keseluruhan",
         subtitle: "Posisi stok terkini per barang dan lokasi",
         meta: `Jumlah item: ${items.length}`,
@@ -63,7 +63,7 @@ router.get("/reports/stock", authRequired, requireRole(...inventoryAccess), asyn
       return `<tr><td>${esc(row.item.sku)}</td><td>${esc(row.item.name)}</td><td class="right">${fmtNum(opening)}</td><td class="right">${fmtNum(row.incoming)}</td><td class="right">${fmtNum(row.outgoing)}</td><td class="right">${fmtNum(closing)}</td><td>${esc(row.item.unit)}</td></tr>`;
     }).join("");
     const movementRows = movements.map((movement) => `<tr><td>${fmtDate(movement.createdAt, true)}</td><td>${esc(movement.type)}</td><td>${esc(movement.item.sku)} — ${esc(movement.item.name)}</td><td class="right">${fmtNum(movement.qty)}</td><td>${esc(movement.fromLocation?.name || "-")}</td><td>${esc(movement.toLocation?.name || "-")}</td><td>${esc(movement.note || "-")}</td><td>${esc(movement.createdBy?.name || "-")}</td></tr>`).join("");
-    res.type("html").send(documentHtml({
+    sendPrintable(res, documentHtml({
       title: "Laporan Stok Harian",
       subtitle: `Mutasi persediaan tanggal ${reportDate}`,
       meta: `Jumlah mutasi: ${movements.length}`,

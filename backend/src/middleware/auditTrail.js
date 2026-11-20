@@ -27,13 +27,16 @@ function actionFor(req, path) {
 }
 
 function auditTrail(req, res, next) {
-  if (!MUTATION_METHODS.has(req.method)) return next();
+  const isRead = req.method === "GET";
+  if (!isRead && !MUTATION_METHODS.has(req.method)) return next();
   // High-frequency GPS payloads are stored in GpsEvent and must not duplicate
   // into the general user audit log.
   if (req.originalUrl.split("?")[0] === "/integrations/golacak/events") return next();
 
   res.on("finish", () => {
     if (res.statusCode >= 400) return;
+    const printDocument = isRead ? res.locals.printDocument : null;
+    if (isRead && (!printDocument || !req.user?.id || res.statusCode < 200 || res.statusCode >= 300)) return;
 
     const path = req.originalUrl.split("?")[0];
     const segments = path.split("/").filter(Boolean);
@@ -56,13 +59,19 @@ function auditTrail(req, res, next) {
         actorName: actor?.name || null,
         actorEmail: actor?.email || req.user?.email || null,
         actorRole: actor?.role || req.user?.role || null,
-        action: actionFor(req, path),
+        action: printDocument ? "PRINT" : actionFor(req, path),
         method: req.method,
         resource,
-        entityId: entityId ? String(entityId) : null,
+        entityId: printDocument ? printDocument.entityId || null : entityId ? String(entityId) : null,
         path,
         statusCode: res.statusCode,
-        changes: sanitize(req.body || {}),
+        changes: sanitize(printDocument ? {
+          Dokumen: printDocument.title,
+          ...(printDocument.subtitle ? { Rincian: printDocument.subtitle } : {}),
+          ...Object.fromEntries(Object.entries(req.query || {}).filter(([key]) =>
+            ["month", "year", "period", "scope", "from", "to", "supplierId", "ids", "truckId", "locationId"].includes(key)
+          )),
+        } : req.body || {}),
         ipAddress,
         userAgent: String(req.headers["user-agent"] || "").slice(0, 500) || null,
       },

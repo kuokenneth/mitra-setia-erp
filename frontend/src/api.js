@@ -82,6 +82,7 @@ export async function openPrintDocument(path, existingPopup = null) {
     const token = getAccessToken();
     const url = `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
     const response = await fetch(url, {
+      cache: "no-store",
       credentials: "include",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });

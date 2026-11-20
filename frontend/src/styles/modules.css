@@ -207,6 +207,14 @@ html.erp-app .erp-content :is(.empty,.acct-empty,.orders-v3-empty,.inventory-emp
   html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td[data-label]:not([data-label=""])::before {
     content: attr(data-label); display: block; margin-bottom: 2px; color: var(--ms-muted-fg); font-size: var(--ms-text-2xs); font-weight: var(--ms-weight-medium); letter-spacing: 0; line-height: 1.3; text-transform: none;
   }
+  html.erp-app .erp-content .purchase-request-table.ms-cardtable > tbody > tr.direct-maintenance-row {
+    box-shadow: inset 3px 0 #1bc676 !important;
+  }
+
+  html.erp-app .erp-content .purchase-request-table.ms-cardtable .direct-maintenance-row > td:first-child {
+    box-shadow: none;
+  }
+
   /* First cell is the record's identifier: full width, prominent. */
   html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td:first-child { grid-column: 1 / -1; font-size: var(--ms-text-md) !important; font-weight: var(--ms-weight-semibold); }
   html.erp-app :is(.erp-content, .ui-modal) table.ms-cardtable > tbody > tr > td:first-child::before { display: none !important; }

@@ -139,8 +139,9 @@
   .erp-user-chev { display: none; }
   .erp-live { width: 28px; padding: 0; justify-content: center; }
   .erp-live span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-  .erp-content { padding: 12px calc(12px + var(--ms-safe-right)) calc(var(--ms-bottom-nav-h) + 20px + var(--ms-safe-bottom)) calc(12px + var(--ms-safe-left)); }
+  .erp-content { padding: 12px calc(12px + var(--ms-safe-right)) 12px calc(12px + var(--ms-safe-left)); }
   .erp-shell { --ms-bottom-offset: calc(var(--ms-bottom-nav-h) + var(--ms-safe-bottom)); }
+  .erp-shell:has(> .erp-tabbar) .erp-main { padding-block-end: calc(var(--ms-bottom-offset) + 8px); }
   .erp-tabbar { position: fixed; right: 0; bottom: 0; left: 0; z-index: 90; display: grid; grid-auto-columns: minmax(0, 1fr); grid-auto-flow: column; height: calc(var(--ms-bottom-nav-h) + var(--ms-safe-bottom)); padding: 0 var(--ms-safe-right) var(--ms-safe-bottom) var(--ms-safe-left); border-top: 1px solid var(--ms-border); background: color-mix(in srgb, var(--ms-surface) 94%, transparent); backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px); }
   .erp-tab { display: flex; min-width: 0; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 6px 2px 4px; border: 0; background: transparent; color: var(--ms-muted-fg); font: inherit; font-size: 10.5px; font-weight: var(--ms-weight-medium); text-decoration: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .erp-tab svg { width: 22px; height: 22px; }

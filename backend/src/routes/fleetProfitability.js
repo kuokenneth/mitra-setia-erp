@@ -2,7 +2,7 @@ const express = require("express");
 const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { requireRole } = require("../middleware/requireRole");
-const { esc, money, documentHtml } = require("../utils/printDocument");
+const { esc, money, documentHtml, sendPrintable } = require("../utils/printDocument");
 
 const router = express.Router();
 router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF"));
@@ -325,7 +325,7 @@ router.get("/", async (req, res) => {
         <td class="right"><b>${money(row.profit)}</b></td>
         <td class="right">${esc(`${row.margin.toLocaleString("id-ID", { maximumFractionDigits: 1 })}%`)}</td>
       </tr>`).join("");
-      return res.type("html").send(documentHtml({
+      return sendPrintable(res, documentHtml({
         title: "LAPORAN PROFIT ARMADA",
         subtitle: periodLabel,
         landscape: true,

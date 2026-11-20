@@ -6,8 +6,8 @@ import { useAuth } from "../AuthContext";
 import LoadingState from "../components/LoadingState";
 import "./AuditTrail.css";
 
-const actionLabel = { CREATE: "Tambah", UPDATE: "Ubah", DELETE: "Hapus", LOGIN: "Login", LOGOUT: "Logout", REGISTER: "Daftar" };
-const resourceNames = { auth: "Autentikasi", trips: "Perjalanan", orders: "Pesanan", trucks: "Armada", expenses: "Pengeluaran", inventory: "Inventory", purchases: "Pembelian", receivables: "Piutang", users: "Pengguna", maintenance: "Servis" };
+const actionLabel = { CREATE: "Tambah", UPDATE: "Ubah", DELETE: "Hapus", LOGIN: "Login", LOGOUT: "Logout", REGISTER: "Daftar", PRINT: "Cetak" };
+const resourceNames = { auth: "Autentikasi", trips: "Perjalanan", orders: "Pesanan", trucks: "Armada", expenses: "Pengeluaran", inventory: "Inventory", purchases: "Pembelian", purchasing: "Pembelian", accounting: "Akuntansi", "fleet-profitability": "Profitabilitas Armada", receivables: "Piutang", users: "Pengguna", maintenance: "Servis" };
 
 function resolvedAction(log) {
   if (log.path === "/auth/login") return "LOGIN";
@@ -92,11 +92,11 @@ export default function AuditTrail() {
     </section>
 
     <section className="audit-workspace">
-      <div className="audit-workspace-head"><div><span className="audit-kicker">Log aktivitas</span><h2>Riwayat perubahan sistem</h2></div></div>
+      <div className="audit-workspace-head"><div><span className="audit-kicker">Log aktivitas</span><h2>Riwayat aktivitas sistem</h2></div></div>
       <section className="audit-filters">
         <label className="audit-search"><FiSearch/><input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Cari nama, email, endpoint, atau ID data..." /></label>
         <select aria-label="Filter modul" value={resource} onChange={(e) => { setResource(e.target.value); setPage(1); }}><option value="">Semua modul</option>{data.resources.map((item) => <option key={item} value={item}>{resourceNames[item] || item}</option>)}</select>
-        <select aria-label="Filter aksi" value={action} onChange={(e) => { setAction(e.target.value); setPage(1); }}><option value="">Semua aksi</option>{["CREATE","UPDATE","DELETE","LOGIN","LOGOUT","REGISTER"].map((item) => <option key={item} value={item}>{actionLabel[item]}</option>)}</select>
+        <select aria-label="Filter aksi" value={action} onChange={(e) => { setAction(e.target.value); setPage(1); }}><option value="">Semua aksi</option>{Object.keys(actionLabel).map((item) => <option key={item} value={item}>{actionLabel[item]}</option>)}</select>
         <select aria-label="Filter peran" value={actorRole} onChange={(e) => { setActorRole(e.target.value); setPage(1); }}><option value="">Semua peran</option><option value="OWNER">Owner</option><option value="ADMIN">Admin</option><option value="STAFF">Staff</option><option value="DRIVER">Pengemudi</option></select>
         <div className="audit-period"><span>Periode cepat</span><div className="audit-quick-ranges"><button type="button" onClick={() => setRange(1)}>Hari ini</button><button type="button" onClick={() => setRange(7)}>7 hari</button><button type="button" onClick={() => setRange(30)}>30 hari</button></div></div>
         <label className="audit-date"><span>Dari</span><span className={`audit-date-control ${dateFrom ? "has-value" : ""}`} data-placeholder="Pilih tanggal"><input aria-label="Tanggal awal audit" type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} /></span></label>
@@ -106,17 +106,17 @@ export default function AuditTrail() {
       {error && <div className="audit-error">{error}</div>}
       <section className="audit-table-wrap">{loading && !data.items.length && <LoadingState compact label="Memuat audit trail" note="Mengambil aktivitas dan perubahan sistem…" rows={3} />}{(!loading || data.items.length > 0) && <table className="audit-table"><thead><tr><th>Waktu</th><th>Aktor</th><th>Aktivitas</th><th>Modul & target</th><th>Endpoint</th><th>Respons</th></tr></thead><tbody>
         {!loading && !data.items.length && <tr><td colSpan="6" className="audit-empty"><FiSearch/><strong>Tidak ada aktivitas ditemukan</strong><span>Coba ubah kata kunci atau reset filter.</span></td></tr>}
-        {data.items.map((log) => { const displayAction = resolvedAction(log); const time = shortDate(log.createdAt); return <tr key={log.id} onClick={() => setSelected(log)}><td><strong className="audit-time-date">{time.date}</strong><small>{time.time}</small></td><td><strong>{actorLabel(log)}</strong><small>{log.actorRole || "Sistem"}</small></td><td><span className={`audit-action ${displayAction.toLowerCase()}`}>{actionLabel[displayAction] || displayAction}</span></td><td><strong>{resourceLabel(log)}</strong><small className="audit-entity">{log.entityId || "Tanpa ID target"}</small></td><td><code>{log.method} {log.path}</code></td><td><span className="audit-response">{log.statusCode}</span><small>Berhasil</small></td></tr>; })}
+        {data.items.map((log) => { const displayAction = resolvedAction(log); const time = shortDate(log.createdAt); return <tr key={log.id} onClick={() => setSelected(log)}><td><strong className="audit-time-date">{time.date}</strong><small>{time.time}</small></td><td><strong>{actorLabel(log)}</strong><small>{log.actorRole || "Sistem"}</small></td><td><span className={`audit-action ${displayAction.toLowerCase()}`}>{actionLabel[displayAction] || displayAction}</span></td><td><strong>{resourceLabel(log)}</strong><small className="audit-entity">{log.changes?.Dokumen ? [log.changes.Dokumen, log.changes.Rincian].filter(Boolean).join(" · ") : log.entityId || "Tanpa ID target"}</small></td><td><code>{log.method} {log.path}</code></td><td><span className="audit-response">{log.statusCode}</span><small>Berhasil</small></td></tr>; })}
       </tbody></table>}</section>
       {(!loading || data.items.length > 0) && <footer className="audit-pagination"><span>Menampilkan {data.items.length} dari {data.total} aktivitas</span><div><button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}><FiChevronLeft/></button><span>Halaman <strong>{page}</strong> dari {pages}</span><button disabled={page >= pages} onClick={() => setPage((p) => p + 1)}><FiChevronRight/></button></div></footer>}
     </section>
 
     {selected && <div className="ms-dialog-overlay audit-overlay" onMouseDown={() => setSelected(null)}><article className="ms-dialog audit-detail" onMouseDown={(e) => e.stopPropagation()}>
       <header><div><small>Detail aktivitas</small><h2>{actionLabel[resolvedAction(selected)] || resolvedAction(selected)} {resourceLabel(selected)}</h2><p>{formatDate(selected.createdAt)}</p></div><button onClick={() => setSelected(null)} aria-label="Tutup"><FiX/></button></header>
-      <div className="audit-detail-summary"><div><span>Aktor</span><strong>{actorLabel(selected)}</strong><small>{selected.actorRole || "Sistem"}</small></div><div><span>Target</span><strong>{selected.entityId || "Tanpa ID"}</strong><small>{resourceLabel(selected)}</small></div><div><span>Respons</span><strong>{selected.statusCode}</strong><small>Berhasil diproses</small></div></div>
+      <div className="audit-detail-summary"><div><span>Aktor</span><strong>{actorLabel(selected)}</strong><small>{selected.actorRole || "Sistem"}</small></div><div><span>Target</span><strong>{selected.changes?.Dokumen || selected.entityId || "Tanpa ID"}</strong><small>{resourceLabel(selected)}</small></div><div><span>Respons</span><strong>{selected.statusCode}</strong><small>Berhasil diproses</small></div></div>
       <section className="audit-request"><div><span>Endpoint</span><code>{selected.method} {selected.path}</code></div><button onClick={() => copyText(`${selected.method} ${selected.path}`, "endpoint")}><FiCopy/>{copied === "endpoint" ? "Tersalin" : "Salin"}</button></section>
       <section className="audit-technical"><div><span>Alamat IP</span><strong>{selected.ipAddress || "—"}</strong></div><div><span>Perangkat</span><strong>{selected.userAgent || "—"}</strong></div></section>
-      <div className="audit-change-head"><div><h3>Data yang dikirim</h3><p>Nilai sensitif otomatis disamarkan oleh sistem.</p></div><button onClick={() => copyText(JSON.stringify(selected.changes, null, 2), "changes")}><FiCopy/>{copied === "changes" ? "Tersalin" : "Salin data"}</button></div>
+      <div className="audit-change-head"><div><h3>{selected.action === "PRINT" ? "Rincian dokumen cetak" : "Data yang dikirim"}</h3><p>Nilai sensitif otomatis disamarkan oleh sistem.</p></div><button onClick={() => copyText(JSON.stringify(selected.changes, null, 2), "changes")}><FiCopy/>{copied === "changes" ? "Tersalin" : "Salin data"}</button></div>
       <div className="audit-changes">{Object.entries(selected.changes || {}).length ? Object.entries(selected.changes || {}).map(([key, value]) => <div key={key}><span>{key}</span><pre>{displayValue(value)}</pre></div>) : <div className="audit-no-change">Tidak ada rincian data pada aktivitas ini.</div>}</div>
     </article></div>}
   </div>;
