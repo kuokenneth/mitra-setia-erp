@@ -856,6 +856,22 @@ html.erp-app .erp-content .order-detail-v3-overview > * :is(i,span):first-child:
 html.erp-app .erp-content .order-detail-v3-overview > * small { color: var(--ms-muted-fg) !important; font-size: var(--ms-text-xs) !important; font-weight: var(--ms-weight-medium) !important; }
 html.erp-app .erp-content .order-detail-v3-overview > * strong { font-size: var(--ms-text-md) !important; font-weight: var(--ms-weight-semibold) !important; }
 
+@media (max-width: 743px) {
+  html.erp-app .erp-content .order-detail-v3-overview > article {
+    padding-right: 12px !important;
+  }
+
+  .erp-content .order-detail-v3-overview > article > div {
+    width: 100%;
+  }
+
+  .erp-content .order-detail-v3-overview > article small {
+    min-height: 32px;
+    padding-inline-end: 36px;
+  }
+}
+
+
 /* Detail Perjalanan: no outer frame; header aligned with the rest of the app. */
 html.erp-app .erp-content :is(.trip-detail-v3,.trip-detail-v3-container,.trip-detail-v3-shell) { max-width: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }
 html.erp-app .erp-content .trip-detail-v3-head { margin-bottom: 12px !important; }

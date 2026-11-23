@@ -1140,3 +1140,14 @@
     flex: none;
   }
 }
+
+.request-catalog-with-quantity {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(104px, 24%);
+  align-items: start;
+  gap: 10px;
+}
+
+.request-catalog-with-quantity > label {
+  min-width: 0;
+}
