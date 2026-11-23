@@ -123,6 +123,7 @@ router.get("/", authRequired, async (req, res) => {
       orderBy: [{ plannedAt: "desc" }, { createdAt: "desc" }],
       include: {
         invoices: { where: { sourceType: "ORDER", status: { not: "VOID" } }, select: { billableQuantity: true, deliveredQuantity: true } },
+        materialInvoices: { select: { billedInvoice: { select: { status: true } } } },
         customer: true,
         pickupLocation: true,
         destinationLocation: true,
@@ -167,9 +168,15 @@ router.get("/", authRequired, async (req, res) => {
       const remaining = total == null ? null : Math.max(0, total - tripped);
 
       // remove trips payload from list (optional)
-      const { trips, tripAllocations, invoices, ...rest } = o;
+      const { trips, tripAllocations, invoices, materialInvoices, ...rest } = o;
       const unitFactor = String(o.unit || "").toUpperCase() === "TON" ? 1000 : String(o.unit || "").toUpperCase() === "KG" ? 1 : null;
       const billed = unitFactor ? Math.min(delivered, invoices.reduce((sum, invoice) => sum + Number(invoice.billableQuantity ?? invoice.deliveredQuantity ?? 0), 0) / unitFactor) : null;
+      const invoicedDelivery = invoices.reduce((sum, invoice) => sum + Number(invoice.deliveredQuantity ?? invoice.billableQuantity ?? 0), 0);
+      const fullyBilled = o.status === "COMPLETED" && (
+        o.cargoCategory === "MATERIAL"
+          ? materialInvoices.length > 0 && materialInvoices.every(({ billedInvoice }) => billedInvoice && billedInvoice.status !== "VOID")
+          : unitFactor != null && delivered > 0 && invoicedDelivery >= delivered * unitFactor - 0.000001
+      );
 
       return {
         ...rest,
@@ -183,6 +190,7 @@ router.get("/", authRequired, async (req, res) => {
         qtyReadyToBill: billed == null ? null : Math.max(0, delivered - billed),
         qtyInProgress: inProgress,
         qtyCargoLoss: cargoLoss,
+        fullyBilled,
       };
     });
 

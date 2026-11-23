@@ -7,11 +7,14 @@ import { useNavigate } from "react-router-dom";
 import { FiArrowRight, FiCalendar, FiFileText, FiMapPin, FiPackage, FiPlus, FiRefreshCw, FiSearch, FiTrash2, FiUploadCloud, FiX } from "react-icons/fi";
 import { openProtectedFile, ProtectedImage } from "../components/ProtectedFile";
 import LoadingState, { LoadingMini } from "../components/LoadingState";
+import { Pagination } from "../ui/primitives";
 import "./OrdersRedesign.css";
 import "./OrdersOverrides.css";
 import "./OrdersModalRedesign.css";
 import "./OrdersProgress.css";
 import useDialogLifecycle from "../components/useDialogLifecycle";
+
+const PAGE_SIZE = 20;
 
 //////////////////////
 // THEME - CORPORATE MINIMALIST
@@ -307,6 +310,7 @@ export default function Orders() {
   const [customer, setCustomer] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [page, setPage] = useState(1);
 
   // Create Order modal
   const [showCreate, setShowCreate] = useState(false);
@@ -383,12 +387,18 @@ export default function Orders() {
   }, []);
   useLiveRefresh(load);
 
+  const visibleItems = useMemo(() => items
+    .filter((order) => !order.fullyBilled)
+    .sort((a, b) => Number(b.status === "IN_PROGRESS") - Number(a.status === "IN_PROGRESS")), [items]);
+  const pageCount = Math.max(1, Math.ceil(visibleItems.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pageItems = visibleItems.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const summary = useMemo(() => ({
-    total: items.length,
-    draft: items.filter((order) => order.status === "DRAFT").length,
-    active: items.filter((order) => ["CONFIRMED", "IN_PROGRESS"].includes(order.status)).length,
-    completed: items.filter((order) => order.status === "COMPLETED").length,
-  }), [items]);
+    total: visibleItems.length,
+    draft: visibleItems.filter((order) => order.status === "DRAFT").length,
+    active: visibleItems.filter((order) => ["CONFIRMED", "IN_PROGRESS"].includes(order.status)).length,
+    completed: visibleItems.filter((order) => order.status === "COMPLETED").length,
+  }), [visibleItems]);
 
   function resetCreate() {
     setCreateErr("");
@@ -486,22 +496,22 @@ export default function Orders() {
 
       {err && <div className="orders-v3-error">{err}</div>}
 
-      <section className="orders-v3-tools">
+      <section className="orders-v3-tools" onChange={() => setPage(1)}>
         <label className="orders-v3-search"><FiSearch /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari pesanan, DO, SPK, tujuan, atau muatan…" data-testid="search-input" />{loading && <LoadingMini />}</label>
         <Select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="status-filter">{statusOptions.map((value) => <option key={value || "ALL"} value={value}>{value === "VISIBLE" ? "Aktif & selesai" : value ? value.replaceAll("_", " ") : "Semua status"}</option>)}</Select>
         <Input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Nama customer" />
         <span className={`date-placeholder-wrap ${dateFrom ? "has-value" : ""}`} data-placeholder="Dari tanggal"><Input className="tablet-date-input" aria-label="Tanggal mulai" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></span>
         <span className={`date-placeholder-wrap ${dateTo ? "has-value" : ""}`} data-placeholder="Sampai tanggal"><Input className="tablet-date-input" aria-label="Tanggal selesai" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} /></span>
-        <button className="orders-v3-reset" onClick={() => { setQ(""); setStatus("VISIBLE"); setCustomer(""); setDateFrom(""); setDateTo(""); }} disabled={loading}><FiX /> Reset</button>
+        <button className="orders-v3-reset" onClick={() => { setQ(""); setStatus("VISIBLE"); setCustomer(""); setDateFrom(""); setDateTo(""); setPage(1); }} disabled={loading}><FiX /> Reset</button>
       </section>
 
       <section className="orders-v3-board">
-        <header><div><span>Daftar operasional</span><h2>Pesanan Aktif & Riwayat</h2></div><b>{items.length} pesanan</b></header>
+        <header><div><span>Daftar operasional</span><h2>Pesanan Aktif & Riwayat</h2></div><b>{summary.total} pesanan</b></header>
         <div className="orders-v3-columns" aria-hidden="true"><span>Pesanan & Customer</span><span>Rute Pengiriman</span><span>Muatan & Jadwal</span><span>Dokumen</span></div>
         <div className="orders-v3-list">
-          {loading && !items.length && <LoadingState label="Memuat pesanan" note="Menyiapkan alokasi, rute, dan progres terbaru…" rows={3} compact />}
-          {!items.length && !loading && <div className="orders-v3-empty"><FiFileText /><strong>Tidak ada pesanan ditemukan</strong><p>Coba ubah kata pencarian atau filter yang digunakan.</p></div>}
-          {items.map((order) => {
+          {loading && !visibleItems.length && <LoadingState label="Memuat pesanan" note="Menyiapkan alokasi, rute, dan progres terbaru…" rows={3} compact />}
+          {!visibleItems.length && !loading && <div className="orders-v3-empty"><FiFileText /><strong>Tidak ada pesanan ditemukan</strong><p>Coba ubah kata pencarian atau filter yang digunakan.</p></div>}
+          {pageItems.map((order) => {
             const customerName = order.customer?.name || order.customerName || "Tanpa customer";
             const total = order.qty != null ? Number(order.qty) : null;
             const remaining = order.qtyRemaining != null ? Number(order.qtyRemaining) : null;
@@ -525,6 +535,7 @@ export default function Orders() {
             </article>;
           })}
         </div>
+        {pageCount > 1 && <Pagination page={currentPage} pageCount={pageCount} total={summary.total} onPage={setPage} label="pesanan" />}
       </section>
 
       <Modal open={showCustomerForm} title="Customer Baru" subtitle="Tambahkan perusahaan agar dapat dipilih pada pesanan dan Trip Tunggal." onClose={() => !customerSaving && setShowCustomerForm(false)} width={560} className="orders-v3-customer-modal">

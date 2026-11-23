@@ -28,8 +28,11 @@
   right: 0;
   top: 100%;
   z-index: 30;
-  width: 230px;
-  padding: 13px 6px 6px;
+  box-sizing: border-box;
+  display: grid;
+  gap: 6px;
+  width: min(320px, calc(100vw - 32px));
+  padding: 8px;
   border: 1px solid #d7dfe9;
   border-radius: 12px;
   background: #fff;
@@ -38,9 +41,10 @@
 .trip-create-menu > div > button {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 10px;
+  min-height: 60px;
+  padding: 10px 12px;
   border: 0;
   border-radius: 8px;
   background: #fff;
@@ -49,10 +53,15 @@
   cursor: pointer;
 }
 .trip-create-menu > div > button:hover { background: #edf1f6; color: #107646; }
+.trip-create-menu > div > button > svg {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+}
 .trip-create-menu > div span strong,
 .trip-create-menu > div span small { display: block; }
-.trip-create-menu > div span strong { font-size: 10px; }
-.trip-create-menu > div span small { margin-top: 2px; color: #77879d; font-size: 8px; }
+.trip-create-menu > div span strong { font-size: 15px; line-height: 1.25; }
+.trip-create-menu > div span small { margin-top: 3px; color: #77879d; font-size: 12px; line-height: 1.35; }
 .empty-return-details select {
   width: 100%;
   box-sizing: border-box;
@@ -66,5 +75,4 @@
 }
 @media (max-width: 720px) {
   .trip-create-actions { width: 100%; justify-content: space-between; }
-  .trip-create-menu > div { left: 0; right: auto; }
 }

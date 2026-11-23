@@ -646,7 +646,7 @@ export default function OrderDetail() {
         <div className="order-detail-v3-title">
           <span className="order-detail-v3-eyebrow">Pesanan angkutan</span>
           <div className="order-detail-v3-title-row">
-            <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: BRAND.text }}>{order.orderNo}</h1>
+            <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: BRAND.text }}>No. DO {order.deliveryOrderNo?.trim() || "—"}</h1>
             <StatusBadge status={order.status} />
             {order.orderType && (
               <span
