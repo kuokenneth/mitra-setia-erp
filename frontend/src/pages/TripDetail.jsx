@@ -377,6 +377,11 @@ export default function TripDetail() {
   const currentPhaseIndex = currentPhase === "SERVICE_AT_BASE" ? 2 : DELIVERY_PHASES.findIndex((phase) => phase.value === currentPhase);
   const currentStepIndex = Math.max(0, STATUS_STEPS.findIndex((step) => step.value === currentStatus));
   const activeOrderStop = (trip?.orderAllocations || []).find((allocation) => !allocation.destinationCompletedAt);
+  const templatePlate = (truck?.plateNumber || trip?.plateNumberSnap || "")
+    .toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const materialTemplateFilename = templatePlate
+    ? `template-faktur-muatan-${templatePlate}.xlsx`
+    : "template-faktur-muatan.xlsx";
   const activeMaterialStop = (trip?.materialInvoices || []).find((invoice) => invoice.destinationLocationId && !invoice.destinationCompletedAt);
   const activeDestinationArrived = Boolean(activeOrderStop?.destinationArrivedAt || activeMaterialStop?.destinationArrivedAt);
   const canMarkDestinationArrival = currentStatus === "DISPATCHED" && !activeDestinationArrived;
@@ -897,7 +902,7 @@ export default function TripDetail() {
               {materialEntryMode === "manual" ? (
                 <div className="wide trip-material-manual">
                   <div className="trip-material-excel-actions">
-                    <a href={`${import.meta.env.BASE_URL}template-faktur-muatan.xlsx`} download><FiDownload /> Unduh template Excel</a>
+                    <a href={`${import.meta.env.BASE_URL}template-faktur-muatan.xlsx`} download={materialTemplateFilename}><FiDownload /> Unduh template Excel</a>
                     <button type="button" disabled={materialImport.busy || singleMaterialBusy} onClick={() => materialExcelInput.current.click()}>
                       <FiUploadCloud /> {materialImport.busy ? "Membaca Excel…" : "Impor Excel"}
                     </button>
