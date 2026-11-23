@@ -10,10 +10,10 @@ import { confirmDialog } from "../ui/dialogService";
 
 const money = value => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value) || 0);
 const pct = value => `${Number(value || 0).toLocaleString("id-ID", { maximumFractionDigits: 1 })}%`;
-const currentMonth = () => new Date().toLocaleDateString("sv-SE", { year: "numeric", month: "2-digit" });
-const currentDate = () => new Date().toLocaleDateString("sv-SE");
+const currentMonth = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit" });
+const currentDate = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jakarta" });
 const labels = { depreciation: "Penyusutan", insurance: "Asuransi", taxPermit: "Pajak & izin", driverSalary: "Gaji pengemudi", lease: "Cicilan / sewa", overhead: "Overhead" };
-const date = value => value ? new Date(value).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+const date = value => value ? new Date(value).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "short", year: "numeric" }) : "—";
 
 function Bar({ value, tone = "green" }) {
   return <div className="fp-bar"><span className={tone} style={{ width: `${Math.min(100, Math.max(0, Number(value) || 0))}%` }} /></div>;
@@ -101,7 +101,7 @@ export default function FleetProfitability() {
   if (!canAccess) return <main className="fp-page"><header className="fp-head"><div><span>Akses dibatasi</span><h1>Profit Armada</h1><p>Halaman ini hanya tersedia untuk Owner, Admin, dan Staff.</p></div></header></main>;
 
   return <main className="fp-page">
-    <header className="fp-head"><div className="fp-head-copy"><span>Keuangan · analisis armada</span><h1>Profit Armada</h1><p>Pantau kontribusi pendapatan, struktur biaya, dan laba bersih setiap armada dalam satu laporan.</p></div><div className="fp-head-actions"><div className="fp-period-card"><FiCalendar/><label><small>Periode laporan</small><input type="month" value={month} onChange={event => setMonth(event.target.value)} /></label></div><button type="button" className="fp-print-button" onClick={printReport} disabled={loading}><FiPrinter/><span>Cetak Laporan</span></button></div></header>
+    <header className="fp-head"><div className="fp-head-copy"><span>Keuangan · analisis armada</span><h1>Profit Armada</h1><p>Pendapatan dan biaya trip masuk ke periode tanggal tiba di tujuan.</p></div><div className="fp-head-actions"><div className="fp-period-card"><FiCalendar/><label><small>Periode laporan</small><input type="month" value={month} onChange={event => setMonth(event.target.value)} /></label></div><button type="button" className="fp-print-button" onClick={printReport} disabled={loading}><FiPrinter/><span>Cetak Laporan</span></button></div></header>
     {error && <div className="fp-error">{error}</div>}
     <section className="fp-summary">
       <article className="revenue"><FiDollarSign/><small>Pendapatan</small><strong>{money(data.summary.revenue)}</strong><span>{data.summary.trips || 0} trip pada periode ini</span></article>
@@ -140,7 +140,7 @@ export default function FleetProfitability() {
         </div>
 
         <div className="fp-detail-section"><div className="fp-detail-title"><div><FiTruck/><h3>Sumber Pendapatan & Biaya Armada</h3></div><span>{selected.tripDetails?.length || 0} sumber</span></div>
-          <div className="fp-detail-table"><table><thead><tr><th>Tanggal / Trip</th><th>Rute</th><th>Dasar Pendapatan</th><th>Pendapatan</th><th>Pengeluaran</th><th>Kontribusi Bersih</th></tr></thead><tbody>
+          <div className="fp-detail-table"><table><thead><tr><th>Tanggal tiba / Trip</th><th>Rute</th><th>Dasar Pendapatan</th><th>Pendapatan</th><th>Pengeluaran</th><th>Kontribusi Bersih</th></tr></thead><tbody>
             {(selected.tripDetails || []).map(trip => <tr key={trip.id}><td><b>{date(trip.date)}</b><small>{trip.purpose === "EMPTY_RETURN" ? "Kembali kosong" : trip.orderNo || "Tanpa nomor DO"}</small></td><td><b>{trip.fromText || "—"} → {trip.toText || "—"}</b><small>{trip.customerName || "Operasional internal"}</small></td><td>{trip.invoiceNumber ? <><b>{trip.invoiceNumber}</b><small>{pct(trip.allocationPercent)} dari invoice {money(trip.invoiceTotal)}{!trip.historical && trip.quantity != null ? ` · Tiba ${trip.quantity}/${trip.orderedQuantity || "?"} ${trip.unit || ""}` : trip.historical ? ` · ${trip.cargoName || "Muatan historis"} · ${Number(trip.quantity || 0).toLocaleString("id-ID")} ${trip.unit || ""}` : ""}</small>{trip.cargoLoss > 0 && <small style={{ color: "#bf3434" }}>Kehilangan {Math.max(0, Number(trip.plannedQuantity) - Number(trip.quantity)).toLocaleString("id-ID")} {trip.unit || ""} = {money(trip.cargoLoss)}</small>}</> : <><b>Tidak ada pendapatan</b><small>{trip.purpose === "EMPTY_RETURN" ? "Trip kembali kosong" : "Invoice belum terkirim"}</small></>}</td><td className="positive"><b>{money(trip.allocatedRevenue)}</b></td><td className={trip.expenseTotal ? "negative" : ""}><b>{money(trip.expenseTotal)}</b>{trip.expenses?.map(expense => <small key={expense.id}>{expense.reason}: {money(expense.amount)}</small>)}</td><td className={trip.netContribution < 0 ? "negative" : "positive"}><b>{money(trip.netContribution)}</b></td></tr>)}
             {!selected.tripDetails?.length && <tr><td colSpan="6" className="fp-none">Tidak ada pendapatan armada pada bulan ini.</td></tr>}
           </tbody></table></div>

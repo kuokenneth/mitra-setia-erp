@@ -338,21 +338,41 @@ router.get("/", authRequired, async (req, res) => {
       else where.AND = [qFilter];
     }
 
-    const [total, trips] = await prisma.$transaction([
-      prisma.trip.count({ where }),
-      prisma.trip.findMany({
-        where,
-        orderBy: [{ plannedDepartAt: "desc" }, { createdAt: "desc" }],
-        ...(limit ? { skip: (page - 1) * limit, take: limit } : {}),
-        include: {
-          truck: true,
-          driverUser: true,
-          order: { select: { id: true, orderNo: true, deliveryOrderNo: true, customerName: true, cargoName: true, cargoCategory: true, unit: true, fromText: true, toText: true, status: true, trips: { select: { id: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } },
-          dispatchLetter: true,
-          _count: { select: { arrivalProofs: true, expenses: true } },
-        },
-      }),
-    ]);
+    const prioritizePlanned = req.query.sort === "planned-first";
+    const orderBy = prioritizePlanned
+      ? [{ createdAt: "desc" }, { id: "desc" }]
+      : [{ plannedDepartAt: "desc" }, { createdAt: "desc" }];
+    const offset = limit ? (page - 1) * limit : 0;
+    const findTrips = (db, filter, skip, take) => db.trip.findMany({
+      where: filter,
+      orderBy,
+      ...(take ? { skip, take } : {}),
+      include: {
+        truck: true,
+        driverUser: true,
+        order: { select: { id: true, orderNo: true, deliveryOrderNo: true, customerName: true, cargoName: true, cargoCategory: true, unit: true, fromText: true, toText: true, status: true, trips: { select: { id: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } },
+        dispatchLetter: true,
+        _count: { select: { arrivalProofs: true, expenses: true } },
+      },
+    });
+
+    const [total, trips] = prioritizePlanned && !status
+      ? await prisma.$transaction(async (tx) => {
+          const planned = { ...where, status: "PLANNED" };
+          const remaining = { ...where, status: { not: "PLANNED" } };
+          const total = await tx.trip.count({ where });
+          const plannedCount = await tx.trip.count({ where: planned });
+          const plannedTrips = offset < plannedCount ? await findTrips(tx, planned, offset, limit) : [];
+          const remainingLimit = limit ? limit - plannedTrips.length : null;
+          const remainingTrips = remainingLimit === 0
+            ? []
+            : await findTrips(tx, remaining, Math.max(0, offset - plannedCount), remainingLimit);
+          return [total, [...plannedTrips, ...remainingTrips]];
+        }, { isolationLevel: "RepeatableRead" })
+      : await prisma.$transaction([
+          prisma.trip.count({ where }),
+          findTrips(prisma, where, offset, limit),
+        ]);
 
     const items = trips.map((trip) => {
       const orderedTrips = trip.order?.trips || [];
@@ -426,9 +446,10 @@ router.patch("/:id/material-stops/:invoiceId/complete", authRequired, async (req
 router.post("/:id/material-invoices", authRequired, async (req, res) => {
   try {
     if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
-    const { billingCustomerName, destinationLocationId, stopSequence, issuedAt, notes, number, lines: inputLines } = req.body || {};
+    const { billingCustomerName, destinationLocationId, stopSequence, issuedAt, notes, number, manual, lines: inputLines } = req.body || {};
     if (!str(billingCustomerName)) throw new Error("Customer tagihan wajib diisi");
-    if (!str(destinationLocationId)) throw new Error("Tujuan bongkar wajib dipilih");
+    const manualEntry = manual === true;
+    if (!manualEntry && !str(destinationLocationId)) throw new Error("Tujuan bongkar wajib dipilih");
     const lines = Array.isArray(inputLines) ? inputLines.map((line) => ({
       ppNumber: str(line.ppNumber), poNumber: str(line.poNumber), itemName: str(line.itemName),
       qty: Number(line.qty), unit: str(line.unit) || "TON",
@@ -436,23 +457,28 @@ router.post("/:id/material-invoices", authRequired, async (req, res) => {
       totalAmount: line.totalAmount === "" || line.totalAmount == null ? null : Number(line.totalAmount),
     })) : [];
     if (!lines.length || lines.some((line) => !line.itemName || !Number.isFinite(line.qty) || line.qty <= 0 || !line.unit)) throw new Error("Rincian barang, jumlah, dan satuan wajib diisi");
-    if (lines.some((line) => line.totalAmount == null || !Number.isFinite(line.totalAmount) || line.totalAmount < 0)) throw new Error("Total Rupiah setiap barang wajib diisi");
+    if (manualEntry && lines.some((line) => line.totalKg !== null && (!Number.isFinite(line.totalKg) || line.totalKg <= 0))) {
+      throw new Error("Berat total barang harus lebih dari nol jika diisi");
+    }
+    if (lines.some((line) => line.totalAmount == null ? !manualEntry : !Number.isFinite(line.totalAmount) || line.totalAmount < 0)) throw new Error("Total Rupiah setiap barang wajib diisi");
 
     const trip = await prisma.trip.findUnique({ where: { id: req.params.id }, include: { truck: true, dispatchLetter: true } });
-    if (!trip || trip.purpose !== "SINGLE_TRIP" || trip.cargoCategorySnap !== "MATERIAL") throw new Error("Faktur Muatan langsung hanya tersedia untuk Trip Tunggal Ambang/Material");
+    if (!trip || trip.purpose === "EMPTY_RETURN") throw new Error("Trip tidak dapat menerima Faktur Muatan");
+    if (!manualEntry && (trip.purpose !== "SINGLE_TRIP" || trip.cargoCategorySnap !== "MATERIAL")) throw new Error("Faktur Muatan langsung hanya tersedia untuk Trip Tunggal Ambang/Material");
     if (["COMPLETED", "CANCELLED"].includes(trip.status)) throw new Error("Trip yang sudah ditutup tidak dapat ditambah Faktur Muatan");
-    const destination = await prisma.operationalLocation.findFirst({ where: { id: str(destinationLocationId), isActive: true } });
-    if (!destination) throw new Error("Tujuan bongkar tidak ditemukan atau tidak aktif");
+    const destinationId = str(destinationLocationId);
+    const destination = destinationId ? await prisma.operationalLocation.findFirst({ where: { id: destinationId, isActive: true } }) : null;
+    if (destinationId && !destination) throw new Error("Tujuan bongkar tidak ditemukan atau tidak aktif");
     const requestedSequence = Math.max(1, Math.round(Number(stopSequence) || 1));
     const saved = await prisma.$transaction(async (tx) => {
-      await tx.materialInvoice.updateMany({ where: { tripId: trip.id, stopSequence: { gte: requestedSequence } }, data: { stopSequence: { increment: 1 } } });
+      if (destination) await tx.materialInvoice.updateMany({ where: { tripId: trip.id, stopSequence: { gte: requestedSequence } }, data: { stopSequence: { increment: 1 } } });
       const documentNumber = str(number) || trip.dispatchLetter?.number || `FM-${new Date().getFullYear()}-${Date.now().toString().slice(-7)}`;
       return tx.materialInvoice.create({
         data: {
           orderId: null, tripId: trip.id, number: documentNumber,
           materialName: lines.length === 1 ? lines[0].itemName : "Multiple materials",
           qty: lines.reduce((sum, line) => sum + line.qty, 0), unit: lines.length === 1 ? lines[0].unit : "LINES",
-          billingCustomerName: str(billingCustomerName), destinationLocationId: destination.id, stopSequence: requestedSequence,
+          billingCustomerName: str(billingCustomerName), destinationLocationId: destination?.id ?? null, stopSequence: destination ? requestedSequence : null,
           issuedAt: issuedAt ? new Date(issuedAt) : new Date(), notes: str(notes), lines: { create: lines },
         },
         include: { destinationLocation: true, lines: true },
@@ -1108,7 +1134,12 @@ router.patch("/:id/status", authRequired, async (req, res) => {
   try {
     const id = req.params.id;
     const nextStatus = str(req.body?.status);
-    const ts = toDate(req.body?.timestamp) || new Date();
+    const completionInput = req.body?.completedAt;
+    const completedAt = typeof completionInput === "string" ? toDate(completionInput) : null;
+    if (completionInput !== undefined && (nextStatus !== "COMPLETED" || !completedAt || completedAt > new Date())) {
+      return res.status(400).json({ error: "Tanggal selesai harus valid dan tidak boleh di masa depan" });
+    }
+    const ts = completedAt || toDate(req.body?.timestamp) || new Date();
     const submittedQtyActual = req.body?.qtyActual === "" || req.body?.qtyActual == null ? null : Number(req.body.qtyActual);
     const forceComplete = req.body?.forceComplete === true;
 
@@ -1131,7 +1162,14 @@ router.patch("/:id/status", authRequired, async (req, res) => {
       if (!trip) throw new Error("Trip not found");
       const ownerOverride = forceComplete && nextStatus === "COMPLETED" && req.user?.role === "OWNER";
       if (forceComplete && !ownerOverride) throw new Error("Penyelesaian langsung hanya tersedia untuk OWNER");
-      if (ownerOverride && ["COMPLETED", "CANCELLED"].includes(trip.status)) throw new Error("Trip yang sudah ditutup tidak dapat diselesaikan ulang");
+      if (nextStatus === "COMPLETED" && ["COMPLETED", "CANCELLED"].includes(trip.status)) throw new Error("Trip yang sudah ditutup tidak dapat diselesaikan ulang");
+      if (completedAt) {
+        const latestEvent = Math.max(...[trip.dispatchedAt, trip.loadedAt, trip.arrivedAt].map((eventAt) => eventAt?.getTime() ?? 0));
+        if (Math.floor(latestEvent / 1000) > Math.floor(ts.getTime() / 1000)) {
+          throw new Error("Waktu selesai harus sama dengan atau setelah waktu berangkat, muat, dan tiba yang tercatat");
+        }
+        if (latestEvent > ts.getTime()) ts.setTime(latestEvent);
+      }
       if (!ownerOverride && nextStatus === "COMPLETED" && trip.orderAllocations.some((allocation) => allocation.order?.cargoCategory !== "MATERIAL" && !allocation.destinationCompletedAt)) {
         throw new Error("Selesaikan bongkar seluruh order sebelum menutup trip");
       }
@@ -1216,12 +1254,12 @@ router.patch("/:id/status", authRequired, async (req, res) => {
       if (nextStatus === "COMPLETED") {
         data.completedAt = ts;
         data.phase = "COMPLETED";
-        if (ownerOverride) {
+        if (ownerOverride && !completedAt) {
           data.dispatchedAt = trip.dispatchedAt || ts;
           data.pickupArrivedAt = trip.pickupArrivedAt || ts;
           data.loadedAt = trip.loadedAt || ts;
-          data.arrivedAt = trip.arrivedAt || ts;
         }
+        if (ownerOverride && !trip.arrivedAt) data.arrivedAt = ts;
       }
 
       // ✅ ensure snapshots exist (helps search + display)
@@ -1229,29 +1267,37 @@ router.patch("/:id/status", authRequired, async (req, res) => {
       if (!trip.driverNameSnap && trip.driverUser?.name) data.driverNameSnap = trip.driverUser.name;
 
       const saved = await tx.trip.update({
-        where: { id },
+        where: { id, ...(nextStatus === "COMPLETED" ? { status: trip.status } : {}) },
         data,
       });
 
       // Keep the physical location and backhaul availability in sync with the trip.
-      await updateTruckOperationalState(tx, trip, nextStatus, ts);
+      await updateTruckOperationalState(tx, trip, nextStatus, completedAt ? new Date() : ts);
 
       if (["ARRIVED", "COMPLETED"].includes(nextStatus)) {
         if (ownerOverride) {
           await tx.materialInvoice.updateMany({
+            where: { tripId: trip.id, destinationArrivedAt: null, destinationCompletedAt: null },
+            data: { destinationArrivedAt: ts },
+          });
+          await tx.materialInvoice.updateMany({
             where: { tripId: trip.id, destinationCompletedAt: null },
-            data: { destinationArrivedAt: ts, destinationCompletedAt: ts },
+            data: { destinationCompletedAt: ts },
+          });
+          await tx.tripOrderAllocation.updateMany({
+            where: { tripId: trip.id, destinationArrivedAt: null, destinationCompletedAt: null },
+            data: { destinationArrivedAt: ts },
           });
           await tx.tripOrderAllocation.updateMany({
             where: { tripId: trip.id, destinationCompletedAt: null },
-            data: { destinationArrivedAt: ts, destinationCompletedAt: ts },
+            data: { destinationCompletedAt: ts },
           });
           await tx.tripOperationalAction.create({
             data: {
               tripId: trip.id,
               warningCode: "OWNER_TEST_COMPLETION",
               actionType: "RESOLVE",
-              note: "Trip diselesaikan langsung oleh OWNER untuk pengujian sistem.",
+              note: "Trip diselesaikan langsung oleh OWNER.",
               status: "RESOLVED",
               createdById: req.user.id,
               resolvedAt: ts,

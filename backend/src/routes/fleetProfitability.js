@@ -7,6 +7,7 @@ const { esc, money, documentHtml, sendPrintable } = require("../utils/printDocum
 const router = express.Router();
 router.use(authRequired, requireRole("OWNER", "ADMIN", "STAFF"));
 
+const jakartaDay = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" });
 const COST_FIELDS = ["depreciation", "insurance", "taxPermit", "driverSalary", "lease", "overhead"];
 const round = (value, digits = 1) => Number((Number(value) || 0).toFixed(digits));
 const ratio = (value, total) => total > 0 ? round((value / total) * 100) : 0;
@@ -28,7 +29,7 @@ function period(value) {
 }
 
 function tripDate(trip) {
-  return trip.completedAt;
+  return trip.arrivedAt ?? trip.completedAt;
 }
 
 function allocatedRevenue(trip) {
@@ -91,18 +92,20 @@ function cargoLossValue(trip) {
 
 router.get("/", async (req, res) => {
   try {
-    const current = new Date();
-    const month = req.query.month || `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, "0")}`;
+    const month = req.query.month || jakartaDay.format(new Date()).slice(0, 7);
     const { start, end, days } = period(month);
     const dateRange = { gte: start, lt: end };
     const trucks = await prisma.truck.findMany({
       orderBy: { plateNumber: "asc" },
       include: {
         trips: {
-          where: { status: "COMPLETED", completedAt: dateRange },
+          where: {
+            status: "COMPLETED",
+            OR: [{ arrivedAt: dateRange }, { arrivedAt: null, completedAt: dateRange }],
+          },
           include: {
             expenses: {
-              where: { status: { in: ["PAID", "APPROVED"] }, expenseDate: dateRange, OR: [{ notes: null }, { NOT: { notes: { startsWith: "AUTO_SUPPLIER_PAYMENT:" } } }] },
+              where: { status: { in: ["PAID", "APPROVED"] }, OR: [{ notes: null }, { NOT: { notes: { startsWith: "AUTO_SUPPLIER_PAYMENT:" } } }] },
               orderBy: { expenseDate: "asc" },
             },
             order: { include: { invoices: true, trips: { select: { id: true, status: true, qtyActual: true, qtyPlanned: true } } } },
@@ -202,7 +205,7 @@ router.get("/", async (req, res) => {
       const totalCost = tripExpenses + vehicleExpenses + spareParts + fixedTotal;
       const profit = revenue - totalCost;
       const margin = revenue > 0 ? round((profit / revenue) * 100) : (totalCost > 0 ? -100 : 0);
-      const activeDays = new Set(operationalTrips.map(item => tripDate(item)?.toISOString().slice(0, 10)).filter(Boolean)).size;
+      const activeDays = new Set(operationalTrips.map(item => jakartaDay.format(tripDate(item)))).size;
       const contributionPerTrip = operationalTrips.length ? (revenue - tripExpenses - spareParts) / operationalTrips.length : 0;
       const tripDetails = operationalTrips.map(item => {
         const tripRevenue = Math.round(allocatedRevenue(item));
@@ -327,7 +330,7 @@ router.get("/", async (req, res) => {
       </tr>`).join("");
       return sendPrintable(res, documentHtml({
         title: "LAPORAN PROFIT ARMADA",
-        subtitle: periodLabel,
+        subtitle: `${periodLabel} · Trip berdasarkan tanggal tiba di tujuan`,
         landscape: true,
         meta: `${rows.length} armada · ${summary.trips} trip`,
         body: `<div class="summary"><div class="box">Pendapatan<b>${money(summary.revenue)}</b></div><div class="box">Total biaya<b>${money(summary.totalCost)}</b></div><div class="box">Laba bersih<b>${money(summary.profit)}</b><span class="muted">Margin ${esc(`${summary.margin.toLocaleString("id-ID", { maximumFractionDigits: 1 })}%`)}</span></div></div>

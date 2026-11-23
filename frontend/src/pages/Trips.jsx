@@ -310,7 +310,8 @@ export default function Trips() {
     try {
       const params = new URLSearchParams({
         page: String(targetPage),
-        limit: "20"
+        limit: "20",
+        sort: "planned-first"
       });
       if (active.q.trim()) params.set("q", active.q.trim());
       if (active.status) params.set("status", active.status);
