@@ -612,7 +612,7 @@ export default function TripDetail() {
     setSaveErr("");
     setMaterialEntryMode("manual");
     setMaterialImport({ busy: false, error: "", count: 0 });
-    setManualMaterialLines([{ itemName: "", qty: "", unit: "", totalKg: "" }]);
+    setManualMaterialLines([{ itemName: "", qty: "", unit: "", totalKg: "", poNumber: "" }]);
     setMaterialAvailable([]);
     setSingleMaterialForm({ customerId: "", selected: {}, destinationLocationId: "", stopSequence: (trip?.materialInvoices?.length || 0) + 1, notes: "" });
     setSingleMaterialOpen(true);
@@ -875,7 +875,7 @@ export default function TripDetail() {
               {!(trip.materialInvoices || []).length && <div className="trip-material-destination-empty"><FiPackage/><strong>Belum ada Faktur Muatan</strong><span>Tambahkan material dan customer yang ditagih.</span></div>}
               {(trip.materialInvoices || []).map((invoice) => {
                 const invoiceLines = invoice.lines?.length ? invoice.lines : [{ itemName: invoice.materialName, qty: invoice.qty, unit: invoice.unit }];
-                return <article key={invoice.id}><b>{invoice.stopSequence || 1}</b><div><strong>{invoice.destinationLocation?.name || "Material tanpa tujuan bongkar"}</strong><small>{invoice.billingCustomerName || "Customer material"}</small><div className="trip-material-line-summary">{invoiceLines.map((line) => <span key={line.id || `${line.itemName}-${line.unit}`}><em>{line.itemName}</em><b>{Number(line.qty || 0).toLocaleString("id-ID")} {line.unit || ""}{Number(line.totalKg) > 0 && ` · ${Number(line.totalKg).toLocaleString("id-ID")} kg`}</b></span>)}</div></div><div className="trip-material-destination-status">{invoice.destinationCompletedAt ? <strong>Selesai</strong> : invoice.destinationArrivedAt ? <button type="button" disabled={saving} onClick={() => completeMaterialStop(invoice.id)}>Selesai bongkar</button> : invoice.destinationLocationId ? <span>Menunggu tiba</span> : null}</div></article>;
+                return <article key={invoice.id}><b>{invoice.stopSequence || 1}</b><div><strong>{invoice.destinationLocation?.name || "Material tanpa tujuan bongkar"}</strong><small>{invoice.billingCustomerName || "Customer material"}</small><div className="trip-material-line-summary">{invoiceLines.map((line) => <span key={line.id || `${line.itemName}-${line.unit}`}><em>{line.itemName}{line.poNumber && ` · PO ${line.poNumber}`}</em><b>{Number(line.qty || 0).toLocaleString("id-ID")} {line.unit || ""}{Number(line.totalKg) > 0 && ` · ${Number(line.totalKg).toLocaleString("id-ID")} kg`}</b></span>)}</div></div><div className="trip-material-destination-status">{invoice.destinationCompletedAt ? <strong>Selesai</strong> : invoice.destinationArrivedAt ? <button type="button" disabled={saving} onClick={() => completeMaterialStop(invoice.id)}>Selesai bongkar</button> : invoice.destinationLocationId ? <span>Menunggu tiba</span> : null}</div></article>;
               })}
             </div>
           </section>}
@@ -907,9 +907,9 @@ export default function TripDetail() {
                   {materialImport.count > 0 && <small role="status">{materialImport.count} barang ditambahkan. Periksa sebelum menyimpan ke trip.</small>}
                   {manualMaterialLines.map((line, index) => (
                     <div className="trip-material-manual-row" key={index}>
-                      {[["itemName", "Nama barang"], ["qty", "Jumlah", true], ["unit", "Satuan"], ["totalKg", "Berat total (kg)", true]].map(([key, label, numeric]) => (
+                      {[["itemName", "Nama barang"], ["qty", "Jumlah", true], ["unit", "Satuan"], ["totalKg", "Berat total (kg)", true], ["poNumber", "No. PO"]].map(([key, label, numeric]) => (
                         <label key={key}>{label}
-                          <input required={key !== "totalKg"} type={numeric ? "number" : "text"} min={numeric ? "0" : undefined}
+                          <input required={key !== "totalKg" && key !== "poNumber"} type={numeric ? "number" : "text"} min={numeric ? "0" : undefined}
                             step={numeric ? "any" : undefined} value={line[key]}
                             onChange={(e) => setManualMaterialLines((rows) => rows.map((row, position) =>
                               position === index ? { ...row, [key]: e.target.value } : row
@@ -923,7 +923,7 @@ export default function TripDetail() {
                       </button>
                     </div>
                   ))}
-                  <button type="button" className="secondary" onClick={() => setManualMaterialLines((rows) => [...rows, { itemName: "", qty: "", unit: "", totalKg: "" }])}><FiPlus /> Tambah barang</button>
+                  <button type="button" className="secondary" onClick={() => setManualMaterialLines((rows) => [...rows, { itemName: "", qty: "", unit: "", totalKg: "", poNumber: "" }])}><FiPlus /> Tambah barang</button>
                 </div>
               ) : <>
               <div className="wide trip-material-picker">

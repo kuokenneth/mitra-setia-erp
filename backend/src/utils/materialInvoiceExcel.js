@@ -26,11 +26,18 @@ async function readMaterialInvoiceExcel(buffer) {
     throw new Error("Kolom Excel tidak sesuai. Gunakan template Faktur Muatan dan pertahankan judul kolomnya.");
   }
 
+  const poHeader = sheet.getCell("E1").value;
+  const hasPoColumn = typeof poHeader === "string" && poHeader.trim().toLowerCase() === "no. po";
+  if (poHeader != null && !hasPoColumn) {
+    throw new Error("Judul kolom E harus No. PO. Gunakan template Faktur Muatan.");
+  }
+
   const lines = [];
   sheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return;
     const values = headers.map((_, index) => row.getCell(index + 1).value);
-    const [itemName, qty, unit, totalKg] = values.map((value) => typeof value === "string" ? value.trim() : value);
+    if (hasPoColumn) values.push(row.getCell(5).value);
+    const [itemName, qty, unit, totalKg, poValue] = values.map((value) => typeof value === "string" ? value.trim() : value);
     if (values.every((value) => value == null || (typeof value === "string" && !value.trim()))) return;
     const amount = positiveNumber(qty);
     const weight = totalKg == null || totalKg === "" ? "" : positiveNumber(totalKg);
@@ -38,8 +45,11 @@ async function readMaterialInvoiceExcel(buffer) {
     if (typeof itemName !== "string" || !itemName || typeof unit !== "string" || !unit || amount === null || weight === null) {
       throw new Error(`Baris ${rowNumber}: isi nama barang, jumlah positif, dan satuan. Jika diisi, berat total harus berupa angka positif.`);
     }
+    if (poValue != null && typeof poValue !== "string" && !Number.isSafeInteger(poValue)) {
+      throw new Error(`Baris ${rowNumber}: isi No. PO sebagai teks atau angka bulat.`);
+    }
     if (lines.length === 500) throw new Error("Satu file Excel dapat memuat maksimal 500 barang.");
-    lines.push({ itemName, qty: String(amount), unit, totalKg: String(weight) });
+    lines.push({ itemName, qty: String(amount), unit, totalKg: String(weight), poNumber: String(poValue ?? "") });
   });
   if (!lines.length) throw new Error("File Excel belum berisi barang.");
   return lines;
