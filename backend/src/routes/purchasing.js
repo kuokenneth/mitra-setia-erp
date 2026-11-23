@@ -362,10 +362,23 @@ router.get("/receipts/monthly/print", async (req, res) => {
   const period = useRange
     ? `${fmtDate(start)} – ${fmtDate(lastDay)}`
     : new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(start);
+  const groups = new Map();
+  for (const receipt of receipts) {
+    const deliveryNote = receipt.deliveryNote?.trim();
+    const key = deliveryNote ? `sj:${deliveryNote.toLocaleLowerCase("id-ID")}` : `gr:${receipt.number}`;
+    if (!groups.has(key)) groups.set(key, { deliveryNote, receipts: [] });
+    groups.get(key).receipts.push(receipt);
+  }
+
   let total = 0;
-  const sections = receipts.map((receipt, index) => {
+  const sections = [...groups.values()].map(({ deliveryNote, receipts: groupReceipts }, index) => {
+    const title = deliveryNote ? `Surat jalan ${deliveryNote}` : `Tanpa surat jalan · ${groupReceipts[0].number}`;
+    const receiptNumbers = groupReceipts.map(receipt => receipt.number).join(", ");
+    const dates = [...new Set(groupReceipts.map(receipt => fmtDate(receipt.receivedAt)))].join(", ");
+    const orders = [...new Set(groupReceipts.map(receipt => receipt.purchaseOrder.number))].join(", ");
+    const locations = [...new Set(groupReceipts.map(receipt => receipt.location?.name).filter(Boolean))].join(", ");
     let subtotal = 0;
-    const rows = receipt.items.map((line, index) => {
+    const rows = groupReceipts.flatMap(receipt => receipt.items).map((line, index) => {
       const orderItem = line.purchaseOrderItem;
       const returned = line.condition === "RETURNED_TO_SUPPLIER" ? line.qty : line.returnedQty;
       const quantity = Math.max(0, line.qty - returned);
@@ -375,10 +388,10 @@ router.get("/receipts/monthly/print", async (req, res) => {
       return `<tr><td class="center">${index + 1}</td><td>${esc(orderItem.item.sku)}</td><td>${esc(orderItem.item.name)}</td><td class="right">${fmtNum(line.qty)}</td><td class="right">${fmtNum(returned)}</td><td>${esc(line.purchaseUnit || orderItem.item.unit)}</td><td class="right">${money(price)}</td><td class="right">${money(amount)}</td></tr>`;
     }).join("");
     total += subtotal;
-    const periodTotal = index === receipts.length - 1
+    const periodTotal = index === groups.size - 1
       ? `<tr><th colspan="7" class="right">Total nilai penerimaan periode</th><th class="right">${money(total)}</th></tr>`
       : "";
-    return `<section class="receipt-slip"><div class="receipt-slip-heading"><div class="muted">MITRA SETIA ERP · ${esc(supplier.name)} · ${index + 1}/${receipts.length}</div><h2 style="font-size:14px;margin:0 0 4px">${esc(receipt.number)} · ${fmtDate(receipt.receivedAt)}</h2><div class="muted">Surat jalan ${esc(receipt.deliveryNote || "-")} · PO ${esc(receipt.purchaseOrder.number)} · ${esc(receipt.location?.name || "-")}</div><div class="muted">Periode ${esc(period)} · Nilai bersih setelah retur, sebelum penyesuaian tagihan</div></div><table><thead><tr><th>No</th><th>SKU</th><th>Barang</th><th class="right">Diterima</th><th class="right">Retur</th><th>Satuan</th><th class="right">Harga satuan</th><th class="right">Nilai bersih</th></tr></thead><tbody>${rows}<tr><th colspan="7" class="right">Subtotal penerimaan</th><th class="right">${money(subtotal)}</th></tr>${periodTotal}</tbody></table></section>`;
+    return `<section class="receipt-slip"><div class="receipt-slip-heading"><div class="muted">MITRA SETIA ERP · ${esc(supplier.name)} · ${index + 1}/${groups.size}</div><h2 style="font-size:14px;margin:0 0 4px">${esc(title)}</h2><div class="muted">${esc(receiptNumbers)} · ${esc(dates)}<br>PO ${esc(orders)} · ${esc(locations || "-")}</div><div class="muted">Periode ${esc(period)} · Nilai bersih setelah retur, sebelum penyesuaian tagihan</div></div><table><thead><tr><th>No</th><th>SKU</th><th>Barang</th><th class="right">Diterima</th><th class="right">Retur</th><th>Satuan</th><th class="right">Harga satuan</th><th class="right">Nilai bersih</th></tr></thead><tbody>${rows}<tr><th colspan="7" class="right">Subtotal penerimaan</th><th class="right">${money(subtotal)}</th></tr>${periodTotal}</tbody></table></section>`;
   }).join("");
   sendPrintable(res, documentHtml({
     title: "LAPORAN PENERIMAAN SPAREPART",
