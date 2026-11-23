@@ -1,5 +1,5 @@
 // src/pages/TripDetail.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, uploadFiles } from "../api";
@@ -14,6 +14,7 @@ import {
   FiCheckCircle,
   FiClock,
   FiDollarSign,
+  FiDownload,
   FiFileText,
   FiFlag,
   FiMapPin,
@@ -283,6 +284,8 @@ export default function TripDetail() {
   const [materialCustomers, setMaterialCustomers] = useState([]);
   const [materialEntryMode, setMaterialEntryMode] = useState("manual");
   const [manualMaterialLines, setManualMaterialLines] = useState([]);
+  const [materialImport, setMaterialImport] = useState({ busy: false, error: "", count: 0 });
+  const materialExcelInput = useRef(null);
   const [materialAvailable, setMaterialAvailable] = useState([]);
   const [singleMaterialForm, setSingleMaterialForm] = useState({ customerId: "", selected: {}, destinationLocationId: "", stopSequence: 1, notes: "" });
 
@@ -529,6 +532,32 @@ export default function TripDetail() {
     finally { setSaving(false); }
   }
 
+  async function importMaterialExcel(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!/\.xlsx$/i.test(file.name) || file.size > 1024 * 1024) {
+      setMaterialImport({ busy: false, error: "Pilih file .xlsx dengan ukuran maksimal 1 MB.", count: 0 });
+      return;
+    }
+
+    setMaterialImport({ busy: true, error: "", count: 0 });
+    try {
+      const { lines } = await api("/trips/material-invoices/import-excel", {
+        method: "POST",
+        headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+        body: file,
+      });
+      setManualMaterialLines((rows) => [
+        ...rows.filter((row) => Object.values(row).some((value) => value.trim())),
+        ...lines,
+      ]);
+      setMaterialImport({ busy: false, error: "", count: lines.length });
+    } catch (error) {
+      setMaterialImport({ busy: false, error: error.message || "File Excel gagal diimpor.", count: 0 });
+    }
+  }
+
   async function createSingleMaterialInvoice(event) {
     event.preventDefault();
     try {
@@ -582,6 +611,7 @@ export default function TripDetail() {
   function openSingleMaterialInvoice() {
     setSaveErr("");
     setMaterialEntryMode("manual");
+    setMaterialImport({ busy: false, error: "", count: 0 });
     setManualMaterialLines([{ itemName: "", qty: "", unit: "", totalKg: "" }]);
     setMaterialAvailable([]);
     setSingleMaterialForm({ customerId: "", selected: {}, destinationLocationId: "", stopSequence: (trip?.materialInvoices?.length || 0) + 1, notes: "" });
@@ -850,12 +880,12 @@ export default function TripDetail() {
             </div>
           </section>}
 
-          {singleMaterialOpen && <div className="ms-dialog-overlay trip-material-overlay" onMouseDown={() => setSingleMaterialOpen(false)}><form className="ms-dialog trip-material-modal" onSubmit={createSingleMaterialInvoice} onMouseDown={(e) => e.stopPropagation()}>
-            <header><div><span>Faktur muatan · muatan material</span><h2>Pilih material yang akan diangkut</h2><p>Material dapat menjadi muatan utama atau tambahan bersama pupuk/cangkang.</p></div><button type="button" onClick={() => setSingleMaterialOpen(false)}><FiX /></button></header>
+          {singleMaterialOpen && <div className="ms-dialog-overlay trip-material-overlay" onMouseDown={() => !materialImport.busy && setSingleMaterialOpen(false)}><form className="ms-dialog trip-material-modal" onSubmit={createSingleMaterialInvoice} onMouseDown={(e) => e.stopPropagation()}>
+            <header><div><span>Faktur muatan · muatan material</span><h2>Pilih material yang akan diangkut</h2><p>Material dapat menjadi muatan utama atau tambahan bersama pupuk/cangkang.</p></div><button type="button" disabled={materialImport.busy} onClick={() => setSingleMaterialOpen(false)}><FiX /></button></header>
             <div className="trip-material-form">
               <label className="wide">Customer pemilik &amp; yang ditagih<select required value={singleMaterialForm.customerId} onChange={(e) => selectMaterialCustomer(e.target.value)}><option value="">Pilih dari Master Customer</option>{materialCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
               <label className="wide">Cara memasukkan barang
-                <select value={materialEntryMode} onChange={(e) => {
+                <select disabled={materialImport.busy} value={materialEntryMode} onChange={(e) => {
                   const mode = e.target.value;
                   setMaterialEntryMode(mode);
                   if (mode === "inventory" && singleMaterialForm.customerId) loadAvailableMaterial(singleMaterialForm.customerId);
@@ -866,6 +896,15 @@ export default function TripDetail() {
               </label>
               {materialEntryMode === "manual" ? (
                 <div className="wide trip-material-manual">
+                  <div className="trip-material-excel-actions">
+                    <a href={`${import.meta.env.BASE_URL}template-faktur-muatan.xlsx`} download><FiDownload /> Unduh template Excel</a>
+                    <button type="button" disabled={materialImport.busy || singleMaterialBusy} onClick={() => materialExcelInput.current.click()}>
+                      <FiUploadCloud /> {materialImport.busy ? "Membaca Excel…" : "Impor Excel"}
+                    </button>
+                    <input ref={materialExcelInput} hidden type="file" accept=".xlsx" onChange={importMaterialExcel} />
+                  </div>
+                  {materialImport.error && <small role="alert" className="trip-material-excel-error">{materialImport.error}</small>}
+                  {materialImport.count > 0 && <small role="status">{materialImport.count} barang ditambahkan. Periksa sebelum menyimpan ke trip.</small>}
                   {manualMaterialLines.map((line, index) => (
                     <div className="trip-material-manual-row" key={index}>
                       {[["itemName", "Nama barang"], ["qty", "Jumlah", true], ["unit", "Satuan"], ["totalKg", "Berat total (kg)", true]].map(([key, label, numeric]) => (
@@ -908,7 +947,7 @@ export default function TripDetail() {
               </>}
               <label className="wide">Catatan <small>Opsional</small><textarea rows="2" value={singleMaterialForm.notes} onChange={(e) => setSingleMaterialForm((form) => ({ ...form, notes: e.target.value }))} /></label>
             </div>
-            <footer><button type="button" className="secondary" onClick={() => setSingleMaterialOpen(false)}>Batal</button><button disabled={singleMaterialBusy || (materialEntryMode === "manual"
+            <footer><button type="button" className="secondary" disabled={materialImport.busy} onClick={() => setSingleMaterialOpen(false)}>Batal</button><button disabled={singleMaterialBusy || materialImport.busy || (materialEntryMode === "manual"
               ? manualMaterialLines.some((line) => !line.itemName.trim() || !(Number(line.qty) > 0) || !line.unit.trim() || (line.totalKg !== "" && !(Number(line.totalKg) > 0)))
               : !Object.values(singleMaterialForm.selected).some((item) => item.checked))}>{singleMaterialBusy ? "Menyimpan…" : "Masukkan ke Trip"}</button></footer>
           </form></div>}

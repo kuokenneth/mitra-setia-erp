@@ -75,6 +75,64 @@ router.get("/reports/stock", authRequired, requireRole(...inventoryAccess), asyn
   }
 });
 
+router.get("/items/:id/usage-print", authRequired, requireRole(...inventoryAccess), async (req, res) => {
+  const from = String(req.query.from || "");
+  const start = new Date(`${from}T00:00:00+07:00`);
+  const now = new Date();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || Number.isNaN(start.getTime())
+      || new Date(start.getTime() + 7 * 3600000).toISOString().slice(0, 10) !== from || start > now) {
+    return res.status(400).json({ error: "Pilih tanggal mulai yang valid dan tidak melebihi hari ini." });
+  }
+
+  try {
+    const item = await prisma.item.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, sku: true, name: true, unit: true, category: true },
+    });
+    if (!item) return res.status(404).json({ error: "Barang tidak ditemukan." });
+
+    const movements = await prisma.stockMovement.findMany({
+      where: { itemId: item.id, type: "OUT", createdAt: { gte: start, lte: now } },
+      select: {
+        createdAt: true, qty: true, note: true,
+        fromLocation: { select: { name: true } },
+        fromTruck: { select: { plateNumber: true } },
+        toLocation: { select: { name: true } },
+        toTruck: { select: { plateNumber: true } },
+        stockUnit: { select: { serialNumber: true, barcode: true } },
+        maintenance: { select: { title: true, odometerKm: true, truck: { select: { plateNumber: true } } } },
+        createdBy: { select: { name: true } },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+    const showOdometer = item.category === "OIL";
+    const rows = movements.map((movement) => {
+      const origin = movement.fromLocation?.name || movement.fromTruck?.plateNumber;
+      const destination = movement.toLocation?.name || movement.toTruck?.plateNumber || movement.maintenance?.truck?.plateNumber;
+      const serial = movement.stockUnit?.serialNumber || movement.stockUnit?.barcode;
+      const service = [serial, movement.maintenance?.title].filter(Boolean).join(" · ");
+      const odometer = movement.maintenance?.odometerKm;
+      return `<tr><td>${fmtDate(movement.createdAt, true)}</td><td class="right">${fmtNum(movement.qty)} ${esc(item.unit)}</td>
+        <td>${esc(origin || "—")}</td><td>${esc(destination || "—")}</td><td>${esc(service || "—")}</td>
+        ${showOdometer ? `<td class="right">${odometer == null ? "—" : fmtNum(odometer)}</td>` : ""}
+        <td>${esc(movement.note || "—")}</td><td>${esc(movement.createdBy?.name || "—")}</td></tr>`;
+    }).join("");
+    return sendPrintable(res, documentHtml({
+      title: "Riwayat Pemakaian Barang",
+      subtitle: `${item.sku} · ${item.name}`,
+      meta: `${fmtDate(start)} – ${fmtDate(now)}<br>Jumlah transaksi: ${movements.length}`,
+      landscape: true,
+      styles: "thead{display:table-header-group}tr{break-inside:avoid}td{overflow-wrap:anywhere}",
+      body: `<table><thead><tr><th>Tanggal (WIB)</th><th class="right">Jumlah</th><th>Dari</th><th>Ke / Tujuan</th>
+        <th>No. Seri / Servis</th>${showOdometer ? '<th class="right">Odometer (km)</th>' : ""}<th>Catatan</th><th>Petugas</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="${showOdometer ? 8 : 7}" class="center">Tidak ada pemakaian pada periode ini.</td></tr>`}</tbody></table>`,
+    }));
+  } catch (error) {
+    console.error("Gagal membuat laporan pemakaian barang:", error);
+    return res.status(500).json({ error: "Gagal membuat laporan pemakaian barang." });
+  }
+});
+
 function num(v, d = 0) {
   const n = Number(v);
   return Number.isFinite(n) ? n : d;

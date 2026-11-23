@@ -3,6 +3,7 @@ const express = require("express");
 const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { nextDailyNumber } = require("../utils/documentNumber");
+const { readMaterialInvoiceExcel } = require("../utils/materialInvoiceExcel");
 
 const router = express.Router();
 
@@ -441,6 +442,28 @@ router.patch("/:id/material-stops/:invoiceId/complete", authRequired, async (req
     });
     res.json(saved);
   } catch (e) { res.status(400).json({ error: e.message || "Gagal menyelesaikan tujuan" }); }
+});
+
+const excelContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+const readExcelBody = express.raw({ type: excelContentType, limit: "1mb" });
+
+router.post("/material-invoices/import-excel", authRequired, (req, res, next) => {
+  if (!canWrite(req.user)) return res.status(403).json({ error: "Forbidden" });
+  readExcelBody(req, res, (error) => {
+    if (error) return res.status(error.status || 400).json({ error: "Unggah file .xlsx dengan ukuran maksimal 1 MB." });
+    next();
+  });
+}, async (req, res) => {
+  const workbook = req.body;
+  req.body = undefined;
+  if (!Buffer.isBuffer(workbook) || !workbook.length) {
+    return res.status(400).json({ error: "Pilih file .xlsx untuk diimpor." });
+  }
+  try {
+    res.json({ lines: await readMaterialInvoiceExcel(workbook) });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
 router.post("/:id/material-invoices", authRequired, async (req, res) => {

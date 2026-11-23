@@ -32,6 +32,12 @@ function localDateTimeValue(date = new Date()) {
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 }
 
+function jakartaDate() {
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+}
+
 function retreadTarget(sourceItem, items) {
   const sku = String(sourceItem?.sku || "").trim().toUpperCase().replace(/_SECOND$/, "");
   const expectedSku = sku.startsWith("BAN_MASAK_") ? sku : sku.startsWith("BAN_") ? `BAN_MASAK_${sku.slice(4)}` : "";
@@ -485,6 +491,9 @@ export default function Inventory() {
   const [movements, setMovements] = useState([]);
   const [batches, setBatches] = useState([]);
   const [itemFlowTarget, setItemFlowTarget] = useState(null);
+  const [itemUsageFrom, setItemUsageFrom] = useState("");
+  const [itemUsagePrintError, setItemUsagePrintError] = useState("");
+  const itemUsageToday = jakartaDate();
   const [itemFlowMovements, setItemFlowMovements] = useState([]);
   const [itemFlowStockUnits, setItemFlowStockUnits] = useState([]);
   const [itemFlowLoading, setItemFlowLoading] = useState(false);
@@ -715,6 +724,8 @@ export default function Inventory() {
   }
 
   function openItemFlow(item) {
+    setItemUsageFrom(`${jakartaDate().slice(0, 7)}-01`);
+    setItemUsagePrintError("");
     setItemFlowTarget(item);
     setItemFlowMovements([]);
     setItemFlowStockUnits([]);
@@ -1420,6 +1431,18 @@ export default function Inventory() {
           description={itemFlowTarget ? `${itemFlowTarget.sku} · seluruh pergerakan masuk, keluar, dan pemindahan barang` : ""}
           onClose={() => setItemFlowTarget(null)}
         >
+          <form className="inventory-usage-print" onSubmit={(event) => {
+            event.preventDefault();
+            if (!itemFlowTarget || !itemUsageFrom) return;
+            setItemUsagePrintError("");
+            openPrintDocument(`/inventory/items/${encodeURIComponent(itemFlowTarget.id)}/usage-print?from=${encodeURIComponent(itemUsageFrom)}`)
+              .catch((error) => setItemUsagePrintError(error.message));
+          }}>
+            <label>Mulai tanggal <input type="date" required max={itemUsageToday} value={itemUsageFrom} onChange={(event) => setItemUsageFrom(event.target.value)} /></label>
+            <span>Sampai hari ini ({itemUsageToday.split("-").reverse().join("/")})</span>
+            <button type="submit"><FiFileText /> Cetak Riwayat Pemakaian</button>
+            {itemUsagePrintError && <small role="alert">{itemUsagePrintError}</small>}
+          </form>
           {itemFlowLoading ? <LoadingState compact label="Memuat riwayat barang" note="Menelusuri tujuan pemakaian dan perpindahan stok…" rows={5} /> : <div className="inventory-item-flow">
             <div className="inventory-item-flow-summary"><span><small>Total riwayat</small><strong>{itemFlowPagination.total}</strong></span><span><small>Stok saat ini</small><strong>{sumStocks(itemFlowTarget?.stocks)} {itemFlowTarget?.unit || ""}</strong></span></div>
             {itemFlowTarget?.isSerialized && (() => {
