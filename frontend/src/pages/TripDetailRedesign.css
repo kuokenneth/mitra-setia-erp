@@ -37,7 +37,8 @@
 .trip-allocation-head span,.trip-material-destinations-panel>header>div>span{color:#526989;font-size:8px;font-weight:900;letter-spacing:.16em}
 .trip-allocation-head h2,.trip-material-destinations-panel>header h2{margin:4px 0 2px;font-size:17px}
 .trip-allocation-head p,.trip-material-destinations-panel>header p{margin:0;color:#6f8097;font-size:10px}
-.trip-material-destinations-panel>header>button{display:flex;align-items:center;gap:6px;padding:9px 12px;border:0;border-radius:8px;background:#128750;color:#fff;font-size:9px;font-weight:800;cursor:pointer}
+.trip-material-header-actions{display:flex;flex-wrap:wrap;gap:8px}
+.trip-material-header-actions>button{display:flex;align-items:center;gap:6px;padding:9px 12px;border:0;border-radius:8px;background:#128750;color:#fff;font-size:9px;font-weight:800;cursor:pointer}
 .trip-allocation-list{display:block;padding:0}
 .trip-allocation-row{display:grid!important;grid-template-columns:auto minmax(0,1fr) auto!important;align-items:center;gap:11px!important;padding:13px 18px!important;border:0!important;border-bottom:1px solid #eaeef4!important;border-radius:0!important;background:#fff!important;box-shadow:none!important;transition:background .15s ease!important}
 .trip-allocation-row:last-child{border-bottom:0!important}.trip-allocation-row:hover{transform:none!important;border-color:#eaeef4!important;background:#fafbfc!important;box-shadow:none!important}.trip-allocation-row.completed{background:#f8fafc!important}
@@ -49,7 +50,7 @@
 .trip-material-destination-status{text-align:right}.trip-material-destination-status>strong{color:#148f56;font-size:10px}.trip-material-destination-status>span{color:#6f8097;font-size:9px}.trip-material-destination-status>button{margin-top:0}
 .trip-material-line-summary{display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin-top:7px}.trip-material-line-summary>span{display:inline-flex;align-items:center;gap:7px;padding:5px 7px;border-radius:7px;background:#edf1f6;color:#3e5068;font-size:8px}.trip-material-line-summary em{font-style:normal}.trip-material-line-summary b{color:#117e4b;font-size:8px;white-space:nowrap}
 .trip-material-destination-empty{display:flex;align-items:center;flex-direction:column;padding:32px;color:#7f8ea2;text-align:center}.trip-material-destination-empty>svg{font-size:21px;color:#6c7d95}.trip-material-destination-empty>strong{margin-top:7px;color:#546b8b;font-size:11px}.trip-material-destination-empty>span{margin-top:3px;font-size:9px}
-@media(max-width:700px){.trip-allocation-card,.trip-material-destinations-panel{margin:14px 16px 0!important}.trip-allocation-head,.trip-material-destinations-panel>header{align-items:flex-start;flex-direction:column}.trip-material-destinations-panel>header>button{width:100%;justify-content:center}.trip-allocation-row,.trip-material-destination-list article{grid-template-columns:auto minmax(0,1fr)!important}.trip-allocation-value,.trip-material-destination-status{grid-column:2;text-align:left}.trip-allocation-row>div:nth-child(2)>small{white-space:normal}}
+@media(max-width:700px){.trip-allocation-card,.trip-material-destinations-panel{margin:14px 16px 0!important}.trip-allocation-head,.trip-material-destinations-panel>header{align-items:flex-start;flex-direction:column}.trip-material-header-actions>button{width:100%;justify-content:center}.trip-allocation-row,.trip-material-destination-list article{grid-template-columns:auto minmax(0,1fr)!important}.trip-allocation-value,.trip-material-destination-status{grid-column:2;text-align:left}.trip-allocation-row>div:nth-child(2)>small{white-space:normal}}
 
 .trip-material-manual {
   display: grid;

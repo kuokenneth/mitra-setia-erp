@@ -4,6 +4,7 @@ const { prisma } = require("../prisma");
 const { authRequired } = require("../middleware/authRequired");
 const { nextDailyNumber } = require("../utils/documentNumber");
 const { readMaterialInvoiceExcel } = require("../utils/materialInvoiceExcel");
+const { esc, num, money, date, documentHtml, sendPrintable } = require("../utils/printDocument");
 
 const router = express.Router();
 
@@ -931,6 +932,57 @@ router.patch("/:id/order-stops/:allocationId/complete", authRequired, async (req
   } catch (e) { res.status(400).json({ error: e.message || "Gagal menyelesaikan tujuan order" }); }
 });
 
+router.get("/:id/material-invoices/print", authRequired, async (req, res) => {
+  try {
+    const trip = await prisma.trip.findUnique({
+      where: { id: req.params.id },
+      include: {
+        order: { select: { orderNo: true } },
+        materialInvoices: {
+          orderBy: [{ stopSequence: "asc" }, { createdAt: "asc" }],
+          include: { destinationLocation: true, lines: { orderBy: { createdAt: "asc" } } },
+        },
+      },
+    });
+    if (!trip) return res.status(404).json({ error: "Trip tidak ditemukan" });
+    if (isDriver(req.user) && trip.driverUserId !== req.user.id) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    if (!trip.materialInvoices.length) return res.status(404).json({ error: "Belum ada Faktur Muatan" });
+
+    const sections = trip.materialInvoices.map((invoice) => {
+      const lines = invoice.lines.length ? invoice.lines : [{
+        itemName: invoice.materialName, qty: invoice.qty, unit: invoice.unit,
+      }];
+      const rows = lines.map((line, index) => `<tr>
+        <td>${index + 1}</td><td>${esc(line.ppNumber)}</td><td>${esc(line.poNumber)}</td>
+        <td>${esc(line.itemName)}</td><td class="right">${num(line.qty)} ${esc(line.unit)}</td>
+        <td class="right">${line.totalKg == null ? "-" : num(line.totalKg)}</td>
+        <td class="right">${line.totalAmount == null ? "-" : money(line.totalAmount)}</td>
+      </tr>`).join("");
+      return `<section>
+        <h2>${esc(invoice.number)} · ${date(invoice.issuedAt)}</h2>
+        <p>Customer tagihan: ${esc(invoice.billingCustomerName || trip.billingCustomerName)}<br>
+        Tujuan bongkar: ${esc(invoice.destinationLocation?.name || trip.toText)}</p>
+        <table><thead><tr><th>No</th><th>No. PP</th><th>No. PO</th><th>Barang</th>
+        <th class="right">Jumlah</th><th class="right">Berat (kg)</th><th class="right">Nilai</th></tr></thead>
+        <tbody>${rows}</tbody></table>
+        ${invoice.notes ? `<p>Catatan: ${esc(invoice.notes)}</p>` : ""}
+      </section>`;
+    }).join("");
+    return sendPrintable(res, documentHtml({
+      title: "FAKTUR MUATAN",
+      subtitle: trip.tripNo || trip.order?.orderNo || "Detail Trip",
+      landscape: true,
+      meta: `Armada: ${esc(trip.plateNumberSnap)}<br>Pengemudi: ${esc(trip.driverNameSnap)}`,
+      styles: "thead{display:table-header-group}tr{break-inside:avoid}h2{break-after:avoid}",
+      body: sections,
+    }));
+  } catch (e) {
+    return res.status(400).json({ error: e.message || "Gagal mencetak Faktur Muatan" });
+  }
+});
+
 /**
  * GET /trips/:id
  */
@@ -1011,7 +1063,7 @@ router.post("/:id/arrive-pickup", authRequired, async (req, res) => {
     const saved = await prisma.$transaction(async (tx) => {
       const trip = await tx.trip.findUnique({ where: { id }, include: { truck: true, driverUser: true } });
       if (!trip) throw new Error("Trip not found");
-      if (trip.purpose !== "DELIVERY") throw new Error("Tahap muat hanya tersedia untuk trip pengiriman");
+      if (!["DELIVERY", "SINGLE_TRIP"].includes(trip.purpose)) throw new Error("Tahap muat hanya tersedia untuk trip pengiriman");
       const fromPlanned = trip.status === "PLANNED" && trip.phase === "PLANNED";
       const fromRoad = trip.status === "DISPATCHED" && trip.phase === "TO_PICKUP";
       if (!fromPlanned && !fromRoad) throw new Error("Trip harus direncanakan atau sedang menuju lokasi muat");
@@ -1069,16 +1121,18 @@ router.post("/:id/start-delivery", authRequired, async (req, res) => {
     });
     if (!trip) return res.status(404).json({ error: "Trip not found" });
     if (!canWrite(req.user) && !(isDriver(req.user) && trip.driverUserId === req.user.id)) return res.status(403).json({ error: "Forbidden" });
-    if (trip.purpose !== "DELIVERY") return res.status(400).json({ error: "Tahap muat hanya tersedia untuk trip pengiriman" });
+    if (!["DELIVERY", "SINGLE_TRIP"].includes(trip.purpose)) return res.status(400).json({ error: "Tahap muat hanya tersedia untuk trip pengiriman" });
     const mayStartFromCurrentPhase = trip.phase === "AT_PICKUP" || (ownerOverride && trip.phase === "TO_PICKUP");
     if (trip.status !== "DISPATCHED" || !mayStartFromCurrentPhase) {
       return res.status(400).json({ error: "Mobil harus tiba di lokasi muat sebelum memulai pengiriman" });
     }
-    if (trip.order?.cargoCategory !== "MATERIAL") {
-      const recordedWeight = trip.orderAllocations.reduce((sum, item) => sum + Number(item.plannedWeightKg || 0), 0);
-      if (!(recordedWeight > 0)) {
-        return res.status(400).json({ error: "Catat jumlah sak dan berat per sak sebelum kendaraan berangkat dari lokasi muat" });
-      }
+    const isSingleTrip = trip.purpose === "SINGLE_TRIP";
+    const cargoCategory = isSingleTrip ? trip.cargoCategorySnap : trip.order?.cargoCategory;
+    const recordedWeight = isSingleTrip
+      ? Number(trip.plannedWeightKg || 0)
+      : trip.orderAllocations.reduce((sum, item) => sum + Number(item.plannedWeightKg || 0), 0);
+    if (cargoCategory !== "MATERIAL" && !(recordedWeight > 0)) {
+      return res.status(400).json({ error: "Catat jumlah sak dan berat per sak sebelum kendaraan berangkat dari lokasi muat" });
     }
 
     const saved = await prisma.trip.update({

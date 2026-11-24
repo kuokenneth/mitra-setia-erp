@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
-import { api, uploadFiles } from "../api";
+import { api, openPrintDocument, uploadFiles } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLiveRefresh } from "../liveUpdates";
 import { openProtectedFile, ProtectedImage } from "../components/ProtectedFile";
@@ -20,6 +20,7 @@ import {
   FiMapPin,
   FiPackage,
   FiPlus,
+  FiPrinter,
   FiTruck,
   FiUploadCloud,
   FiUser,
@@ -597,6 +598,15 @@ export default function TripDetail() {
     finally { setSingleMaterialBusy(false); }
   }
 
+  async function printMaterialInvoices() {
+    setSaveErr("");
+    try {
+      await openPrintDocument(`/trips/${id}/material-invoices/print`);
+    } catch (e) {
+      setSaveErr(e.message || "Gagal mencetak Faktur Muatan");
+    }
+  }
+
   async function selectMaterialCustomer(customerId) {
     setSingleMaterialForm((form) => ({ ...form, customerId, selected: {} }));
     setMaterialAvailable([]);
@@ -875,7 +885,13 @@ export default function TripDetail() {
           </section>}
 
           {trip.purpose !== "EMPTY_RETURN" && <section className="trip-material-destinations-panel">
-            <header><div><span>Muatan material</span><h2>Tujuan Faktur Muatan</h2><p>Tujuan material dicatat terpisah untuk pengiriman dan penagihan, serta tidak menahan penyelesaian Trip.</p></div>{canWrite && !["COMPLETED", "CANCELLED"].includes(currentStatus) && <button type="button" onClick={openSingleMaterialInvoice}><FiPlus /> Tambah Material</button>}</header>
+            <header>
+              <div><span>Muatan material</span><h2>Tujuan Faktur Muatan</h2><p>Tujuan material dicatat terpisah untuk pengiriman dan penagihan, serta tidak menahan penyelesaian Trip.</p></div>
+              <div className="trip-material-header-actions">
+                {trip.materialInvoices?.length > 0 && <button type="button" onClick={printMaterialInvoices}><FiPrinter /> Cetak Faktur Muatan</button>}
+                {canWrite && !["COMPLETED", "CANCELLED"].includes(currentStatus) && <button type="button" onClick={openSingleMaterialInvoice}><FiPlus /> Tambah Material</button>}
+              </div>
+            </header>
             <div className="trip-material-destination-list">
               {!(trip.materialInvoices || []).length && <div className="trip-material-destination-empty"><FiPackage/><strong>Belum ada Faktur Muatan</strong><span>Tambahkan material dan customer yang ditagih.</span></div>}
               {(trip.materialInvoices || []).map((invoice) => {

@@ -386,7 +386,7 @@
   .trip-allocation-head > strong small,
   .trip-material-modal > header span,
   .trip-allocation-head span, .trip-material-destinations-panel > header > div > span,
-  .trip-material-destinations-panel > header > button,
+  .trip-material-header-actions > button,
   .trip-allocation-row > div:nth-child(2) > small,
   .trip-allocation-value > span,
   .trip-allocation-value > button, .trip-material-destination-status > button,
