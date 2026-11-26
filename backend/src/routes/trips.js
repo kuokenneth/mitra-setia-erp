@@ -1240,13 +1240,6 @@ router.patch("/:id/status", authRequired, async (req, res) => {
       const ownerOverride = forceComplete && nextStatus === "COMPLETED" && req.user?.role === "OWNER";
       if (forceComplete && !ownerOverride) throw new Error("Penyelesaian langsung hanya tersedia untuk OWNER");
       if (nextStatus === "COMPLETED" && ["COMPLETED", "CANCELLED"].includes(trip.status)) throw new Error("Trip yang sudah ditutup tidak dapat diselesaikan ulang");
-      if (completedAt) {
-        const latestEvent = Math.max(...[trip.dispatchedAt, trip.loadedAt, trip.arrivedAt].map((eventAt) => eventAt?.getTime() ?? 0));
-        if (Math.floor(latestEvent / 1000) > Math.floor(ts.getTime() / 1000)) {
-          throw new Error("Waktu selesai harus sama dengan atau setelah waktu berangkat, muat, dan tiba yang tercatat");
-        }
-        if (latestEvent > ts.getTime()) ts.setTime(latestEvent);
-      }
       if (!ownerOverride && nextStatus === "COMPLETED" && trip.orderAllocations.some((allocation) => allocation.order?.cargoCategory !== "MATERIAL" && !allocation.destinationCompletedAt)) {
         throw new Error("Selesaikan bongkar seluruh order sebelum menutup trip");
       }

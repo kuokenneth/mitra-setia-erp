@@ -466,9 +466,6 @@ export default function TripDetail() {
     const completing = next === "COMPLETED";
     const needsWeight = trip.purpose === "DELIVERY" && materialWeight == null && (next === "ARRIVED" || completing);
     if (needsWeight || completing) {
-      const latestEvent = completing ? Math.max(0, ...[trip.dispatchedAt, trip.loadedAt, trip.arrivedAt]
-        .filter(Boolean)
-        .map((value) => new Date(value).getTime())) : 0;
       setSaveErr("");
       setArrivalEntry({
         nextStatus: next,
@@ -476,7 +473,6 @@ export default function TripDetail() {
         forceComplete,
         qtyActual: trip.qtyActual == null ? "" : String(trip.qtyActual),
         completedAt: completing ? jakartaDateTimeInput() : undefined,
-        earliestCompletion: latestEvent ? jakartaDateTimeInput(new Date(latestEvent)) : undefined,
       });
       return;
     }
@@ -1109,11 +1105,10 @@ export default function TripDetail() {
                     Tanggal dan jam selesai (WIB)
                     <input autoFocus={!arrivalEntry.needsWeight} required type="datetime-local" step="1"
                       value={arrivalEntry.completedAt}
-                      min={arrivalEntry.earliestCompletion}
                       onChange={(event) => setArrivalEntry((value) => ({ ...value, completedAt: event.target.value }))}
                       style={{ padding: "12px 13px", border: "1px solid #c9d3e0", borderRadius: 9, font: "inherit" }}
                     />
-                    <small>Jika bukti timbangan diterima belakangan, isi waktu selesai yang sebenarnya. {arrivalEntry.earliestCompletion && `Paling awal ${arrivalEntry.earliestCompletion.replace("T", " ")} WIB sesuai catatan perjalanan.`}</small>
+                    <small>Isi tanggal dan jam trip benar-benar selesai. Tanggal sebelumnya bisa dipilih jika bukti timbangan diterima belakangan.</small>
                   </label>
                 )}
                 {arrivalEntry.needsWeight && arrivalEntry.qtyActual && trip.qtyPlanned != null && Number(arrivalEntry.qtyActual) < Number(trip.qtyPlanned) && <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: "#FFF7E6", color: "#9A5B00", fontSize: 13 }}><strong>Selisih muatan: {(Number(trip.qtyPlanned) - Number(arrivalEntry.qtyActual)).toLocaleString("id-ID", { maximumFractionDigits: 3 })} {trip.unitSnap || order?.unit || ""}</strong><span style={{ display: "block", marginTop: 4 }}>Dicatat sebagai kehilangan pada tagihan/laporan. Order tetap dipenuhi berdasarkan muatan rencana.</span></div>}
