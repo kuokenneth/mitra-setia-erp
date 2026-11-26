@@ -667,7 +667,6 @@ export default function Maintenance() {
   const [stockHistory, setStockHistory] = useState(null);
   const [historyLoading, setHistoryLoading] = useState({ serialized: false, stock: false });
 
-  const truckSearchTimer = useRef(null);
   const serialSearchTimer = useRef(null);
   const donorSearchTimer = useRef(null);
   const donorReplacementSearchTimer = useRef(null);
@@ -886,18 +885,11 @@ export default function Maintenance() {
 
   useEffect(() => {
     if (!showCreate) return;
-    loadTrucks("").catch((e) => setErr(e.message || "Gagal memuat kendaraan"));
-  }, [showCreate]);
-
-  useEffect(() => {
-    if (!showCreate) return;
-    if (truckSearchTimer.current) clearTimeout(truckSearchTimer.current);
-    truckSearchTimer.current = setTimeout(() => {
-      loadTrucks(truckSearch.trim()).catch(() => {});
-    }, 250);
-    return () => {
-      if (truckSearchTimer.current) clearTimeout(truckSearchTimer.current);
-    };
+    const query = truckSearch.trim();
+    const timer = setTimeout(() => {
+      loadTrucks(query).catch((e) => setErr(e.message || "Gagal memuat kendaraan"));
+    }, query ? 250 : 0);
+    return () => clearTimeout(timer);
   }, [truckSearch, showCreate]);
 
   const filteredTrucks = useMemo(() => {
@@ -1663,9 +1655,9 @@ export default function Maintenance() {
               />
 
               <div className="maintenance-truck-list">
-                {trucksLoading && <LoadingState compact label="Memuat kendaraan" note="Mencari armada yang tersedia…" rows={3} />}
-                {!trucksLoading && (filteredTrucks || []).length === 0 && (
-                  <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>Tidak ada kendaraan ditemukan.</div>
+                {filteredTrucks.length === 0 && (trucksLoading
+                  ? <LoadingState compact label="Memuat kendaraan" note="Mencari armada yang tersedia…" rows={3} />
+                  : <div style={{ padding: 12, color: BRAND.textMuted, fontSize: 14 }}>Tidak ada kendaraan ditemukan.</div>
                 )}
 
                 {(filteredTrucks || []).map((t) => {
@@ -2281,7 +2273,6 @@ export default function Maintenance() {
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Unit</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Pergerakan</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Dari / Tujuan</th>
-                        <th style={{ padding: "10px 8px", fontWeight: 600, whiteSpace: "nowrap" }}>Harga/Unit</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600, whiteSpace: "nowrap" }}>Total Biaya</th>
                         <th style={{ padding: "10px 8px", fontWeight: 600 }}>Catatan</th>
                       </tr>
@@ -2293,17 +2284,16 @@ export default function Maintenance() {
                           <td style={{ padding: "12px 8px", fontWeight: 500, color: BRAND.text }}>
                             {a.item?.sku} — {a.item?.name}
                           </td>
-                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{a.serial || "—"}</td>
+                          <td style={{ padding: "12px 8px", color: BRAND.textLight }}><span style={{ whiteSpace: "nowrap" }}>{a.serial || "—"}</span></td>
                           <td style={{ padding: "12px 8px" }}><span style={{ display: "inline-flex", padding: "4px 8px", borderRadius: 999, background: a.historyType === "REMOVED" || a.removedAt ? BRAND.dangerBg : BRAND.successBg, color: a.historyType === "REMOVED" || a.removedAt ? BRAND.danger : BRAND.primary, fontSize: 11, fontWeight: 700 }}>{a.historyType === "REMOVED" ? "KELUAR / DILEPAS" : a.removedAt ? "DIPASANG, LALU DILEPAS" : "DIPASANG"}</span></td>
                           <td style={{ padding: "12px 8px", color: BRAND.textLight }}>{a.source || "—"}</td>
-                          <td style={{ padding: "12px 8px", color: BRAND.textLight, whiteSpace: "nowrap" }}>{a.historyUnitPrice == null ? "—" : fmtMoney(a.historyUnitPrice)}</td>
                           <td style={{ padding: "12px 8px", fontWeight: 600, color: BRAND.primary, whiteSpace: "nowrap" }}>{a.historyTotalCost == null ? "—" : fmtMoney(a.historyTotalCost)}</td>
                           <td style={{ padding: "12px 8px", color: BRAND.textMuted }}>{a.note || "—"}</td>
                         </tr>
                       ))}
                       {serializedHistoryRows.length === 0 && (
                         <tr>
-                          <td colSpan={8} style={{ padding: 16, color: BRAND.textMuted, textAlign: "center" }}>
+                          <td colSpan={7} style={{ padding: 16, color: BRAND.textMuted, textAlign: "center" }}>
                             Belum ada riwayat sparepart berserial.
                           </td>
                         </tr>
