@@ -315,6 +315,22 @@ html.erp-app .trip-arrival-modal > .ms-dialog-foot { display: flex; justify-cont
 html.erp-app .trip-arrival-modal input { font-size: 18px !important; min-height: 48px; box-sizing: border-box; }
 @media(max-width: 600px) { html.erp-app .trip-arrival-modal > .ms-dialog-foot { flex-wrap: wrap; } html.erp-app .trip-arrival-modal > .ms-dialog-foot button { flex: 1; min-height: 44px; } }
 
+/* Keep one scroll area inside the receipt dialog. */
+html.erp-app .ms-dialog.batch-receipt-modal {
+  overflow: hidden !important;
+}
+html.erp-app .ms-dialog.batch-receipt-modal > .po-form-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  align-content: start;
+  overflow: hidden auto;
+  scroll-padding-block: 16px;
+}
+html.erp-app .ms-dialog.batch-receipt-modal > :is(.ms-dialog-head, .ms-dialog-foot) {
+  position: relative !important;
+  flex: 0 0 auto;
+}
+
 /* Request forms need a bounded body when a tablet keyboard reduces the viewport. */
 html.erp-app .ms-dialog:is(.request-redesign-modal,.maintenance-modal) { max-height: calc(var(--ms-vvh, 100dvh) - 32px) !important; overflow: hidden !important; }
 html.erp-app .ms-dialog.request-redesign-modal > .request-modal-body,

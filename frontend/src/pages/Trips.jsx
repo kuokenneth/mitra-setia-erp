@@ -297,7 +297,8 @@ export default function Trips() {
       setEmptyReturnBusy(false);
     }
   }
-  async function load(targetPage = page, active = applied) {
+  async function load(targetPage = page, active = applied, { background = false } = {}) {
+    if (background && searchRequestRef.current.controller) return;
     const requestId = searchRequestRef.current.id + 1;
     searchRequestRef.current.controller?.abort();
     const controller = new AbortController();
@@ -305,8 +306,13 @@ export default function Trips() {
       id: requestId,
       controller
     };
-    setLoading(true);
-    setError("");
+    if (!background) {
+      setLoading(true);
+      setError("");
+    }
+    const timeout = window.setTimeout(() => {
+      controller.abort(new Error("Pemuatan perjalanan terlalu lama. Silakan coba lagi."));
+    }, 15000);
     try {
       const params = new URLSearchParams({
         page: String(targetPage),
@@ -330,9 +336,15 @@ export default function Trips() {
         limit: 20
       });
     } catch (e) {
-      if (e?.name !== "AbortError") setError(e.message || "Gagal memuat perjalanan");
+      if (!background && searchRequestRef.current.id === requestId && e?.name !== "AbortError") {
+        setError(e.message || "Gagal memuat perjalanan");
+      }
     } finally {
-      if (searchRequestRef.current.id === requestId) setLoading(false);
+      window.clearTimeout(timeout);
+      if (searchRequestRef.current.id === requestId) {
+        searchRequestRef.current.controller = null;
+        if (!background) setLoading(false);
+      }
     }
   }
   async function loadControl() {
@@ -400,7 +412,7 @@ export default function Trips() {
     loadControl();
   }, []);
   useLiveRefresh(() => {
-    load(page, applied);
+    load(page, applied, { background: true });
     loadControl();
   });
   function resetFilters() {

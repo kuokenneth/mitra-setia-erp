@@ -2250,9 +2250,9 @@ function UnitsTable({
                 const latestRetread = (u.tireRetreads || [])[0];
                 return (
                   <tr key={u.id}>
-                    <td style={td}>{u.serialNumber || "-"}</td>
+                    <td style={td}><span style={{ whiteSpace: "nowrap" }}>{u.serialNumber || "-"}</span></td>
                     <td style={td}>{u.item?.sku || "-"} — {u.item?.name || ""}</td>
-                    <td style={tdSoft}>{u.barcode || "-"}</td>
+                    <td style={tdSoft}><span style={{ whiteSpace: "nowrap" }}>{u.barcode || "-"}</span></td>
                     <td style={td}>
                       <Pill variant={u.status === "IN_STOCK" ? "green" : u.status === "SCRAPPED" ? "red" : u.status === "RETREADING" ? "yellow" : "grey"}>
                         {u.status || "-"}
