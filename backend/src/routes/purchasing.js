@@ -107,7 +107,7 @@ async function syncSupplierPaymentExpense(tx, paymentId, approvedById) {
   return tx.expense.create({
     data: {
       status: "APPROVED",
-      paymentMethod: ["BANK_TRANSFER", "CASH", "OTHER"].includes(payment.method) ? payment.method : "OTHER",
+      paymentMethod: ["BANK_TRANSFER", "CASH", "GIRO", "OTHER"].includes(payment.method) ? payment.method : "OTHER",
       amount: payment.amount,
       currency: "IDR",
       category: "SPAREPART",
@@ -120,7 +120,7 @@ async function syncSupplierPaymentExpense(tx, paymentId, approvedById) {
       proofMimeType: payment.proofMimeType,
       proofSize: payment.proofSize,
       paidAt: payment.paidAt || payment.approvedAt || new Date(),
-      proofUploadedById: payment.createdById,
+      proofUploadedById: payment.proofUrl ? payment.createdById : null,
       createdById: payment.createdById,
       approvedById: approvedById || payment.approvedById,
       approvedAt: payment.approvedAt || new Date(),
@@ -1133,12 +1133,13 @@ router.post("/payments", async (req, res) => {
   const committed = bill.payments.filter(p => p.status !== "UNPAID").reduce((sum, p) => sum + p.amount, 0);
   const amount = Math.round(Number(req.body.amount));
   if (!amount || amount <= 0 || amount > bill.amount - committed) return res.status(400).json({ error: "Jumlah pembayaran melebihi sisa tagihan supplier" });
-  if (!req.body.proofUrl) return res.status(400).json({ error: "Bukti pembayaran wajib dilampirkan" });
+  const { method, proofUrl } = req.body;
+  if (!proofUrl && !["CASH", "GIRO", "OTHER"].includes(method)) return res.status(400).json({ error: "Bukti pembayaran wajib dilampirkan" });
   const payment = await prisma.$transaction(async tx => {
     const current = await tx.supplierBill.findUnique({ where: { id: bill.id }, include: { payments: true } });
     const committedNow = current?.payments.filter(row => row.status !== "UNPAID").reduce((sum, row) => sum + row.amount, 0) || 0;
     if (!current || ["PAID", "VOID"].includes(current.status) || amount > current.amount - committedNow) throw new Error("Sisa tagihan berubah setelah retur/pembayaran. Muat ulang tagihan.");
-    const created = await tx.purchasePayment.create({ data: { number: await nextDailyNumber(tx, "purchasePayment", "PAY"), supplierBillId: bill.id, amount, paidAt, method: req.body.method, reference: req.body.reference, proofUrl: req.body.proofUrl, proofFileName: req.body.proofFileName || null, proofMimeType: req.body.proofMimeType || null, proofSize: Number.isFinite(Number(req.body.proofSize)) ? Number(req.body.proofSize) : null, createdById: req.user.id } });
+    const created = await tx.purchasePayment.create({ data: { number: await nextDailyNumber(tx, "purchasePayment", "PAY"), supplierBillId: bill.id, amount, paidAt, method, reference: req.body.reference, proofUrl: proofUrl || null, proofFileName: req.body.proofFileName || null, proofMimeType: req.body.proofMimeType || null, proofSize: Number.isFinite(Number(req.body.proofSize)) ? Number(req.body.proofSize) : null, createdById: req.user.id } });
     await tx.supplierBill.update({ where: { id: bill.id }, data: { status: "WAITING_PAYMENT_APPROVAL" } });
     return created;
   }, { isolationLevel: "Serializable" });
