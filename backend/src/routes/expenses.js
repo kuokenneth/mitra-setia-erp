@@ -10,6 +10,7 @@ const router = express.Router();
 
 const allowedRoles = ["OWNER", "ADMIN", "STAFF"];
 const proofRoles = ["OWNER", "ADMIN", "STAFF"];
+const GIRO_DUE_DATE_START = new Date("2026-11-01T00:00:00+07:00");
 const TRIP_EXPENSE_LIMIT = Number(process.env.TRIP_EXPENSE_LIMIT || 0);
 const EXPENSE_CATEGORIES = ["PANJAR", "TRIP_ALLOWANCE", "REMAINING_TRIP_ALLOWANCE", "UNLOADING_FEE", "FUEL_LOAN", "LOADING_LOAN", "DRIVER_SALARY", "FUEL", "TOLL_PARKING", "LOADING_UNLOADING", "REPAIR_MAINTENANCE", "SPAREPART", "OFFICE_OPERATIONAL", "EMPLOYEE_SALARY", "OPERATIONAL_COST", "ELECTRICITY", "WATER", "TELECOMMUNICATION", "OFFICE_EQUIPMENT", "COMMISSION_FEE", "DOCUMENT_ADMINISTRATION", "BPJS", "TAX", "EMPLOYEE_RECEIVABLE", "FINANCE_DEBT_PAYMENT", "OTHER"];
 
@@ -721,7 +722,7 @@ router.post("/", authRequired, async (req, res) => {
       reason,
       clientName,
       notes,
-      expenseDate,
+      expenseDate: paymentMethod === "GIRO" && giroIssuedAt >= GIRO_DUE_DATE_START ? giroDueAt : expenseDate,
       tripId: tripId || null,
       truckId: truckId || null,
       employeeId: category === "EMPLOYEE_RECEIVABLE" ? (employee?.id || null) : null,
@@ -756,6 +757,35 @@ router.post("/", authRequired, async (req, res) => {
   }
 
   res.status(201).json({ ...serializeExpense(created), duplicateFlag });
+});
+
+router.patch("/:id/giro-due-date", authRequired, async (req, res) => {
+  if (!ensureRole(req, res)) return;
+
+  const dueDate = parseExpenseDate(req.body?.giroDueAt);
+  if (!dueDate) return res.status(400).json({ error: "Tanggal jatuh tempo giro tidak valid" });
+
+  const expense = await prisma.expense.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, paymentMethod: true, giroIssuedAt: true, giroDueAt: true, expenseDate: true },
+  });
+  if (!expense) return res.status(404).json({ error: "Pengeluaran tidak ditemukan" });
+  if (expense.paymentMethod !== "GIRO" || (expense.giroIssuedAt ?? expense.expenseDate) < GIRO_DUE_DATE_START) {
+    return res.status(400).json({ error: "Tindakan ini khusus Giro mulai periode November 2026" });
+  }
+  const issueDate = expense.giroIssuedAt
+    ? parseExpenseDate(expense.giroIssuedAt.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" }))
+    : GIRO_DUE_DATE_START;
+  if (dueDate < issueDate) {
+    return res.status(400).json({ error: "Tanggal jatuh tempo giro tidak boleh sebelum tanggal terbit" });
+  }
+
+  const updated = await prisma.expense.updateMany({
+    where: { ...expense },
+    data: { giroDueAt: dueDate, expenseDate: dueDate },
+  });
+  if (!updated.count) return res.status(409).json({ error: "Pengeluaran sudah berubah. Muat ulang dan coba lagi." });
+  res.json({ id: expense.id, giroDueAt: dueDate, expenseDate: dueDate });
 });
 
 // Update expense

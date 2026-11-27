@@ -191,6 +191,12 @@ export default function Expenses() {
   const [pasteTarget, setPasteTarget] = useState(null);
   const [pasteBusy, setPasteBusy] = useState(false);
   const [pasteError, setPasteError] = useState("");
+  const [giroTarget, setGiroTarget] = useState(null);
+  const [giroDate, setGiroDate] = useState("");
+  const [giroSaving, setGiroSaving] = useState(false);
+  const [giroError, setGiroError] = useState("");
+  const closeGiro = () => { if (!giroSaving) setGiroTarget(null); };
+  const { dialogRef: giroDialogRef, titleId: giroTitleId } = useDialogLifecycle(Boolean(giroTarget), closeGiro);
   const [reportMonth, setReportMonth] = useState(() => {
     const d = new Date();
     const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -566,6 +572,25 @@ export default function Expenses() {
     await uploadProofForTarget(new File([blob], `bukti-${Date.now()}.${extension}`, { type: blob.type, lastModified: Date.now() }));
   }
 
+  async function saveGiroDate(event) {
+    event.preventDefault();
+    if (giroSaving) return;
+    setGiroSaving(true);
+    setGiroError("");
+    try {
+      await api(`/expenses/${giroTarget.id}/giro-due-date`, {
+        method: "PATCH",
+        body: JSON.stringify({ giroDueAt: giroDate }),
+      });
+      setGiroTarget(null);
+      await load();
+    } catch (error) {
+      setGiroError(error.message || "Gagal menyimpan tanggal jatuh tempo giro");
+    } finally {
+      setGiroSaving(false);
+    }
+  }
+
   async function onApprove(id) {
     setRowBusy(id, "approve");
     try {
@@ -875,6 +900,14 @@ export default function Expenses() {
                   </td>
                   <td style={s.td} className="expense-actions-cell">
                     <div style={s.actionsRow} className="expense-actions">
+                      {x.paymentMethod === "GIRO" && expenseDateKey({ expenseDate: x.giroIssuedAt || x.expenseDate }) >= "2026-11-01" && (
+                        <button type="button" style={s.secondaryBtn} className="expense-action-button" onClick={(event) => {
+                          event.stopPropagation();
+                          setGiroError("");
+                          setGiroDate(x.giroDueAt ? expenseDateKey({ expenseDate: x.giroDueAt }) : "");
+                          setGiroTarget(x);
+                        }}><FiCalendar /> Tgl Jatuh Tempo</button>
+                      )}
                       {x.proofUrl ? (
                         <div onClick={(e) => e.stopPropagation()}>
                           <ProtectedFilePreview url={x.proofUrl} mimeType={x.proofMimeType} fileName={x.proofFileName || "Bukti expense"} imageStyle={{ width: 68, height: 46, objectFit: "cover", borderRadius: 7 }} onError={(e) => setErr(e.message)} />
@@ -928,6 +961,26 @@ export default function Expenses() {
         </div>
 
       </div>
+
+      {giroTarget && (
+        <div className="ms-dialog-overlay" style={s.modalOverlay} onClick={closeGiro}>
+          <form ref={giroDialogRef} role="dialog" aria-modal="true" aria-labelledby={giroTitleId} tabIndex={-1} className="ms-dialog" style={s.modalCard} onClick={(event) => event.stopPropagation()} onSubmit={saveGiroDate}>
+            <header className="ms-dialog-head">
+              <div><h2 id={giroTitleId}>Tanggal Jatuh Tempo Giro</h2><p>{giroTarget.reason}</p></div>
+              <button type="button" style={s.closeBtn} disabled={giroSaving} onClick={closeGiro} aria-label="Tutup"><FiX /></button>
+            </header>
+            <div className="ms-dialog-body">
+              <label style={s.label}>Tanggal jatuh tempo<input required type="date" style={{ ...s.input, marginTop: 6 }} min={giroTarget.giroIssuedAt ? expenseDateKey({ expenseDate: giroTarget.giroIssuedAt }) : undefined} value={giroDate} onChange={(event) => setGiroDate(event.target.value)} /></label>
+              <p>Pengeluaran akan tampil pada tanggal jatuh tempo yang dipilih.</p>
+              {giroError && <p role="alert">{giroError}</p>}
+            </div>
+            <footer className="ms-dialog-foot">
+              <button type="button" style={s.secondaryBtn} disabled={giroSaving} onClick={closeGiro}>Batal</button>
+              <button type="submit" style={s.primaryBtn} disabled={giroSaving}>{giroSaving ? "Menyimpan…" : "Simpan"}</button>
+            </footer>
+          </form>
+        </div>
+      )}
 
       {pasteTarget && (
         <div className="ms-dialog-overlay" style={s.modalOverlay} onClick={() => !pasteBusy && setPasteTarget(null)}>
